@@ -56,7 +56,7 @@ Start by cloning the MarImBA repository:
 git clone https://bitbucket.csiro.au/scm/biaa/marimba.git
 ```
 
-In the future we are anticipating making MarImBA an official [PyPI](https://pypi.org/) package, which will be installable with `pip install marimba` and usable anywhere on 
+In the future we are anticipating making MarImBA an official [PyPI](https://pypi.org/) package, which will be installable with `pip install marimba` and usable anywhere on your system.
 
 <a name="project-structure"></a>
 ### Project structure
