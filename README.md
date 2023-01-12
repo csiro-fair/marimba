@@ -188,6 +188,9 @@ There have been many contributors to this project including:
 * Nick Mortimer - (CSIRO Environment)
 * Aaron Tyndall - (CSIRO NCMI)
 * David Webb - (CSIRO NCMI)
+* Karl Forcey - (CSIRO NCMI)
+* Brett Muir - (CSIRO NCMI)
+* Bec Gorton - (CSIRO Environment)
 * ...
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
