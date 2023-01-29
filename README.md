@@ -28,7 +28,7 @@ This repository contains the MarImBA Python CLI (Command Line Interface) which i
 * Integration with the [iFDO](https://marine-imaging.com/fair/ifdos/iFDO-overview/) (image FAIR Digital Object) standards
 * Image conversion, compression and resizing using Python [Pillow](https://pypi.org/project/Pillow/)
 * Video transcoding, chunking and frame extraction using [Ffmpeg](https://ffmpeg.org/)
-* Automated logfile capturing to archive the image processing provenance
+* Automated logfile capturing to archive image processing provenance
 
 MarImBA can be used directly after data acquisition has occurred and can efficiently produce well-described image datasets that are aligned with the FAIR data standards.
 
@@ -37,6 +37,7 @@ MarImBA can be used directly after data acquisition has occurred and can efficie
 ## Contents
 
 - [Getting started](#getting-started)
+  - [Install](#install)
   - [Project structure](#project-structure)
   - [Set up Python virtual environment](#python-virtual-environment)
 - [Usage](#usage)
@@ -50,13 +51,23 @@ MarImBA can be used directly after data acquisition has occurred and can efficie
 <a name="getting-started"></a>
 ## Getting started
 
-Start by cloning the MarImBA repository:
+<a name="install"></a>
+### Install
+
+MarImBA has a few system level dependencies such as `ffmpeg` and `ffprobe` (which is installed with `ffmpeg`) (it would be very nice to move away from this, especially if we can find a cross-platform pip ffmpeg library!). On Ubuntu you can install `ffmpeg` with:
+
+```bash
+sudo apt install ffmpeg
+```
+
+Then clone the MarImBA repository:
 
 ```bash
 git clone https://bitbucket.csiro.au/scm/biaa/marimba.git
 ```
 
 In the future we are anticipating making MarImBA an official [PyPI](https://pypi.org/) package, which will be installable with `pip install marimba` and usable anywhere on your system.
+
 
 <a name="project-structure"></a>
 ### Project structure
@@ -118,7 +129,7 @@ pip install -r requirements.txt
 <a name="usage"></a>
 ## Usage
 
-MarImBA is based on the [Typer](https://typer.tiangolo.com/) Python package which provides good documentation by default. Try running MarImBA to see the default help menu:
+MarImBA is based on the [Typer](https://typer.tiangolo.com/) Python package which is self-documenting by default. Try running MarImBA to see the default help menu:
 
 ```bash
 python src/marimba.py
@@ -133,7 +144,7 @@ python src/marimba.py
 <a name="contributing"></a>
 ## Contributing
 
-This is an open-source project and we welcome contibutions. If you have a suggestion that would make this better, please clone the repo and submit a pull request.
+This is an open-source project and we welcome contibutions. If you have a suggestion that would make MarImBA better, please clone the repo and submit a pull request.
 
 1. Clone the project: <a href="#getting-started">Getting Started</a>
 2. Create your new feature branch: 
