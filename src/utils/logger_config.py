@@ -54,7 +54,7 @@ class LoggerConfig:
         "disable_existing_loggers": False,
         "handlers": {
             "console": {
-                "level": "INFO",
+                "level": "DEBUG",
                 "class": "rich.logging.RichHandler",
                 "log_time_format": "[%Y-%m-%d %H:%M:%S,%f]",
                 "markup": True,

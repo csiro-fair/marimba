@@ -85,6 +85,7 @@ def copy(
 def rename(
         source_path: str = typer.Argument(..., help="Source path to rename files."),
         ifdo_path: str = typer.Argument(None, help="Optional path to minimal survey/deployment iFDO file. Source directory will be searched for valid ifdo file if not provided."),
+        destination_path: str = typer.Option(None, help="Destination path to output files."),
         recursive: bool = typer.Option(True, help="Recursively process entire directory structure."),
         overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
@@ -93,7 +94,7 @@ def rename(
     Rename files and construct folder structure based on instrument specification file identified in the input iFDO.
     """
 
-    rename_files(source_path, ifdo_path, recursive, overwrite, dry_run)
+    rename_files(source_path, ifdo_path, destination_path, recursive, overwrite, dry_run)
 
 
 @marimba.command()
