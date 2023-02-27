@@ -64,7 +64,7 @@ def config(
     Create the initial minimal survey/deployment config file by answering a series of questions.
     """
 
-    create_config(output_path, overwrite, dry_run)
+    create_config(level, output_path, overwrite, dry_run)
 
 
 @marimba.command()
