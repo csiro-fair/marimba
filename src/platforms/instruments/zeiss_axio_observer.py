@@ -27,10 +27,10 @@ dictConfig(LoggerConfig.richConfig)
 
 class ZeissAxioObserver(Instrument):
 
-    def __init__(self, ifdo: dict):
+    def __init__(self, config: dict):
 
-        # Get info from iFDO
-        image_set_header = ifdo.get("image-set-header")
+        # Get info from config
+        image_set_header = config.get("image-set-header")
         self.platform = image_set_header.get("image-platform")
         self.sensor = image_set_header.get("image-sensor")
         self.filetype = image_set_header.get("image-acquisition")
