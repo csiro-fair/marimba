@@ -120,6 +120,8 @@ class ZeissAxioObserver(Instrument):
 
     def get_manual_metadata_fields(self) -> bool:
 
+        # TODO: Get fields from directory name and confirm with user. Regex for directory name.
+
         # Request the strain identifier
         strain_identifier = typer.prompt("Please enter ANACC strain identifier (e.g. CS422)")
         if not self.is_strain_identifier_correct(strain_identifier):
