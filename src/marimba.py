@@ -57,8 +57,8 @@ def qc(
 @marimba.command()
 def catalogue(
         source_path: str = typer.Argument(..., help="Source path for catalogue."),
-        exiftool_path: str = typer.Option(..., help="Path to exiftool"),
-        file_extension: str = typer.Option("*.JPG", help="extension to catalogue"),
+        exiftool_path: str = typer.Option('exiftool', help="Path to exiftool"),
+        file_extension: str = typer.Option("JPG", help="extension to catalogue"),
         glob_path: str = typer.Option('**', help="masked used in glob"),
         overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),   
 ):
