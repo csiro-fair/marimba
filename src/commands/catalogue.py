@@ -47,7 +47,7 @@ def catalogue_files(
     for value in track(range(len(dirstoprocess)), description="Cataloguing..."):
         source = os.path.join(source_path,os.path.dirname(dirstoprocess[value]),f'*.{file_extension}')
         if glob.glob(source):
-            file = os.path.normpath(os.path.join(dirstoprocess[value],f'.exif_{file_extension}.json'))
+            file = os.path.normpath(os.path.join(dirstoprocess[value],f'.exif_{file_extension.lower()}.json'))
             command =f'"{exiftool_path}" -api largefile=1 -json -ext {file_extension} "{dirstoprocess[value]}" > "{file}"'
             if overwrite or not os.path.exists(file):
                 subprocess.run(command, shell=True, check=True)
