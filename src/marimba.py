@@ -15,6 +15,7 @@ from commands.ifdo import create_base_ifdo
 from commands.qc import run_qc
 from commands.metadata import merge_metadata
 from commands.rename import rename_files
+from commands.catalogue import catalogue_files
 
 parent_directory = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.append(parent_directory)
@@ -53,6 +54,19 @@ def qc(
     run_qc(source_path)
 
 
+@marimba.command()
+def catalogue(
+        source_path: str = typer.Argument(..., help="Source path for catalogue."),
+        exiftool_path: str = typer.Option(..., help="Path to exiftool"),
+        file_extension: str = typer.Option("*.JPG", help="extension to catalogue"),
+        glob_path: str = typer.Option('**', help="masked used in glob"),
+        overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),   
+):
+    """
+    Create an exif catalogue of files stored in .exif_{extension}
+    """
+    catalogue_files(source_path, file_extension, exiftool_path,glob_path,overwrite)
+    
 @marimba.command()
 def ifdo(
         output_path: str = typer.Argument(..., help="Output path for minimal iFDO file."),
