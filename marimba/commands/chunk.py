@@ -7,7 +7,7 @@ from rich import print
 from rich.panel import Panel
 from rich.console import Console
 
-import utils.file_system as fs
+import marimba.utils.file_system as fs
 
 
 def check_input_args(
@@ -55,7 +55,7 @@ def chunk_files(input_path: str, output_path: str, chunk_length: int):
     logging.info(f"Input path is: {input_path}")
     logging.info(f"Output path is: {output_path}")
 
-    fs.create_directory_path_if_not_existing(output_path)
+    fs.create_directory_if_necessary(output_path)
 
     # with console.status("[bold green]Chunking video files...") as status:
     for directory_path, _, files in os.walk(input_path):
@@ -96,7 +96,7 @@ def chunk_files(input_path: str, output_path: str, chunk_length: int):
                         new_output_path = os.path.join(output_path, campaign_name + "_" + year)
 
                     if not os.path.isdir(new_output_path):
-                        fs.create_directory_path_if_not_existing(new_output_path)
+                        fs.create_directory_if_necessary(new_output_path)
 
                     output_file_path = os.path.join(new_output_path, file_name + "_C" + str(index + 1).zfill(3) + ".MP4")
 

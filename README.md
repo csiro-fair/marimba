@@ -39,7 +39,8 @@ MarImBA can be used directly after data acquisition has occurred and can efficie
 - [Getting started](#getting-started)
   - [Install](#install)
   - [Project structure](#project-structure)
-  - [Set up Python virtual environment](#python-virtual-environment)
+  - [Set up Poetry envionment](#python-poetry)
+  - [Build](#poetry-build)
 - [Usage](#usage)
 - [Contributing](#contributing)
 - [License](#license)
@@ -83,7 +84,7 @@ The specific structure for this project is:
 marimba
 └───doc                         - Documentation files for MarImBA
 └───img                         - Images for this README.md file
-└───src                         - Source directory containing the MarImBA Python CLI application code
+└───marimba                     - Source directory containing the MarImBA Python CLI application code
 │   │
 │   └───naming                  - File naming schemes for different instruments
 │   └───utils                   - Utility modules
@@ -104,22 +105,42 @@ marimba
 ```
 
 
-<a name="python-virtual-environment"></a>
-### Set up Python virtual environment
+<a name="python-poetry"></a>
+### Set up Poetry envionment
 
-Let's install a Python virtual environment into the marimba/env directory.
+Let's install the Python dependencies into a virtual environment using [Poetry](https://python-poetry.org/). If you don't have Poetry installed, you can install it with:
 
 ```bash
-cd marimba
-python3 -m venv env
-source env/bin/activate
+pip install poetry
 ```
 
-Upgrade pip and install Python packages from requirements.txt:
+Then, from the root directory of the MarImBA project, run:
 
 ```bash
-pip install --upgrade pip
-pip install -r requirements.txt
+poetry install
+poetry shell
+```
+
+This will create a new environment, install the package dependencies and activate the environment. You can now run the MarImBA CLI application from the activated environment:
+
+```bash
+marimba --help
+```
+
+
+<a name="poetry-build"></a>
+### Build
+
+To build MarImBA application as a Python wheel, run:
+
+```bash
+poetry build
+```
+
+This will create a `dist` directory containing the built wheel package. You can then install the package anywhere with pip, e.g.:
+
+```bash
+pip install dist/marimba-0.1.0-py3-none-any.whl
 ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -132,7 +153,7 @@ pip install -r requirements.txt
 MarImBA is based on the [Typer](https://typer.tiangolo.com/) Python package which is self-documenting by default. Try running MarImBA to see the default help menu:
 
 ```bash
-python src/marimba.py
+marimba
 ```
 
 ![](img/marimba_default-help.png "marimba_default-help")

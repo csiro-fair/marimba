@@ -6,7 +6,7 @@ import typer
 from rich import print
 from rich.panel import Panel
 
-import utils.file_system as fs
+import marimba.utils.file_system as fs
 
 
 def check_input_args(
@@ -37,7 +37,7 @@ def copy_files(
             input_file_path = os.path.join(directory_path, file)
             output_file_path = os.path.join(destination_path, file)
 
-            fs.create_directory_path_if_not_existing(destination_path)
+            fs.create_directory_if_necessary(destination_path)
 
             if input_file_path == output_file_path:
                 logging.info(f'File already exists at "{output_file_path}"')

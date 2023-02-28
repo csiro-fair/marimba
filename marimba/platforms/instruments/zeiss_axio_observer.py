@@ -10,8 +10,9 @@ import czifile
 import dateutil.parser
 import pandas as pd
 import typer
-from utils.logger_config import LoggerConfig
-from platforms.instruments.base import Instrument
+
+from marimba.utils.logger_config import LoggerConfig
+from marimba.platforms.instruments.base import Instrument
 
 __author__ = "Chris Jackett"
 __copyright__ = "Copyright 2022, Environment, CSIRO"
@@ -27,10 +28,10 @@ dictConfig(LoggerConfig.richConfig)
 
 class ZeissAxioObserver(Instrument):
 
-    def __init__(self, ifdo: dict):
+    def __init__(self, config: dict):
 
-        # Get info from iFDO
-        image_set_header = ifdo.get("image-set-header")
+        # Get info from config
+        image_set_header = config.get("image-set-header")
         self.platform = image_set_header.get("image-platform")
         self.sensor = image_set_header.get("image-sensor")
         self.filetype = image_set_header.get("image-acquisition")
@@ -243,3 +244,9 @@ class ZeissAxioObserver(Instrument):
     #
     #     # Return list of extracted identifiers
     #     return filename_identifiers
+
+    @classmethod
+    def prompt_config(cls):
+        return [
+            ("imaging-system", "Please enter the imaging system:")
+        ]
