@@ -3,9 +3,10 @@ import os
 import subprocess
 
 import typer
-import utils.file_system as fs
 from rich import print
 from rich.panel import Panel
+
+import marimba.utils.file_system as fs
 
 
 def check_input_args(
@@ -52,7 +53,7 @@ def convert_files(
     logging.info(f"Input path is: {source_path}")
     logging.info(f"Output path is: {destination_path}")
 
-    fs.create_directory_path_if_not_existing(destination_path)
+    fs.create_directory_if_necessary(destination_path)
 
     for directory_path, _, files in os.walk(source_path):
 

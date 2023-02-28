@@ -6,7 +6,7 @@ import typer
 from rich import print
 from rich.panel import Panel
 
-import utils.file_system as fs
+import marimba.utils.file_system as fs
 
 def check_input_args(
     source_path: str,
@@ -85,7 +85,7 @@ def extract_frames(
                     # if not os.path.isfile(output_file_path):
                     if not os.path.isdir(new_output_path):
 
-                        fs.create_directory_path_if_not_existing(new_output_path)
+                        fs.create_directory_if_necessary(new_output_path)
 
                         output_file_path = os.path.join(new_output_path, file_name + "_F%06d.JPG")
                         # Note: Make sure the -i flag comes after the -ss and -to flags so that ffmpeg uses fast seeking

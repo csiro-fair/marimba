@@ -1,26 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
-import sys
 from logging.config import dictConfig
 
 import typer
 
-from commands.convert import convert_files
-from commands.chunk import chunk_files
-from commands.extract import extract_frames
-from commands.copy import copy_files
-from commands.ifdo import create_base_ifdo
-from commands.qc import run_qc
-from commands.metadata import merge_metadata
-from commands.rename import rename_files
-from commands.catalogue import catalogue_files
-
-parent_directory = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.append(parent_directory)
-
-from utils.logger_config import LoggerConfig
+from marimba.commands.convert import convert_files
+from marimba.commands.chunk import chunk_files
+from marimba.commands.extract import extract_frames
+from marimba.commands.copy import copy_files
+from marimba.commands.config import create_config, ConfigLevel
+from marimba.commands.qc import run_qc
+from marimba.commands.metadata import merge_metadata
+from marimba.commands.rename import rename_files
+from marimba.utils.logger_config import LoggerConfig
+from marimba.commands.catalogue import catalogue_files
 
 __author__ = "Chris Jackett"
 __copyright__ = "Copyright 2023, Environment, CSIRO"
@@ -51,7 +45,7 @@ def qc(
     Run quality control code on files to check for anomalies and generate datasets statistics.
     """
 
-    run_qc(source_path)
+    run_qc(source_path,recursive)
 
 
 @marimba.command()
@@ -67,17 +61,15 @@ def catalogue(
     """
     catalogue_files(source_path, file_extension, exiftool_path,glob_path,overwrite)
     
-@marimba.command()
-def ifdo(
-        output_path: str = typer.Argument(..., help="Output path for minimal iFDO file."),
-        overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
-        dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+def config(
+        level: ConfigLevel = typer.Argument(..., help="Level of config file to create."),
+        output_path: str = typer.Argument(..., help="Output path for minimal config file."),
 ):
     """
-    Create the initial minimal survey/deployment iFDO file by answering a series of questions.
+    Create the initial minimal survey/deployment config file by answering a series of questions.
     """
 
-    create_base_ifdo(output_path, overwrite, dry_run)
+    create_config(level, output_path)
 
 
 @marimba.command()
@@ -98,23 +90,23 @@ def copy(
 @marimba.command()
 def rename(
         source_path: str = typer.Argument(..., help="Source path to rename files."),
-        ifdo_path: str = typer.Argument(None, help="Optional path to minimal survey/deployment iFDO file. Source directory will be searched for valid ifdo file if not provided."),
+        config_path: str = typer.Argument(None, help="Optional path to minimal survey/deployment config file. Source directory will be searched for valid config file if not provided."),
         destination_path: str = typer.Option(None, help="Destination path to output files."),
         recursive: bool = typer.Option(True, help="Recursively process entire directory structure."),
         overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
-    Rename files and construct folder structure based on instrument specification file identified in the input iFDO.
+    Rename files and construct folder structure based on instrument specification file identified in the input config.
     """
 
-    rename_files(source_path, ifdo_path, destination_path, recursive, overwrite, dry_run)
+    rename_files(source_path, config_path, destination_path, recursive, overwrite, dry_run)
 
 
 @marimba.command()
 def metadata(
         source_path: str = typer.Argument(..., help="Source path of files."),
-        ifdo_path: str = typer.Argument(..., help="Path to minimal survey/deployment iFDO file."),
+        config_path: str = typer.Argument(..., help="Path to minimal survey/deployment config file."),
         recursive: bool = typer.Option(True, help="Recursively process entire directory structure."),
         overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
@@ -123,7 +115,7 @@ def metadata(
     Process and write metadata including merging nav data files, writing metadata into image EXIF fields, and writing iFDO files into the dataset directory structure.
     """
 
-    merge_metadata(source_path, ifdo_path, recursive, overwrite, dry_run)
+    merge_metadata(source_path, config_path, recursive, overwrite, dry_run)
 
 
 @marimba.command()
@@ -154,7 +146,7 @@ def chunk(
     Chunk video files into fixed-length videos (default 10 seconds).
     """
 
-    chunk_files(source_path, destination_path, chunk_length, recursive, overwrite, dry_run)
+    chunk_files(source_path, destination_path, chunk_length)
 
 
 @marimba.command()
