@@ -6,7 +6,7 @@ import logging
 import os
 from logging.config import dictConfig
 
-from utils.logger_config import LoggerConfig
+from marimba.utils.logger_config import LoggerConfig
 
 __author__ = "Chris Jackett"
 __copyright__ = "Copyright 2021, National Collections and Marine Infrastructure, CSIRO"

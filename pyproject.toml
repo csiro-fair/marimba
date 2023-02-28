@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "marimba"
+version = "0.1.0"
+description = "Marine Imagery Batch Actions"
+authors = ["Kevin Barnard <kbarnard@mbari.org>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+typer = "^0.7.0"
+rich = "^13.3.1"
+PyYAML = "^6.0"
+czifile = "^2019.7.2"
+python-dateutil = "^2.8.2"
+pandas = "^1.5.3"
+
+[tool.poetry.scripts]
+marimba = "marimba.marimba:marimba"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 150
+
