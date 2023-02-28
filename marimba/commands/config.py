@@ -6,7 +6,7 @@ import typer
 from rich import print
 from rich.panel import Panel
 
-from utils.config import read_config, save_config
+from marimba.utils.config import load_config, save_config
 
 
 class ConfigLevel(str, Enum):
@@ -46,7 +46,7 @@ def create_survey_config(
     if os.path.isfile(output_path):
 
         logging.info(f"Survey config file already exists: {output_path}")
-        config = read_config(output_path)
+        config = load_config(output_path)
 
         existing_surveys = config.get("surveys")
         if survey_id in existing_surveys:
@@ -82,7 +82,7 @@ def create_deployment_config(
         print(Panel(f"The is no survey-level config at [bold]{output_path}[/bold]", title="Error", title_align="left", border_style="red"))
         raise typer.Exit()
     else:
-        config = read_config(output_path)
+        config = load_config(output_path)
         existing_surveys = config.get("surveys")
 
         survey_id = typer.prompt("Please enter survey ID (e.g. IN2018_V06)")

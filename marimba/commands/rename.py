@@ -6,12 +6,10 @@ import shutil
 import sys
 
 import typer
-import utils.file_system as fs
-# TODO: Need to look into a better way to import all instrument classes from platforms.instruments
-from platforms.instruments import *
 from rich import print
 from rich.panel import Panel
-from utils.config import read_config
+import marimba.utils.file_system as fs
+from marimba.utils.config import load_config
 
 
 def check_input_args(source_path: str, config_path: str) -> str:

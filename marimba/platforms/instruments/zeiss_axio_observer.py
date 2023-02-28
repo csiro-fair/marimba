@@ -10,8 +10,9 @@ import czifile
 import dateutil.parser
 import pandas as pd
 import typer
-from utils.logger_config import LoggerConfig
-from platforms.instruments.base import Instrument
+
+from marimba.utils.logger_config import LoggerConfig
+from marimba.platforms.instruments.base import Instrument
 
 __author__ = "Chris Jackett"
 __copyright__ = "Copyright 2022, Environment, CSIRO"
