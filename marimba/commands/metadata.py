@@ -56,16 +56,17 @@ def merge_metadata(
 ):
     check_input_args(source_path, config_path)
 
-    #load existing ifdo
+    #load existing ifdo to get images and timestamps
     with open(ifdo_path) as file:
         try:
             ifdo_dict = yaml.safe_load(file)
         except yaml.YAMLError as exc:
             print(exc)
 
-    ifdo_df = pd.DataFrame.from_dict(ifdo_dict['image-set-items'],orient='index').reset_index()
+    #convert to pandas for merging with nav data 
+    ifdo_df = pd.DataFrame.from_dict(ifdo_dict['image-set-items'], orient='index').reset_index()
 
-    #load metadata config
+    #load metadata config for mapping nav data
     with open('src/config/metadata.yml') as file:
         try:
             metadata_config = yaml.safe_load(file)
@@ -74,24 +75,35 @@ def merge_metadata(
 
     #load nav data
     for file in glob.iglob(f'{source_path}/*.CSV'):
-        df = pd.read_csv(file)
+        nav_df = pd.read_csv(file)
 
-    #merge nav data into ifdo
     logging.info(f"Merging metadata from source directory: {source_path}")
 
-    df_cleaned = df.rename(columns={metadata_config['ifdo-image-set-items']['image-datetime']:'image-datetime'})
-    ifdo_merge = ifdo_df.merge(df_cleaned, on='image-datetime', how='left')
-    ifdo_cleaned = (
-        ifdo_merge.iloc[ifdo_merge['index'].drop_duplicates().index]
+    #rename datetime column from config for merge
+    nav_df_renamed = nav_df.rename(
+        columns = {
+            metadata_config['ifdo-image-set-items']['image-datetime']:'image-datetime'
+        }
+    )
+
+    #merge nav data into ifdo
+    ifdo_df_merged = ifdo_df.merge(nav_df_renamed, on='image-datetime', how='left')
+
+    #dropping duplicates in case there's not a 1-1 match. Could probably think of a more intelligent way to select from duplicates, or leave for user to make sure they provide cleaned data
+    #alternatively may want to raise exception if there are duplicates
+    ifdo_df_renamed = (
+        ifdo_df_merged.iloc[ifdo_df_merged['index'].drop_duplicates().index]
         .rename(
             columns=invert_map(metadata_config['ifdo-image-set-items'])
         )
         .rename(
-            columns=invert_map(metadata_config['additional-image-set-items'])
+            columns=invert_map(metadata_config['additional-image-set-items']) #leaving non-ifdo fields as separate in case we want to handle them differently later
         )
     )
-    new_ifdo_dict = ifdo_cleaned.set_index('index').to_dict('index')
-    ifdo_dict['image-set-items'] = new_ifdo_dict
+
+    #update image set items to include nav data
+    ifdo_dict['image-set-items'] = ifdo_df_renamed.set_index('index').to_dict('index')
+
 
     #overwrite ifdo file with updated info
     with open(ifdo_path, 'w') as file:

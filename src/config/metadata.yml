@@ -1,5 +1,5 @@
 ---  #Configuration file for nav data
-# The following fields will be searched for in nav data files and mapped to corresponding iFDO set-items
+# The following fields (values) will be searched for in nav data files (read in by metadata.py) and mapped to the corresponding iFDO set-items (keys)
 
 ifdo-image-set-items:
   image-datetime: "Date"
