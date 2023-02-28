@@ -14,11 +14,13 @@ czifile = "^2019.7.2"
 python-dateutil = "^2.8.2"
 pandas = "^1.5.3"
 
-
 [tool.poetry.scripts]
 marimba = "marimba.marimba:marimba"
-
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 150
+
