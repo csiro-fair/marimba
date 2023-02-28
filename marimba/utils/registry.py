@@ -1,7 +1,7 @@
 from typing import List
 
-from platforms.instruments.base import Instrument
-from platforms.instruments.zeiss_axio_observer import ZeissAxioObserver
+from marimba.platforms.instruments.base import Instrument
+from marimba.platforms.instruments.zeiss_axio_observer import ZeissAxioObserver
 
 
 class Registry:

@@ -6,7 +6,7 @@ import typer
 from rich import print
 from rich.panel import Panel
 
-import utils.file_system as fs
+import marimba.utils.file_system as fs
 
 
 def check_input_args(

@@ -6,7 +6,7 @@ import typer
 from rich import print
 from rich.panel import Panel
 
-from utils.config import save_config
+from marimba.utils.config import save_config
 
 
 class ConfigLevel(str, Enum):

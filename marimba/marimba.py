@@ -1,25 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
-import sys
 from logging.config import dictConfig
 
 import typer
 
-from commands.convert import convert_files
-from commands.chunk import chunk_files
-from commands.extract import extract_frames
-from commands.copy import copy_files
-from commands.config import create_config, ConfigLevel
-from commands.qc import run_qc
-from commands.metadata import merge_metadata
-from commands.rename import rename_files
-
-parent_directory = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.append(parent_directory)
-
-from utils.logger_config import LoggerConfig
+from marimba.commands.convert import convert_files
+from marimba.commands.chunk import chunk_files
+from marimba.commands.extract import extract_frames
+from marimba.commands.copy import copy_files
+from marimba.commands.config import create_config, ConfigLevel
+from marimba.commands.qc import run_qc
+from marimba.commands.metadata import merge_metadata
+from marimba.commands.rename import rename_files
+from marimba.utils.logger_config import LoggerConfig
 
 __author__ = "Chris Jackett"
 __copyright__ = "Copyright 2023, Environment, CSIRO"
