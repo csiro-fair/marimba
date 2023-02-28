@@ -57,14 +57,12 @@ def qc(
 def config(
         level: ConfigLevel = typer.Argument(..., help="Level of config file to create."),
         output_path: str = typer.Argument(..., help="Output path for minimal config file."),
-        overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
-        dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
     Create the initial minimal survey/deployment config file by answering a series of questions.
     """
 
-    create_config(level, output_path, overwrite, dry_run)
+    create_config(level, output_path)
 
 
 @marimba.command()

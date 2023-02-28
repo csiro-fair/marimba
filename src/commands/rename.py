@@ -11,7 +11,7 @@ import utils.file_system as fs
 from platforms.instruments import *
 from rich import print
 from rich.panel import Panel
-from utils.config import load_config
+from utils.config import read_config
 
 
 def check_input_args(source_path: str, config_path: str) -> str:

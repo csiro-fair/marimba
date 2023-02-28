@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Iterable, Tuple
 
 
 class Instrument(ABC):
@@ -29,3 +30,8 @@ class Instrument(ABC):
     @abstractmethod
     def get_manual_metadata_fields(self) -> bool:
         return True
+
+    @classmethod
+    @abstractmethod
+    def prompt_config(cls) -> Iterable[Tuple[str, str]]:
+        raise NotImplemented

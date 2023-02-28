@@ -243,3 +243,9 @@ class ZeissAxioObserver(Instrument):
     #
     #     # Return list of extracted identifiers
     #     return filename_identifiers
+
+    @classmethod
+    def prompt_config(cls):
+        return [
+            ("imaging-system", "Please enter the imaging system:")
+        ]
