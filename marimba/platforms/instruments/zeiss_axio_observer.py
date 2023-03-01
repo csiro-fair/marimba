@@ -250,5 +250,5 @@ class ZeissAxioObserver(Instrument):
     @classmethod
     def prompt_config(cls):
         return [
-            ("imaging-system", "Please enter the imaging system:")
+            ("imaging-system", "Please enter the imaging system")
         ]

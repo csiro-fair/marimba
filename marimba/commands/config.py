@@ -7,6 +7,7 @@ from rich import print
 from rich.panel import Panel
 
 from marimba.utils.config import load_config, save_config
+from marimba.utils.registry import Registry
 
 
 class ConfigLevel(str, Enum):
@@ -33,6 +34,23 @@ def check_input_args(
         raise typer.Exit()
 
 
+def get_instrument_config(
+        image_platform: str
+) -> dict:
+    try:
+        instrument_class = Registry.get(image_platform)
+    except ValueError:
+        print(Panel(f"Image platform '{image_platform}' is not a valid option.", title="Error", title_align="left", border_style="red"))
+        raise typer.Exit()
+
+    instrument_config = {}
+    for key, prompt_str in instrument_class.prompt_config():
+        value = typer.prompt(prompt_str)
+        instrument_config[key] = value
+
+    return instrument_config
+
+
 def create_survey_config(
         output_dir: str,
 ):
@@ -42,6 +60,10 @@ def create_survey_config(
     survey_config = {}
     for key, prompt in SURVEY_KEY_PROMPTS:
         survey_config[key] = typer.prompt(prompt)
+
+    add_survey_level_config = typer.confirm("Do you have survey-level config?")
+    if add_survey_level_config:
+        survey_config["config"] = get_instrument_config(survey_config["image-platform"])
 
     if os.path.isfile(output_path):
 
@@ -79,7 +101,7 @@ def create_deployment_config(
     output_path = os.path.join(output_dir, "survey_config.yml")
 
     if not os.path.isfile(output_path):
-        print(Panel(f"The is no survey-level config at [bold]{output_path}[/bold]", title="Error", title_align="left", border_style="red"))
+        print(Panel(f"There is no survey-level config at [bold]{output_path}[/bold]", title="Error", title_align="left", border_style="red"))
         raise typer.Exit()
     else:
         config = load_config(output_path)
@@ -95,21 +117,20 @@ def create_deployment_config(
             for key, prompt in DEPLOYMENT_KEY_PROMPTS:
                 deployment_config[key] = typer.prompt(prompt)
 
-            existing_deployments = existing_surveys[survey_id]["deployments"]
-            if deployment_id in existing_deployments:
-                logging.info(f"Found matching deployment ID - replacing config...")
-                for key, _ in DEPLOYMENT_KEY_PROMPTS:
-                    existing_surveys[survey_id]["deployments"][deployment_id][key] = deployment_config[key]
-
+            # If no survey level config, ...
+            if not existing_surveys[survey_id].get("config"):
+                deployment_config["config"] = get_instrument_config(existing_surveys[survey_id]["image-platform"])
             else:
-                logging.info(f"No matching deployment ID - appending config...")
-                existing_deployments[deployment_id] = deployment_config
+                add_deployment_level_config = typer.confirm("Do you have deployment-level config?")
+                if add_deployment_level_config:
+                    deployment_config["config"] = get_instrument_config(existing_surveys[survey_id]["image-platform"])
 
+            existing_surveys[survey_id]["deployments"][deployment_id] = deployment_config
             save_config(output_path, config)
             logging.info(f"Saving deployment-level config file at: {output_path}")
 
         else:
-            print(Panel(f"The is no survey-level config at [bold]{output_path}[/bold]", title="Error", title_align="left", border_style="red"))
+            print(Panel(f'There is no survey ID "{survey_id}" in config at [bold]{output_path}[/bold]', title="Error", title_align="left", border_style="red"))
             raise typer.Exit()
 
 
