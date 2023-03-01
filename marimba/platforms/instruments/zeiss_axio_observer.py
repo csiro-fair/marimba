@@ -250,5 +250,9 @@ class ZeissAxioObserver(Instrument):
     @classmethod
     def prompt_config(cls):
         return [
-            ("imaging-system", "Please enter the imaging system")
+            # # TODO: Need to check if these exist upstream (in survey config) before querying
+            # ("imaging-system-identifier", "Please enter the imaging system identifier"),
+            # ("strain-identifier", "Please enter the strain identifier"),
+            # ("contrast-identifier", "Please enter the contrast identifier"),
+            # ("biological-stain-identifier", "Please enter the biological stain identifier")
         ]
