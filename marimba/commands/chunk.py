@@ -14,6 +14,13 @@ def check_input_args(
     source_path: str,
     destination_path: str
 ):
+    """
+    Check the input arguments for the chunk command.
+    
+    Args:
+        source_path: The path to the directory containing the files to be chunked.
+        destination_path: The path to the directory where the chunked files will be saved.
+    """
     # Check if source_path is valid
     if not os.path.isdir(source_path):
         print(Panel(f"The source_path argument [bold]{source_path}[/bold] is not a valid directory path", title="Error", title_align="left", border_style="red"))
@@ -27,8 +34,19 @@ def chunk_files(
     chunk_length: int,
     recursive: bool,
     overwrite: bool,
-    dry_run: bool,
+    dry_run: bool
 ):
+    """
+    Chunks video files into smaller chunks of a specified length.
+    
+    Args:
+        source_path: The path to the directory containing the files to be chunked.
+        destination_path: The path to the directory where the chunked files will be saved.
+        chunk_length: The length of each chunk.
+        recursive: Whether to chunk files recursively.
+        overwrite: Whether to overwrite existing output files.
+        dry_run: Whether to run the command without actually doing anything.
+    """
     check_input_args(source_path)
 
     logging.info(f"Chunking files recursively from: {source_path}")
@@ -36,6 +54,15 @@ def chunk_files(
 
 # Get the duration of the video in milliseconds using ffprobe
 def get_video_duration(file: str) -> float:
+    """
+    Get a video's duration in milliseconds using ffprobe.
+    
+    Args:
+        file: The path to the video file.
+    
+    Returns:
+        The duration of the video in milliseconds.
+    """
     try:
         duration = float(subprocess.check_output(['ffprobe', '-i', file, '-show_entries', 'format=duration', '-v', 'quiet', '-of', 'default=noprint_wrappers=1:nokey=1']))
         logging.debug('get_video_duration: ' + str(int(duration * 1000)))
@@ -47,7 +74,12 @@ def get_video_duration(file: str) -> float:
 
 def chunk_files(input_path: str, output_path: str, chunk_length: int):
     """
-    Chunks video into
+    Chunks video files into smaller chunks of a specified length.
+    
+    Args:
+        input_path: The path to the directory containing the files to be chunked.
+        output_path: The path to the directory where the chunked files will be saved.
+        chunk_length: The length of each chunk.
     """
 
     console = Console()

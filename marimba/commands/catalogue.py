@@ -11,6 +11,13 @@ from rich.progress import track
 
 
 def check_input_args(source_path: str, exiftool_path: str):
+    """
+    Check the input arguments for the catalogue command.
+    
+    Args:
+        source_path: The path to the directory containing the files to be catalogued.
+        exiftool_path: The path to the exiftool executable.
+    """
     # Check if source_path is valid
     if not os.path.isdir(source_path):
         print(Panel(f"The source_path argument [bold]{source_path}[/bold] is not a valid directory path", title="Error", title_align="left", border_style="red"))
@@ -28,6 +35,16 @@ def catalogue_files(
         glob_path: str,
         overwrite: bool
 ):
+    """
+    Catalogue files using exiftool.
+    
+    Args:
+        source_path: The path to the directory containing the files to be catalogued.
+        file_extension: The file extension of the files to be catalogued.
+        exiftool_path: The path to the exiftool executable.
+        glob_path: The glob path to the files to be catalogued.
+        overwrite: Whether to overwrite existing output files.
+    """
     # Check input arguments and update iFDO file path if found automatically
     check_input_args(source_path, exiftool_path)
 

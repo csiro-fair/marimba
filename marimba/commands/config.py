@@ -11,6 +11,9 @@ from marimba.utils.registry import Registry
 
 
 class ConfigLevel(str, Enum):
+    """
+    Configuration level option.
+    """
     survey = "survey"
     deployment = "deployment"
 
@@ -28,6 +31,12 @@ DEPLOYMENT_KEY_PROMPTS = [
 def check_input_args(
         output_path: str,
 ):
+    """
+    Check the input arguments for the config command.
+    
+    Args:
+        output_path: The path to the directory where the config file will be saved.
+    """
     # Check if source_path is valid
     if not os.path.isdir(output_path):
         print(Panel(f"The output_path argument [bold]{output_path}[/bold] is not a valid directory path", title="Error", title_align="left", border_style="red"))
@@ -37,6 +46,16 @@ def check_input_args(
 def get_instrument_config(
         image_platform: str
 ) -> dict:
+    """
+    Prompt for the instrument configuration for a given image platform. 
+    Looks up the instrument class in the registry and uses the class method to get the prompts.
+    
+    Args:
+        image_platform: The image platform to get the instrument config for.
+    
+    Returns:
+        The provided instrument config as a dictionary.
+    """
     try:
         instrument_class = Registry.get(image_platform)
     except ValueError:
@@ -54,6 +73,12 @@ def get_instrument_config(
 def create_survey_config(
         output_dir: str,
 ):
+    """
+    Create the survey-level config file.
+    
+    Args:
+        output_dir: The path to the directory where the config file will be saved.
+    """
     output_path = os.path.join(output_dir, "survey_config.yml")
 
     survey_id = typer.prompt("Please enter survey ID (e.g. IN2018_V06)")
@@ -98,6 +123,12 @@ def create_survey_config(
 def create_deployment_config(
         output_dir: str,
 ):
+    """
+    Add a deployment-level config to the survey-level config file.
+    
+    Args:
+        output_dir: The path to the directory where the config file exists.
+    """
     output_path = os.path.join(output_dir, "survey_config.yml")
 
     if not os.path.isfile(output_path):
@@ -138,6 +169,13 @@ def create_config(
         level: ConfigLevel,
         output_dir: str
 ):
+    """
+    Demux the config command to the appropriate function.
+    
+    Args:
+        level: The level of the config to create.
+        output_dir: The path to the directory where the config file will be saved (or already exists).
+    """
     check_input_args(output_dir)
 
     if level == ConfigLevel.survey:

@@ -9,6 +9,12 @@ from rich.panel import Panel
 def check_input_args(
     input_path: str,
 ):
+    """
+    Check the input arguments for the qc command.
+    
+    Args:
+        input_path: The path to the directory where the files to be qc'd are located.
+    """
     # Check if source_path is valid
     if not os.path.isdir(input_path):
         print(Panel(f"The output_path argument [bold]{input_path}[/bold] is not a valid directory path", title="Error", title_align="left", border_style="red"))
@@ -19,6 +25,13 @@ def run_qc(
     input_path: str,
     recursive: bool,
 ):
+    """
+    Run quality control on files in a directory.
+    
+    Args:
+        input_path: The path to the directory where the files to be qc'd are located.
+        recursive: Whether to run qc recursively.
+    """
     check_input_args(input_path)
 
     logging.info(f"Running QC on files at: {input_path}")

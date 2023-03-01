@@ -57,10 +57,12 @@ def catalogue(
         overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),   
 ):
     """
-    Create an exif catalogue of files stored in .exif_{extension}
+    Create an exif catalogue of files stored in .exif_{extension}.
     """
     catalogue_files(source_path, file_extension, exiftool_path,glob_path,overwrite)
-    
+
+
+@marimba.command()   
 def config(
         level: ConfigLevel = typer.Argument(..., help="Level of config file to create."),
         output_path: str = typer.Argument(..., help="Output path for minimal config file."),
