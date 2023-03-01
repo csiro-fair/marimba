@@ -20,11 +20,12 @@ class ConfigLevel(str, Enum):
 
 SURVEY_KEY_PROMPTS = [
     ("image-platform", "Please enter image platform (e.g. Zeiss Axio Observer)"),
-    ("image-item-identification-scheme", "Please enter image item identification scheme (e.g. <project>_<event>_<sensor>_<date>_<time>.<ext>)")
+    # ("image-item-identification-scheme", "Please enter image item identification scheme (e.g. <project>_<event>_<sensor>_<date>_<time>.<ext>)")
 ]
 DEPLOYMENT_KEY_PROMPTS = [
-    ("start-timestamp", "Please enter start timestamp in ISO8601 (e.g. 2018-01-01T00:00:00Z)"),
-    ("end-timestamp", "Please enter end timestamp in ISO8601 (e.g. 2018-01-01T23:59:59Z)"),
+    # Note: If you need start and end timestamps to time-filter deployments, add them to prompt_config() in instrument implementation
+    # ("start-timestamp", "Please enter start timestamp in ISO8601 (e.g. 2018-01-01T00:00:00Z)"),
+    # ("end-timestamp", "Please enter end timestamp in ISO8601 (e.g. 2018-01-01T23:59:59Z)"),
 ]
 
 
@@ -138,6 +139,7 @@ def create_deployment_config(
         config = load_config(output_path)
         existing_surveys = config.get("surveys")
 
+        # TODO: Dynamically fetch examples from survey IDs in survey config
         survey_id = typer.prompt("Please enter survey ID (e.g. IN2018_V06)")
 
         if survey_id in existing_surveys:
@@ -150,7 +152,9 @@ def create_deployment_config(
 
             # If no survey level config, ...
             if not existing_surveys[survey_id].get("config"):
-                deployment_config["config"] = get_instrument_config(existing_surveys[survey_id]["image-platform"])
+                instrument_config = get_instrument_config(existing_surveys[survey_id]["image-platform"])
+                if instrument_config:
+                    deployment_config["config"] = instrument_config
             else:
                 add_deployment_level_config = typer.confirm("Do you have deployment-level config?")
                 if add_deployment_level_config:
