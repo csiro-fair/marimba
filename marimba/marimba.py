@@ -14,6 +14,7 @@ from marimba.commands.qc import run_qc
 from marimba.commands.metadata import merge_metadata
 from marimba.commands.rename import rename_files
 from marimba.utils.logger_config import LoggerConfig
+from marimba.commands.template import create_tamplate
 from marimba.commands.catalogue import catalogue_files
 
 __author__ = "Chris Jackett"
@@ -47,6 +48,16 @@ def qc(
 
     run_qc(source_path,recursive)
 
+@marimba.command()
+def template(
+        output_path: str = typer.Argument(..., help="Source path of files."),
+        templatename: str = typer.Argument(..., help="Recursively process entire directory structure."),
+):
+    """
+    Run quality control code on files to check for anomalies and generate datasets statistics.
+    """
+
+    create_tamplate(output_path,templatename)
 
 @marimba.command()
 def catalogue(

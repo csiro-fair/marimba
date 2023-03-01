@@ -1,0 +1,4 @@
+ ident: {{cookiecutter.ident}}
+ operator: {{cookiecutter.operator}}
+ start_date: {{cookiecutter.datestamp}}
+ 

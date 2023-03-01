@@ -1,0 +1,5 @@
+{
+ "operator":"User Name",
+ "ident": "JAC",
+ "datestamp": "{{ cookiecutter.datestamp }}"
+}

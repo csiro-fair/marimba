@@ -13,6 +13,7 @@ PyYAML = "^6.0"
 czifile = "^2019.7.2"
 python-dateutil = "^2.8.2"
 pandas = "^1.5.3"
+cookiecutter = "^2.1.1"
 
 [tool.poetry.scripts]
 marimba = "marimba.marimba:marimba"
