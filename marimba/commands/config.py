@@ -11,23 +11,33 @@ from marimba.utils.registry import Registry
 
 
 class ConfigLevel(str, Enum):
+    """
+    Configuration level option.
+    """
     survey = "survey"
     deployment = "deployment"
 
 
 SURVEY_KEY_PROMPTS = [
     ("image-platform", "Please enter image platform (e.g. Zeiss Axio Observer)"),
-    ("image-item-identification-scheme", "Please enter image item identification scheme (e.g. <project>_<event>_<sensor>_<date>_<time>.<ext>)")
+    # ("image-item-identification-scheme", "Please enter image item identification scheme (e.g. <project>_<event>_<sensor>_<date>_<time>.<ext>)")
 ]
 DEPLOYMENT_KEY_PROMPTS = [
-    ("start-timestamp", "Please enter start timestamp in ISO8601 (e.g. 2018-01-01T00:00:00Z)"),
-    ("end-timestamp", "Please enter end timestamp in ISO8601 (e.g. 2018-01-01T23:59:59Z)"),
+    # Note: If you need start and end timestamps to time-filter deployments, add them to prompt_config() in instrument implementation
+    # ("start-timestamp", "Please enter start timestamp in ISO8601 (e.g. 2018-01-01T00:00:00Z)"),
+    # ("end-timestamp", "Please enter end timestamp in ISO8601 (e.g. 2018-01-01T23:59:59Z)"),
 ]
 
 
 def check_input_args(
         output_path: str,
 ):
+    """
+    Check the input arguments for the config command.
+    
+    Args:
+        output_path: The path to the directory where the config file will be saved.
+    """
     # Check if source_path is valid
     if not os.path.isdir(output_path):
         print(Panel(f"The output_path argument [bold]{output_path}[/bold] is not a valid directory path", title="Error", title_align="left", border_style="red"))
@@ -37,6 +47,16 @@ def check_input_args(
 def get_instrument_config(
         image_platform: str
 ) -> dict:
+    """
+    Prompt for the instrument configuration for a given image platform. 
+    Looks up the instrument class in the registry and uses the class method to get the prompts.
+    
+    Args:
+        image_platform: The image platform to get the instrument config for.
+    
+    Returns:
+        The provided instrument config as a dictionary.
+    """
     try:
         instrument_class = Registry.get(image_platform)
     except ValueError:
@@ -54,6 +74,12 @@ def get_instrument_config(
 def create_survey_config(
         output_dir: str,
 ):
+    """
+    Create the survey-level config file.
+    
+    Args:
+        output_dir: The path to the directory where the config file will be saved.
+    """
     output_path = os.path.join(output_dir, "survey_config.yml")
 
     survey_id = typer.prompt("Please enter survey ID (e.g. IN2018_V06)")
@@ -98,6 +124,12 @@ def create_survey_config(
 def create_deployment_config(
         output_dir: str,
 ):
+    """
+    Add a deployment-level config to the survey-level config file.
+    
+    Args:
+        output_dir: The path to the directory where the config file exists.
+    """
     output_path = os.path.join(output_dir, "survey_config.yml")
 
     if not os.path.isfile(output_path):
@@ -107,6 +139,7 @@ def create_deployment_config(
         config = load_config(output_path)
         existing_surveys = config.get("surveys")
 
+        # TODO: Dynamically fetch examples from survey IDs in survey config
         survey_id = typer.prompt("Please enter survey ID (e.g. IN2018_V06)")
 
         if survey_id in existing_surveys:
@@ -119,7 +152,9 @@ def create_deployment_config(
 
             # If no survey level config, ...
             if not existing_surveys[survey_id].get("config"):
-                deployment_config["config"] = get_instrument_config(existing_surveys[survey_id]["image-platform"])
+                instrument_config = get_instrument_config(existing_surveys[survey_id]["image-platform"])
+                if instrument_config:
+                    deployment_config["config"] = instrument_config
             else:
                 add_deployment_level_config = typer.confirm("Do you have deployment-level config?")
                 if add_deployment_level_config:
@@ -138,6 +173,13 @@ def create_config(
         level: ConfigLevel,
         output_dir: str
 ):
+    """
+    Demux the config command to the appropriate function.
+    
+    Args:
+        level: The level of the config to create.
+        output_dir: The path to the directory where the config file will be saved (or already exists).
+    """
     check_input_args(output_dir)
 
     if level == ConfigLevel.survey:

@@ -15,6 +15,7 @@ from marimba.commands.metadata import merge_metadata
 from marimba.commands.rename import rename_files
 from marimba.utils.logger_config import LoggerConfig
 from marimba.commands.template import create_tamplate
+from marimba.commands.catalogue import catalogue_files
 
 __author__ = "Chris Jackett"
 __copyright__ = "Copyright 2023, Environment, CSIRO"
@@ -45,7 +46,7 @@ def qc(
     Run quality control code on files to check for anomalies and generate datasets statistics.
     """
 
-    run_qc(source_path)
+    run_qc(source_path,recursive)
 
 @marimba.command()
 def template(
@@ -59,6 +60,20 @@ def template(
     create_tamplate(output_path,templatename)
 
 @marimba.command()
+def catalogue(
+        source_path: str = typer.Argument(..., help="Source path for catalogue."),
+        exiftool_path: str = typer.Option('exiftool', help="Path to exiftool"),
+        file_extension: str = typer.Option("JPG", help="extension to catalogue"),
+        glob_path: str = typer.Option('**', help="masked used in glob"),
+        overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),   
+):
+    """
+    Create an exif catalogue of files stored in .exif_{extension}.
+    """
+    catalogue_files(source_path, file_extension, exiftool_path,glob_path,overwrite)
+
+
+@marimba.command()   
 def config(
         level: ConfigLevel = typer.Argument(..., help="Level of config file to create."),
         output_path: str = typer.Argument(..., help="Output path for minimal config file."),
@@ -144,7 +159,7 @@ def chunk(
     Chunk video files into fixed-length videos (default 10 seconds).
     """
 
-    chunk_files(source_path, destination_path, chunk_length, recursive, overwrite, dry_run)
+    chunk_files(source_path, destination_path, chunk_length)
 
 
 @marimba.command()

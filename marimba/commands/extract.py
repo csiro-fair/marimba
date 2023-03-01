@@ -8,18 +8,34 @@ from rich.panel import Panel
 
 import marimba.utils.file_system as fs
 
+
 def check_input_args(
     source_path: str,
     destination_path: str
 ):
+    """
+    Check the input arguments for the extract command.
+    
+    Args:
+        source_path: The path to the directory where the files will be copied from.
+        destination_path: The path to the directory where the files will be copied to.
+    """
     # Check if source_path is valid
     if not os.path.isdir(source_path):
         print(Panel(f"The source_path argument [bold]{source_path}[/bold] is not a valid directory path", title="Error", title_align="left", border_style="red"))
         raise typer.Exit()
 
 
-# Get the duration of the video in milliseconds using ffprobe
 def get_video_duration(file: str) -> float:
+    """
+    Get the duration of the video in milliseconds using ffprobe.
+    
+    Args:
+        file: The path to the video file.
+    
+    Returns:
+        The duration of the video in milliseconds.
+    """
     try:
         duration = float(subprocess.check_output(['ffprobe', '-i', file, '-show_entries', 'format=duration', '-v', 'quiet', '-of', 'default=noprint_wrappers=1:nokey=1']))
         logging.debug('get_video_duration: ' + str(int(duration * 1000)))
@@ -37,7 +53,17 @@ def extract_frames(
     overwrite: bool,
     dry_run: bool,
 ):
-
+    """
+    Extract frames from video files.
+    
+    Args:
+        input_path: The path to the directory where the video files are located.
+        output_path: The path to the directory where the frames will be extracted to.
+        chunk_length: The length of the video chunks in seconds.
+        recursive: Whether to extract frames recursively.
+        overwrite: Whether to overwrite existing frames.
+        dry_run: Whether to run the command without actually extracting the frames.
+    """
     logging.info(f"Extracting video frames from: {input_path}")
 
     for directory_path, _, files in os.walk(input_path):

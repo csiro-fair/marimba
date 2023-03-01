@@ -39,6 +39,9 @@ Args:
 
 
 class LoggerConfig:
+    """
+    Logger configuration for MarImBA CLI.
+    """
     standardConfig = {
         "version": 1,
         "formatters": {
