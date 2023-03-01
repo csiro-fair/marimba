@@ -5,6 +5,7 @@ Zeiss Axio Observer specification
 import logging
 import os
 from logging.config import dictConfig
+from typing import Iterable, Tuple
 
 import czifile
 import dateutil.parser
@@ -64,7 +65,7 @@ class ZeissAxioObserver(Instrument):
             "NA": "Not Applicable",
         }
 
-    def get_output_file_name(self, file_path) -> str:
+    def get_output_file_name(self, file_path: str) -> str:
 
         # Read CZI file and fetch file metadata as dictionary
         with czifile.CziFile(file_path) as czi:
@@ -91,13 +92,13 @@ class ZeissAxioObserver(Instrument):
                 f".CZI"
             )
 
-    def get_output_file_directory(self, directory_path, destination_path) -> str:
+    def get_output_file_directory(self, directory_path: str, destination_path: str) -> str:
         if destination_path:
             return destination_path
         else:
             return directory_path
 
-    def is_target_rename_directory(self, directory_path) -> bool:
+    def is_target_rename_directory(self, directory_path: str) -> bool:
 
         # Check directory is bottom-level and has no subdirectories within it
         logging.debug(f"Checking directory path is a bottom-level directory...")
@@ -248,7 +249,7 @@ class ZeissAxioObserver(Instrument):
     #     return filename_identifiers
 
     @classmethod
-    def prompt_config(cls):
+    def prompt_config(cls) -> Iterable[Tuple[str, str]]:
         return [
             # # TODO: Need to check if these exist upstream (in survey config) before querying
             # ("imaging-system-identifier", "Please enter the imaging system identifier"),

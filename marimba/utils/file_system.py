@@ -21,7 +21,13 @@ dictConfig(LoggerConfig.standardConfig)
 logger = logging.getLogger(__name__)
 
 
-def create_directory_if_necessary(path):
+def create_directory_if_necessary(path: str):
+    """
+    Create a directory if it doesn't already exist.
+    
+    Args:
+        path: The path to the directory.
+    """
     if not os.path.isdir(path):
         try:
             logger.info(f"Creating new directory path: {path}")

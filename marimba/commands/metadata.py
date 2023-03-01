@@ -11,7 +11,13 @@ def check_input_args(
     source_path: str,
     config_path: str
 ):
-
+    """
+    Check the input arguments for the copy command.
+    
+    Args:
+        source_path: The path to the directory where the files will be copied from.
+        config_path: The path to the configuration file.
+    """
     # Check if source_path is valid
     if not os.path.isdir(source_path):
         print(Panel(f"The source_path argument [bold]{source_path}[/bold] is not a valid directory path", title="Error", title_align="left", border_style="red"))
@@ -36,6 +42,16 @@ def merge_metadata(
     overwrite: bool,
     dry_run: bool,
 ):
+    """
+    Merge metadata for files in a directory.
+    
+    Args:
+        source_path: The path to the directory where the files to be merged are located.
+        config_path: The path to the configuration file.
+        recursive: Whether to merge metadata recursively.
+        overwrite: Whether to overwrite existing metadata files.
+        dry_run: Whether to run the command without actually merging the metadata.
+    """
     check_input_args(source_path, config_path)
 
     logging.info(f"Merging metadata from source directory: {source_path}")

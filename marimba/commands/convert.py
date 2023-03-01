@@ -13,6 +13,13 @@ def check_input_args(
     source_path: str,
     destination_path: str
 ):
+    """
+    Check the input arguments for the convert command.
+    
+    Args:
+        source_path: The path to the directory where the config file will be saved.
+        destination_path: The path to the directory where the config file will be saved.
+    """
     # Check if source_path is valid
     if not os.path.isdir(source_path):
         print(Panel(f"The source_path argument [bold]{source_path}[/bold] is not a valid directory path", title="Error", title_align="left", border_style="red"))
@@ -28,7 +35,7 @@ def convert_files(
     dry_run: bool,
 ):
     """
-    Converts video to high quality MP4/h264 w/ AAC
+    Converts video to high quality MP4/h264 w/ AAC.
 
     Flag details
         -map_metadata 0:g  => Copy all global metadata from input to output
@@ -42,7 +49,14 @@ def convert_files(
         –movflags faststart => Move the 'moov atom' to the start of the file
 
     References:
-     http://journal.code4lib.org/articles/9856
+        http://journal.code4lib.org/articles/9856
+    
+    Args:
+        source_path: The path to the directory containing the files to be converted.
+        destination_path: The path to the directory where the converted files will be saved.
+        recursive: Whether to convert files recursively.
+        overwrite: Whether to overwrite existing files.
+        dry_run: Whether to run the command without actually converting the files.
     """
 
 
