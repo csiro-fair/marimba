@@ -1,14 +1,4 @@
-#Purpose: This file needs to process input json or csv nav data file(s) and match the extracted nav data to the given video or still imagery dataset at a deployment level. The matched data is then added to the exif data of the images (or video), and exported as a csv file that contains the image name and nav data
-
-#What do we need in the input file as a base?: time, location (lat, lon, depth)
-
-#Step 1: Read nav data files - where are they? source_path/*.json (or source_path/*.csv)
-
-#Step 2; Check that nav files contain the necessary columns (i.e., timestamp, latitude, longitude, depth). Do these need to be configured? - Yes, different platform have different variable outputs, so read in column names from metadata.yml
-
-#Step 3: merge nav files together (should we have options at this stage? - i.e. forward fill, interpolate, nearest, etc.) at a) still image level, b) video level
-
-#Step 4: write data to iFDO file, output csv
+#This file needs to process input csv nav data file(s) and match the extracted nav data to the given video or still imagery dataset at a deployment level. The matched data is then added to the exif data of the images (or video), and added to the ifdo
 
 import logging
 import os
@@ -114,6 +104,7 @@ def merge_metadata(
     #write exif.config file from metadata config
 
     #needs tidying / refactoring - may want to consider defining data_types in metadata.yml
+    #TODO: redo the way exif items get hex name, at the moment it will probably only handle 10 items as index rolls through values 0-9 
     conf_str = """%Image::ExifTool::UserDefined = (
     'Image::ExifTool::Exif::Main' => {"""
 
@@ -158,5 +149,4 @@ def merge_metadata(
                 cmd = cmd + " -EXIF:" + k + "=" + str(v)
 
         cmd = cmd + " " + img_file
-        print(cmd)
         subprocess.call(cmd)
