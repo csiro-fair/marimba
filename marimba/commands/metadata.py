@@ -17,6 +17,7 @@ import yaml
 import pandas as pd
 import glob
 from datetime import datetime as dt
+import subprocess
 
 import typer
 from rich import print
@@ -109,3 +110,53 @@ def merge_metadata(
     with open(ifdo_path, 'w') as file:
         documents = yaml.dump(ifdo_dict, file)
 
+    ################# generate exif config and add exif data to images ###############
+    #write exif.config file from metadata config
+
+    #needs tidying / refactoring - may want to consider defining data_types in metadata.yml
+    conf_str = """%Image::ExifTool::UserDefined = (
+    'Image::ExifTool::Exif::Main' => {"""
+
+    for index, (k, v) in enumerate(metadata_config['ifdo-image-set-items'].items()):
+        if k == 'image-datetime':
+            data_type = 'string'
+        else:
+            data_type = 'rational64s'
+        conf_str = conf_str + f"""
+        0xd00{index} => {{
+            Name => '{k}',
+            Writable => '{data_type}',
+            WriteGroup => 'IFD0'
+        }},"""
+
+    last_ifdo_index = index + 1
+    for index, (k, v) in enumerate(metadata_config['additional-image-set-items'].items()):
+        conf_str = conf_str + f"""
+        0xd00{index+last_ifdo_index} => {{
+            Name => '{k}',
+            Writable => 'rational64s',
+            WriteGroup => 'IFD0'
+        }},"""
+
+    conf_str = conf_str + """
+      },
+    );
+    """
+
+    with open('src/config/exif.config', 'w') as f:
+        f.write(conf_str)
+
+    #loop through images and generate command string for writing data to exif
+
+    for img_file in glob.iglob(f'{source_path}*.JPG'):
+        cmd = 'exiftool -config src/config/exif.config'
+        img_name = img_file.split('\\')[-1]
+        for k, v in ifdo_dict['image-set-items'][img_name].items():
+            if k == 'image-datetime':
+                cmd = cmd + " -EXIF:" + k + '="' + v + '"'
+            else:    
+                cmd = cmd + " -EXIF:" + k + "=" + str(v)
+
+        cmd = cmd + " " + img_file
+        print(cmd)
+        subprocess.call(cmd)
