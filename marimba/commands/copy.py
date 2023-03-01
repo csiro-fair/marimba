@@ -13,6 +13,13 @@ def check_input_args(
     source_path: str,
     destination_path: str
 ):
+    """
+    Check the input arguments for the copy command.
+    
+    Args:
+        source_path: The path to the directory where the files will be copied from.
+        destination_path: The path to the directory where the files will be copied to.
+    """
     # Check if source_path is valid
     if not os.path.isdir(source_path):
         print(Panel(f"The source_path argument [bold]{source_path}[/bold] is not a valid directory path", title="Error", title_align="left", border_style="red"))
@@ -27,6 +34,16 @@ def copy_files(
     overwrite: bool,
     dry_run: bool,
 ):
+    """
+    Copy files from one directory to another.
+    
+    Args:
+        source_path: The path to the directory where the files will be copied from.
+        destination_path: The path to the directory where the files will be copied to.
+        recursive: Whether to copy files recursively.
+        overwrite: Whether to overwrite existing files.
+        dry_run: Whether to run the command without actually copying the files.
+    """
     check_input_args(source_path)
 
     logging.info(f"Copying files recursively from: {source_path}")

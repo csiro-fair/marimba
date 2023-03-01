@@ -1,3 +1,4 @@
+from enum import Enum
 from rich.logging import RichHandler
 
 """
@@ -38,7 +39,20 @@ Args:
 """
 
 
+class LogLevel(str, Enum):
+    """
+    Enumerated log levels for MarImBA CLI.
+    """
+    DEBUG = 'DEBUG'
+    INFO = 'INFO'
+    WARNING = 'WARNING'
+    ERROR = 'ERROR'
+
+
 class LoggerConfig:
+    """
+    Logger configuration for MarImBA CLI.
+    """
     standardConfig = {
         "version": 1,
         "formatters": {

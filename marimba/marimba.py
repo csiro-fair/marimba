@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import logging
 from logging.config import dictConfig
 
 import typer
@@ -13,7 +14,9 @@ from marimba.commands.config import create_config, ConfigLevel
 from marimba.commands.qc import run_qc
 from marimba.commands.metadata import merge_metadata
 from marimba.commands.rename import rename_files
-from marimba.utils.logger_config import LoggerConfig
+from marimba.utils.logger_config import LoggerConfig, LogLevel
+from marimba.commands.template import create_tamplate
+from marimba.commands.catalogue import catalogue_files
 
 __author__ = "Chris Jackett"
 __copyright__ = "Copyright 2023, Environment, CSIRO"
@@ -24,8 +27,6 @@ __maintainer__ = "Chris Jackett"
 __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
 
-dictConfig(LoggerConfig.richConfig)
-
 marimba = typer.Typer(
     name="MarImBA - Marine Imagery Batch Actions",
     no_args_is_help=True,
@@ -33,6 +34,17 @@ marimba = typer.Typer(
         A Python CLI for batch processing, transforming and FAIR-ising large volumes of marine imagery.""",
     short_help="MarImBA - Marine Imagery Batch Actions",
 )
+
+
+@marimba.callback()
+def global_options(
+    level: LogLevel = typer.Option(LogLevel.INFO, help="Logging level."),
+):
+    """
+    Global options for MarImBA CLI.
+    """
+    LoggerConfig.richConfig["handlers"]["console"]["level"] = logging.getLevelName(level.value)
+    dictConfig(LoggerConfig.richConfig)
 
 
 @marimba.command()
@@ -44,10 +56,34 @@ def qc(
     Run quality control code on files to check for anomalies and generate datasets statistics.
     """
 
-    run_qc(source_path)
-
+    run_qc(source_path,recursive)
 
 @marimba.command()
+def template(
+        output_path: str = typer.Argument(..., help="Source path of files."),
+        templatename: str = typer.Argument(..., help="Recursively process entire directory structure."),
+):
+    """
+    Run quality control code on files to check for anomalies and generate datasets statistics.
+    """
+
+    create_tamplate(output_path,templatename)
+
+@marimba.command()
+def catalogue(
+        source_path: str = typer.Argument(..., help="Source path for catalogue."),
+        exiftool_path: str = typer.Option('exiftool', help="Path to exiftool"),
+        file_extension: str = typer.Option("JPG", help="extension to catalogue"),
+        glob_path: str = typer.Option('**', help="masked used in glob"),
+        overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),   
+):
+    """
+    Create an exif catalogue of files stored in .exif_{extension}.
+    """
+    catalogue_files(source_path, file_extension, exiftool_path,glob_path,overwrite)
+
+
+@marimba.command()   
 def config(
         level: ConfigLevel = typer.Argument(..., help="Level of config file to create."),
         output_path: str = typer.Argument(..., help="Output path for minimal config file."),
@@ -133,7 +169,7 @@ def chunk(
     Chunk video files into fixed-length videos (default 10 seconds).
     """
 
-    chunk_files(source_path, destination_path, chunk_length, recursive, overwrite, dry_run)
+    chunk_files(source_path, destination_path, chunk_length)
 
 
 @marimba.command()

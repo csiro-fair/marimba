@@ -13,7 +13,16 @@ from marimba.utils.config import load_config
 
 
 def check_input_args(source_path: str, config_path: str) -> str:
-
+    """
+    Check the input arguments for the rename command.
+    
+    Args:
+        source_path: The path to the directory where the files will be renamed.
+        config_path: The path to the config file that contains the rename rules.
+    
+    Returns:
+        The path to the config file that contains the rename rules.
+    """
     # Check if source_path is valid
     if not os.path.isdir(source_path):
         print(Panel(f"The source_path argument [bold]{source_path}[/bold] is not a valid directory path", title="Error", title_align="left", border_style="red"))
@@ -53,6 +62,17 @@ def rename_files(
     overwrite: bool,
     dry_run: bool,
 ):
+    """
+    Rename files in a directory.
+    
+    Args:
+        source_path: The path to the directory where the files will be renamed.
+        config_path: The path to the config file that contains the rename rules.
+        destination_path: The path to the directory where the renamed files will be copied to.
+        recursive: Whether to rename files recursively in subdirectories.
+        overwrite: Whether to overwrite existing files.
+        dry_run: Whether to perform a dry run.
+    """
     # Check input arguments and update config file path if found automatically
     config_path = check_input_args(source_path, config_path)
 
