@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import logging
 from logging.config import dictConfig
 
 import typer
@@ -13,7 +14,7 @@ from marimba.commands.config import create_config, ConfigLevel
 from marimba.commands.qc import run_qc
 from marimba.commands.metadata import merge_metadata
 from marimba.commands.rename import rename_files
-from marimba.utils.logger_config import LoggerConfig
+from marimba.utils.logger_config import LoggerConfig, LogLevel
 from marimba.commands.template import create_tamplate
 from marimba.commands.catalogue import catalogue_files
 
@@ -26,8 +27,6 @@ __maintainer__ = "Chris Jackett"
 __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
 
-dictConfig(LoggerConfig.richConfig)
-
 marimba = typer.Typer(
     name="MarImBA - Marine Imagery Batch Actions",
     no_args_is_help=True,
@@ -35,6 +34,17 @@ marimba = typer.Typer(
         A Python CLI for batch processing, transforming and FAIR-ising large volumes of marine imagery.""",
     short_help="MarImBA - Marine Imagery Batch Actions",
 )
+
+
+@marimba.callback()
+def global_options(
+    level: LogLevel = typer.Option(LogLevel.INFO, help="Logging level."),
+):
+    """
+    Global options for MarImBA CLI.
+    """
+    LoggerConfig.richConfig["handlers"]["console"]["level"] = logging.getLevelName(level.value)
+    dictConfig(LoggerConfig.richConfig)
 
 
 @marimba.command()
