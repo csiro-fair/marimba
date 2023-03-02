@@ -1,0 +1,14 @@
+---  #Configuration file for nav data
+# The following fields (values) will be searched for in nav data files (read in by metadata.py) and mapped to the corresponding iFDO set-items (keys)
+
+ifdo-image-set-items:
+  image-datetime: "Date"
+  image-latitude: "Latitude"
+  image-longitude: "Longitude"
+  image-depth: "Depth"
+  image-altitude: "Alt"
+
+additional-image-set-items:
+  image-sea-water-temperature: "Temperature"
+  image-sea-water-salinity: "Salinity"
+  image-sea-water-oxygen: "Oxygen"  
