@@ -25,7 +25,7 @@ def check_input_args(
     
     Args:
         source_path: The path to the directory where the files will be copied from.
-        config_path: The path to the configuration file.
+        ifdo_path: The path to the configuration file.
     """
     # Check if source_path is valid
     if not os.path.isdir(source_path):
