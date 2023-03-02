@@ -57,7 +57,7 @@ def merge_metadata(
     
     Args:
         source_path: The path to the directory where the files to be merged are located.
-        config_path: The path to the configuration file.
+        ifdo_path: The path to the configuration file.
         recursive: Whether to merge metadata recursively.
         overwrite: Whether to overwrite existing metadata files.
         dry_run: Whether to run the command without actually merging the metadata.
