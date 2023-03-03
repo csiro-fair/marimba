@@ -1,4 +1,3 @@
-import logging
 import os
 from enum import Enum
 
@@ -7,13 +6,17 @@ from rich import print
 from rich.panel import Panel
 
 from marimba.utils.config import load_config, save_config
+from marimba.utils.log import get_collection_logger
 from marimba.utils.registry import Registry
+
+logger = get_collection_logger()
 
 
 class ConfigLevel(str, Enum):
     """
     Configuration level option.
     """
+
     survey = "survey"
     deployment = "deployment"
 
@@ -30,30 +33,35 @@ DEPLOYMENT_KEY_PROMPTS = [
 
 
 def check_input_args(
-        output_path: str,
+    output_path: str,
 ):
     """
     Check the input arguments for the config command.
-    
+
     Args:
         output_path: The path to the directory where the config file will be saved.
     """
     # Check if source_path is valid
     if not os.path.isdir(output_path):
-        print(Panel(f"The output_path argument [bold]{output_path}[/bold] is not a valid directory path", title="Error", title_align="left", border_style="red"))
+        print(
+            Panel(
+                f"The output_path argument [bold]{output_path}[/bold] is not a valid directory path",
+                title="Error",
+                title_align="left",
+                border_style="red",
+            )
+        )
         raise typer.Exit()
 
 
-def get_instrument_config(
-        image_platform: str
-) -> dict:
+def get_instrument_config(image_platform: str) -> dict:
     """
-    Prompt for the instrument configuration for a given image platform. 
+    Prompt for the instrument configuration for a given image platform.
     Looks up the instrument class in the registry and uses the class method to get the prompts.
-    
+
     Args:
         image_platform: The image platform to get the instrument config for.
-    
+
     Returns:
         The provided instrument config as a dictionary.
     """
@@ -72,11 +80,11 @@ def get_instrument_config(
 
 
 def create_survey_config(
-        output_dir: str,
+    output_dir: str,
 ):
     """
     Create the survey-level config file.
-    
+
     Args:
         output_dir: The path to the directory where the config file will be saved.
     """
@@ -92,41 +100,33 @@ def create_survey_config(
         survey_config["config"] = get_instrument_config(survey_config["image-platform"])
 
     if os.path.isfile(output_path):
-
-        logging.info(f"Survey config file already exists: {output_path}")
+        logger.info(f"Survey config file already exists: {output_path}")
         config = load_config(output_path)
 
         existing_surveys = config.get("surveys")
         if survey_id in existing_surveys:
-            logging.info(f"Found matching survey ID - replacing config...")
+            logger.info(f"Found matching survey ID - replacing config...")
             for key, _ in SURVEY_KEY_PROMPTS:
                 existing_surveys[survey_id][key] = survey_config[key]
 
         else:
-            logging.info(f"No matching survey ID - appending config...")
+            logger.info(f"No matching survey ID - appending config...")
             survey_config["deployments"] = {}
             existing_surveys[survey_id] = survey_config
 
         save_config(output_path, config)
     else:
-        logging.info(f"Creating new survey-level config file at: {output_path}")
-        config = {
-            "surveys": {
-                survey_id: {
-                    "deployments": {},
-                    **survey_config
-                }
-            }
-        }
+        logger.info(f"Creating new survey-level config file at: {output_path}")
+        config = {"surveys": {survey_id: {"deployments": {}, **survey_config}}}
         save_config(output_path, config)
 
 
 def create_deployment_config(
-        output_dir: str,
+    output_dir: str,
 ):
     """
     Add a deployment-level config to the survey-level config file.
-    
+
     Args:
         output_dir: The path to the directory where the config file exists.
     """
@@ -143,7 +143,7 @@ def create_deployment_config(
         survey_id = typer.prompt("Please enter survey ID (e.g. IN2018_V06)")
 
         if survey_id in existing_surveys:
-            logging.info(f"Found matching survey ID")
+            logger.info(f"Found matching survey ID")
 
             deployment_id = typer.prompt("Please enter deployment ID (e.g. IN2018_V06_001)")
             deployment_config = {}
@@ -162,20 +162,24 @@ def create_deployment_config(
 
             existing_surveys[survey_id]["deployments"][deployment_id] = deployment_config
             save_config(output_path, config)
-            logging.info(f"Saving deployment-level config file at: {output_path}")
+            logger.info(f"Saving deployment-level config file at: {output_path}")
 
         else:
-            print(Panel(f'There is no survey ID "{survey_id}" in config at [bold]{output_path}[/bold]', title="Error", title_align="left", border_style="red"))
+            print(
+                Panel(
+                    f'There is no survey ID "{survey_id}" in config at [bold]{output_path}[/bold]',
+                    title="Error",
+                    title_align="left",
+                    border_style="red",
+                )
+            )
             raise typer.Exit()
 
 
-def create_config(
-        level: ConfigLevel,
-        output_dir: str
-):
+def create_config(level: ConfigLevel, output_dir: str):
     """
     Demux the config command to the appropriate function.
-    
+
     Args:
         level: The level of the config to create.
         output_dir: The path to the directory where the config file will be saved (or already exists).

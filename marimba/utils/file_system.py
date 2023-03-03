@@ -2,11 +2,9 @@
 File system utils
 """
 
-import logging
 import os
-from logging.config import dictConfig
 
-from marimba.utils.logger_config import LoggerConfig
+from marimba.utils.log import get_collection_logger
 
 __author__ = "Chris Jackett"
 __copyright__ = "Copyright 2021, National Collections and Marine Infrastructure, CSIRO"
@@ -17,14 +15,13 @@ __maintainer__ = "Chris Jackett"
 __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
 
-dictConfig(LoggerConfig.standardConfig)
-logger = logging.getLogger(__name__)
+logger = get_collection_logger()
 
 
 def create_directory_if_necessary(path: str):
     """
     Create a directory if it doesn't already exist.
-    
+
     Args:
         path: The path to the directory.
     """

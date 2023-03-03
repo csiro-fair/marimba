@@ -1,5 +1,4 @@
 import glob
-import logging
 import os
 import pathlib
 import shutil
@@ -8,24 +7,35 @@ import sys
 import typer
 from rich import print
 from rich.panel import Panel
+
 import marimba.utils.file_system as fs
 from marimba.utils.config import load_config
+from marimba.utils.log import get_collection_logger
+
+logger = get_collection_logger()
 
 
 def check_input_args(source_path: str, config_path: str) -> str:
     """
     Check the input arguments for the rename command.
-    
+
     Args:
         source_path: The path to the directory where the files will be renamed.
         config_path: The path to the config file that contains the rename rules.
-    
+
     Returns:
         The path to the config file that contains the rename rules.
     """
     # Check if source_path is valid
     if not os.path.isdir(source_path):
-        print(Panel(f"The source_path argument [bold]{source_path}[/bold] is not a valid directory path", title="Error", title_align="left", border_style="red"))
+        print(
+            Panel(
+                f"The source_path argument [bold]{source_path}[/bold] is not a valid directory path",
+                title="Error",
+                title_align="left",
+                border_style="red",
+            )
+        )
         raise typer.Exit()
 
     # Try to find default config if path not specified
@@ -34,7 +44,14 @@ def check_input_args(source_path: str, config_path: str) -> str:
         config_files = glob.glob(f"{source_path}/*.yaml")
         if len(config_files) < 1:
             # TODO: Need to validate high-level config file here...
-            print(Panel(f"The [bold]config_path[/bold] argument was not specified and no default config file could be found in the source directory", title="Error", title_align="left", border_style="red"))
+            print(
+                Panel(
+                    f"The [bold]config_path[/bold] argument was not specified and no default config file could be found in the source directory",
+                    title="Error",
+                    title_align="left",
+                    border_style="red",
+                )
+            )
             raise typer.Exit()
         else:
             # Get first config file in directory if multiple exist
@@ -43,12 +60,21 @@ def check_input_args(source_path: str, config_path: str) -> str:
 
     # Check if config_path is valid
     if config_path and not os.path.isfile(config_path):
-        print(Panel(f"The config_path argument [bold]{config_path}[/bold] is not a valid file", title="Error", title_align="left", border_style="red"))
+        print(
+            Panel(f"The config_path argument [bold]{config_path}[/bold] is not a valid file", title="Error", title_align="left", border_style="red")
+        )
         raise typer.Exit()
 
     # Check if config_path file has the correct extension
     if config_path and pathlib.Path(config_path).suffix.lower() != ".yaml":
-        print(Panel(f'The config_path argument [bold]{config_path}[/bold] does not have the correct extension (".yaml")', title="Error", title_align="left", border_style="red"))
+        print(
+            Panel(
+                f'The config_path argument [bold]{config_path}[/bold] does not have the correct extension (".yaml")',
+                title="Error",
+                title_align="left",
+                border_style="red",
+            )
+        )
         raise typer.Exit()
 
     return config_path
@@ -64,7 +90,7 @@ def rename_files(
 ):
     """
     Rename files in a directory.
-    
+
     Args:
         source_path: The path to the directory where the files will be renamed.
         config_path: The path to the config file that contains the rename rules.
@@ -84,22 +110,18 @@ def rename_files(
     # TODO: Need to look into the best pythonic way to do this...
     instrument = getattr(sys.modules[__name__], instrument_class)(config_data)
 
-    logging.info(f"Renaming files recursively from: {source_path}")
+    logger.info(f"Renaming files recursively from: {source_path}")
 
     # Traverse the source directory
     # TODO: This is currently a recursive method - need to implement an optional recursive/non-recursive method and use the Typer argument
     for directory_path, _, files in os.walk(source_path):
-
         # Check if the directory is targeted for file renaming and prompt the user for any relevant metadata identifiers
         if instrument.is_target_rename_directory(directory_path) and instrument.get_manual_metadata_fields():
-
             # Process each file in target directory
             for file in files:
-
                 # Get file extension and check if it is a targeted file type
                 _, file_extension = os.path.splitext(file)
                 if file_extension.lower() == instrument.filetype:
-
                     # Construct input and output file paths
                     file_path = os.path.join(directory_path, file)
                     output_file_name = instrument.get_output_file_name(file_path)
@@ -108,17 +130,17 @@ def rename_files(
 
                     # Check if input and output file paths are the same
                     if file_path == output_file_path:
-                        logging.info(f"Skipping file - input and output file names are identical: {file_path}")
+                        logger.info(f"Skipping file - input and output file names are identical: {file_path}")
                     # Check if output file path already exists and the overwrite argument is not set
                     elif os.path.isfile(output_file_path) and not overwrite:
-                        logging.info(f'Output file already exists and overwrite argument is not set: "{output_file_path}"')
+                        logger.info(f'Output file already exists and overwrite argument is not set: "{output_file_path}"')
                     # Perform file renaming
                     else:
                         renaming_or_overwriting = "Overwriting" if os.path.isfile(output_file_path) and overwrite else "Renaming"
                         if dry_run:
-                            logging.info(f'DRY-RUN: {renaming_or_overwriting} file from "{file_path}" to "{output_file_path}"')
+                            logger.info(f'DRY-RUN: {renaming_or_overwriting} file from "{file_path}" to "{output_file_path}"')
                         else:
-                            logging.info(f'{renaming_or_overwriting} file from "{file_path}" to "{output_file_path}"')
+                            logger.info(f'{renaming_or_overwriting} file from "{file_path}" to "{output_file_path}"')
                             try:
                                 # Rename file if no destination path provided, otherwise copy and rename file to new destination
                                 fs.create_directory_if_necessary(output_file_directory)
@@ -128,7 +150,7 @@ def rename_files(
                                     shutil.copy(file_path, output_file_path)
                             # TODO: Check this is the correct exception to catch
                             except FileExistsError:
-                                logging.error(f"Error renaming file {file_path} to {output_file_path}")
+                                logger.error(f"Error renaming file {file_path} to {output_file_path}")
 
         else:
-            logging.info("Skipping directory from renaming operation")
+            logger.info("Skipping directory from renaming operation")
