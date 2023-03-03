@@ -1,3 +1,4 @@
+from enum import Enum
 from rich.logging import RichHandler
 
 """
@@ -36,6 +37,16 @@ Args:
     keywords (List[str], optional): List of words to highlight instead of ``RichHandler.KEYWORDS``.
     
 """
+
+
+class LogLevel(str, Enum):
+    """
+    Enumerated log levels for MarImBA CLI.
+    """
+    DEBUG = 'DEBUG'
+    INFO = 'INFO'
+    WARNING = 'WARNING'
+    ERROR = 'ERROR'
 
 
 class LoggerConfig:
