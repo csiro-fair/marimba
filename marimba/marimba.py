@@ -128,20 +128,15 @@ def copy(
 
 @marimba.command()
 def rename(
-    source_path: str = typer.Argument(..., help="Source path to rename files."),
-    config_path: str = typer.Argument(
-        None, help="Optional path to minimal survey/deployment config file. Source directory will be searched for valid config file if not provided."
-    ),
-    destination_path: str = typer.Option(None, help="Destination path to output files."),
-    recursive: bool = typer.Option(True, help="Recursively process entire directory structure."),
-    overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
-    dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+        collection_path: str = typer.Option(".", help="Path to MarImBA collection."),
+        instrument_id: str = typer.Option(None, help="MarImBA instrument ID."),
+        dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
-    Rename files and construct folder structure based on instrument specification file identified in the input config.
+    Rename files and construct based on the instrument class specification.
     """
 
-    rename_files(source_path, config_path, destination_path, recursive, overwrite, dry_run)
+    rename_files(collection_path, instrument_id, dry_run)
 
 
 @marimba.command()

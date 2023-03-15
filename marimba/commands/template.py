@@ -9,6 +9,7 @@ from marimba.utils.log import get_collection_logger
 logger = get_collection_logger()
 
 
+
 def create_tamplate(output_path, template_name):
     template_path = os.path.join(Path(os.path.abspath(__file__)).parent.parent.parent, "templates", template_name)
     logger.debug(f"Template name: {template_name}")
