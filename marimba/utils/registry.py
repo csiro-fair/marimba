@@ -11,7 +11,7 @@ class Registry:
     
     # Define the default instrument mappings here. These are the instruments that are supported out of the box.
     CLASS_MAP = {
-        "Zeiss Axio Observer": ZeissAxioObserver
+        "ZAO": ZeissAxioObserver
     }
     
     @staticmethod

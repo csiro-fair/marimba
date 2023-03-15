@@ -1,7 +1,7 @@
 platform_id: "Zeiss Axio Observer"
 class_name: "ZeissAxioObserver"
-imageing_system_dentifier: ZAO
+imaging_system_identifier: ZAO
 strain_identifier : {{cookiecutter.strain_identifier}}
 contrast_identifier : {{cookiecutter.contrast_identifier}}
 biological_stain_identifier : {{cookiecutter.biological_stain_identifier}}
-start_time_stamp: {% now 'local', "%Y%m%dT%H%M%S" %}
+start_timestamp: {% now 'local', "%Y%m%dT%H%M%S" %}

@@ -79,6 +79,8 @@ def convert_files(
 
             if not os.path.isfile(output_file_path):
 
+                # TODO: The -r argument fixed a later issue with GoPro video frame extraction in OpenCV.
+                # TODO: Still need to use ffprobe to get the framerate and pass that in here.
                 if file_extension.lower() in [".mp4", ".mpg", ".avi"]:
                     logging.info(f'Transcoding video file "{file_path}"...')
                     subprocess.check_call([
@@ -90,10 +92,11 @@ def convert_files(
                         "-c:v", "libx264",
                         "-preset", "slow",
                         "-crf", "18",
-                        "-vf", "yadif,format=yuv420p",
+                        "-r", "59.94",
+                        # "-vf", "yadif,format=yuv420p",
                         "-c:a", "aac",
                         "-b:a", "160k",
-                        "-movflags", "faststart",
+                        # "-movflags", "faststart",
                         output_file_path
                     ])
                     logging.info(f"Completed transcoding video {file_path}")

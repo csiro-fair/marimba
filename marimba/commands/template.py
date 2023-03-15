@@ -12,9 +12,8 @@ from cookiecutter.main import cookiecutter
 from pathlib import Path
 from datetime import datetime
 
-def create_tamplate(output_path,template_name):
-    template_path =os.path.join(Path(os.path.abspath(__file__)).parent.parent.parent,'templates',template_name)
+
+def create_tamplate(output_path, template_name):
+    template_path = os.path.join(Path(os.path.abspath(__file__)).parent.parent.parent, 'templates', template_name)
     print(template_name)
-    cookiecutter(template=template_path,output_dir=output_path,extra_context={'datestamp': datetime.today().strftime("%Y-%m-%d")})
-    
-    
+    cookiecutter(template=template_path, output_dir=output_path, extra_context={'datestamp': datetime.today().strftime("%Y-%m-%d")})
