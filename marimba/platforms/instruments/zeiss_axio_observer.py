@@ -2,9 +2,7 @@
 Zeiss Axio Observer specification
 """
 
-import logging
 import os
-from logging.config import dictConfig
 from typing import Iterable, Tuple
 
 import czifile
@@ -12,7 +10,6 @@ import dateutil.parser
 import pandas as pd
 import typer
 
-from marimba.utils.logger_config import LoggerConfig
 from marimba.platforms.instruments.base import Instrument
 
 import glob
@@ -40,18 +37,14 @@ __maintainer__ = "Chris Jackett"
 __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
 
-dictConfig(LoggerConfig.richConfig)
-
 
 class ZeissAxioObserver(Instrument):
-
     def __init__(self, instrument_path: str, collection_config: dict, instrument_config: dict):
 
 
         self.instrument_path = instrument_path
         self.collection_config = collection_config
         self.instrument_config = instrument_config
-
         # # Get info from config
         # image_set_header = config.get("image-set-header")
         # self.platform = image_set_header.get("image-platform")
@@ -94,18 +87,21 @@ class ZeissAxioObserver(Instrument):
         self.biological_stain_identifier = platform_data.get("biological_stain_identifier")
 
     def get_output_file_name(self, file_path: str) -> str:
-
         # Read CZI file and fetch file metadata as dictionary
         with czifile.CziFile(file_path) as czi:
             metadata = czi.metadata(raw=False)
 
             # Get all remaining filename identifiers from metadata
             # TODO: This isn't currently correct for the Zeiss Axoiplan (missing factor of 10)
-            magnification_factor = f"X{metadata['ImageDocument']['Metadata']['Information']['Image']['MicroscopeSettings']['EyepieceSettings']['TotalMagnification']}"
+            magnification_factor = (
+                f"X{metadata['ImageDocument']['Metadata']['Information']['Image']['MicroscopeSettings']['EyepieceSettings']['TotalMagnification']}"
+            )
             channel_identifier = "RGB"
             object_identifier = "NA"
             acquisition_date_and_time = metadata["ImageDocument"]["Metadata"]["Information"]["Image"]["AcquisitionDateAndTime"]
-            iso_timestamp = dateutil.parser.isoparse(acquisition_date_and_time).replace(microsecond=0).isoformat().replace("+00:00", "Z").replace(":", "-")
+            iso_timestamp = (
+                dateutil.parser.isoparse(acquisition_date_and_time).replace(microsecond=0).isoformat().replace("+00:00", "Z").replace(":", "-")
+            )
 
             # Construct and return new filename
             return (
@@ -200,43 +196,43 @@ class ZeissAxioObserver(Instrument):
     #     return True
 
     def is_strain_identifier_correct(self, strain_identifier: str) -> bool:
-        logging.debug(f"Checking entered strain identifier is valid...")
+        self.logger.debug(f"Checking entered strain identifier is valid...")
         if strain_identifier in self.cs_code_list or strain_identifier == "MSA":
-            logging.debug(f"Entered strain identifier conforms with ANACC format!")
+            self.logger.debug(f"Entered strain identifier conforms with ANACC format!")
             return True
         else:
-            logging.error("Entered strain identifier does not conform with ANACC format (e.g. CS422)")
+            self.logger.error("Entered strain identifier does not conform with ANACC format (e.g. CS422)")
             return False
 
     def is_imaging_system_correct(self, imaging_system_identifier: str) -> bool:
-        logging.debug(f"Checking entered imaging system identifier is valid...")
+        self.logger.debug(f"Checking entered imaging system identifier is valid...")
         if imaging_system_identifier in self.imaging_systems:
-            logging.debug(f"Entered imaging system identifier is valid!")
+            self.logger.debug(f"Entered imaging system identifier is valid!")
             return True
         else:
-            logging.error(f"Entered imaging system identifier is not one of the available options")
+            self.logger.error(f"Entered imaging system identifier is not one of the available options")
             return False
 
     def is_contrast_identifier_correct(self, contrast_identifier: str) -> bool:
-        logging.debug(f"Checking entered contrast setting identifier is valid...")
+        self.logger.debug(f"Checking entered contrast setting identifier is valid...")
         if contrast_identifier in self.contrast_settings:
-            logging.debug(f"Entered contrast setting identifier is valid!")
+            self.logger.debug(f"Entered contrast setting identifier is valid!")
             return True
         else:
-            logging.error(f"Entered contrast setting identifier is not one of the available options")
+            self.logger.error(f"Entered contrast setting identifier is not one of the available options")
             return False
 
     # TODO: Typer prompt doesn't like empty strings - probably need to change this to return boolean
     def check_biological_stain_identifier(self, biological_stain_identifier: str) -> str:
-        logging.debug(f"Checking entered biological stain identifier is valid...")
+        self.logger.debug(f"Checking entered biological stain identifier is valid...")
         if not biological_stain_identifier.strip():
-            logging.debug(f'Entered biological stain identifier is empty - setting to "NA"')
+            self.logger.debug(f'Entered biological stain identifier is empty - setting to "NA"')
             return "NA"
         elif biological_stain_identifier in self.biological_stains:
-            logging.debug(f"Entered biological stain identifier is valid!")
+            self.logger.debug(f"Entered biological stain identifier is valid!")
             return biological_stain_identifier
         else:
-            logging.error(f"Entered biological stain identifier is not one of the available options")
+            self.logger.error(f"Entered biological stain identifier is not one of the available options")
             return
 
     # # TODO: Improve this filename structure checking method to interrogate each element of the filename

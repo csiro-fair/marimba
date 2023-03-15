@@ -7,22 +7,29 @@ from rich import print
 from rich.panel import Panel
 
 import marimba.utils.file_system as fs
+from marimba.utils.log import get_collection_logger
+
+logger = get_collection_logger()
 
 
-def check_input_args(
-    source_path: str,
-    destination_path: str
-):
+def check_input_args(source_path: str, destination_path: str):
     """
     Check the input arguments for the convert command.
-    
+
     Args:
         source_path: The path to the directory where the config file will be saved.
         destination_path: The path to the directory where the config file will be saved.
     """
     # Check if source_path is valid
     if not os.path.isdir(source_path):
-        print(Panel(f"The source_path argument [bold]{source_path}[/bold] is not a valid directory path", title="Error", title_align="left", border_style="red"))
+        print(
+            Panel(
+                f"The source_path argument [bold]{source_path}[/bold] is not a valid directory path",
+                title="Error",
+                title_align="left",
+                border_style="red",
+            )
+        )
         raise typer.Exit()
 
 
@@ -50,7 +57,7 @@ def convert_files(
 
     References:
         http://journal.code4lib.org/articles/9856
-    
+
     Args:
         source_path: The path to the directory containing the files to be converted.
         destination_path: The path to the directory where the converted files will be saved.
@@ -59,18 +66,16 @@ def convert_files(
         dry_run: Whether to run the command without actually converting the files.
     """
 
-
     check_input_args(source_path, destination_path)
 
-    logging.info(f"Converting files recursively from: {source_path}")
+    logger.info(f"Converting files recursively from: {source_path}")
 
-    logging.info(f"Input path is: {source_path}")
-    logging.info(f"Output path is: {destination_path}")
+    logger.info(f"Input path is: {source_path}")
+    logger.info(f"Output path is: {destination_path}")
 
     fs.create_directory_if_necessary(destination_path)
 
     for directory_path, _, files in os.walk(source_path):
-
         for file in files:
             file_path = os.path.join(directory_path, file)
             file_name, file_extension = os.path.splitext(file)
@@ -82,7 +87,7 @@ def convert_files(
                 # TODO: The -r argument fixed a later issue with GoPro video frame extraction in OpenCV.
                 # TODO: Still need to use ffprobe to get the framerate and pass that in here.
                 if file_extension.lower() in [".mp4", ".mpg", ".avi"]:
-                    logging.info(f'Transcoding video file "{file_path}"...')
+                    logger.info(f'Transcoding video file "{file_path}"...')
                     subprocess.check_call([
                         "ffmpeg",
                         "-hwaccel", "auto",
@@ -101,5 +106,4 @@ def convert_files(
                     ])
                     logging.info(f"Completed transcoding video {file_path}")
             else:
-                logging.info(f"Video file already exists {output_file_path}")
-
+                logger.info(f"Video file already exists {output_file_path}")
