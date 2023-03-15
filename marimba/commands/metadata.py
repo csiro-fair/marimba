@@ -13,33 +13,51 @@ import typer
 from rich import print
 from rich.panel import Panel
 
+from marimba.utils.log import get_collection_logger
+
+logger = get_collection_logger()
+
+
 def invert_map(my_map):
     return {v: k for k, v in my_map.items()}
 
-def check_input_args(
-    source_path: str,
-    ifdo_path: str
-):
+def check_input_args(source_path: str, ifdo_path: str):
     """
     Check the input arguments for the copy command.
-    
+
     Args:
         source_path: The path to the directory where the files will be copied from.
         ifdo_path: The path to the configuration file.
     """
     # Check if source_path is valid
     if not os.path.isdir(source_path):
-        print(Panel(f"The source_path argument [bold]{source_path}[/bold] is not a valid directory path", title="Error", title_align="left", border_style="red"))
+        print(
+            Panel(
+                f"The source_path argument [bold]{source_path}[/bold] is not a valid directory path",
+                title="Error",
+                title_align="left",
+                border_style="red",
+            )
+        )
         raise typer.Exit()
 
     # Check if config_path is valid
     if not os.path.isfile(ifdo_path):
-        print(Panel(f"The ifdo_path argument [bold]{ifdo_path}[/bold] is not a valid file", title="Error", title_align="left", border_style="red"))
+        print(
+            Panel(f"The ifdo_path argument [bold]{ifdo_path}[/bold] is not a valid file", title="Error", title_align="left", border_style="red")
+        )
         raise typer.Exit()
 
     # Check if config_path file has the correct extension
     if pathlib.Path(ifdo_path).suffix.lower() != ".ifdo":
-        print(Panel(f'The ifdo_path argument [bold]{ifdo_path}[/bold] does not have the correct extension (".ifdo")', title="Error", title_align="left", border_style="red"))
+        print(
+            Panel(
+                f'The ifdo_path argument [bold]{ifdo_path}[/bold] does not have the correct extension (".ifdo")',
+                title="Error",
+                title_align="left",
+                border_style="red",
+            )
+        )
         raise typer.Exit()
 
 
@@ -54,7 +72,7 @@ def merge_metadata(
 
     """
     Merge metadata for files in a directory.
-    
+
     Args:
         source_path: The path to the directory where the files to be merged are located.
         ifdo_path: The path to the configuration file.
@@ -71,7 +89,7 @@ def merge_metadata(
         except yaml.YAMLError as exc:
             print(exc)
 
-    #convert to pandas for merging with nav data 
+    #convert to pandas for merging with nav data
     ifdo_df = pd.DataFrame.from_dict(ifdo_dict['image-set-items'], orient='index').reset_index()
 
     #load metadata config for mapping nav data
@@ -86,9 +104,7 @@ def merge_metadata(
         nav_df = pd.read_csv(file)
 
 
-    logging.info(f"Merging metadata from source directory: {source_path}")
-
-    #rename datetime column from config for merge
+    logger.info(f"Merging metadata from source directory: {source_path}")#rename datetime column from config for merge
     nav_df_renamed = nav_df.rename(
         columns = {
             metadata_config['ifdo-image-set-items']['image-datetime']:'image-datetime'
@@ -122,7 +138,7 @@ def merge_metadata(
     #write exif.config file from metadata config
 
     #needs tidying / refactoring - may want to consider defining data_types in metadata.yml
-    #TODO: redo the way exif items get hex name, at the moment it will probably only handle 10 items as index rolls through values 0-9 
+    #TODO: redo the way exif items get hex name, at the moment it will probably only handle 10 items as index rolls through values 0-9
     conf_str = """%Image::ExifTool::UserDefined = (
     'Image::ExifTool::Exif::Main' => {"""
 
@@ -163,7 +179,7 @@ def merge_metadata(
         for k, v in ifdo_dict['image-set-items'][img_name].items():
             if k == 'image-datetime':
                 cmd = cmd + " -EXIF:" + k + '="' + v + '"'
-            else:    
+            else:
                 cmd = cmd + " -EXIF:" + k + "=" + str(v)
 
         cmd = cmd + " " + img_file
