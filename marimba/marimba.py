@@ -5,6 +5,9 @@ import logging
 import os
 
 import typer
+from enum import Enum
+from typing import Optional
+
 
 from marimba.commands.catalogue import catalogue_files
 from marimba.commands.chunk import chunk_files
@@ -16,15 +19,18 @@ from marimba.commands.extract import extract_frames
 from marimba.commands.metadata import merge_metadata
 from marimba.commands.qc import run_qc
 from marimba.commands.rename import rename_files
-from marimba.commands.template import create_tamplate
+from marimba.commands.template import create_template
 from marimba.platforms.instruments.noop_instrument import NoopInstrument
-from marimba.utils.context import get_instrument_dir, set_collection_dir
+from marimba.utils.context import get_instrument_path, set_collection_path
 from marimba.utils.log import (LogLevel, get_collection_logger,
                                get_rich_handler, init_collection_file_handler)
 
-__author__ = "Chris Jackett"
+__author__ = "MarImBA Team"
 __copyright__ = "Copyright 2023, Environment, CSIRO"
-__credits__ = []
+__credits__ = [
+    "Chris Jackett <chris.jackett@csiro.au>",
+    "Kevin Barnard <kbarnard@mbari.org>"
+]
 __license__ = "MIT"
 __version__ = "0.1"
 __maintainer__ = "Chris Jackett"
@@ -38,26 +44,47 @@ marimba = typer.Typer(
         A Python CLI for batch processing, transforming and FAIR-ising large volumes of marine imagery.""",
     short_help="MarImBA - Marine Imagery Batch Actions",
 )
+new = typer.Typer()
+collection = typer.Typer()
+instrument = typer.Typer()
+deployment = typer.Typer()
+
+new.add_typer(collection, name="collection")
+new.add_typer(instrument, name="instrument")
+marimba.add_typer(new, name="new")
+
+new.add_typer(deployment, name="deployment")
 
 logger = get_collection_logger()
 
 
+class New(str, Enum):
+    collection = "collection"
+    instrument = "instrument"
+    deployment = "deployment"
+
+
+def setup_logging(collection_path):
+
+    # TODO: Check that collection path exists and is legit
+    
+    # Set the collection directory
+    set_collection_path(collection_path)
+
+    # Initialize the collection-level file handler
+    init_collection_file_handler()
+    
+    logger.info(f"Setting up collection-level logging at: {collection_path}")
+
+
 @marimba.callback()
 def global_options(
-    level: LogLevel = typer.Option(LogLevel.WARNING, help="Logging level."),
-    collection_dir: str = typer.Option(os.getcwd(), help="Path to collection directory."),
+    level: LogLevel = typer.Option(LogLevel.INFO, help="Logging level."),
 ):
     """
     Global options for MarImBA CLI.
     """
     get_rich_handler().setLevel(logging.getLevelName(level.value))
-
-    # Set the collection directory
-    set_collection_dir(collection_dir)
-
-    # Initialize the collection-level file handler
-    init_collection_file_handler()
-
     logger.info(f"Initialized MarImBA CLI v{__version__}")
 
 
@@ -74,19 +101,25 @@ def qc(
 
 
 @marimba.command()
-def template(
-    output_path: str = typer.Argument(..., help="Source path of files."),
-    templatename: str = typer.Argument(..., help="Recursively process entire directory structure."),
+def new(
+    component: New = typer.Argument(..., help="Create new MarImBA component."),
+    collection_path: str = typer.Argument(None, help="Path to root MarImBA collection."),
+    template_name: str = typer.Argument(..., help="Name of predefined MarImBA collection, instrument or deployment template."),
+    instrument_id: Optional[str] = typer.Argument(None, help="Instrument ID when adding a new deployment."),
 ):
     """
-    Run quality control code on files to check for anomalies and generate datasets statistics.
+    Create a new MarImBA collection, instrument or deployment.
     """
 
-    create_tamplate(output_path, templatename)
+    if component != New.collection:
+        setup_logging(collection_path)
+
+    logger.info(f"Executing the MarImBA [bold]new[/bold] command.")
+    create_template(component.value, collection_path, template_name, instrument_id)
 
 
 @marimba.command()
-def catalogue(
+def catalog(
     source_path: str = typer.Argument(..., help="Source path for catalogue."),
     exiftool_path: str = typer.Option("exiftool", help="Path to exiftool"),
     file_extension: str = typer.Option("JPG", help="extension to catalogue"),
@@ -99,37 +132,37 @@ def catalogue(
     catalogue_files(source_path, file_extension, exiftool_path, glob_path, overwrite)
 
 
-@marimba.command()
-def config(
-    level: ConfigLevel = typer.Argument(..., help="Level of config file to create."),
-    output_path: str = typer.Argument(..., help="Output path for minimal config file."),
-):
-    """
-    Create the initial minimal survey/deployment config file by answering a series of questions.
-    """
+# @marimba.command()
+# def config(
+#     level: ConfigLevel = typer.Argument(..., help="Level of config file to create."),
+#     output_path: str = typer.Argument(..., help="Output path for minimal config file."),
+# ):
+#     """
+#     Create the initial minimal survey/deployment config file by answering a series of questions.
+#     """
+#
+#     create_config(level, output_path)
 
-    create_config(level, output_path)
 
-
-@marimba.command()
-def copy(
-    source_path: str = typer.Argument(..., help="Source path to copy files."),
-    destination_path: str = typer.Argument(..., help="Destination path to output files."),
-    recursive: bool = typer.Option(True, help="Recursively process entire directory structure."),
-    overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
-    dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-):
-    """
-    Copy image files from a source path to a destination path.
-    """
-
-    copy_files(source_path, destination_path, recursive, overwrite, dry_run)
+# @marimba.command()
+# def copy(
+#     source_path: str = typer.Argument(..., help="Source path to copy files."),
+#     destination_path: str = typer.Argument(..., help="Destination path to output files."),
+#     recursive: bool = typer.Option(True, help="Recursively process entire directory structure."),
+#     overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
+#     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+# ):
+#     """
+#     Copy image files from a source path to a destination path.
+#     """
+#
+#     copy_files(source_path, destination_path, recursive, overwrite, dry_run)
 
 
 @marimba.command()
 def rename(
-        collection_path: str = typer.Option(".", help="Path to MarImBA collection."),
-        instrument_id: str = typer.Option(None, help="MarImBA instrument ID."),
+        collection_path: str = typer.Argument(".", help="Path to MarImBA collection."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
@@ -169,20 +202,20 @@ def convert(
     convert_files(source_path, destination_path, recursive, overwrite, dry_run)
 
 
-@marimba.command()
-def chunk(
-    source_path: str = typer.Argument(..., help="Source path of files."),
-    destination_path: str = typer.Argument(..., help="Destination path to output files."),
-    chunk_length: int = typer.Argument(10, help="Video chunk length in number of seconds."),
-    recursive: bool = typer.Option(True, help="Recursively process entire directory structure."),
-    overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
-    dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-):
-    """
-    Chunk video files into fixed-length videos (default 10 seconds).
-    """
-
-    chunk_files(source_path, destination_path, chunk_length)
+# @marimba.command()
+# def chunk(
+#     source_path: str = typer.Argument(..., help="Source path of files."),
+#     destination_path: str = typer.Argument(..., help="Destination path to output files."),
+#     chunk_length: int = typer.Argument(10, help="Video chunk length in number of seconds."),
+#     recursive: bool = typer.Option(True, help="Recursively process entire directory structure."),
+#     overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
+#     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+# ):
+#     """
+#     Chunk video files into fixed-length videos (default 10 seconds).
+#     """
+#
+#     chunk_files(source_path, destination_path, chunk_length)
 
 
 @marimba.command()
@@ -202,12 +235,27 @@ def extract(
 
 
 @marimba.command()
+def distribute():
+    """
+    Package up a MarImBA collection ready for distribution.
+    """
+    return
+
+@marimba.command()
+def report():
+    """
+    Generate reports from a MarImBA collection, instrument or deployment.
+    """
+    return
+
+
+@marimba.command()
 def test():
     """
     Test the marimba package.
     """
 
-    noop_instrument = NoopInstrument(get_instrument_dir("noopinstrument"), {}, {})
+    noop_instrument = NoopInstrument(get_instrument_path("noopinstrument"), {}, {})
 
 
 if __name__ == "__main__":

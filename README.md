@@ -158,6 +158,45 @@ marimba
 
 ![](img/marimba_default-help.png "marimba_default-help")
 
+The default entry point to start using MarImBA is the `new` command. This allows you to create a new MarImBA collection, instrument or deployment that adheres to the following standard MarImBA structure:
+
+```
+{collection}
+│
+└───distribution                    - 
+│
+└───instruments                     - 
+│   │
+│   └───{instrument}                - 
+│       │
+│       └───lib                     - 
+│       │   │   instrument.py       - 
+│       │   │   requirement.txt     - 
+│       │
+│       └───work                    - 
+│       │   │
+│       │   └───{deployment}        - 
+│       │
+│       │   {instrument}.log        - 
+│       │   instrument.yml          - 
+│       │   metadata.yml            - 
+│
+│   collection.yml                  - 
+│   {collection}.log                - 
+```
+
+The usual order you might use the MarImBA commands might be:
+* `marimba new {collection}`
+* `marimba new {instrument}`
+* `marimba new {deployment}`
+* `marimba qc` - it applicable
+* `marimba rename`
+* `marimba metadata`
+* `marimba convert`
+* `marimba distribute`
+* ...
+
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---

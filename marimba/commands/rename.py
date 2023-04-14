@@ -39,6 +39,8 @@ def rename_files(
         instrument_spec.loader.exec_module(instrument_module)
         instrument_class = getattr(instrument_module, instrument_class_name)
         instrument_instance = instrument_class(instrument.path, collection_config, instrument_config)
+        # get_instrument_path("noopinstrument"), {}, {}
+        # instrument_instance = instrument_class(instrument.path, collection_config, instrument_config)
 
         # Execute MarImBA instrument command
         instrument_instance.rename(dry_run)

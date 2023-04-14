@@ -1,10 +1,11 @@
 import logging
 import os.path
 from enum import Enum
+from pathlib import Path
 
 import rich.logging
 
-from marimba.utils.context import get_collection_dir, get_instrument_dir
+from marimba.utils.context import get_collection_path, get_instrument_path
 
 # Global file formatter. This is used for all file handlers.
 file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -67,14 +68,15 @@ def init_collection_file_handler():
     """
     Initialize the collection-level file handler.
 
-    This should be called after the collection directory has been set by `set_collection_dir`.
+    This should be called after the collection directory has been set by `set_collection_path`.
     """
     # Get the collection directory and basename
-    collection_dir = get_collection_dir()
-    collection_basename = os.path.basename(collection_dir)
+    collection_path = get_collection_path()
+    # collection_basename = os.path.basename(collection_path)
+    collection_basename = Path(collection_path).parts[-1]
 
     # Create the file handler and add it to the collection logger
-    collection_file_handler = get_file_handler(collection_dir, collection_basename)
+    collection_file_handler = get_file_handler(collection_path, collection_basename)
     collection_file_handler.setLevel(logging.INFO)
     collection_file_handler.setFormatter(file_formatter)
     get_collection_logger().addHandler(collection_file_handler)
@@ -104,7 +106,7 @@ def init_instrument_file_handler(instrument_name: str):
         instrument_name: The name of the instrument.
     """
     # Get the instrument directory
-    instrument_dir = get_instrument_dir(instrument_name)
+    instrument_dir = get_instrument_path(instrument_name)
 
     # Create the file handler and add it to the collection logger
     instrument_file_handler = get_file_handler(instrument_dir, instrument_name)
