@@ -1,0 +1,3 @@
+nexus-ident: {{cookiecutter.nexus_ident}}
+#operator-name: Chris Jackett
+start-date: {{cookiecutter.datestamp}}
