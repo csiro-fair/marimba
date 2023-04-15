@@ -143,6 +143,38 @@ def get_file_handler(output_dir: str, name: str, level: int = logging.INFO) -> l
     return handler
 
 
+from pathlib import Path
+
+import typer
+from rich import print
+from rich.panel import Panel
+
+logger = get_collection_logger()
+
+from marimba.utils.context import set_collection_path
+
+def setup_logging(collection_path):
+    # Check that collection_path exists and is legit
+    if not os.path.isdir(collection_path) or not os.path.isfile(Path(collection_path) / "collection.yml") or not os.path.isdir(
+            Path(collection_path) / "instruments"):
+        print(
+            Panel(
+                f'The provided root MarImBA collection path "[bold]{collection_path}[/bold]" does not appear to be a valid MarImBA collection.',
+                title="Error",
+                title_align="left",
+                border_style="red",
+            )
+        )
+        raise typer.Exit()
+
+    # Set the collection directory
+    set_collection_path(collection_path)
+
+    # Initialize the collection-level file handler
+    init_collection_file_handler()
+
+    logger.info(f"Setting up collection-level logging at: {collection_path}")
+
 class LogLevel(str, Enum):
     """
     Enumerated log levels for MarImBA CLI.

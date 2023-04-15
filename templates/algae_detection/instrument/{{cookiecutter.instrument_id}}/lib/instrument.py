@@ -2,26 +2,24 @@
 Zeiss Axio Observer specification
 """
 
-import logging
-import os
-from logging.config import dictConfig
+# import os
+# from self.logger.config import dictConfig
 from typing import Iterable, Tuple
 
 import czifile
 import dateutil.parser
 import pandas as pd
-import typer
+# import typer
 
-from marimba.utils.logger_config import LoggerConfig
+# from marimba.utils.logger_config import LoggerConfig
 # from marimba.utils.log import get_collection_logger
 from marimba.platforms.instruments.base import Instrument
 
-import glob
-import logging
+# import glob
 import os
-import pathlib
-import shutil
-import sys
+# import pathlib
+# import shutil
+# import sys
 
 import re
 from typing import List, Iterable
@@ -29,7 +27,7 @@ from typing import List, Iterable
 import typer
 from rich import print
 from rich.panel import Panel
-import marimba.utils.file_system as fs
+# import marimba.utils.file_system as fs
 from marimba.utils.config import load_config
 
 __author__ = "Chris Jackett"
@@ -41,15 +39,12 @@ __maintainer__ = "Chris Jackett"
 __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
 
-dictConfig(LoggerConfig.richConfig)
-
 
 class ZeissAxioObserver(Instrument):
 
     def __init__(self, instrument_path: str, collection_config: dict, instrument_config: dict):
-
-        print("__init__")
-
+        super().__init__(instrument_path, collection_config, instrument_config)
+        
         self.instrument_path = instrument_path
         self.collection_config = collection_config
         self.instrument_config = instrument_config
@@ -131,23 +126,23 @@ class ZeissAxioObserver(Instrument):
     # def is_target_rename_directory(self, directory_path: str) -> bool:
     #
     #     # Check directory is bottom-level and has no subdirectories within it
-    #     logging.debug(f"Checking directory path is a bottom-level directory...")
+    #     self.logger.debug(f"Checking directory path is a bottom-level directory...")
     #     subdirectory_list = [f.path for f in os.scandir(directory_path) if f.is_dir()]
     #     if len(subdirectory_list) > 0:
-    #         logging.debug(f"Directory path is not a bottom-level directory")
+    #         self.logger.debug(f"Directory path is not a bottom-level directory")
     #         return False
     #     else:
-    #         logging.debug(f"Directory path is a bottom-level directory!")
+    #         self.logger.debug(f"Directory path is a bottom-level directory!")
     #
     #     # Check at least one CZI file exists in directory
-    #     logging.debug(f"Checking CZI files exist in bottom-level directory...")
+    #     self.logger.debug(f"Checking CZI files exist in bottom-level directory...")
     #     for filename in os.listdir(directory_path):
     #         if filename.lower().endswith(self.filetype):
-    #             logging.debug(f"Found CZI files in bottom-level directory!")
-    #             logging.info(f"Renaming files in directory {directory_path}...")
+    #             self.logger.debug(f"Found CZI files in bottom-level directory!")
+    #             self.logger.info(f"Renaming files in directory {directory_path}...")
     #             return True
     #     else:
-    #         logging.debug(f"Directory path does not contain any CZI files")
+    #         self.logger.debug(f"Directory path does not contain any CZI files")
     #         return False
 
     # def get_manual_metadata_fields(self) -> bool:
@@ -188,11 +183,11 @@ class ZeissAxioObserver(Instrument):
     #         return False
     #
     #     # Print accepted filename identifiers
-    #     logging.debug(f"Entered strain identifier: {strain_identifier}")
-    #     logging.debug(f"Entered imaging system identifier: {imaging_system_identifier}")
-    #     logging.debug(f"Entered contrast setting identifier: {contrast_identifier}")
-    #     logging.debug(f"Entered biological stain identifier: {biological_stain_identifier}")
-    #     logging.debug(f"Provided command line arguments and manually entered identifiers appear correct!")
+    #     self.logger.debug(f"Entered strain identifier: {strain_identifier}")
+    #     self.logger.debug(f"Entered imaging system identifier: {imaging_system_identifier}")
+    #     self.logger.debug(f"Entered contrast setting identifier: {contrast_identifier}")
+    #     self.logger.debug(f"Entered biological stain identifier: {biological_stain_identifier}")
+    #     self.logger.debug(f"Provided command line arguments and manually entered identifiers appear correct!")
     #
     #     self.strain_identifier = strain_identifier
     #     self.imaging_system_identifier = imaging_system_identifier
@@ -202,49 +197,49 @@ class ZeissAxioObserver(Instrument):
     #     return True
 
     def is_strain_identifier_correct(self, strain_identifier: str) -> bool:
-        logging.debug(f"Checking entered strain identifier is valid...")
+        self.logger.debug(f"Checking entered strain identifier is valid...")
         if strain_identifier in self.cs_code_list or strain_identifier == "MSA":
-            logging.debug(f"Entered strain identifier conforms with ANACC format!")
+            self.logger.debug(f"Entered strain identifier conforms with ANACC format!")
             return True
         else:
-            logging.error("Entered strain identifier does not conform with ANACC format (e.g. CS422)")
+            self.logger.error("Entered strain identifier does not conform with ANACC format (e.g. CS422)")
             return False
 
     def is_imaging_system_correct(self, imaging_system_identifier: str) -> bool:
-        logging.debug(f"Checking entered imaging system identifier is valid...")
+        self.logger.debug(f"Checking entered imaging system identifier is valid...")
         if imaging_system_identifier in self.imaging_systems:
-            logging.debug(f"Entered imaging system identifier is valid!")
+            self.logger.debug(f"Entered imaging system identifier is valid!")
             return True
         else:
-            logging.error(f"Entered imaging system identifier is not one of the available options")
+            self.logger.error(f"Entered imaging system identifier is not one of the available options")
             return False
 
     def is_contrast_identifier_correct(self, contrast_identifier: str) -> bool:
-        logging.debug(f"Checking entered contrast setting identifier is valid...")
+        self.logger.debug(f"Checking entered contrast setting identifier is valid...")
         if contrast_identifier in self.contrast_settings:
-            logging.debug(f"Entered contrast setting identifier is valid!")
+            self.logger.debug(f"Entered contrast setting identifier is valid!")
             return True
         else:
-            logging.error(f"Entered contrast setting identifier is not one of the available options")
+            self.logger.error(f"Entered contrast setting identifier is not one of the available options")
             return False
 
     # TODO: Typer prompt doesn't like empty strings - probably need to change this to return boolean
     def check_biological_stain_identifier(self, biological_stain_identifier: str) -> str:
-        logging.debug(f"Checking entered biological stain identifier is valid...")
+        self.logger.debug(f"Checking entered biological stain identifier is valid...")
         if not biological_stain_identifier.strip():
-            logging.debug(f'Entered biological stain identifier is empty - setting to "NA"')
+            self.logger.debug(f'Entered biological stain identifier is empty - setting to "NA"')
             return "NA"
         elif biological_stain_identifier in self.biological_stains:
-            logging.debug(f"Entered biological stain identifier is valid!")
+            self.logger.debug(f"Entered biological stain identifier is valid!")
             return biological_stain_identifier
         else:
-            logging.error(f"Entered biological stain identifier is not one of the available options")
+            self.logger.error(f"Entered biological stain identifier is not one of the available options")
             return
 
     # # TODO: Improve this filename structure checking method to interrogate each element of the filename
     # def is_filename_structure_correct(self, file_name) -> bool:
     #     if len(file_name.split("_")) != 8:
-    #         logging.warning(f"The file {file_name} does not conform to ANACC standard - skipping")
+    #         self.logger.warning(f"The file {file_name} does not conform to ANACC standard - skipping")
     #         return False
     #     else:
     #         return True
@@ -284,6 +279,7 @@ class ZeissAxioObserver(Instrument):
     ):
 
         work_path = os.path.join(self.instrument_path, "work")
+        log_string = "DRY_RUN: " if dry_run else ""
 
         for deployment in os.scandir(work_path):
 
@@ -310,23 +306,21 @@ class ZeissAxioObserver(Instrument):
 
                         # Check if input and output file paths are the same
                         if file_path == output_file_path:
-                            logging.info(f"Skipping file - input and output file names are identical: {file_path}")
+                            self.logger.info(f"{log_string}Skipping file - input and output file names are identical: {file_path}")
                         # Check if output file path already exists and the overwrite argument is not set
                         # elif os.path.isfile(output_file_path) and not overwrite:
                         elif os.path.isfile(output_file_path):
-                            logging.info(f'Output file already exists and overwrite argument is not set: "{output_file_path}"')
+                            self.logger.info(f'{log_string}Output file already exists and overwrite argument is not set: "{output_file_path}"')
                         # Perform file renaming
                         else:
-                            if dry_run:
-                                logging.info(f'DRY-RUN: Renaming file from "{file_path}" to "{output_file_path}"')
-                            else:
-                                logging.info(f'Renaming file from "{file_path}" to "{output_file_path}"')
+                            self.logger.info(f'{log_string}Renaming file from "{file_path}" to "{output_file_path}"')
+                            if not dry_run:
                                 try:
                                     # Rename file if no destination path provided, otherwise copy and rename file to new destination
                                     os.rename(file_path, output_file_path)
                                 # TODO: Check this is the correct exception to catch
                                 except FileExistsError:
-                                    logging.error(f"Error renaming file {file_path} to {output_file_path}")
+                                    self.logger.error(f"Error renaming file {file_path} to {output_file_path}")
 
 
     @classmethod
