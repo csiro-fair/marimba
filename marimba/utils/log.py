@@ -1,7 +1,6 @@
 import logging
 import os.path
 from enum import Enum
-from pathlib import Path
 
 import rich.logging
 
@@ -153,6 +152,7 @@ logger = get_collection_logger()
 
 from marimba.utils.context import set_collection_path
 
+
 def setup_logging(collection_path):
     # Check that collection_path exists and is legit
     if not os.path.isdir(collection_path) or not os.path.isfile(Path(collection_path) / "collection.yml") or not os.path.isdir(
@@ -173,7 +173,8 @@ def setup_logging(collection_path):
     # Initialize the collection-level file handler
     init_collection_file_handler()
 
-    logger.info(f"Setting up collection-level logging at: {collection_path}")
+    logger.info(f'Setting up collection-level logging at: "{collection_path}"')
+
 
 class LogLevel(str, Enum):
     """
@@ -193,7 +194,9 @@ class LogMixin:
 
     @property
     def logger(self) -> logging.Logger:
-        if not hasattr(self, "_logger"):  # Lazy initialization
+        # Lazy initialization
+        if not hasattr(self, "_logger"):
             self._logger = get_logger(self.__class__.__name__)
-            self._logger.addHandler(logging.NullHandler())  # Add NullHandler to avoid logs on stdout by default
+            # Add NullHandler to avoid logs on stdout by default
+            self._logger.addHandler(logging.NullHandler())
         return self._logger

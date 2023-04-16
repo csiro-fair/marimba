@@ -9,5 +9,11 @@
     "FL",
     "PC"
   ],
-  "biological_stain_identifier": "NA"
+  "biological_stain_identifier": [
+    "NA",
+    "DPI",
+    "GTD",
+    "IDN",
+    "TYL"
+  ]
 }

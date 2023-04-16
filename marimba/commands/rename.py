@@ -44,6 +44,6 @@ def rename_files(
         instrument_instance = instrument_class(instrument.path, collection_config, instrument_config)
 
         # Execute MarImBA instrument command
-        instrument_instance.logger.info(f"Executing the MarImBA [bold]rename[/bold] command.")
+        instrument_instance.logger.info(f"Executing the MarImBA [bold]rename[/bold] command")
         instrument_instance.rename(dry_run)
 

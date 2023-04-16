@@ -1,33 +1,16 @@
 """
-Zeiss Axio Observer specification
+Zeiss Axio Observer instrument specification
 """
 
-# import os
-# from self.logger.config import dictConfig
-from typing import Iterable, Tuple
+import os
+import re
+from pathlib import Path
 
 import czifile
 import dateutil.parser
 import pandas as pd
-# import typer
 
-# from marimba.utils.logger_config import LoggerConfig
-# from marimba.utils.log import get_collection_logger
 from marimba.platforms.instruments.base import Instrument
-
-# import glob
-import os
-# import pathlib
-# import shutil
-# import sys
-
-import re
-from typing import List, Iterable
-
-import typer
-from rich import print
-from rich.panel import Panel
-# import marimba.utils.file_system as fs
 from marimba.utils.config import load_config
 
 __author__ = "Chris Jackett"
@@ -40,22 +23,40 @@ __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
 
 
+def get_output_file_name(deployment_config: dict, file_path: str) -> str:
+    # Read CZI file and fetch file metadata as dictionary
+    with czifile.CziFile(file_path) as czi:
+        metadata = czi.metadata(raw=False)
+
+        # Get all remaining filename identifiers from metadata
+        # TODO: This isn't currently correct for the Zeiss Axoiplan (missing factor of 10)
+        magnification_factor = f"X{metadata['ImageDocument']['Metadata']['Information']['Image']['MicroscopeSettings']['EyepieceSettings']['TotalMagnification']}"
+        channel_identifier = "RGB"
+        object_identifier = "NA"
+        acquisition_date_and_time = metadata["ImageDocument"]["Metadata"]["Information"]["Image"]["AcquisitionDateAndTime"]
+        iso_timestamp = dateutil.parser.isoparse(acquisition_date_and_time).replace(microsecond=0).isoformat().replace("+00:00", "Z").replace(":",
+                                                                                                                                              "-")
+        # Construct and return new filename
+        return (
+            f'{deployment_config.get("strain_identifier")}_'
+            f'{deployment_config.get("imaging_system_identifier")}_'
+            f"{magnification_factor}_"
+            f'{deployment_config.get("contrast_identifier")}_'
+            f"{channel_identifier}_"
+            f'{deployment_config.get("biological_stain_identifier")}_'
+            f"{object_identifier}_"
+            f"{iso_timestamp}"
+            f".CZI"
+        )
+
+
 class ZeissAxioObserver(Instrument):
 
-    def __init__(self, instrument_path: str, collection_config: dict, instrument_config: dict):
-        super().__init__(instrument_path, collection_config, instrument_config)
-        
-        self.instrument_path = instrument_path
-        self.collection_config = collection_config
-        self.instrument_config = instrument_config
+    def __init__(self, root_path: str, collection_config: dict, instrument_config: dict):
+        super().__init__(root_path, collection_config, instrument_config)
 
-        # # Get info from config
-        # image_set_header = config.get("image-set-header")
-        # self.platform = image_set_header.get("image-platform")
-        # self.sensor = image_set_header.get("image-sensor")
-        # self.filetype = image_set_header.get("image-acquisition")
+        # Define instrument filetypes and data files
         self.filetypes = ["czi"]
-
         self.strain_list_df = pd.read_pickle("data/anacc_strain_list.pkl")
         self.cs_code_list = self.strain_list_df["CS Number"].str.replace("-", "", 1).str.replace("/", "-").unique()
 
@@ -84,44 +85,116 @@ class ZeissAxioObserver(Instrument):
             "NA": "Not Applicable",
         }
 
-    def parse_platform_data(self, platform_data):
-        self.strain_identifier = platform_data.get("strain_identifier")
-        self.imaging_system_identifier = platform_data.get("imaging_system_identifier")
-        self.contrast_identifier = platform_data.get("contrast_identifier")
-        self.biological_stain_identifier = platform_data.get("biological_stain_identifier")
+    def rename(self, dry_run: bool):
+        """
+        Implementation of the MarImBA rename command for the Zeiss Axio Observer
+        """
 
-    def get_output_file_name(self, file_path: str) -> str:
+        # Set dry run log string to prepend to logging
+        dry_run_log_string = "DRY_RUN - " if dry_run else ""
 
-        # Read CZI file and fetch file metadata as dictionary
-        with czifile.CziFile(file_path) as czi:
-            metadata = czi.metadata(raw=False)
+        # Loop through each deployment subdirectory in the instrument work directory
+        for deployment in os.scandir(self.work_path):
 
-            # Get all remaining filename identifiers from metadata
-            # TODO: This isn't currently correct for the Zeiss Axoiplan (missing factor of 10)
-            magnification_factor = f"X{metadata['ImageDocument']['Metadata']['Information']['Image']['MicroscopeSettings']['EyepieceSettings']['TotalMagnification']}"
-            channel_identifier = "RGB"
-            object_identifier = "NA"
-            acquisition_date_and_time = metadata["ImageDocument"]["Metadata"]["Information"]["Image"]["AcquisitionDateAndTime"]
-            iso_timestamp = dateutil.parser.isoparse(acquisition_date_and_time).replace(microsecond=0).isoformat().replace("+00:00", "Z").replace(":", "-")
+            # Get deployment name and config path
+            deployment_name = deployment.path.split("/")[-1]
+            deployment_config_path = Path(deployment.path) / Path(deployment_name + ".yml")
 
-            # Construct and return new filename
-            return (
-                f"{self.strain_identifier}_"
-                f"{self.imaging_system_identifier}_"
-                f"{magnification_factor}_"
-                f"{self.contrast_identifier}_"
-                f"{channel_identifier}_"
-                f"{self.biological_stain_identifier}_"
-                f"{object_identifier}_"
-                f"{iso_timestamp}"
-                f".CZI"
-            )
+            # Check if deployment metadata file exists and skip deployment if not present
+            if not deployment_config_path.is_file():
+                self.logger.warning(
+                    f'{dry_run_log_string}SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment.path}"')
+                continue
+            else:
+                # TODO: Need to validate deployment metadata file here and load deployment config
+                self.logger.info(f'{dry_run_log_string}Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
+                deployment_config = load_config(deployment_config_path)
 
-    def get_output_file_directory(self, directory_path: str, destination_path: str) -> str:
-        if destination_path:
-            return destination_path
-        else:
-            return directory_path
+                # Loop through each file in the deployment directory
+                for file in os.scandir(deployment.path):
+
+                    # Define regex to match any of the filetypes to be renamed
+                    extensions_pattern = f'({"|".join(re.escape(extension) for extension in self.filetypes)})$'
+                    file_path = file.path
+
+                    # Match case-insensitive regex expression in file name
+                    if re.search(extensions_pattern, file_path, re.IGNORECASE):
+
+                        # Get the output filename and path
+                        output_file_name = get_output_file_name(deployment_config, file_path)
+                        output_file_path = Path(deployment.path) / output_file_name
+
+                        # Check if input and output file paths are the same
+                        if file_path == output_file_path:
+                            self.logger.info(f'{dry_run_log_string}SKIPPING FILE - input and output file names are identical: "{file_path}"')
+                        # Check if output file path already exists and the overwrite argument is not set
+                        # elif output_file_path.is_file() and not overwrite:
+                        elif output_file_path.is_file():
+                            self.logger.info(
+                                f'{dry_run_log_string}Output file already exists and overwrite argument is not set: "{output_file_path}"')
+                        # Perform file renaming
+                        else:
+                            # Only rename files if not in --dry-run mode
+                            self.logger.info(f'{dry_run_log_string}Renaming file "{file.name}" to: "{output_file_path}"')
+                            if not dry_run:
+                                try:
+                                    # Rename file
+                                    os.rename(file_path, output_file_path)
+                                # TODO: Check this is the correct exception to catch
+                                except FileExistsError:
+                                    self.logger.error(f"Error renaming file {file_path} to {output_file_path}")
+
+    # TODO: The following identifier checking methods need to moved into a cookiecutter post-generate hook
+    # TODO: https://cookiecutter.readthedocs.io/en/1.7.2/advanced/hooks.html
+    # def is_strain_identifier_correct(self, strain_identifier: str) -> bool:
+    #     self.logger.debug(f"Checking entered strain identifier is valid...")
+    #     if strain_identifier in self.cs_code_list or strain_identifier == "MSA":
+    #         self.logger.debug(f"Entered strain identifier conforms with ANACC format!")
+    #         return True
+    #     else:
+    #         self.logger.error("Entered strain identifier does not conform with ANACC format (e.g. CS422)")
+    #         return False
+    #
+    # def is_imaging_system_correct(self, imaging_system_identifier: str) -> bool:
+    #     self.logger.debug(f"Checking entered imaging system identifier is valid...")
+    #     if imaging_system_identifier in self.imaging_systems:
+    #         self.logger.debug(f"Entered imaging system identifier is valid!")
+    #         return True
+    #     else:
+    #         self.logger.error(f"Entered imaging system identifier is not one of the available options")
+    #         return False
+    #
+    # def is_contrast_identifier_correct(self, contrast_identifier: str) -> bool:
+    #     self.logger.debug(f"Checking entered contrast setting identifier is valid...")
+    #     if contrast_identifier in self.contrast_settings:
+    #         self.logger.debug(f"Entered contrast setting identifier is valid!")
+    #         return True
+    #     else:
+    #         self.logger.error(f"Entered contrast setting identifier is not one of the available options")
+    #         return False
+    #
+    # # TODO: Typer prompt doesn't like empty strings - probably need to change this to return boolean
+    # def check_biological_stain_identifier(self, biological_stain_identifier: str) -> str:
+    #     self.logger.debug(f"Checking entered biological stain identifier is valid...")
+    #     if not biological_stain_identifier.strip():
+    #         self.logger.debug(f'Entered biological stain identifier is empty - setting to "NA"')
+    #         return "NA"
+    #     elif biological_stain_identifier in self.biological_stains:
+    #         self.logger.debug(f"Entered biological stain identifier is valid!")
+    #         return biological_stain_identifier
+    #     else:
+    #         self.logger.error(f"Entered biological stain identifier is not one of the available options")
+    #         return
+
+    # @classmethod
+    # def prompt_config(cls) -> Iterable[Tuple[str, str]]:
+    #     return [
+    #         # # TODO: Need to check if these exist upstream (in survey config) before querying
+    #         # ("imaging-system-identifier", "Please enter the imaging system identifier"),
+    #         # ("strain-identifier", "Please enter the strain identifier"),
+    #         # ("contrast-identifier", "Please enter the contrast identifier"),
+    #         # ("biological-stain-identifier", "Please enter the biological stain identifier")
+    #     ]
 
     # def is_target_rename_directory(self, directory_path: str) -> bool:
     #
@@ -196,46 +269,6 @@ class ZeissAxioObserver(Instrument):
     #
     #     return True
 
-    def is_strain_identifier_correct(self, strain_identifier: str) -> bool:
-        self.logger.debug(f"Checking entered strain identifier is valid...")
-        if strain_identifier in self.cs_code_list or strain_identifier == "MSA":
-            self.logger.debug(f"Entered strain identifier conforms with ANACC format!")
-            return True
-        else:
-            self.logger.error("Entered strain identifier does not conform with ANACC format (e.g. CS422)")
-            return False
-
-    def is_imaging_system_correct(self, imaging_system_identifier: str) -> bool:
-        self.logger.debug(f"Checking entered imaging system identifier is valid...")
-        if imaging_system_identifier in self.imaging_systems:
-            self.logger.debug(f"Entered imaging system identifier is valid!")
-            return True
-        else:
-            self.logger.error(f"Entered imaging system identifier is not one of the available options")
-            return False
-
-    def is_contrast_identifier_correct(self, contrast_identifier: str) -> bool:
-        self.logger.debug(f"Checking entered contrast setting identifier is valid...")
-        if contrast_identifier in self.contrast_settings:
-            self.logger.debug(f"Entered contrast setting identifier is valid!")
-            return True
-        else:
-            self.logger.error(f"Entered contrast setting identifier is not one of the available options")
-            return False
-
-    # TODO: Typer prompt doesn't like empty strings - probably need to change this to return boolean
-    def check_biological_stain_identifier(self, biological_stain_identifier: str) -> str:
-        self.logger.debug(f"Checking entered biological stain identifier is valid...")
-        if not biological_stain_identifier.strip():
-            self.logger.debug(f'Entered biological stain identifier is empty - setting to "NA"')
-            return "NA"
-        elif biological_stain_identifier in self.biological_stains:
-            self.logger.debug(f"Entered biological stain identifier is valid!")
-            return biological_stain_identifier
-        else:
-            self.logger.error(f"Entered biological stain identifier is not one of the available options")
-            return
-
     # # TODO: Improve this filename structure checking method to interrogate each element of the filename
     # def is_filename_structure_correct(self, file_name) -> bool:
     #     if len(file_name.split("_")) != 8:
@@ -272,63 +305,3 @@ class ZeissAxioObserver(Instrument):
     #
     #     # Return list of extracted identifiers
     #     return filename_identifiers
-
-    def rename(
-            self,
-            dry_run: bool,
-    ):
-
-        work_path = os.path.join(self.instrument_path, "work")
-        log_string = "DRY_RUN: " if dry_run else ""
-
-        for deployment in os.scandir(work_path):
-
-            deployment_name = deployment.path.split("/")[-1]
-            deployment_config_path = os.path.join(deployment.path, deployment_name + ".yml")
-
-            if not os.path.isdir(deployment.path) or not os.path.isfile(deployment_config_path):
-                print(Panel(f"Cannot find {deployment_name}.yml in deployment directory.", title="Error", title_align="left", border_style="red"))
-                raise typer.Exit()
-            else:
-
-                deployment_config = load_config(deployment_config_path)
-                self.parse_platform_data(deployment_config)
-
-                for file in os.scandir(deployment.path):
-
-                    file_path = file.path
-                    extensions_pattern = f'({"|".join(re.escape(extension) for extension in self.filetypes)})$'
-
-                    if re.search(extensions_pattern, file_path, re.IGNORECASE):
-
-                        output_file_name = self.get_output_file_name(file_path)
-                        output_file_path = os.path.join(deployment.path, output_file_name)
-
-                        # Check if input and output file paths are the same
-                        if file_path == output_file_path:
-                            self.logger.info(f"{log_string}Skipping file - input and output file names are identical: {file_path}")
-                        # Check if output file path already exists and the overwrite argument is not set
-                        # elif os.path.isfile(output_file_path) and not overwrite:
-                        elif os.path.isfile(output_file_path):
-                            self.logger.info(f'{log_string}Output file already exists and overwrite argument is not set: "{output_file_path}"')
-                        # Perform file renaming
-                        else:
-                            self.logger.info(f'{log_string}Renaming file from "{file_path}" to "{output_file_path}"')
-                            if not dry_run:
-                                try:
-                                    # Rename file if no destination path provided, otherwise copy and rename file to new destination
-                                    os.rename(file_path, output_file_path)
-                                # TODO: Check this is the correct exception to catch
-                                except FileExistsError:
-                                    self.logger.error(f"Error renaming file {file_path} to {output_file_path}")
-
-
-    @classmethod
-    def prompt_config(cls) -> Iterable[Tuple[str, str]]:
-        return [
-            # # TODO: Need to check if these exist upstream (in survey config) before querying
-            # ("imaging-system-identifier", "Please enter the imaging system identifier"),
-            # ("strain-identifier", "Please enter the strain identifier"),
-            # ("contrast-identifier", "Please enter the contrast identifier"),
-            # ("biological-stain-identifier", "Please enter the biological stain identifier")
-        ]
