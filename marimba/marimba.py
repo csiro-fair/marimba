@@ -14,11 +14,17 @@ from marimba.commands.qc import run_qc
 from marimba.commands.rename import rename_files
 from marimba.utils.log import LogLevel, get_collection_logger, get_rich_handler
 
-__author__ = "MarImBA Team"
-__copyright__ = "Copyright 2023, Environment, CSIRO"
+__author__ = "MarImBA Development Team"
+__copyright__ = "Copyright 2023, CSIRO"
 __credits__ = [
     "Chris Jackett <chris.jackett@csiro.au>",
     "Kevin Barnard <kbarnard@mbari.org>"
+    "Nick Mortimer <nick.mortimer@csiro.au>",
+    "David Webb <david.webb@csiro.au>",
+    "Aaron Tyndall <aaron.tyndall@csiro.au>",
+    "Franzis Althaus <franzis.althaus@csiro.au>",
+    "Bec Gorton <bec.gorton@csiro.au>",
+    "Ben Scoulding <ben.scoulding@csiro.au>",
 ]
 __license__ = "MIT"
 __version__ = "0.1"
@@ -74,33 +80,6 @@ def catalog(
     Create an exif catalogue of files stored in .exif_{extension}.
     """
     catalogue_files(source_path, file_extension, exiftool_path, glob_path, overwrite)
-
-
-# @marimba.command()
-# def config(
-#     level: ConfigLevel = typer.Argument(..., help="Level of config file to create."),
-#     output_path: str = typer.Argument(..., help="Output path for minimal config file."),
-# ):
-#     """
-#     Create the initial minimal survey/deployment config file by answering a series of questions.
-#     """
-#
-#     create_config(level, output_path)
-
-
-# @marimba.command()
-# def copy(
-#     source_path: str = typer.Argument(..., help="Source path to copy files."),
-#     destination_path: str = typer.Argument(..., help="Destination path to output files."),
-#     recursive: bool = typer.Option(True, help="Recursively process entire directory structure."),
-#     overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
-#     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-# ):
-#     """
-#     Copy image files from a source path to a destination path.
-#     """
-#
-#     copy_files(source_path, destination_path, recursive, overwrite, dry_run)
 
 
 @marimba.command()

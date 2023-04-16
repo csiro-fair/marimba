@@ -1,6 +1,3 @@
-platform_id: "Zeiss Axio Observer"
-class_name: "ZeissAxioObserver"
-imaging_system_identifier: ZAO
 strain_identifier : {{cookiecutter.strain_identifier}}
 contrast_identifier : {{cookiecutter.contrast_identifier}}
 biological_stain_identifier : {{cookiecutter.biological_stain_identifier}}

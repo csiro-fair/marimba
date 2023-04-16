@@ -23,33 +23,6 @@ __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
 
 
-def get_output_file_name(deployment_config: dict, file_path: str) -> str:
-    # Read CZI file and fetch file metadata as dictionary
-    with czifile.CziFile(file_path) as czi:
-        metadata = czi.metadata(raw=False)
-
-        # Get all remaining filename identifiers from metadata
-        # TODO: This isn't currently correct for the Zeiss Axoiplan (missing factor of 10)
-        magnification_factor = f"X{metadata['ImageDocument']['Metadata']['Information']['Image']['MicroscopeSettings']['EyepieceSettings']['TotalMagnification']}"
-        channel_identifier = "RGB"
-        object_identifier = "NA"
-        acquisition_date_and_time = metadata["ImageDocument"]["Metadata"]["Information"]["Image"]["AcquisitionDateAndTime"]
-        iso_timestamp = dateutil.parser.isoparse(acquisition_date_and_time).replace(microsecond=0).isoformat().replace("+00:00", "Z").replace(":",
-                                                                                                                                              "-")
-        # Construct and return new filename
-        return (
-            f'{deployment_config.get("strain_identifier")}_'
-            f'{deployment_config.get("imaging_system_identifier")}_'
-            f"{magnification_factor}_"
-            f'{deployment_config.get("contrast_identifier")}_'
-            f"{channel_identifier}_"
-            f'{deployment_config.get("biological_stain_identifier")}_'
-            f"{object_identifier}_"
-            f"{iso_timestamp}"
-            f".CZI"
-        )
-
-
 class ZeissAxioObserver(Instrument):
 
     def __init__(self, root_path: str, collection_config: dict, instrument_config: dict):
@@ -57,7 +30,8 @@ class ZeissAxioObserver(Instrument):
 
         # Define instrument filetypes and data files
         self.filetypes = ["czi"]
-        self.strain_list_df = pd.read_pickle("data/anacc_strain_list.pkl")
+        # TODO: See if we need these here...
+        self.strain_list_df = pd.read_csv(f"{root_path}/lib/anacc_strain_list.csv")
         self.cs_code_list = self.strain_list_df["CS Number"].str.replace("-", "", 1).str.replace("/", "-").unique()
 
         # Dictionary of available imaging systems
@@ -121,7 +95,7 @@ class ZeissAxioObserver(Instrument):
                     if re.search(extensions_pattern, file_path, re.IGNORECASE):
 
                         # Get the output filename and path
-                        output_file_name = get_output_file_name(deployment_config, file_path)
+                        output_file_name = self.get_output_file_name(deployment_config, file_path)
                         output_file_path = Path(deployment.path) / output_file_name
 
                         # Check if input and output file paths are the same
@@ -143,6 +117,32 @@ class ZeissAxioObserver(Instrument):
                                 # TODO: Check this is the correct exception to catch
                                 except FileExistsError:
                                     self.logger.error(f"Error renaming file {file_path} to {output_file_path}")
+
+    def get_output_file_name(self, deployment_config: dict, file_path: str) -> str:
+        # Read CZI file and fetch file metadata as dictionary
+        with czifile.CziFile(file_path) as czi:
+            metadata = czi.metadata(raw=False)
+
+            # Get all remaining filename identifiers from metadata
+            # TODO: This isn't currently correct for the Zeiss Axoiplan (missing factor of 10)
+            magnification_factor = f"X{metadata['ImageDocument']['Metadata']['Information']['Image']['MicroscopeSettings']['EyepieceSettings']['TotalMagnification']}"
+            channel_identifier = "RGB"
+            object_identifier = "NA"
+            acquisition_date_and_time = metadata["ImageDocument"]["Metadata"]["Information"]["Image"]["AcquisitionDateAndTime"]
+            iso_timestamp = dateutil.parser.isoparse(acquisition_date_and_time).replace(microsecond=0).isoformat().replace("+00:00", "Z").replace(":",
+                                                                                                                                                  "-")
+            # Construct and return new filename
+            return (
+                f'{deployment_config.get("strain_identifier")}_'
+                f'{self.instrument_config.get("id")}_'
+                f"{magnification_factor}_"
+                f'{deployment_config.get("contrast_identifier")}_'
+                f"{channel_identifier}_"
+                f'{deployment_config.get("biological_stain_identifier")}_'
+                f"{object_identifier}_"
+                f"{iso_timestamp}"
+                f".CZI"
+            )
 
     # TODO: The following identifier checking methods need to moved into a cookiecutter post-generate hook
     # TODO: https://cookiecutter.readthedocs.io/en/1.7.2/advanced/hooks.html

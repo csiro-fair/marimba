@@ -4,6 +4,7 @@ from pathlib import Path
 
 import typer
 from cookiecutter.main import cookiecutter
+from cookiecutter.exceptions import OutputDirExistsException
 from rich import print
 from rich.panel import Panel
 
@@ -19,7 +20,7 @@ app = typer.Typer(
 
 def get_base_templates_path() -> str:
     base_templates_path = Path(os.path.abspath(__file__)).parent.parent.parent / "templates"
-    logger.info(f"Setting MarImBA base templates path to: {base_templates_path}")
+    logger.info(f'Setting MarImBA base templates path to: "{base_templates_path}"')
     return str(base_templates_path)
 
 
@@ -30,6 +31,7 @@ def check_template_exists(base_templates_path, template_name, template_type) -> 
     if os.path.isdir(template_path):
         logger.info(f"MarImBA [bold]{template_type}[/bold] template [bold]{Path(template_name) / template_type}[/bold] exists!")
     else:
+
         print(
             Panel(
                 f"The provided [bold]{template_type}[/bold] template name [bold]{Path(template_name) / template_type}[/bold] does not exists at {template_path}",
@@ -47,7 +49,7 @@ def check_output_path_exists(output_path, command):
     logger.info(f"Checking that the provided MarImBA [bold]{command}[/bold] output path exists...")
 
     if os.path.isdir(output_path):
-        logger.info(f"MarImBA [bold]{command}[/bold] output path [bold]{output_path}[/bold] exists!")
+        logger.info(f'MarImBA [bold]{command}[/bold] output path "[bold]{output_path}[/bold]" exists!')
     else:
         print(
             Panel(
@@ -63,7 +65,7 @@ def check_output_path_exists(output_path, command):
 @app.command()
 def collection(
         output_path: str = typer.Argument(..., help="Root path to create new MarImBA collection."),
-        template_name: str = typer.Argument(..., help="Name of predefined MarImBA collection template."),
+        template_name: str = typer.Argument(..., help="Name of predefined MarImBA project template."),
 ):
     """
     Create a new MarImBA collection.
@@ -88,7 +90,7 @@ def collection(
 @app.command()
 def instrument(
         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
-        template_name: str = typer.Argument(..., help="Name of predefined MarImBA collection template."),
+        template_name: str = typer.Argument(..., help="Name of predefined MarImBA project template."),
 ):
     """
     Create a new MarImBA instrument in a collection.
@@ -106,17 +108,32 @@ def instrument(
     check_output_path_exists(output_path, "instrument")
 
     # Run cookiecutter
-    cookiecutter(
-        template=template_path,
-        output_dir=output_path,
-        extra_context={"datestamp": datetime.today().strftime("%Y-%m-%d")}
-    )
+    try:
+        cookiecutter(
+            template=template_path,
+            output_dir=output_path,
+            extra_context={"datestamp": datetime.today().strftime("%Y-%m-%d")}
+        )
+    except OutputDirExistsException as e:
+        exception_path = str(e).split("\"")[1]
+        print(
+            Panel(
+                f'A MarImBA [bold]instrument[/bold] already exists at: "{exception_path}"',
+                title="Error",
+                title_align="left",
+                border_style="red",
+            )
+        )
+        raise typer.Exit()
+    # TODO: Need to figure out how to catch this exception properly and feed back into rich exceptions
+    except Exception as e:
+        print(e)
 
 
 @app.command()
 def deployment(
         collection_path: str = typer.Argument(..., help="Path to root MarImBA collection."),
-        template_name: str = typer.Argument(..., help="Name of predefined MarImBA collection template."),
+        template_name: str = typer.Argument(..., help="Name of predefined MarImBA project template."),
         instrument_id: str = typer.Argument(..., help="Instrument ID when adding a new deployment."),
 ):
     """
