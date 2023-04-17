@@ -1,0 +1,19 @@
+{
+  "strain_identifier": [
+    "CS01",
+    "CS02"
+  ],
+  "contrast_identifier": [
+    "BF",
+    "DIC",
+    "FL",
+    "PC"
+  ],
+  "biological_stain_identifier": [
+    "NA",
+    "DPI",
+    "GTD",
+    "IDN",
+    "TYL"
+  ]
+}

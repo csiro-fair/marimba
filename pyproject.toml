@@ -2,7 +2,10 @@
 name = "marimba"
 version = "0.1.0"
 description = "Marine Imagery Batch Actions"
-authors = ["Kevin Barnard <kbarnard@mbari.org>"]
+authors = [
+    "Chris Jackett <chris.jackett@csiro.au>",
+    "Kevin Barnard <kbarnard@mbari.org>"
+]
 readme = "README.md"
 
 [tool.poetry.dependencies]

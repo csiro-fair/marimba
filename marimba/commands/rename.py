@@ -3,6 +3,7 @@ import os
 
 from marimba.utils.collection import get_collection_config
 from marimba.utils.instrument import get_instrument_config
+from marimba.utils.log import setup_logging
 
 
 def rename_files(
@@ -12,12 +13,15 @@ def rename_files(
 ):
     """
     Rename files in a directory.
-    
+
     Args:
         collection_path: The path to the MarImBA collection containing files that will be renamed.
         instrument_id: MarImBA instrument containing files that will be renamed.
         dry_run: Whether to perform a dry run.
     """
+
+    # Set up logging
+    setup_logging(collection_path)
 
     # Get collection config data
     collection_config = get_collection_config(collection_path)
@@ -27,7 +31,6 @@ def rename_files(
 
     # Traverse instruments in MarImBA collection
     for instrument in os.scandir(instruments_path):
-
         # Get instrument config data
         instrument_config = get_instrument_config(instrument.path)
         instrument_class_name = instrument_config.get("class_name")
@@ -41,4 +44,6 @@ def rename_files(
         instrument_instance = instrument_class(instrument.path, collection_config, instrument_config)
 
         # Execute MarImBA instrument command
+        instrument_instance.logger.info(f"Executing the MarImBA [bold]rename[/bold] command")
         instrument_instance.rename(dry_run)
+

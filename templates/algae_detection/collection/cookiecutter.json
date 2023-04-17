@@ -1,0 +1,7 @@
+{
+  "nexus_ident": [
+    "jac249",
+    "jam158"
+  ],
+ "datestamp": "{{ cookiecutter.datestamp }}"
+}

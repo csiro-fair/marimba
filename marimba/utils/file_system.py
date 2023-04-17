@@ -6,15 +6,6 @@ import os
 
 from marimba.utils.log import get_collection_logger
 
-__author__ = "Chris Jackett"
-__copyright__ = "Copyright 2021, National Collections and Marine Infrastructure, CSIRO"
-__credits__ = []
-__license__ = "MIT"
-__version__ = "0.1"
-__maintainer__ = "Chris Jackett"
-__email__ = "chris.jackett@csiro.au"
-__status__ = "Development"
-
 logger = get_collection_logger()
 
 
