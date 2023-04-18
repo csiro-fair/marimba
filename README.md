@@ -158,6 +158,45 @@ marimba
 
 ![](img/marimba_default-help.png "marimba_default-help")
 
+The default entry point to start using MarImBA is the `new` command. This allows you to create a new MarImBA collection, instrument or deployment that adheres to the following standard MarImBA structure:
+
+```
+{collection}
+│
+└───distribution                    - 
+│
+└───instruments                     - 
+│   │
+│   └───{instrument}                - 
+│       │
+│       └───lib                     - 
+│       │   │   instrument.py       - 
+│       │   │   requirement.txt     - 
+│       │
+│       └───work                    - 
+│       │   │
+│       │   └───{deployment}        - 
+│       │
+│       │   {instrument}.log        - 
+│       │   instrument.yml          - 
+│       │   metadata.yml            - 
+│
+│   collection.yml                  - 
+│   {collection}.log                - 
+```
+
+The usual order you might use the MarImBA commands might be:
+* `marimba new {collection}`
+* `marimba new {instrument}`
+* `marimba new {deployment}`
+* `marimba qc` - it applicable
+* `marimba rename`
+* `marimba metadata`
+* `marimba convert`
+* `marimba distribute`
+* ...
+
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
@@ -214,16 +253,14 @@ The inception of MarImBA was at CSIRO in 2021 and much of the initial design and
 
 There have been many contributors to this project including:
 
-* Chris Jackett - (CSIRO Environment)
-* Ben Scoulding - (CSIRO Environment)
-* Franzis Althaus - (CSIRO Environment)
-* Nick Mortimer - (CSIRO Environment)
-* Aaron Tyndall - (CSIRO NCMI)
-* David Webb - (CSIRO NCMI)
-* Karl Forcey - (CSIRO NCMI)
-* Brett Muir - (CSIRO NCMI)
-* Bec Gorton - (CSIRO Environment)
-* ...
+* Chris Jackett - CSIRO Environment
+* Kevin Barnard - MBARI
+* Nick Mortimer - CSIRO Environment
+* David Webb - CSIRO NCMI
+* Aaron Tyndall - CSIRO NCMI
+* Franzis Althaus - CSIRO Environment
+* Bec Gorton - CSIRO Environment
+* Ben Scoulding - CSIRO Environment
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

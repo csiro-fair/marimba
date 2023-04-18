@@ -4,7 +4,7 @@ from enum import Enum
 
 import rich.logging
 
-from marimba.utils.context import get_collection_dir, get_instrument_dir
+from marimba.utils.context import get_collection_path, get_instrument_path
 
 # Global file formatter. This is used for all file handlers.
 file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -67,14 +67,15 @@ def init_collection_file_handler():
     """
     Initialize the collection-level file handler.
 
-    This should be called after the collection directory has been set by `set_collection_dir`.
+    This should be called after the collection directory has been set by `set_collection_path`.
     """
     # Get the collection directory and basename
-    collection_dir = get_collection_dir()
-    collection_basename = os.path.basename(collection_dir)
+    collection_path = get_collection_path()
+    # collection_basename = os.path.basename(collection_path)
+    collection_basename = Path(collection_path).parts[-1]
 
     # Create the file handler and add it to the collection logger
-    collection_file_handler = get_file_handler(collection_dir, collection_basename)
+    collection_file_handler = get_file_handler(collection_path, collection_basename)
     collection_file_handler.setLevel(logging.INFO)
     collection_file_handler.setFormatter(file_formatter)
     get_collection_logger().addHandler(collection_file_handler)
@@ -104,7 +105,7 @@ def init_instrument_file_handler(instrument_name: str):
         instrument_name: The name of the instrument.
     """
     # Get the instrument directory
-    instrument_dir = get_instrument_dir(instrument_name)
+    instrument_dir = get_instrument_path(instrument_name)
 
     # Create the file handler and add it to the collection logger
     instrument_file_handler = get_file_handler(instrument_dir, instrument_name)
@@ -141,6 +142,40 @@ def get_file_handler(output_dir: str, name: str, level: int = logging.INFO) -> l
     return handler
 
 
+from pathlib import Path
+
+import typer
+from rich import print
+from rich.panel import Panel
+
+logger = get_collection_logger()
+
+from marimba.utils.context import set_collection_path
+
+
+def setup_logging(collection_path):
+    # Check that collection_path exists and is legit
+    if not os.path.isdir(collection_path) or not os.path.isfile(Path(collection_path) / "collection.yml") or not os.path.isdir(
+            Path(collection_path) / "instruments"):
+        print(
+            Panel(
+                f'The provided root MarImBA collection path "[bold]{collection_path}[/bold]" does not appear to be a valid MarImBA collection.',
+                title="Error",
+                title_align="left",
+                border_style="red",
+            )
+        )
+        raise typer.Exit()
+
+    # Set the collection directory
+    set_collection_path(collection_path)
+
+    # Initialize the collection-level file handler
+    init_collection_file_handler()
+
+    logger.info(f'Setting up collection-level logging at: "{collection_path}"')
+
+
 class LogLevel(str, Enum):
     """
     Enumerated log levels for MarImBA CLI.
@@ -159,7 +194,9 @@ class LogMixin:
 
     @property
     def logger(self) -> logging.Logger:
-        if not hasattr(self, "_logger"):  # Lazy initialization
+        # Lazy initialization
+        if not hasattr(self, "_logger"):
             self._logger = get_logger(self.__class__.__name__)
-            self._logger.addHandler(logging.NullHandler())  # Add NullHandler to avoid logs on stdout by default
+            # Add NullHandler to avoid logs on stdout by default
+            self._logger.addHandler(logging.NullHandler())
         return self._logger

@@ -3,31 +3,31 @@ Global context for MarImBA CLI.
 """
 import os
 
-COLLECTION_DIR = None
+COLLECTION_PATH = None
 
 
-def get_collection_dir() -> str:
+def get_collection_path() -> str:
     """
     Get the collection directory.
 
     Returns:
         The collection directory.
     """
-    return COLLECTION_DIR
+    return COLLECTION_PATH
 
 
-def set_collection_dir(collection_dir: str):
+def set_collection_path(collection_path: str):
     """
     Set the collection directory.
 
     Args:
-        collection_dir: The collection directory.
+        collection_path: The collection directory.
     """
-    global COLLECTION_DIR
-    COLLECTION_DIR = collection_dir
+    global COLLECTION_PATH
+    COLLECTION_PATH = collection_path
 
 
-def get_instrument_dir(instrument_name: str) -> str:
+def get_instrument_path(instrument_name: str) -> str:
     """
     Get the instrument directory.
 
@@ -37,4 +37,4 @@ def get_instrument_dir(instrument_name: str) -> str:
     Returns:
         The instrument directory.
     """
-    return os.path.join(get_collection_dir(), "instruments", instrument_name)
+    return os.path.join(get_collection_path(), "instruments", instrument_name)
