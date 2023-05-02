@@ -20,21 +20,21 @@ app = typer.Typer(
 
 def get_base_templates_path() -> str:
     base_templates_path = Path(os.path.abspath(__file__)).parent.parent.parent / "templates"
-    logger.info(f'Setting MarImBA base templates path to: "{base_templates_path}"')
+    logger.info(f'Setting [bold][aquamarine3]MarImBA[/aquamarine3][/bold] base templates path to: "{base_templates_path}"')
     return str(base_templates_path)
 
 
 def check_template_exists(base_templates_path, template_name, template_type) -> str:
-    logger.info(f"Checking that the provided MarImBA [bold]{template_type}[/bold] template exists...")
+    logger.info(f"Checking that the provided [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{template_type}[/light_pink3] template exists...")
     template_path = Path(base_templates_path) / template_name / template_type
 
     if os.path.isdir(template_path):
-        logger.info(f"MarImBA [bold]{template_type}[/bold] template [bold]{Path(template_name) / template_type}[/bold] exists!")
+        logger.info(f"[bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{template_type}[/light_pink3] template [orchid1]{Path(template_name) / template_type}[/orchid1] exists!")
     else:
 
         print(
             Panel(
-                f"The provided [bold]{template_type}[/bold] template name [bold]{Path(template_name) / template_type}[/bold] does not exists at {template_path}",
+                f"The provided [light_pink3]{template_type}[/light_pink3] template name [orchid1]{Path(template_name) / template_type}[/orchid1] does not exists at {template_path}",
                 title="Error",
                 title_align="left",
                 border_style="red",
@@ -46,14 +46,14 @@ def check_template_exists(base_templates_path, template_name, template_type) -> 
 
 
 def check_output_path_exists(output_path, command):
-    logger.info(f"Checking that the provided MarImBA [bold]{command}[/bold] output path exists...")
+    logger.info(f"Checking that the provided [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{command}[/light_pink3] output path exists...")
 
     if os.path.isdir(output_path):
-        logger.info(f'MarImBA [bold]{command}[/bold] output path "[bold]{output_path}[/bold]" exists!')
+        logger.info(f'[bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{command}[/light_pink3] output path "{output_path}" exists!')
     else:
         print(
             Panel(
-                f'The provided MarImBA [bold]{command}[/bold] output path "[bold]{output_path}[/bold]" does not exists.',
+                f'The provided [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{command}[/light_pink3] output path "{output_path}" does not exists.',
                 title="Error",
                 title_align="left",
                 border_style="red",
@@ -70,7 +70,7 @@ def collection(
     """
     Create a new MarImBA collection.
     """
-    logger.info(f"Executing the MarImBA [bold]new collection[/bold] command.")
+    logger.info(f"Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new collection[/steel_blue3] command.")
 
     # Get base template path and check that it exists
     base_templates_path = get_base_templates_path()
@@ -97,7 +97,7 @@ def instrument(
     """
     setup_logging(collection_path)
 
-    logger.info(f"Executing the MarImBA [bold]new instrument[/bold] command.")
+    logger.info(f"Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new instrument[/steel_blue3] command.")
 
     # Get base template path and check that it exists
     base_templates_path = get_base_templates_path()
@@ -118,7 +118,7 @@ def instrument(
         exception_path = str(e).split("\"")[1]
         print(
             Panel(
-                f'A MarImBA [bold]instrument[/bold] already exists at: "{exception_path}"',
+                f'A [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]instrument[/light_pink3] already exists at: "{exception_path}"',
                 title="Error",
                 title_align="left",
                 border_style="red",
@@ -141,7 +141,7 @@ def deployment(
     """
     setup_logging(collection_path)
 
-    logger.info(f"Executing the MarImBA [bold]new deployment[/bold] command.")
+    logger.info(f"Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new deployment[/steel_blue3] command.")
 
     # Get base template path and check that it exists
     base_templates_path = get_base_templates_path()
