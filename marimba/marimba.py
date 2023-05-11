@@ -12,6 +12,7 @@ from marimba.commands.extract import extract_frames
 from marimba.commands.metadata import merge_metadata
 from marimba.commands.qc import run_qc
 from marimba.commands.rename import rename_files
+from marimba.commands.process import process_files
 from marimba.utils.log import LogLevel, get_collection_logger, get_rich_handler
 
 __author__ = "MarImBA Development Team"
@@ -158,11 +159,23 @@ def extract(
 
 
 @marimba.command()
-def distribute():
+def package():
     """
     Package up a MarImBA collection ready for distribution.
     """
     return
+
+
+@marimba.command()
+def process(
+        collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+        dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+):
+    """
+    Process the MarImBA collection based on the instrument class specification.
+    """
+    process_files(collection_path, instrument_id, dry_run)
 
 
 @marimba.command()
