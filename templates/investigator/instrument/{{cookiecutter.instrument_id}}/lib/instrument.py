@@ -16,7 +16,7 @@ from PIL import Image
 from rich import print
 from rich.panel import Panel
 
-from marimba.platforms.instruments.base import Instrument
+from marimba.core.instrument import Instrument
 from marimba.utils.config import load_config
 from marimba.utils.exif_tags import TAGS, get_key
 

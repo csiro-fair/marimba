@@ -9,12 +9,6 @@ import marimba.commands.new as new
 from marimba.core.command import run_command
 from marimba.utils.log import LogLevel, get_collection_logger, get_rich_handler
 
-# from marimba.commands.catalog import catalog_command
-# from marimba.commands.convert import convert_command
-# from marimba.commands.extract import extract_command
-# from marimba.commands.qc import qc_command
-# from marimba.commands.process import process_command
-
 __author__ = "MarImBA Development Team"
 __copyright__ = "Copyright 2023, CSIRO"
 __credits__ = [
@@ -55,7 +49,7 @@ def global_options(
     Global options for MarImBA CLI.
     """
     get_rich_handler().setLevel(logging.getLevelName(level.value))
-    # logger.info(f"Initialized MarImBA CLI v{__version__}")
+    logger.info(f"Initialised MarImBA CLI v{__version__}")
 
 
 @marimba.command()
