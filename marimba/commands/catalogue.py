@@ -34,7 +34,7 @@ def check_input_args(source_path: str, exiftool_path: str):
         raise typer.Exit()
 
 
-def catalogue_files(source_path: str, file_extension: str, exiftool_path: str, glob_path: str, overwrite: bool):
+def catalogue_command(source_path: str, file_extension: str, exiftool_path: str, glob_path: str, overwrite: bool):
     """
     Catalogue files using exiftool.
 

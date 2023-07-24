@@ -6,7 +6,7 @@ from marimba.utils.instrument import get_instrument_config
 from marimba.utils.log import setup_logging
 
 
-def rename_files(
+def rename_command(
         collection_path: str,
         instrument_id: str,
         dry_run: bool,

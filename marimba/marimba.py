@@ -5,14 +5,14 @@ import logging
 
 import typer
 
-import marimba.commands.new as new
-from marimba.commands.catalogue import catalogue_files
-from marimba.commands.convert import convert_files
-from marimba.commands.extract import extract_frames
-from marimba.commands.metadata import merge_metadata
-from marimba.commands.qc import run_qc
-from marimba.commands.rename import rename_files
-from marimba.commands.process import process_files
+import marimba.commands.new as new_command
+from marimba.commands.catalogue import catalogue_command
+from marimba.commands.convert import convert_command
+from marimba.commands.extract import extract_command
+from marimba.commands.metadata import metadata_command
+from marimba.commands.qc import qc_command
+from marimba.commands.rename import rename_command
+from marimba.commands.process import process_command
 from marimba.utils.log import LogLevel, get_collection_logger, get_rich_handler
 
 __author__ = "MarImBA Development Team"
@@ -41,7 +41,7 @@ marimba = typer.Typer(
     no_args_is_help=True,
 )
 
-marimba.add_typer(new.app, name="new")
+marimba.add_typer(new_command.app, name="new")
 
 logger = get_collection_logger()
 
@@ -66,7 +66,7 @@ def qc(
     Run quality control on files to check for anomalies and generate datasets statistics.
     """
 
-    run_qc(source_path, recursive)
+    qc_command(source_path, recursive)
 
 
 @marimba.command()
@@ -80,7 +80,7 @@ def catalog(
     """
     Create an exif catalogue of files stored in .exif_{extension}.
     """
-    catalogue_files(source_path, file_extension, exiftool_path, glob_path, overwrite)
+    catalogue_command(source_path, file_extension, exiftool_path, glob_path, overwrite)
 
 
 @marimba.command()
@@ -93,7 +93,7 @@ def rename(
     Rename files based on the instrument class specification.
     """
 
-    rename_files(collection_path, instrument_id, dry_run)
+    rename_command(collection_path, instrument_id, dry_run)
 
 
 @marimba.command()
@@ -106,7 +106,7 @@ def metadata(
     Process and write metadata including merging nav data files, writing metadata into image EXIF fields, and writing iFDO files into the dataset directory structure.
     """
 
-    merge_metadata(collection_path, instrument_id, dry_run)
+    metadata_command(collection_path, instrument_id, dry_run)
 
 
 @marimba.command()
@@ -121,7 +121,7 @@ def convert(
     Convert images and videos to standardised formats using Pillow and ffmpeg respectively.
     """
 
-    convert_files(source_path, destination_path, recursive, overwrite, dry_run)
+    convert_command(source_path, destination_path, recursive, overwrite, dry_run)
 
 
 # @marimba.command()
@@ -137,7 +137,7 @@ def convert(
 #     Chunk video files into fixed-length videos (default 10 seconds).
 #     """
 #
-#     chunk_files(source_path, destination_path, chunk_length)
+#     chunk_command(source_path, destination_path, chunk_length)
 
 
 @marimba.command()
@@ -153,7 +153,7 @@ def extract(
     Extract frames from videos using ffmpeg.
     """
 
-    extract_frames(source_path, destination_path, chunk_length, recursive, overwrite, dry_run)
+    extract_command(source_path, destination_path, chunk_length, recursive, overwrite, dry_run)
 
 
 @marimba.command()
@@ -173,7 +173,7 @@ def process(
     """
     Process the MarImBA collection based on the instrument class specification.
     """
-    process_files(collection_path, instrument_id, dry_run)
+    process_command(collection_path, instrument_id, dry_run)
 
 
 @marimba.command()

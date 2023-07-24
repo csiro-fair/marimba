@@ -34,7 +34,7 @@ def check_input_args(source_path: str, destination_path: str):
 
 
 # TODO: Do we really need a straight copy method in MarImBA? The advantage is that we could include some arguments as default, like --archive etc...
-def chunk_files(source_path: str, destination_path: str, chunk_length: int, recursive: bool, overwrite: bool, dry_run: bool):
+def chunk_command(source_path: str, destination_path: str, chunk_length: int, recursive: bool, overwrite: bool, dry_run: bool):
     """
     Chunks video files into smaller chunks of a specified length.
 
@@ -75,7 +75,7 @@ def get_video_duration(file: str) -> float:
     return duration
 
 
-def chunk_files(input_path: str, output_path: str, chunk_length: int):
+def chunk_command(input_path: str, output_path: str, chunk_length: int):
     """
     Chunks video files into smaller chunks of a specified length.
 

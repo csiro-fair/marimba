@@ -8,7 +8,7 @@ from marimba.utils.instrument import get_instrument_config
 from marimba.utils.log import setup_logging
 
 
-def merge_metadata(
+def metadata_command(
         collection_path: str,
         instrument_id: str,
         dry_run: bool,
