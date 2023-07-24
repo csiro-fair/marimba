@@ -6,7 +6,7 @@ import logging
 import typer
 
 import marimba.commands.new as new_command
-from marimba.commands.catalogue import catalogue_command
+from marimba.commands.catalog import catalog_command
 from marimba.commands.convert import convert_command
 from marimba.commands.extract import extract_command
 from marimba.commands.metadata import metadata_command
@@ -71,16 +71,16 @@ def qc(
 
 @marimba.command()
 def catalog(
-        source_path: str = typer.Argument(..., help="Source path for catalogue."),
+        source_path: str = typer.Argument(..., help="Source path for catalog."),
         exiftool_path: str = typer.Option("exiftool", help="Path to exiftool"),
-        file_extension: str = typer.Option("JPG", help="extension to catalogue"),
+        file_extension: str = typer.Option("JPG", help="extension to catalog"),
         glob_path: str = typer.Option("**", help="masked used in glob"),
         overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
 ):
     """
-    Create an exif catalogue of files stored in .exif_{extension}.
+    Create an exif catalog of files stored in .exif_{extension}.
     """
-    catalogue_command(source_path, file_extension, exiftool_path, glob_path, overwrite)
+    catalog_command(source_path, file_extension, exiftool_path, glob_path, overwrite)
 
 
 @marimba.command()

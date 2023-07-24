@@ -11,10 +11,10 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, track
 
 def check_input_args(source_path: str, exiftool_path: str):
     """
-    Check the input arguments for the catalogue command.
+    Check the input arguments for the catalog command.
 
     Args:
-        source_path: The path to the directory containing the files to be catalogued.
+        source_path: The path to the directory containing the files to be catalogd.
         exiftool_path: The path to the exiftool executable.
     """
     # Check if source_path is valid
@@ -34,15 +34,15 @@ def check_input_args(source_path: str, exiftool_path: str):
         raise typer.Exit()
 
 
-def catalogue_command(source_path: str, file_extension: str, exiftool_path: str, glob_path: str, overwrite: bool):
+def catalog_command(source_path: str, file_extension: str, exiftool_path: str, glob_path: str, overwrite: bool):
     """
     Catalogue files using exiftool.
 
     Args:
-        source_path: The path to the directory containing the files to be catalogued.
-        file_extension: The file extension of the files to be catalogued.
+        source_path: The path to the directory containing the files to be catalogd.
+        file_extension: The file extension of the files to be catalogd.
         exiftool_path: The path to the exiftool executable.
-        glob_path: The glob path to the files to be catalogued.
+        glob_path: The glob path to the files to be catalogd.
         overwrite: Whether to overwrite existing output files.
     """
     # Check input arguments and update iFDO file path if found automatically
