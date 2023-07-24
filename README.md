@@ -181,8 +181,8 @@ The default entry point to start using MarImBA is the `new` command. This allows
 │       │   instrument.yml          - 
 │       │   metadata.yml            - 
 │
-│   collection.yml                  - 
-│   {collection}.log                - 
+└───collection.yml                  - 
+└───{collection}.log                - 
 ```
 
 The usual order you might use the MarImBA commands might be:

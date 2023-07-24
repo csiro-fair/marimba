@@ -22,6 +22,7 @@ pillow = "^9.5.0"
 scikit-learn = "^1.2.2"
 stitching = "^0.4.0"
 opencv-python = "^4.7.0.72"
+pyexiv2 = "^2.8.1"
 
 [tool.poetry.scripts]
 marimba = "marimba.marimba:marimba"
