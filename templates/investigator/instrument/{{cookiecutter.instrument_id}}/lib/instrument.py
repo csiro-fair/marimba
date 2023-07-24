@@ -124,7 +124,7 @@ class MNFDeepTowedCamera(Instrument):
 
                         # Get the output filename and path
                         output_file_name = self.get_output_file_name(deployment_config, file_path, i, "DSP")
-                        output_file_path = deployment_path / output_file_name
+                        output_file_path = deployment_stills_port_path / output_file_name
 
                         # Check if input and output file paths are the same
                         if file_path == output_file_path:
@@ -194,7 +194,8 @@ class MNFDeepTowedCamera(Instrument):
 
     # Function to iterate over JPG files in a directory
     def iterate_over_images_in_dir(self, directory, image_data):
-        for jpg_file in directory.glob("*.jpg"):
+        # TODO: Fix this to be case insensitive
+        for jpg_file in directory.glob("*.JPG"):
             timestamp = self.get_exif_data(jpg_file)
             image_data.append({"filename": str(jpg_file), "image-datetime": timestamp})
 
