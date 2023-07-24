@@ -1,0 +1,3 @@
+voyage-id: {{cookiecutter.voyage_id}}
+start-date: {{cookiecutter.start_date}}
+end-date: {{cookiecutter.end_date}}

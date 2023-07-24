@@ -98,17 +98,15 @@ def rename(
 
 @marimba.command()
 def metadata(
-        source_path: str = typer.Argument(..., help="Source path of files."),
-        config_path: str = typer.Argument(..., help="Path to minimal survey/deployment config file."),
-        recursive: bool = typer.Option(True, help="Recursively process entire directory structure."),
-        overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
+        collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
     Process and write metadata including merging nav data files, writing metadata into image EXIF fields, and writing iFDO files into the dataset directory structure.
     """
 
-    merge_metadata(source_path, config_path, recursive, overwrite, dry_run)
+    merge_metadata(collection_path, instrument_id, dry_run)
 
 
 @marimba.command()
