@@ -1,10 +1,15 @@
 import logging
 import os.path
 from enum import Enum
+from pathlib import Path
 
 import rich.logging
+import typer
+from rich import print
+from rich.panel import Panel
 
 from marimba.utils.context import get_collection_path, get_instrument_path
+from marimba.utils.context import set_collection_path
 
 # Global file formatter. This is used for all file handlers.
 file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -142,17 +147,6 @@ def get_file_handler(output_dir: str, name: str, level: int = logging.INFO) -> l
     return handler
 
 
-from pathlib import Path
-
-import typer
-from rich import print
-from rich.panel import Panel
-
-logger = get_collection_logger()
-
-from marimba.utils.context import set_collection_path
-
-
 def setup_logging(collection_path):
     # Check that collection_path exists and is legit
     if not os.path.isdir(collection_path) or not os.path.isfile(Path(collection_path) / "collection.yml") or not os.path.isdir(
@@ -200,3 +194,6 @@ class LogMixin:
             # Add NullHandler to avoid logs on stdout by default
             self._logger.addHandler(logging.NullHandler())
         return self._logger
+
+
+logger = get_collection_logger()
