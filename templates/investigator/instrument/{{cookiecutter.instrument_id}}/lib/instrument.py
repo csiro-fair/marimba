@@ -80,7 +80,81 @@ class MNFDeepTowedCamera(Instrument):
         super().__init__(root_path, collection_config, instrument_config)
 
         # Define instrument filetypes and data files
-        self.filetypes = ["jpg"]
+        self.image_filetypes = ["jpg"]
+        self.video_filetypes = ["mp4"]
+
+    # TODO: Make dry_run and dry_run_log_string member variables of the instrument class and remove from here
+    def traverse_and_rename_images(self, deployment_stills_path, camera_direction, deployment_config, dry_run, dry_run_log_string):
+
+        # for file in os.scandir(deployment_stills_path):
+        for i, file in enumerate(sorted(os.scandir(deployment_stills_path), key=lambda file: file.name), start=1):
+
+            # Define regex to match any of the filetypes to be renamed
+            extensions_pattern = f'({"|".join(re.escape(extension) for extension in self.image_filetypes)})$'
+            file_path = file.path
+
+            # Match case-insensitive regex expression in file name
+            if re.search(extensions_pattern, file_path, re.IGNORECASE):
+
+                # Get the output filename and path
+                output_file_name = self.get_image_output_file_name(deployment_config, file_path, i, camera_direction)
+                output_file_path = deployment_stills_path / output_file_name
+
+                # Check if input and output file paths are the same
+                if file_path == output_file_path:
+                    self.logger.info(f'{dry_run_log_string}SKIPPING FILE - input and output file names are identical: "{file_path}"')
+                # Check if output file path already exists and the overwrite argument is not set
+                # elif output_file_path.is_file() and not overwrite:
+                elif output_file_path.is_file():
+                    self.logger.info(
+                        f'{dry_run_log_string}Output file already exists and overwrite argument is not set: "{output_file_path}"')
+                # Perform file renaming
+                else:
+                    # Only rename files if not in --dry-run mode
+                    self.logger.info(f'{dry_run_log_string}Renaming file "{file.name}" to: "{output_file_path}"')
+                    if not dry_run:
+                        try:
+                            # Rename file
+                            os.rename(file_path, output_file_path)
+                        # TODO: Check this is the correct exception to catch
+                        except FileExistsError:
+                            self.logger.error(f"Error renaming file {file_path} to {output_file_path}")
+
+    def traverse_and_rename_videos(self, deployment_stills_path, deployment_config, dry_run, dry_run_log_string):
+
+        # for file in os.scandir(deployment_stills_path):
+        for i, file in enumerate(sorted(os.scandir(deployment_stills_path), key=lambda file: file.name), start=1):
+
+            # Define regex to match any of the filetypes to be renamed
+            extensions_pattern = f'({"|".join(re.escape(extension) for extension in self.video_filetypes)})$'
+            file_path = file.path
+
+            # Match case-insensitive regex expression in file name
+            if re.search(extensions_pattern, file_path, re.IGNORECASE):
+
+                # Get the output filename and path
+                output_file_name = self.get_video_output_file_name(deployment_config, file_path, i)
+                output_file_path = deployment_stills_path / output_file_name
+
+                # Check if input and output file paths are the same
+                if file_path == output_file_path:
+                    self.logger.info(f'{dry_run_log_string}SKIPPING FILE - input and output file names are identical: "{file_path}"')
+                # Check if output file path already exists and the overwrite argument is not set
+                # elif output_file_path.is_file() and not overwrite:
+                elif output_file_path.is_file():
+                    self.logger.info(
+                        f'{dry_run_log_string}Output file already exists and overwrite argument is not set: "{output_file_path}"')
+                # Perform file renaming
+                else:
+                    # Only rename files if not in --dry-run mode
+                    self.logger.info(f'{dry_run_log_string}Renaming file "{file.name}" to: "{output_file_path}"')
+                    if not dry_run:
+                        try:
+                            # Rename file
+                            os.rename(file_path, output_file_path)
+                        # TODO: Check this is the correct exception to catch
+                        except FileExistsError:
+                            self.logger.error(f"Error renaming file {file_path} to {output_file_path}")
 
     def rename(self, dry_run: bool):
         """
@@ -111,42 +185,12 @@ class MNFDeepTowedCamera(Instrument):
                 self.logger.info(f'{dry_run_log_string}Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
                 deployment_config = load_config(deployment_config_path)
 
-                # Loop through each file in the deployment video directory
-                # for file in os.scandir(deployment_stills_path):
-                for i, file in enumerate(sorted(os.scandir(deployment_stills_port_path), key=lambda file: file.name), start=1):
+                # Loop through each file in the deployment port and starboard image directories
+                self.traverse_and_rename_images(deployment_stills_port_path, "DSP", deployment_config, dry_run, dry_run_log_string)
+                self.traverse_and_rename_images(deployment_stills_starboard_path, "DSS", deployment_config, dry_run, dry_run_log_string)
+                self.traverse_and_rename_videos(deployment_video_path, deployment_config, dry_run, dry_run_log_string)
 
-                    # Define regex to match any of the filetypes to be renamed
-                    extensions_pattern = f'({"|".join(re.escape(extension) for extension in self.filetypes)})$'
-                    file_path = file.path
-
-                    # Match case-insensitive regex expression in file name
-                    if re.search(extensions_pattern, file_path, re.IGNORECASE):
-
-                        # Get the output filename and path
-                        output_file_name = self.get_output_file_name(deployment_config, file_path, i, "DSP")
-                        output_file_path = deployment_stills_port_path / output_file_name
-
-                        # Check if input and output file paths are the same
-                        if file_path == output_file_path:
-                            self.logger.info(f'{dry_run_log_string}SKIPPING FILE - input and output file names are identical: "{file_path}"')
-                        # Check if output file path already exists and the overwrite argument is not set
-                        # elif output_file_path.is_file() and not overwrite:
-                        elif output_file_path.is_file():
-                            self.logger.info(
-                                f'{dry_run_log_string}Output file already exists and overwrite argument is not set: "{output_file_path}"')
-                        # Perform file renaming
-                        else:
-                            # Only rename files if not in --dry-run mode
-                            self.logger.info(f'{dry_run_log_string}Renaming file "{file.name}" to: "{output_file_path}"')
-                            if not dry_run:
-                                try:
-                                    # Rename file
-                                    os.rename(file_path, output_file_path)
-                                # TODO: Check this is the correct exception to catch
-                                except FileExistsError:
-                                    self.logger.error(f"Error renaming file {file_path} to {output_file_path}")
-
-    def get_output_file_name(self, deployment_config: dict, file_path: str, index: int, camera_direction) -> str:
+    def get_image_output_file_name(self, deployment_config: dict, file_path: str, index: int, camera_direction) -> str:
 
         try:
             image = Image.open(file_path)
@@ -179,6 +223,24 @@ class MNFDeepTowedCamera(Instrument):
 
         except IOError:
             self.logger.error(f"Error: Unable to open {file_path}. Are you sure it's an image?")
+
+    # TODO: Currently this is not getting real starting video timestamps
+    def get_video_output_file_name(self, deployment_config: dict, file_path: str, index: int) -> str:
+
+        date = datetime.now()
+        # Convert to ISO 8601 format
+        iso_timestamp = date.strftime("%Y%m%dT%H%M%SZ")
+
+        # Construct and return new filename
+        return (
+            f'{self.instrument_config.get("id")}_'
+            f'{self.collection_config.get("voyage-id").split("_")[0]}_'
+            f'{self.collection_config.get("voyage-id").split("_")[1]}_'
+            f'{deployment_config.get("deployment-id").split("_")[2]}_'
+            f'{iso_timestamp}_'
+            f"{index:05d}"
+            f".MP4"
+        )
 
     # Function to extract EXIF data
     # TODO: Clean up this method, make DateTimeOriginal EXIF element more explicit
@@ -263,7 +325,7 @@ class MNFDeepTowedCamera(Instrument):
 
                 # check_input_args(source_path, ifdo_path)
 
-                ifdo_path = deployment_path / Path("DTC_DSP_" + deployment_name + ".ifdo")
+                ifdo_path = deployment_path / Path("DTC_" + deployment_name + ".ifdo")
 
                 # load metadata config for mapping nav data
                 with open(f'{self.root_path}/metadata.yml') as file:
@@ -273,18 +335,34 @@ class MNFDeepTowedCamera(Instrument):
                         print(exc)
 
                 # Match and load nav data
-                matching_files = list(glob.iglob(f'{deployment_path}/DTC_DSP_{deployment_name}*.CSV'))
+                matching_files = list(glob.iglob(f'{deployment_path}/DTC_{deployment_name}*.CSV'))
 
                 if len(matching_files) > 1:
-                    self.logger.error(f"Multiple matching files found for pattern: DTC_DSP_{deployment_name}*.CSV")
-                    raise ValueError(f"Multiple matching files found for pattern: DTC_DSP_{deployment_name}*.CSV")
+                    self.logger.error(f"Multiple matching files found for pattern: DTC_{deployment_name}*.CSV")
+                    print(
+                        Panel(
+                            f"Multiple matching files found for pattern: DTC_{deployment_name}*.CSV",
+                            title="Error",
+                            title_align="left",
+                            border_style="red",
+                        )
+                    )
+                    raise typer.Exit()
                 elif len(matching_files) == 0:
-                    self.logger.error(f"No matching file found for pattern: DTC_DSP_{deployment_name}*.CSV")
-                    raise FileNotFoundError(f"No matching file found for pattern: DTC_DSP_{deployment_name}*.CSV")
+                    self.logger.error(f"No matching file found for pattern: DTC_{deployment_name}*.CSV")
+                    print(
+                        Panel(
+                            f"No matching file found for pattern: DTC_{deployment_name}*.CSV",
+                            title="Error",
+                            title_align="left",
+                            border_style="red",
+                        )
+                    )
+                    raise typer.Exit()
                 else:
                     nav_df = pd.read_csv(matching_files[0])
 
-                self.logger.info(f"Merging metadata from source directory: {deployment_path}/DTC_DSP_{deployment_name}*.CSV")  # rename datetime column from config for merge
+                self.logger.info(f"Merging metadata from source directory: {deployment_path}/DTC_{deployment_name}*.CSV")  # rename datetime column from config for merge
                 nav_df_renamed = nav_df.rename(
                     columns={
                         metadata_config['ifdo-image-set-items']['image-datetime']: 'image-datetime'
@@ -309,12 +387,13 @@ class MNFDeepTowedCamera(Instrument):
 
                 ifdo_dict = []
                 # TODO: Parameterise the iFDO header so that it works for all deployments
-                ifdo_dict.append({"image-set-header": {"image-set-name": f"DTC_DSP_IN2022_V09_003"}})
+                ifdo_dict.append({"image-set-header": {"image-set-name": f"DTC_IN2022_V09_001"}})
                 ifdo_dict.append({"image-set-items": df_renamed.set_index('filename').to_dict('index')})
-
-                # overwrite ifdo file with updated info
-                with open(ifdo_path, 'w') as file:
-                    yaml.dump(ifdo_dict, file)
 
                 # Iterate over JPG files in the directories
                 self.add_custom_exif_data(deployment_path, ifdo_dict, dry_run)
+
+                # overwrite ifdo file with updated info
+                self.logger.info(f"Writing iFDO file to: {ifdo_path}")
+                with open(ifdo_path, 'w') as file:
+                    yaml.dump(ifdo_dict, file)
