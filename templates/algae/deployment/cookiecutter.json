@@ -15,5 +15,6 @@
     "GTD",
     "IDN",
     "TYL"
-  ]
+  ],
+  "utc_timestamp": "{{ cookiecutter.utc_timestamp }}"
 }

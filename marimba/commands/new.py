@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import typer
@@ -155,5 +155,5 @@ def deployment(
     cookiecutter(
         template=str(template_path),
         output_dir=output_path,
-        extra_context={"datestamp": datetime.today().strftime("%Y-%m-%d")}
+        extra_context={"utc_timestamp": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")}
     )

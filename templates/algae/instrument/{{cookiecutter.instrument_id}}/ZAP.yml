@@ -1,3 +1,3 @@
 id: "{{cookiecutter.instrument_id}}"
 name: "Zeiss Axio Plan"
-class_name: "ZeissAxioPlan"
+class-name: "ZeissAxioPlan"
