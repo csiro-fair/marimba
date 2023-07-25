@@ -10,7 +10,7 @@ import czifile
 import dateutil.parser
 import pandas as pd
 
-from marimba.platforms.instruments.base import Instrument
+from marimba.core.instrument import Instrument
 from marimba.utils.config import load_config
 
 __author__ = "Chris Jackett"
