@@ -31,7 +31,7 @@ def check_input_args(
         raise typer.Exit()
 
 
-def run_qc(
+def qc_command(
     input_path: str,
     recursive: bool,
 ):

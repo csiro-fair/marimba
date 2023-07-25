@@ -1,0 +1,3 @@
+{
+  "datestamp": "{{ cookiecutter.datestamp }}"
+}

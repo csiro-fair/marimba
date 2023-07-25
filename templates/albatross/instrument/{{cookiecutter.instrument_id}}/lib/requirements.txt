@@ -1,0 +1,4 @@
+Pillow==9.5.0
+scikit-learn
+stitching
+opencv-python

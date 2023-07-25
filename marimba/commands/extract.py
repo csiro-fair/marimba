@@ -55,7 +55,7 @@ def get_video_duration(file: str) -> float:
     return duration
 
 
-def extract_frames(
+def extract_command(
     input_path: str,
     output_path: str,
     chunk_length: int,

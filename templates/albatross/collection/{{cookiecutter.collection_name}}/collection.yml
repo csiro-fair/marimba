@@ -1,0 +1,2 @@
+collection-name: {{cookiecutter.collection_name}}
+collection-maintainer: {{cookiecutter.collection_maintainer}}

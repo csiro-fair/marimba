@@ -6,13 +6,7 @@ import logging
 import typer
 
 import marimba.commands.new as new
-from marimba.commands.catalogue import catalogue_files
-from marimba.commands.convert import convert_files
-from marimba.commands.extract import extract_frames
-from marimba.commands.metadata import merge_metadata
-from marimba.commands.qc import run_qc
-from marimba.commands.rename import rename_files
-from marimba.commands.process import process_files
+from marimba.core.command import run_command
 from marimba.utils.log import LogLevel, get_collection_logger, get_rich_handler
 
 __author__ = "MarImBA Development Team"
@@ -48,84 +42,34 @@ logger = get_collection_logger()
 
 @marimba.callback()
 def global_options(
+        # dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
         level: LogLevel = typer.Option(LogLevel.INFO, help="Logging level."),
 ):
     """
     Global options for MarImBA CLI.
     """
     get_rich_handler().setLevel(logging.getLevelName(level.value))
-    # logger.info(f"Initialized MarImBA CLI v{__version__}")
-
-
-@marimba.command()
-def qc(
-        source_path: str = typer.Argument(..., help="Source path of files."),
-        recursive: bool = typer.Option(True, help="Recursively process entire directory structure."),
-):
-    """
-    Run quality control on files to check for anomalies and generate datasets statistics.
-    """
-
-    run_qc(source_path, recursive)
+    logger.info(f"Initialised MarImBA CLI v{__version__}")
 
 
 @marimba.command()
 def catalog(
-        source_path: str = typer.Argument(..., help="Source path for catalogue."),
+        collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+        dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
         exiftool_path: str = typer.Option("exiftool", help="Path to exiftool"),
-        file_extension: str = typer.Option("JPG", help="extension to catalogue"),
+        file_extension: str = typer.Option("JPG", help="extension to catalog"),
         glob_path: str = typer.Option("**", help="masked used in glob"),
         overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
 ):
     """
-    Create an exif catalogue of files stored in .exif_{extension}.
-    """
-    catalogue_files(source_path, file_extension, exiftool_path, glob_path, overwrite)
-
-
-@marimba.command()
-def rename(
-        collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
-        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
-        dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-):
-    """
-    Rename files based on the instrument class specification.
+    Create an exif catalog of files stored in .exif_{extension}.
     """
 
-    rename_files(collection_path, instrument_id, dry_run)
+    run_command('catalog', collection_path, instrument_id, dry_run=dry_run, exiftool_path=exiftool_path, file_extension=file_extension, glob_path=glob_path, overwrite=overwrite)
 
 
-@marimba.command()
-def metadata(
-        source_path: str = typer.Argument(..., help="Source path of files."),
-        config_path: str = typer.Argument(..., help="Path to minimal survey/deployment config file."),
-        recursive: bool = typer.Option(True, help="Recursively process entire directory structure."),
-        overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
-        dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-):
-    """
-    Process and write metadata including merging nav data files, writing metadata into image EXIF fields, and writing iFDO files into the dataset directory structure.
-    """
-
-    merge_metadata(source_path, config_path, recursive, overwrite, dry_run)
-
-
-@marimba.command()
-def convert(
-        source_path: str = typer.Argument(..., help="Source path of files."),
-        destination_path: str = typer.Argument(..., help="Destination path to output files."),
-        recursive: bool = typer.Option(True, help="Recursively process entire directory structure."),
-        overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
-        dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-):
-    """
-    Convert images and videos to standardised formats using Pillow and ffmpeg respectively.
-    """
-
-    convert_files(source_path, destination_path, recursive, overwrite, dry_run)
-
-
+# TODO: This could be implemented within the MarImBA process command
 # @marimba.command()
 # def chunk(
 #     source_path: str = typer.Argument(..., help="Source path of files."),
@@ -139,31 +83,66 @@ def convert(
 #     Chunk video files into fixed-length videos (default 10 seconds).
 #     """
 #
-#     chunk_files(source_path, destination_path, chunk_length)
+#     chunk_command(source_path, destination_path, chunk_length)
+#     run_command('chunk', collection_path, instrument_id, dry_run=dry_run, chunk_length=chunk_length)
+
+
+# TODO: This could be implemented within the MarImBA process command
+# @marimba.command()
+# def convert(
+#         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+#         instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+#         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+#         destination_path: str = typer.Argument(..., help="Destination path to output files."),
+#         overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
+# ):
+#     """
+#     Convert images and videos to standardised formats using Pillow and ffmpeg.
+#     """
+#
+#     run_command('convert', collection_path, instrument_id, dry_run=dry_run, destination_path=destination_path, overwrite=overwrite)
+
+
+# TODO: This could be implemented within the MarImBA process command
+# @marimba.command()
+# def extract(
+#         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+#         instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+#         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+#         destination_path: str = typer.Argument(..., help="Destination path to output files."),
+#         chunk_length: int = typer.Argument(None, help="Video chunk length in number of seconds."),
+#         overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
+# ):
+#     """
+#     Extract frames from videos using ffmpeg.
+#     """
+#
+#     run_command('extract', collection_path, instrument_id, dry_run=dry_run, destination_path=destination_path, chunk_length=chunk_length, overwrite=overwrite)
 
 
 @marimba.command()
-def extract(
-        source_path: str = typer.Argument(..., help="Source path of files."),
-        destination_path: str = typer.Argument(..., help="Destination path to output files."),
-        chunk_length: int = typer.Argument(None, help="Video chunk length in number of seconds."),
-        recursive: bool = typer.Option(True, help="Recursively process entire directory structure."),
-        overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
+def metadata(
+        collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
-    Extract frames from videos using ffmpeg.
+    Process metadata including merging nav data files, writing metadata into image EXIF tags, and writing iFDO files.
     """
 
-    extract_frames(source_path, destination_path, chunk_length, recursive, overwrite, dry_run)
+    run_command('metadata', collection_path, instrument_id, dry_run=dry_run)
 
 
 @marimba.command()
-def package():
+def package(
+        collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+        dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+):
     """
     Package up a MarImBA collection ready for distribution.
     """
-    return
+    run_command('package', collection_path, instrument_id, dry_run=dry_run)
 
 
 @marimba.command()
@@ -173,26 +152,50 @@ def process(
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
-    Process the MarImBA collection based on the instrument class specification.
+    Process the MarImBA collection based on the instrument specification.
     """
-    process_files(collection_path, instrument_id, dry_run)
+
+    run_command('process', collection_path, instrument_id, dry_run=dry_run)
+
+
+# TODO: This could be implemented within the MarImBA process command
+# @marimba.command()
+# def qc(
+#         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+#         instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+#         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+# ):
+#     """
+#     Run quality control on files to check for anomalies and generate datasets statistics.
+#     """
+#
+#     run_command('qc', collection_path, instrument_id, dry_run=dry_run)
 
 
 @marimba.command()
-def report():
+def rename(
+        collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+        dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+):
     """
-    Generate reports for a MarImBA collection, instrument or deployment.
+    Rename files based on the instrument specification.
     """
-    return
+
+    run_command('rename', collection_path, instrument_id, dry_run=dry_run)
 
 
-# @marimba.command()
-# def test():
-#     """
-#     Test the marimba package.
-#     """
-#
-#     noop_instrument = NoopInstrument(get_instrument_path("noopinstrument"), {}, {})
+@marimba.command()
+def report(
+        collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+        dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+):
+    """
+    Generate reports for a MarImBA collection or instrument.
+    """
+
+    run_command('report', collection_path, instrument_id, dry_run=dry_run)
 
 
 if __name__ == "__main__":
