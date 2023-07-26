@@ -1,1 +1,1 @@
-deployment-id : {{cookiecutter.deployment_id}}
+deployment_id : {{cookiecutter.deployment_id}}
