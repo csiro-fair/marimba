@@ -1,15 +1,15 @@
 {
-  "strain_identifier": [
+  "strain_id": [
     "CS01",
     "CS02"
   ],
-  "contrast_identifier": [
+  "contrast_id": [
     "BF",
     "DIC",
     "FL",
     "PC"
   ],
-  "biological_stain_identifier": [
+  "biological_stain_id": [
     "NA",
     "DPI",
     "GTD",
