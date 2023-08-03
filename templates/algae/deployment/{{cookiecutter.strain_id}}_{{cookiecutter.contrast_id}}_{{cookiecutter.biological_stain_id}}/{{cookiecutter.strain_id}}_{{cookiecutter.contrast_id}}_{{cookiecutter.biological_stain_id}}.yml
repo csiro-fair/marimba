@@ -1,4 +1,4 @@
-strain_identifier: {{cookiecutter.strain_identifier}}
-contrast_identifier: {{cookiecutter.contrast_identifier}}
-biological_stain_identifier: {{cookiecutter.biological_stain_identifier}}
+strain_id: {{cookiecutter.strain_id}}
+contrast_id: {{cookiecutter.contrast_id}}
+biological_stain_id: {{cookiecutter.biological_stain_id}}
 start_utc_timestamp: {{cookiecutter.utc_timestamp}}
