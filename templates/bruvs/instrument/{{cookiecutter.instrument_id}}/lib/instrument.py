@@ -113,8 +113,8 @@ class BRUVS(Instrument):
         for deployment in os.scandir(self.work_path):
 
             # Get deployment name and config path
-            deployment_name = deployment.path.split("/")[-1]
             deployment_path = Path(deployment.path)
+            deployment_name = deployment_path.name
             deployment_config_path = deployment_path / Path(deployment_name + ".yml")
             deployment_video_port_path = deployment_path / "video" / "port"
             deployment_video_starboard_path = deployment_path / "video" / "starboard"
