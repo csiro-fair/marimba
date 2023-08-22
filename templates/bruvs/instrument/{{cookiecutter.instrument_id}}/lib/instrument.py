@@ -4,6 +4,7 @@ Baited Remote Underwater Video Systems (BRUVS) instrument specification
 
 import json
 import os
+import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,10 +32,10 @@ class BRUVS(Instrument):
         self.exif_filename = [".exif_MP4.json"]
 
     @staticmethod
-    def get_directory_file_list(directory):
+    def get_sorted_directory_file_list(directory):
         """Return a list of files with a case-insensitive .mp4 extension in the given directory."""
-        return [filename for filename in os.listdir(str(directory)) if filename.lower().endswith('.mp4')]
-
+        files = [filename for filename in os.listdir(str(directory)) if filename.lower().endswith('.mp4')]
+        return sorted(files, key=lambda s: s.lower())
     @staticmethod
     def parse_exif_from_json(filename):
         """Open and parse a JSON file containing EXIF metadata."""
@@ -129,13 +130,9 @@ class BRUVS(Instrument):
                 self.logger.info(f'{dry_run_log_string}Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
                 deployment_config = load_config(deployment_config_path)
 
-                # # Loop through each file in the deployment port and starboard image directories
-                # self.rename_and_restructure_data(deployment_video_port_path, deployment_video_starboard_path, deployment_config, dry_run, dry_run_log_string)
-
-                # Rename pair-wise
-                # def rename_pairwise(dir1, dir2):
-                deployment_video_port_list = self.get_directory_file_list(deployment_video_port_path)
-                deployment_video_starboard_list = self.get_directory_file_list(deployment_video_starboard_path)
+                # Rename pair-wise sorted
+                deployment_video_port_list = self.get_sorted_directory_file_list(deployment_video_port_path)
+                deployment_video_starboard_list = self.get_sorted_directory_file_list(deployment_video_starboard_path)
 
                 # Ensure that both directories have the same number of .mp4 files
                 if len(deployment_video_port_list) != len(deployment_video_starboard_list):
@@ -166,17 +163,21 @@ class BRUVS(Instrument):
                     local_timestamp = datetime.fromisoformat(formatted_timestamp)
                     iso_timestamp = local_timestamp.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
-                    file_id = port_json_dict.get("FileName")[0:4]
+                    # Find match for GX code
+                    port_match = re.search(r'GX\d{2}', port_json_dict.get("FileName"))
+                    port_file_id = port_match.group(0) if port_match else None
+                    starboard_match = re.search(r'GX\d{2}', starboard_json_dict.get("FileName"))
+                    starboard_file_id = starboard_match.group(0) if starboard_match else None
 
-                    if "GX" not in file_id:
-                        self.logger.info('Cannot find "GX" at beginning of filename - looks like this has already been renamed, skipping...')
+                    if not port_match or not starboard_match:
+                        self.logger.info('Cannot find "GX" string in filename, skipping...')
                         continue
 
-                    output_file_name_port = os.path.join(deployment_video_port_path, self.get_video_output_file_name(deployment_config, "VCP", iso_timestamp, file_id))
-                    output_file_name_starboard = os.path.join(deployment_video_starboard_path, self.get_video_output_file_name(deployment_config, "VCS", iso_timestamp, file_id))
+                    output_file_name_port = os.path.join(deployment_video_port_path, self.get_video_output_file_name(deployment_config, "VCP", iso_timestamp, port_file_id))
+                    output_file_name_starboard = os.path.join(deployment_video_starboard_path, self.get_video_output_file_name(deployment_config, "VCS", iso_timestamp, starboard_file_id))
 
                     # Check if input and output file paths are the same
-                    if port_video_path == output_file_name_port and starboard_video_path == output_file_name_starboard:
+                    if str(port_video_path) == str(output_file_name_port) and str(starboard_video_path) == str(output_file_name_starboard):
                         self.logger.info(f'{dry_run_log_string}SKIPPING FILE - input and output file names are identical: "{port_video_path}"')
                         self.logger.info(f'{dry_run_log_string}SKIPPING FILE - input and output file names are identical: "{starboard_video_path}"')
                     else:
