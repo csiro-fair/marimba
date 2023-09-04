@@ -47,10 +47,12 @@ def run_command(command_name: str, collection_path: str, instrument_id: str, ext
         extra_dict = {}
         if extra_args:
             for arg in extra_args:
-                try:
-                    key, value = arg.split('=')
+                # Attempt to split the argument into a key and a value
+                parts = arg.split('=')
+                if len(parts) == 2:
+                    key, value = parts
                     extra_dict[key] = value
-                except ValueError:
+                else:
                     logger.warning(f'Invalid extra argument provided: "{arg}"')
         merged_kwargs = {**kwargs, **extra_dict}
 
