@@ -60,65 +60,53 @@ class ZeissAxioObserver(Instrument):
             "NA": "Not Applicable",
         }
 
-    def rename(self, dry_run: bool):
+    def rename(self, deployment_path: str, dry_run: bool):
         """
         Implementation of the MarImBA rename command for the Zeiss Axio Observer
         """
 
         # TODO: Move this to the instrument logger
-        # Set dry run log string to prepend to logging
         dry_run_log_string = "DRY_RUN - " if dry_run else ""
+        self.logger.info(f'{dry_run_log_string}Renaming files in MarImBA deployment: "{deployment_path}"')
 
-        # Loop through each deployment subdirectory in the instrument work directory
-        for deployment in os.scandir(self.work_path):
+        # Get deployment name and load deployment config
+        deployment_name = deployment_path.split("/")[-1]
+        deployment_config_path = Path(deployment_path) / Path(deployment_name + ".yml")
+        deployment_config = load_config(deployment_config_path)
 
-            # Get deployment name and config path
-            deployment_name = deployment.path.split("/")[-1]
-            deployment_config_path = Path(deployment.path) / Path(deployment_name + ".yml")
+        # Loop through each file in the deployment directory
+        for file in os.scandir(deployment_path):
 
-            # Check if deployment metadata file exists and skip deployment if not present
-            if not deployment_config_path.is_file():
-                self.logger.warning(
-                    f'{dry_run_log_string}SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment.path}"')
-                continue
-            else:
-                # TODO: Need to validate deployment metadata file here and load deployment config
-                self.logger.info(f'{dry_run_log_string}Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
-                deployment_config = load_config(deployment_config_path)
+            # Define regex to match any of the filetypes to be renamed
+            extensions_pattern = f'({"|".join(re.escape(extension) for extension in self.filetypes)})$'
+            file_path = file.path
 
-                # Loop through each file in the deployment directory
-                for file in os.scandir(deployment.path):
+            # Match case-insensitive regex expression in file name
+            if re.search(extensions_pattern, file_path, re.IGNORECASE):
 
-                    # Define regex to match any of the filetypes to be renamed
-                    extensions_pattern = f'({"|".join(re.escape(extension) for extension in self.filetypes)})$'
-                    file_path = file.path
+                # Get the output filename and path
+                output_file_name = self.get_output_file_name(deployment_config, file_path)
+                output_file_path = Path(deployment_path) / output_file_name
 
-                    # Match case-insensitive regex expression in file name
-                    if re.search(extensions_pattern, file_path, re.IGNORECASE):
-
-                        # Get the output filename and path
-                        output_file_name = self.get_output_file_name(deployment_config, file_path)
-                        output_file_path = Path(deployment.path) / output_file_name
-
-                        # Check if input and output file paths are the same
-                        if file_path == output_file_path:
-                            self.logger.info(f'{dry_run_log_string}SKIPPING FILE - input and output file names are identical: "{file_path}"')
-                        # Check if output file path already exists and the overwrite argument is not set
-                        # elif output_file_path.is_file() and not overwrite:
-                        elif output_file_path.is_file():
-                            self.logger.info(
-                                f'{dry_run_log_string}Output file already exists and overwrite argument is not set: "{output_file_path}"')
-                        # Perform file renaming
-                        else:
-                            # Only rename files if not in --dry-run mode
-                            self.logger.info(f'{dry_run_log_string}Renaming file "{file.name}" to: "{output_file_path}"')
-                            if not dry_run:
-                                try:
-                                    # Rename file
-                                    os.rename(file_path, output_file_path)
-                                # TODO: Check this is the correct exception to catch
-                                except FileExistsError:
-                                    self.logger.error(f"Error renaming file {file_path} to {output_file_path}")
+                # Check if input and output file paths are the same
+                if file_path == output_file_path:
+                    self.logger.info(f'{dry_run_log_string}SKIPPING FILE - input and output file names are identical: "{file_path}"')
+                # Check if output file path already exists and the overwrite argument is not set
+                # elif output_file_path.is_file() and not overwrite:
+                elif output_file_path.is_file():
+                    self.logger.info(
+                        f'{dry_run_log_string}Output file already exists and overwrite argument is not set: "{output_file_path}"')
+                # Perform file renaming
+                else:
+                    # Only rename files if not in --dry-run mode
+                    self.logger.info(f'{dry_run_log_string}Renaming file "{file.name}" to: "{output_file_path}"')
+                    if not dry_run:
+                        try:
+                            # Rename file
+                            os.rename(file_path, output_file_path)
+                        # TODO: Check this is the correct exception to catch
+                        except FileExistsError:
+                            self.logger.error(f"Error renaming file {file_path} to {output_file_path}")
 
     def get_output_file_name(self, deployment_config: dict, file_path: str) -> str:
         # Read CZI file and fetch file metadata as dictionary
