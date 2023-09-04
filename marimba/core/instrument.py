@@ -1,6 +1,7 @@
 import os
 import os.path
 from abc import ABC
+from pathlib import Path
 
 import typer
 from rich import print
@@ -59,22 +60,61 @@ class Instrument(ABC, LogMixin):
         self.collection_config = collection_config
         self.instrument_config = instrument_config
 
-    def catalog(self, dry_run: bool):
+    def process_all_deployments(self, command_name, kwargs):
+        """
+        Process all the deployments within the instrument work directory.
+
+        Args:
+            command_name: Name of the MarImBA command to be executed.
+            kwargs: Keyword arguments.
+        """
+
+        # Loop through each deployment subdirectory in the instrument work directory
+        for deployment in os.scandir(self.work_path):
+            self.process_single_deployment(deployment.path, command_name, kwargs)
+
+    def process_single_deployment(self, deployment_path, command_name, kwargs):
+        """
+        Process a single deployment for the given deployment directory.
+
+        Args:
+            deployment_path: The path to the MarImBA deployment.
+            command_name: Name of the MarImBA command to be executed.
+            kwargs: Keyword arguments.
+        """
+
+        # TODO: Move this to the instrument logger
+        # Set dry run log string to prepend to logging
+        dry_run_log_string = "DRY_RUN - " if kwargs.get("dry_run") else ""
+
+        # Get deployment name and config path
+        deployment_name = deployment_path.split("/")[-1]
+        deployment_config_path = Path(deployment_path) / Path(deployment_name + ".yml")
+
+        # Check if deployment metadata file exists and skip deployment if not present
+        if not deployment_config_path.is_file():
+            self.logger.warning(f'{dry_run_log_string}SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment_path}"')
+            return
+        else:
+            # TODO: Need to validate deployment metadata file here
+            self.logger.info(f'{dry_run_log_string}Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment_path}"')
+            command = getattr(self, command_name)
+            command(deployment_path, **kwargs)
+
+    def catalog(self, deployment_path: str, dry_run: bool):
         self.logger.warning(f'There is no MarImBA [bold]catalog[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
 
-    def metadata(self, dry_run: bool):
+    def metadata(self, deployment_path: str, dry_run: bool):
         self.logger.warning(f'There is no MarImBA [bold]metadata[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
 
-    def package(self, dry_run: bool):
+    def package(self, deployment_path: str, dry_run: bool):
         self.logger.warning(f'There is no MarImBA [bold]package[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
 
-    def process(self, dry_run: bool):
+    def process(self, deployment_path: str, dry_run: bool):
         self.logger.warning(f'There is no MarImBA [bold]process[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
 
-    def rename(self, dry_run: bool):
+    def rename(self, deployment_path: str, dry_run: bool):
         self.logger.warning(f'There is no MarImBA [bold]rename[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
 
-    def report(self, dry_run: bool):
+    def report(self, deployment_path: str, dry_run: bool):
         self.logger.warning(f'There is no MarImBA [bold]report[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
-
-

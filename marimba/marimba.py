@@ -6,7 +6,7 @@ import logging
 import typer
 
 import marimba.commands.new as new
-from marimba.core.command import run_command
+from marimba.core.collection import run_command
 from marimba.utils.log import LogLevel, get_collection_logger, get_rich_handler
 
 __author__ = "MarImBA Development Team"
@@ -55,7 +55,8 @@ def global_options(
 @marimba.command()
 def catalog(
         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
-        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
+        deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
         extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
         exiftool_path: str = typer.Option("exiftool", help="Path to exiftool"),
@@ -67,7 +68,7 @@ def catalog(
     Create an exif catalog of files stored in .exif_{extension}.
     """
 
-    run_command('catalog', collection_path, instrument_id, extra, dry_run=dry_run, exiftool_path=exiftool_path, file_extension=file_extension, glob_path=glob_path, overwrite=overwrite)
+    run_command('catalog', collection_path, instrument_id, deployment_name, extra, dry_run=dry_run, exiftool_path=exiftool_path, file_extension=file_extension, glob_path=glob_path, overwrite=overwrite)
 
 
 # TODO: This could be implemented within the MarImBA process command
@@ -124,7 +125,8 @@ def catalog(
 @marimba.command()
 def metadata(
         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
-        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
+        deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
         extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
@@ -132,26 +134,28 @@ def metadata(
     Process metadata including merging nav data files, writing metadata into image EXIF tags, and writing iFDO files.
     """
 
-    run_command('metadata', collection_path, instrument_id, extra, dry_run=dry_run)
+    run_command('metadata', collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
 
 
 @marimba.command()
 def package(
         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
-        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
+        deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
         extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
     Package up a MarImBA collection ready for distribution.
     """
-    run_command('package', collection_path, instrument_id, extra, dry_run=dry_run)
+    run_command('package', collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
 
 
 @marimba.command()
 def process(
         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
-        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
+        deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
         extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
@@ -159,7 +163,7 @@ def process(
     Process the MarImBA collection based on the instrument specification.
     """
 
-    run_command('process', collection_path, instrument_id, extra, dry_run=dry_run)
+    run_command('process', collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
 
 
 # TODO: This could be implemented within the MarImBA process command
@@ -179,7 +183,8 @@ def process(
 @marimba.command()
 def rename(
         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
-        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
+        deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
         extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
@@ -187,13 +192,14 @@ def rename(
     Rename files based on the instrument specification.
     """
 
-    run_command('rename', collection_path, instrument_id, extra, dry_run=dry_run)
+    run_command('rename', collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
 
 
 @marimba.command()
 def report(
         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
-        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
+        deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
         extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
@@ -201,7 +207,7 @@ def report(
     Generate reports for a MarImBA collection or instrument.
     """
 
-    run_command('report', collection_path, instrument_id, extra, dry_run=dry_run)
+    run_command('report', collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
 
 
 if __name__ == "__main__":
