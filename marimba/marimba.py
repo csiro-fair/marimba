@@ -201,7 +201,7 @@ def report(
     Generate reports for a MarImBA collection or instrument.
     """
 
-    run_command('report', collection_path, instrument_id, extra, test="test", dry_run=dry_run)
+    run_command('report', collection_path, instrument_id, extra, dry_run=dry_run)
 
 
 if __name__ == "__main__":
