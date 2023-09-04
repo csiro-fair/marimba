@@ -6,6 +6,7 @@ from pathlib import Path
 import rich.logging
 import typer
 from rich import print
+from rich.console import Console
 from rich.panel import Panel
 
 from marimba.utils.context import get_collection_path, get_instrument_path
@@ -16,7 +17,12 @@ file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(m
 
 # Global Rich (console) handler. This is used for all loggers and can have its level configured with the `--level` global option.
 rich_handler = rich.logging.RichHandler(
-    level=logging.WARNING, log_time_format="%Y-%m-%d %H:%M:%S,%f", markup=True, show_path=True, rich_tracebacks=True, tracebacks_show_locals=False
+    level=logging.WARNING,
+    log_time_format="%Y-%m-%d %H:%M:%S,%f",
+    markup=True,
+    show_path=True,
+    rich_tracebacks=True,
+    tracebacks_show_locals=False,
 )
 
 # Global collection logger. This is used for all collection-level logging.
@@ -129,6 +135,7 @@ def get_file_handler(output_dir: str, name: str, level: int = logging.INFO) -> l
     Args:
         output_dir: The output directory.
         name: The name (stem) of the file. The file extension will be added automatically.
+        level: The logging level.
 
     Returns:
         A file handler to `output_dir/name.log`.
@@ -140,7 +147,7 @@ def get_file_handler(output_dir: str, name: str, level: int = logging.INFO) -> l
     path = os.path.join(output_dir, f"{name}.log")
 
     # Create the handler and set the level & formatter
-    handler = logging.FileHandler(path)
+    handler = NoRichFileHandler(path)
     handler.setLevel(level)
     handler.setFormatter(file_formatter)
 
@@ -149,8 +156,9 @@ def get_file_handler(output_dir: str, name: str, level: int = logging.INFO) -> l
 
 def setup_logging(collection_path):
     # Check that collection_path exists and is legit
-    if not os.path.isdir(collection_path) or not os.path.isfile(Path(collection_path) / "collection.yml") or not os.path.isdir(
-            Path(collection_path) / "instruments"):
+    if (not os.path.isdir(collection_path)
+            or not os.path.isfile(Path(collection_path) / "collection.yml")
+            or not os.path.isdir(Path(collection_path) / "instruments")):
         print(
             Panel(
                 f'The provided root MarImBA collection path "[bold]{collection_path}[/bold]" does not appear to be a valid MarImBA collection.',
@@ -168,6 +176,31 @@ def setup_logging(collection_path):
     init_collection_file_handler()
 
     logger.info(f'Setting up collection-level logging at: "{collection_path}"')
+
+
+# Create a console object from Rich
+console = Console()
+
+
+class NoRichFileHandler(logging.FileHandler):
+    """
+        Custom FileHandler to remove Rich styling from log entries.
+    """
+
+    def emit(self, record):
+        """
+            Over-ride the emit method to remove styling.
+        """
+
+        # Render the log message to a string using Rich Console
+        rendered_message = Console().render_str(record.getMessage())
+
+        # Replace the original log message with the plain text version
+        record.msg = rendered_message
+        record.args = ()
+
+        # Call the original emit method to write the plain text log entry to the file
+        super().emit(record)
 
 
 class LogLevel(str, Enum):

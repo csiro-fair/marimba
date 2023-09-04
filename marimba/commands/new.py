@@ -32,9 +32,11 @@ def check_template_exists(base_templates_path, template_name, template_type) -> 
         logger.info(f"[bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{template_type}[/light_pink3] template [orchid1]{Path(template_name) / template_type}[/orchid1] exists!")
     else:
 
+        error_message = f"The provided [light_pink3]{template_type}[/light_pink3] template name [orchid1]{Path(template_name) / template_type}[/orchid1] does not exists at {template_path}"
+        logger.error(error_message)
         print(
             Panel(
-                f"The provided [light_pink3]{template_type}[/light_pink3] template name [orchid1]{Path(template_name) / template_type}[/orchid1] does not exists at {template_path}",
+                error_message,
                 title="Error",
                 title_align="left",
                 border_style="red",
@@ -51,9 +53,11 @@ def check_output_path_exists(output_path, command):
     if os.path.isdir(output_path):
         logger.info(f'[bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{command}[/light_pink3] output path "{output_path}" exists!')
     else:
+        error_message = f'The provided [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{command}[/light_pink3] output path "{output_path}" does not exists.'
+        logger.error(error_message)
         print(
             Panel(
-                f'The provided [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{command}[/light_pink3] output path "{output_path}" does not exists.',
+                error_message,
                 title="Error",
                 title_align="left",
                 border_style="red",
@@ -116,9 +120,11 @@ def instrument(
         )
     except OutputDirExistsException as e:
         exception_path = str(e).split("\"")[1]
+        error_message = f'A [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]instrument[/light_pink3] already exists at: "{exception_path}"'
+        logger.error(error_message)
         print(
             Panel(
-                f'A [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]instrument[/light_pink3] already exists at: "{exception_path}"',
+                error_message,
                 title="Error",
                 title_align="left",
                 border_style="red",
