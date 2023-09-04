@@ -3,10 +3,10 @@ import os
 
 from marimba.core.collection import get_collection_config
 from marimba.core.instrument import get_instrument_config
-from marimba.utils.log import setup_logging
+from marimba.utils.log import setup_logging, get_collection_logger
 
 
-def run_command(command_name: str, collection_path: str, instrument_id: str, **kwargs):
+def run_command(command_name: str, collection_path: str, instrument_id: str, extra_args: list[str], **kwargs):
     """
     Traverse the instrument directory and execute the command for each instrument
 
@@ -19,6 +19,7 @@ def run_command(command_name: str, collection_path: str, instrument_id: str, **k
 
     # Set up logging
     setup_logging(collection_path)
+    logger = get_collection_logger()
 
     # Get collection config data
     collection_config = get_collection_config(collection_path)
@@ -42,7 +43,18 @@ def run_command(command_name: str, collection_path: str, instrument_id: str, **k
         instrument_class = getattr(instrument_module, instrument_class_name)
         instrument_instance = instrument_class(instrument.path, collection_config, instrument_config)
 
+        # Process any extra key-value arguments that were provided and merge with other keyword arguments
+        extra_dict = {}
+        if extra_args:
+            for arg in extra_args:
+                try:
+                    key, value = arg.split('=')
+                    extra_dict[key] = value
+                except ValueError:
+                    logger.warning(f'Invalid extra argument provided: "{arg}"')
+        merged_kwargs = {**kwargs, **extra_dict}
+
         # Execute MarImBA instrument command
         instrument_instance.logger.info(f"Executing the MarImBA [bold]{command_name}[/bold] command")
         command = getattr(instrument_instance, command_name)
-        command(**kwargs)
+        command(**merged_kwargs)
