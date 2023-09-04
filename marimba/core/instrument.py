@@ -97,7 +97,7 @@ class Instrument(ABC, LogMixin):
             return
         else:
             # TODO: Need to validate deployment metadata file here
-            self.logger.info(f'{dry_run_log_string}Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment_path}"')
+            self.logger.debug(f'{dry_run_log_string}Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment_path}"')
             command = getattr(self, command_name)
             command(deployment_path, **kwargs)
 

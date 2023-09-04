@@ -42,7 +42,6 @@ logger = get_collection_logger()
 
 @marimba.callback()
 def global_options(
-        # dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
         level: LogLevel = typer.Option(LogLevel.INFO, help="Logging level."),
 ):
     """
@@ -68,58 +67,18 @@ def catalog(
     Create an exif catalog of files stored in .exif_{extension}.
     """
 
-    run_command('catalog', collection_path, instrument_id, deployment_name, extra, dry_run=dry_run, exiftool_path=exiftool_path, file_extension=file_extension, glob_path=glob_path, overwrite=overwrite)
-
-
-# TODO: This could be implemented within the MarImBA process command
-# @marimba.command()
-# def chunk(
-#     source_path: str = typer.Argument(..., help="Source path of files."),
-#     destination_path: str = typer.Argument(..., help="Destination path to output files."),
-#     chunk_length: int = typer.Argument(10, help="Video chunk length in number of seconds."),
-#     recursive: bool = typer.Option(True, help="Recursively process entire directory structure."),
-#     overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
-#     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-# ):
-#     """
-#     Chunk video files into fixed-length videos (default 10 seconds).
-#     """
-#
-#     chunk_command(source_path, destination_path, chunk_length)
-#     run_command('chunk', collection_path, instrument_id, dry_run=dry_run, chunk_length=chunk_length)
-
-
-# TODO: This could be implemented within the MarImBA process command
-# @marimba.command()
-# def convert(
-#         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
-#         instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
-#         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-#         destination_path: str = typer.Argument(..., help="Destination path to output files."),
-#         overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
-# ):
-#     """
-#     Convert images and videos to standardised formats using Pillow and ffmpeg.
-#     """
-#
-#     run_command('convert', collection_path, instrument_id, dry_run=dry_run, destination_path=destination_path, overwrite=overwrite)
-
-
-# TODO: This could be implemented within the MarImBA process command
-# @marimba.command()
-# def extract(
-#         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
-#         instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
-#         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-#         destination_path: str = typer.Argument(..., help="Destination path to output files."),
-#         chunk_length: int = typer.Argument(None, help="Video chunk length in number of seconds."),
-#         overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
-# ):
-#     """
-#     Extract frames from videos using ffmpeg.
-#     """
-#
-#     run_command('extract', collection_path, instrument_id, dry_run=dry_run, destination_path=destination_path, chunk_length=chunk_length, overwrite=overwrite)
+    run_command(
+        'catalog',
+        collection_path,
+        instrument_id,
+        deployment_name,
+        extra,
+        dry_run=dry_run,
+        exiftool_path=exiftool_path,
+        file_extension=file_extension,
+        glob_path=glob_path,
+        overwrite=overwrite
+    )
 
 
 @marimba.command()
@@ -134,7 +93,14 @@ def metadata(
     Process metadata including merging nav data files, writing metadata into image EXIF tags, and writing iFDO files.
     """
 
-    run_command('metadata', collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
+    run_command(
+        'metadata',
+        collection_path,
+        instrument_id,
+        deployment_name,
+        extra,
+        dry_run=dry_run
+    )
 
 
 @marimba.command()
@@ -148,7 +114,14 @@ def package(
     """
     Package up a MarImBA collection ready for distribution.
     """
-    run_command('package', collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
+    run_command(
+        'package',
+        collection_path,
+        instrument_id,
+        deployment_name,
+        extra,
+        dry_run=dry_run
+    )
 
 
 @marimba.command()
@@ -163,21 +136,14 @@ def process(
     Process the MarImBA collection based on the instrument specification.
     """
 
-    run_command('process', collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
-
-
-# TODO: This could be implemented within the MarImBA process command
-# @marimba.command()
-# def qc(
-#         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
-#         instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
-#         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-# ):
-#     """
-#     Run quality control on files to check for anomalies and generate datasets statistics.
-#     """
-#
-#     run_command('qc', collection_path, instrument_id, dry_run=dry_run)
+    run_command(
+        'process',
+        collection_path,
+        instrument_id,
+        deployment_name,
+        extra,
+        dry_run=dry_run
+    )
 
 
 @marimba.command()
@@ -192,7 +158,14 @@ def rename(
     Rename files based on the instrument specification.
     """
 
-    run_command('rename', collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
+    run_command(
+        'rename',
+        collection_path,
+        instrument_id,
+        deployment_name,
+        extra,
+        dry_run=dry_run
+    )
 
 
 @marimba.command()
@@ -207,7 +180,14 @@ def report(
     Generate reports for a MarImBA collection or instrument.
     """
 
-    run_command('report', collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
+    run_command(
+        'report',
+        collection_path,
+        instrument_id,
+        deployment_name,
+        extra,
+        dry_run=dry_run
+    )
 
 
 if __name__ == "__main__":

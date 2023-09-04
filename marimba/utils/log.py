@@ -7,16 +7,37 @@ import rich.logging
 import typer
 from rich import print
 from rich.console import Console
+from rich.logging import RichHandler
 from rich.panel import Panel
 
-from marimba.utils.context import get_collection_path, get_instrument_path
-from marimba.utils.context import set_collection_path
+from marimba.utils.context import get_collection_path, set_collection_path, get_instrument_path
 
-# Global file formatter. This is used for all file handlers.
+# Global collection logger - this is used for all collection-level logging.
+collection_logger = None
+
+# Global file log format - this is used for all file handlers.
 file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
-# Global Rich (console) handler. This is used for all loggers and can have its level configured with the `--level` global option.
-rich_handler = rich.logging.RichHandler(
+# Global instrument name -> file handler dictionary - this is used for all instrument-level logging.
+instrument_file_handlers = {}
+
+
+class DryRunRichFormatter(RichHandler):
+    def __init__(self, dry_run, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.dry_run = dry_run
+
+    def emit(self, record):
+        if self.dry_run:
+            record.msg = f"DRY_RUN - {record.msg}"
+        return super().emit(record)
+
+    def set_dry_run(self, dry_run: bool):
+        self.dry_run = dry_run
+
+
+rich_handler = DryRunRichFormatter(
+    dry_run=False,
     level=logging.WARNING,
     log_time_format="%Y-%m-%d %H:%M:%S,%f",
     markup=True,
@@ -24,12 +45,6 @@ rich_handler = rich.logging.RichHandler(
     rich_tracebacks=True,
     tracebacks_show_locals=False,
 )
-
-# Global collection logger. This is used for all collection-level logging.
-collection_logger = None
-
-# Global instrument name -> file handler map. These are used for all instrument-level logging.
-instrument_file_handlers = {}
 
 
 def get_logger(name: str, level: int = logging.DEBUG) -> logging.Logger:
@@ -76,13 +91,10 @@ def get_collection_logger() -> logging.Logger:
 
 def init_collection_file_handler():
     """
-    Initialize the collection-level file handler.
-
-    This should be called after the collection directory has been set by `set_collection_path`.
+    Initialise the collection-level file handler. This should be called after the collection directory has been set by `set_collection_path`.
     """
     # Get the collection directory and basename
     collection_path = get_collection_path()
-    # collection_basename = os.path.basename(collection_path)
     collection_basename = Path(collection_path).parts[-1]
 
     # Create the file handler and add it to the collection logger
@@ -154,14 +166,14 @@ def get_file_handler(output_dir: str, name: str, level: int = logging.INFO) -> l
     return handler
 
 
-def setup_logging(collection_path):
+def setup_logging(collection_path, dry_run: bool = False):
     # Check that collection_path exists and is legit
     if (not os.path.isdir(collection_path)
             or not os.path.isfile(Path(collection_path) / "collection.yml")
             or not os.path.isdir(Path(collection_path) / "instruments")):
         print(
             Panel(
-                f'The provided root MarImBA collection path "[bold]{collection_path}[/bold]" does not appear to be a valid MarImBA collection.',
+                f'The provided root collection path "[bold]{collection_path}[/bold]" does not appear to be a valid MarImBA collection.',
                 title="Error",
                 title_align="left",
                 border_style="red",
@@ -172,24 +184,25 @@ def setup_logging(collection_path):
     # Set the collection directory
     set_collection_path(collection_path)
 
-    # Initialize the collection-level file handler
+    # Set the Rich handler dry run mode and initialise the collection-level file handler
+    get_rich_handler().set_dry_run(dry_run)
     init_collection_file_handler()
 
     logger.info(f'Setting up collection-level logging at: "{collection_path}"')
 
 
-# Create a console object from Rich
+# Create a Rich console object
 console = Console()
 
 
 class NoRichFileHandler(logging.FileHandler):
     """
-        Custom FileHandler to remove Rich styling from log entries.
+    Custom FileHandler to remove Rich styling from log entries.
     """
 
     def emit(self, record):
         """
-            Over-ride the emit method to remove styling.
+        Over-ride the emit method to remove styling.
         """
 
         # Render the log message to a string using Rich Console

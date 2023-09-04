@@ -65,9 +65,7 @@ class ZeissAxioObserver(Instrument):
         Implementation of the MarImBA rename command for the Zeiss Axio Observer
         """
 
-        # TODO: Move this to the instrument logger
-        dry_run_log_string = "DRY_RUN - " if dry_run else ""
-        self.logger.info(f'{dry_run_log_string}Renaming files in MarImBA deployment: "{deployment_path}"')
+        self.logger.info(f'Renaming files in MarImBA deployment: "{deployment_path}"')
 
         # Get deployment name and load deployment config
         deployment_name = deployment_path.split("/")[-1]
@@ -90,16 +88,16 @@ class ZeissAxioObserver(Instrument):
 
                 # Check if input and output file paths are the same
                 if file_path == output_file_path:
-                    self.logger.info(f'{dry_run_log_string}SKIPPING FILE - input and output file names are identical: "{file_path}"')
+                    self.logger.info(f'SKIPPING FILE - input and output file names are identical: "{file_path}"')
                 # Check if output file path already exists and the overwrite argument is not set
                 # elif output_file_path.is_file() and not overwrite:
                 elif output_file_path.is_file():
                     self.logger.info(
-                        f'{dry_run_log_string}Output file already exists and overwrite argument is not set: "{output_file_path}"')
+                        f'Output file already exists and overwrite argument is not set: "{output_file_path}"')
                 # Perform file renaming
                 else:
                     # Only rename files if not in --dry-run mode
-                    self.logger.info(f'{dry_run_log_string}Renaming file "{file.name}" to: "{output_file_path}"')
+                    self.logger.info(f'Renaming file "{file.name}" to: "{output_file_path}"')
                     if not dry_run:
                         try:
                             # Rename file
@@ -155,11 +153,11 @@ class ZeissAxioObserver(Instrument):
             # Check if deployment metadata file exists and skip deployment if not present
             if not deployment_config_path.is_file():
                 self.logger.warning(
-                    f'{dry_run_log_string}SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment.path}"')
+                    f'SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment.path}"')
                 continue
             else:
                 # TODO: Need to validate deployment metadata file here and load deployment config
-                self.logger.info(f'{dry_run_log_string}Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
+                self.logger.info(f'Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
                 deployment_config = load_config(deployment_config_path)
 
                 # Loop through each file in the deployment directory

@@ -82,7 +82,7 @@ def run_command(command_name: str, collection_path: str, instrument_id: str, dep
     """
 
     # Set up logging
-    setup_logging(collection_path)
+    setup_logging(collection_path, kwargs.get("dry_run"))
     logger = get_collection_logger()
 
     # Get collection config data
