@@ -1,5 +1,10 @@
 {
   "instrument_id": [
     "BRUVS"
-  ]
+  ],
+  "_copy_without_render": [
+        "import.yml",  "instrument.py"
+      ]
+
 }
+

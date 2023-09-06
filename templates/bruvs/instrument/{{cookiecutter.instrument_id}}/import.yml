@@ -1,0 +1,5 @@
+instrumentPath : {{instrumentPath}}
+instrument : {{instrument}}
+importdate : {{importdate}}
+importtoken : {{importtoken}}
+importtemplate : "{instrumentPath}/work/{importdate}/{bruvframe}_{housinglabel}_{cameraserialNumber}_{importtoken}"

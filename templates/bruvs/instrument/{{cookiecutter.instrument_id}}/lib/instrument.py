@@ -8,9 +8,18 @@ import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
+import yaml
+from jinja2 import Environment, FileSystemLoader
 
 from marimba.core.instrument import Instrument
 from marimba.utils.config import load_config
+import uuid
+import glob
+import pandas as pd
+import subprocess
+import shlex
+from io import StringIO
+import platform
 
 __author__ = "Candice Untiedt"
 __copyright__ = "Copyright 2023, Environment, CSIRO"
@@ -218,3 +227,99 @@ class BRUVS(Instrument):
             f'{file_id}'
             f".MP4"
         )
+    def initalise(self,card_path,dry_run: bool):
+        """
+        Implementation of the MarImBA initalise command for the BRUVS
+        """
+
+        def make_xml(file_path):
+            if os.path.exists(file_path):
+                self.logger.error(f"Error SDCard already initalised {file_path}")
+            else:
+                env = Environment(loader = FileSystemLoader(self.root_path),   trim_blocks=True, lstrip_blocks=True)
+                template = env.get_template('import.yml')
+                fill = {"instrumentPath" : self.root_path, "instrument" : self.instrument_config['id'],
+                        "importdate" : f"{datetime.now():%Y-%m-%d}",
+                        "importtoken" : str(uuid.uuid4())[0:8]}
+                self.logger.info(f'{dry_run_log_string}Making import file "{file_path}"')
+                if not dry_run:
+                    with open(file_path, "w") as file:
+                        file.write(template.render(fill))
+        # Set dry run log string to prepend to logging
+        dry_run_log_string = "DRY_RUN - " if dry_run else ""    
+        if isinstance(card_path,list):
+            [make_xml(f"{file}/import.yaml") for file in card_path]
+        else:
+            make_xml(f"{card_path}/import.yaml")
+
+    def import_command(self,card_path,clean,exiftool_path,file_extension,dry_run: bool):
+        """
+        Implementation of the MarImBA initalise command for the BRUVS
+        """
+        dry_run_log_string = "DRY_RUN - " if dry_run else ""
+        importyml =f"{card_path}/import.yaml"
+        with open(importyml, 'r') as stream:
+            try:
+                importdetails=yaml.safe_load(stream)
+            except yaml.YAMLError as exc:
+                self.logger.error(f"Error possible corrupt yaml {importyml}")
+
+        videopath = f'{card_path}/DCIM/100GOPRO'
+        files = glob.glob(f'{videopath}/*.{file_extension}')
+        if files:
+            barpath = f'{self.root_path}/camerabars.csv'
+            barnumbers = pd.read_csv(barpath,parse_dates=['StartDate','EndDate']) 
+            command = f"{exiftool_path} -api largefilesupport=1 -u  -json -ext {file_extension} -q -CameraSerialNumber -CreateDate -SourceFile -Duration -FileSize -FieldOfView {videopath}"
+            process = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, err = process.communicate()
+            s=str(out,'utf-8')
+            data = StringIO(s)  
+            cameras =pd.read_json(data)
+            cameras['Duration'] =pd.to_timedelta(cameras.Duration)
+            cameras['CreateDate'] = pd.to_datetime(cameras['CreateDate'],format='%Y:%m:%d %H:%M:%S')
+            for index,error in  cameras[cameras.CameraSerialNumber.isnull()].iterrows():
+                self.logger.error(f"Error possible corrupt video file {error.SourceFile}")
+            cameras=cameras.dropna()
+            cameras =cameras.merge(barnumbers, on='CameraSerialNumber', how='inner')
+
+            if len(cameras.CameraSerialNumber.unique())>1:
+                self.logger.warning(f"Warning multiple cameras in directory {cameras.CameraSerialNumber.unique()} ---> {videopath}")
+            if len(cameras.CreateDate.unique())>1:
+                self.logger.warning(f"Warning multiple captures in directory {cameras.CreateDate.unique()} ---> {videopath}")
+            #get the last record as it's probably the best one!
+            log=cameras.groupby('CreateDate').agg({'CameraSerialNumber':'first', 'Duration': 'sum'})
+            matched =cameras[(cameras.CreateDate>cameras.StartDate) & (cameras.CreateDate<cameras.EndDate)]
+            if len(matched)!=len(cameras):
+                self.logger.warning(f"Warning unmatched camera serial numbers  {videopath} in please serial numbers in  {barpath} ")
+            last =cameras[cameras.CreateDate==cameras.CreateDate.unique().max()].sort_values('SourceFile').iloc[-1]
+            importdetails['instrumentPath'] = self.root_path
+            importdetails['bruvframe'] = last.Frame
+            importdetails['housinglabel'] = last.GoProNumber
+            importdetails['cameraserialNumber'] = last.CameraSerialNumber
+            destination =importdetails["importtemplate"].format(**importdetails)
+            self.logger.info(f'{dry_run_log_string}  Copy  {card_path} --> {destination}')
+            if not dry_run:
+                os.makedirs(destination,exist_ok=True)
+                command =f"rclone sync {card_path} {destination} --progress --exclude=/**/*.THM --exclude=/**/*.LRV"
+                self.logger.info(f'{dry_run_log_string}  {command}')
+                process = subprocess.Popen(shlex.split(command))
+                process.wait()
+            if clean==True:
+                if platform.system() == "Linux":
+                    command =f'find {card_path} -type f \( -name "*.LRV" -o -name "*.THM")-exec rm \123{}\125 \;'
+                    process = subprocess.Popen(shlex.split(command))
+                    process.wait()
+                os.makedirs(destination,exist_ok=True)
+                command =f"rclone move {card_path} {destination} --progress --delete-empty-src-dirs --exclude=/**/*.THM --exclude=/**/*.LRV"
+                self.logger.info(f'{dry_run_log_string}  {command}')
+                process = subprocess.Popen(shlex.split(command))
+                process.wait()
+
+
+
+               
+
+           
+
+
+        

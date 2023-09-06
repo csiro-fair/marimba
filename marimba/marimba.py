@@ -68,6 +68,38 @@ def catalog(
 
     run_command('catalog', collection_path, instrument_id, dry_run=dry_run, exiftool_path=exiftool_path, file_extension=file_extension, glob_path=glob_path, overwrite=overwrite)
 
+@marimba.command('initalise')
+def initalise(
+        collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+        card_path: str = typer.Argument(None, help="MarImBA instrument ID."),
+        dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+
+):
+    """
+    initalise sd cards
+    """
+
+    run_command('initalise', collection_path, instrument_id, card_path=card_path,dry_run=dry_run)
+
+
+@marimba.command('import')
+def import_command(
+        collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+        card_path: str = typer.Argument(None, help="MarImBA instrument ID."),
+        exiftool_path: str = typer.Option("exiftool", help="Path to exiftool"),
+        clean: bool = typer.Option(False, help="Clean source"),
+        dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+        file_extension: str = typer.Option("MP4", help="extension to catalog"),
+):
+    """
+    Import SD cards to working directory
+    """ 
+
+    run_command('import_command', collection_path, instrument_id,card_path=card_path,clean=clean,dry_run=dry_run, exiftool_path=exiftool_path,file_extension=file_extension)
+
+
 
 # TODO: This could be implemented within the MarImBA process command
 # @marimba.command()
