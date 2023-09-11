@@ -5,6 +5,53 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "typer initalise",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "/mnt/md127/fielddata0/Marimba/DR2023-01",
+                "BRUVS",
+                "--overwrite"
+            ]            
+        },
+        {
+            "name": "typer import",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "/mnt/md127/fielddata0/Marimba/DR2023-01",
+                "BRUVS",
+            ]            
+        },
+        {
+            "name": "doit",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": ["config=/mnt/md127/fielddata0/Marimba/DR2023-01/instruments/BRUVS/work/config.yml"
+            ]            
+        },
+        {
+            "name": "typer import",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "/mnt/md127/fielddata0/Marimba/DR2023-01",
+                "BRUVS"
+            ]            
+        },
+        {
             "name": "Python: Current File",
             "type": "python",
             "request": "launch",
@@ -17,7 +64,12 @@
             "type": "python",
             "request": "launch",
             "program": "marimba",
-            "args": ["new","instrument","~/data/test/LI2023-01/","bruvs"],
+            "args": [
+                "new",
+                "instrument",
+                "~/data/test/LI2023-01/",
+                "bruvs"
+            ],
             "console": "integratedTerminal",
             "justMyCode": true
         },

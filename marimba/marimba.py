@@ -67,30 +67,34 @@ def catalog(
     Create an exif catalog of files stored in .exif_{extension}.
     """
 
-    run_command('catalog', collection_path, instrument_id, dry_run=dry_run, exiftool_path=exiftool_path, file_extension=file_extension, glob_path=glob_path, overwrite=overwrite)
+    run_command('catalog', collection_path, instrument_id,deployment_name, dry_run=dry_run, exiftool_path=exiftool_path, file_extension=file_extension, glob_path=glob_path, overwrite=overwrite)
 
 @marimba.command('initalise')
 def initalise(
         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
         instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
         card_path: str = typer.Argument(None, help="MarImBA instrument ID."),
+        days: int = typer.Option(0, help="Add an offset to the import date e.g. +1 = to set the date to tomorrow "),
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+        overwrite:bool = typer.Option(False, help="Overwrite import.yaml"),
+        extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
 
 ):
     """
     initalise sd cards
     """
 
-    run_command('initalise', collection_path, instrument_id, card_path=card_path,dry_run=dry_run)
+    run_command('initalise', collection_path, instrument_id, None, extra, card_path=card_path,dry_run=dry_run,days=days,overwrite=overwrite)
 
 
 @marimba.command('import')
 def import_command(
         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
         instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
-        card_path: str = typer.Argument(None, help="MarImBA instrument ID."),
+        card_path: list[str] = typer.Argument(None, help="MarImBA instrument ID."),
         exiftool_path: str = typer.Option("exiftool", help="Path to exiftool"),
         clean: bool = typer.Option(False, help="Clean source"),
+        extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
         file_extension: str = typer.Option("MP4", help="extension to catalog"),
 ):
@@ -98,7 +102,25 @@ def import_command(
     Import SD cards to working directory
     """ 
 
-    run_command('import_command', collection_path, instrument_id,card_path=card_path,clean=clean,dry_run=dry_run, exiftool_path=exiftool_path,file_extension=file_extension)
+    run_command('import_command', collection_path, instrument_id,None,extra,card_path=card_path,clean=clean,dry_run=dry_run, exiftool_path=exiftool_path,file_extension=file_extension)
+
+
+@marimba.command('doit')
+def import_command(
+        collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+        instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
+        card_path: list[str] = typer.Argument(None, help="MarImBA instrument ID."),
+        exiftool_path: str = typer.Option("exiftool", help="Path to exiftool"),
+        clean: bool = typer.Option(False, help="Clean source"),
+        extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+        dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+):
+    """
+    Import SD cards to working directory
+    """ 
+
+    run_command('doit', collection_path, instrument_id,None,extra,card_path=card_path,clean=clean,dry_run=dry_run, exiftool_path=exiftool_path)
+
 
 
 

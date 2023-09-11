@@ -306,7 +306,7 @@ class BRUVS(Instrument):
                 process.wait()
             if clean==True:
                 if platform.system() == "Linux":
-                    command =f'find {card_path} -type f \( -name "*.LRV" -o -name "*.THM")-exec rm \123{}\125 \;'
+                    command =f'find {card_path} -type f \( -name "*.LRV" -o -name "*.THM")-exec rm {{}} \;'
                     process = subprocess.Popen(shlex.split(command))
                     process.wait()
                 os.makedirs(destination,exist_ok=True)

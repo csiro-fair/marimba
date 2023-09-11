@@ -2,4 +2,4 @@ instrumentPath : {{instrumentPath}}
 instrument : {{instrument}}
 importdate : {{importdate}}
 importtoken : {{importtoken}}
-importtemplate : "{instrumentPath}/work/{importdate}/{bruvframe}_{housinglabel}_{cameraserialNumber}_{importtoken}"
+importtemplate : "{instrumentPath}/work/raw/{importdate}/{bruvframe}_{housinglabel}_{cameraserialNumber}_{cameracreatedate:%Y%m%dT%H%M}_{importtoken}"
