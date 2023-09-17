@@ -1,9 +1,14 @@
 paths:
   exiftool : exiftool
+  exifname : .exif.json
   videolist : "{{CATALOG_DIR}}/videolist.csv"
   cardstore : "{{CATALOG_DIR}}/raw"
   stagestore : "{{CATALOG_DIR}}/stage"
   output : "{{CATALOG_DIR}}/stage"
+  timecorrection : "{{CATALOG_DIR}}/timecorrection.csv"
+  autodeployment : "{{CATALOG_DIR}}/autodeployment.csv"
+  exifstore : "{{CATALOG_DIR}}/exifdata.csv"
+  stage :  "{{CATALOG_DIR}}/stage.csv"
   
 processing:
   filterexif: ["SourceFile","FileName","Directory","FileSize","FileModifyDate","FileAccessDate","FileInodeChangeDate","FilePermissions","FileType",
