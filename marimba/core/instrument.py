@@ -84,7 +84,7 @@ class Instrument(ABC, LogMixin):
         """
 
         # Get deployment name and config path
-        deployment_name = deployment_path.split("/")[-1]
+        deployment_name = Path(deployment_path).name
         deployment_config_path = Path(deployment_path) / Path(deployment_name + ".yml")
 
         # Check if deployment metadata file exists and skip deployment if not present
