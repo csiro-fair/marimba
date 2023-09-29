@@ -154,7 +154,7 @@ class DropCameraFusion360(Instrument):
         self.logger.info(f'Renaming files in MarImBA deployment: "{deployment_path}"')
 
         # Get deployment name and load deployment config
-        deployment_name = deployment_path.split("/")[-1]
+        deployment_name = Path(deployment_path).name
         deployment_config_path = Path(deployment_path) / Path(deployment_name + ".yml")
         deployment_config = load_config(deployment_config_path)
         deployment_video_front_path = Path(deployment_path) / "video" / "front"
