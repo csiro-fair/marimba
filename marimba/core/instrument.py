@@ -30,7 +30,7 @@ def get_instrument_config(instrument_path) -> dict:
         print(Panel(f"There are no instruments associated with this MarImBA collection.", title="Error", title_align="left", border_style="red"))
         raise typer.Exit()
 
-    instrument_config_path = os.path.join(os.path.join(instrument_path, "instrument.yml"))
+    instrument_config_path = Path(instrument_path) / "instrument.yml"
 
     if not os.path.isfile(instrument_config_path):
         print(Panel(f"Cannot find instrument.yml in MarImBa instrument - this is not a MarImBA instrument.", title="Error", title_align="left", border_style="red"))
@@ -54,7 +54,7 @@ class Instrument(ABC, LogMixin):
 
         # Root and work paths for the instrument
         self.root_path = root_path
-        self.work_path = os.path.join(self.root_path, "work")
+        self.work_path = Path(self.root_path) / "work"
 
         # Collection and instrument configuration
         self.collection_config = collection_config
@@ -83,21 +83,17 @@ class Instrument(ABC, LogMixin):
             kwargs: Keyword arguments.
         """
 
-        # TODO: Move this to the instrument logger
-        # Set dry run log string to prepend to logging
-        dry_run_log_string = "DRY_RUN - " if kwargs.get("dry_run") else ""
-
         # Get deployment name and config path
         deployment_name = deployment_path.split("/")[-1]
         deployment_config_path = Path(deployment_path) / Path(deployment_name + ".yml")
 
         # Check if deployment metadata file exists and skip deployment if not present
         if not deployment_config_path.is_file():
-            self.logger.warning(f'{dry_run_log_string}SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment_path}"')
+            self.logger.warning(f'SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment_path}"')
             return
         else:
             # TODO: Need to validate deployment metadata file here
-            self.logger.debug(f'{dry_run_log_string}Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment_path}"')
+            self.logger.debug(f'Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment_path}"')
             command = getattr(self, command_name)
             command(deployment_path, **kwargs)
 

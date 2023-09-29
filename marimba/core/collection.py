@@ -27,7 +27,7 @@ def get_collection_config(collection_path) -> dict:
         print(Panel(f"MarImBA collection path does not exist.", title="Error", title_align="left", border_style="red"))
         raise typer.Exit()
 
-    collection_config_path = os.path.join(os.path.join(collection_path, "collection.yml"))
+    collection_config_path = Path(collection_path) / "collection.yml"
 
     if not os.path.isfile(collection_config_path):
         print(Panel(f"Cannot find collection.yml in MarImBa collection - this is not a MarImBA collection.", title="Error", title_align="left", border_style="red"))
@@ -40,7 +40,7 @@ def get_instrument_instance(collection_config, instrument_path) -> Instrument:
     # Get instrument config data
     instrument_config = get_instrument_config(instrument_path)
     instrument_class_name = instrument_config.get("class_name")
-    instrument_class_path = os.path.join(instrument_path, "lib", "instrument.py")
+    instrument_class_path = Path(instrument_path) / "lib" / "instrument.py"
 
     # Import and load instrument class
     instrument_spec = importlib.util.spec_from_file_location("instrument", instrument_class_path)
@@ -89,7 +89,7 @@ def run_command(command_name: str, collection_path: str, instrument_id: str, dep
     collection_config = get_collection_config(collection_path)
 
     # Define instruments path and get merged keyword arguments
-    instruments_path = os.path.join(collection_path, "instruments")
+    instruments_path = Path(collection_path) / "instruments"
     merged_kwargs = get_merged_keyword_args(kwargs, extra_args, logger)
 
     # Single deployment processing
