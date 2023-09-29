@@ -190,10 +190,11 @@ class DropCameraFusion360(Instrument):
         if annotations_file_path.exists():
             self.logger.info(f'SKIPPING FILE - Annotation file already exists: "{annotations_file_path}"')
         else:
-            with open(annotations_file_path, 'w', newline='') as annotations_file:
-                writer = csv.writer(annotations_file)
-                writer.writerow(annotations_columns)
+            if not dry_run:
+                with open(annotations_file_path, 'w', newline='') as annotations_file:
+                    writer = csv.writer(annotations_file)
+                    writer.writerow(annotations_columns)
 
-            # Add a single annotation row for each video
-            self.add_video_annotation_rows(annotations_file_path, deployment_video_front_path)
-            self.add_video_annotation_rows(annotations_file_path, deployment_video_back_path)
+                # Add a single annotation row for each video
+                self.add_video_annotation_rows(annotations_file_path, deployment_video_front_path)
+                self.add_video_annotation_rows(annotations_file_path, deployment_video_back_path)
