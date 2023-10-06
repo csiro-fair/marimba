@@ -12,6 +12,7 @@ import typer
 import platform
 import signal
 import atexit
+import psutil
 
 def killcopy():
     os.wait()
@@ -46,23 +47,38 @@ def main(collection_path: str = typer.Argument(..., help="Root path to MarImBA c
             for card in df.mountpoint.to_list():
                 args.append(card)
             commands.append(args)
+        for args in commands:
+                if debug:
+                    runner.invoke(marimba,args)
+                else:
+                    if len(processes) >= max_processes:
+                        os.wait()
+                    processes.add(subprocess.Popen(shlex.split(f'gnome-terminal -- bash --rcfile {os.path.split(__file__)[0]}/bashrc -ci "marimba {" ".join(args)}"')))
+        os.wait()            
     else:
         commands =[]
         for i in psutil.disk_partitions():
-            if i.fstype==format_type:
+            if i.fstype.lower()==format_type:
                 p =psutil.disk_usage(i.mountpoint)
                 if np.ceil(p.total/1000000000)<=512:
                     #os.system()
-                    args =["import",collection_path,instrument_id,i.mountpoint] 
+                    args =["import",collection_path,instrument_id,i.mountpoint.replace('\\','/')] 
                     commands.append(args)
+            processes = set()
+            max_processes = 4
+            current_env = os.environ.copy() 
+            marimba = os.path.join(current_env['VIRTUAL_ENV'],'Scripts','marimba.cmd')                  
+            for args in commands:
+                args.insert(0,marimba)
+                processes.add(subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE))               
+                if len(processes) >= max_processes:
+                    processes.difference_update([p for p in processes if p.poll() is not None])
+            for p in processes:
+                if p.poll() is None:
+                    p.wait()
 
-    for args in commands:
-        if debug:
-            runner.invoke(marimba,args)
-        else:
-            if len(processes) >= max_processes:
-                os.wait()
-            processes.add(subprocess.Popen(shlex.split(f'gnome-terminal -- bash --rcfile /home/mor582/code/marimba/scripts/bashrc -ci "marimba {" ".join(args)}"')))
-    os.wait()
+
+ 
+
 
 typer.run(main)

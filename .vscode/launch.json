@@ -51,6 +51,31 @@
                 "BRUVS"
             ]            
         },
+
+        {
+            "name": "typer import_single",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [ " import",
+                      "c:/Marimba/DI202301",
+                      "BRUVS",
+                      "d:/"
+            ]            
+        },
+        {
+            "name": "typer import windows",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "cwd": "${fileDirname}",
+            "console": "integratedTerminal",
+            "justMyCode": true, 
+            "args": ["c:/Marimba/DI202301",
+            "BRUVS"  ]            
+        },
         {
             "name": "Python: Current File",
             "type": "python",

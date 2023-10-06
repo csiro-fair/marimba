@@ -323,7 +323,8 @@ class BRUVS(Instrument):
                     self.logger.info(f'{dry_run_log_string}  Copy  {card} --> {destination}')
                     if not dry_run:
                         os.makedirs(destination,exist_ok=True)
-                        command =f"rclone copy {card} {destination} --progress --low-level-retries 1 --exclude=/**/*.THM --exclude=/**/*.LRV"
+                        command =f"rclone copy {os.path.abspath(card)} {os.path.abspath(destination)} --progress --low-level-retries 1 --exclude=/**/*.THM --exclude=/**/*.LRV"
+                        command = command.replace('\\','/')
                         self.logger.info(f'{dry_run_log_string}  {command}')
                         process = subprocess.Popen(shlex.split(command))
                         process.wait()
