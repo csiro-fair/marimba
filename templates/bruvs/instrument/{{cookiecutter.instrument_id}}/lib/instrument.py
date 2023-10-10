@@ -70,7 +70,7 @@ class BRUVS(Instrument):
             kwargs: Keyword arguments.
         """
         if command_name=='initalise':
-            self.initalise(**kwargs)
+            self.initialise(**kwargs)
         elif command_name=='import_command':
             self.import_command(**kwargs)
         else:
@@ -245,14 +245,14 @@ class BRUVS(Instrument):
             f'{file_id}'
             f".MP4"
         )
-    def initalise(self,card_path,days,overwrite,dry_run: bool):
+    def initialise(self,card_path,days,overwrite,dry_run: bool):
         """
-        Implementation of the MarImBA initalise command for the BRUVS
+        Implementation of the MarImBA initialise command for the BRUVS
         """
 
         def make_xml(file_path):
             if (os.path.exists(file_path)) and (not overwrite):
-                self.logger.error(f"Error SDCard already initalised {file_path}")
+                self.logger.error(f"Error SDCard already initialise {file_path}")
             else:
                 env = Environment(loader = FileSystemLoader(self.root_path),   trim_blocks=True, lstrip_blocks=True)
                 template = env.get_template('import.yml')
@@ -303,39 +303,36 @@ class BRUVS(Instrument):
                 if cameras.GoProNumber.isna().any():
                     #not matched to the bar
                     self.logger.error(f"Error camera serial number not found {cameras[cameras.GoProNumber.isna()].CameraSerialNumber}")
-                else:
-                    if len(cameras.CameraSerialNumber.unique())>1:
-                        self.logger.warning(f"Warning multiple cameras in directory {cameras.CameraSerialNumber.unique()} ---> {videopath}")
-                    if len(cameras.CreateDate.unique())>1:
-                        self.logger.warning(f"Warning multiple captures in directory {cameras.CreateDate.unique()} ---> {videopath}")
-                    #get the last record as it's probably the best one!
-                    log=cameras.groupby('CreateDate').agg({'CameraSerialNumber':'first', 'Duration': 'sum'})
-                    matched =cameras[(cameras.CreateDate>cameras.BarStartDate) & (cameras.CreateDate<cameras.BarEndDate)]
-                    if len(matched)!=len(cameras):
-                        self.logger.warning(f"Warning unmatched camera serial numbers  {videopath} in please serial numbers in  {barpath} ")
-                    last =cameras[cameras.CreateDate==cameras.CreateDate.unique().max()].sort_values('SourceFile').iloc[-1]
-                    importdetails['instrumentPath'] = self.root_path
-                    importdetails['bruvframe'] = last.Frame
-                    importdetails['housinglabel'] = last.GoProNumber
-                    importdetails['cameraserialNumber'] = last.CameraSerialNumber
-                    importdetails['cameracreatedate'] = last.CreateDate
-                    destination =importdetails["importtemplate"].format(**importdetails)
-                    self.logger.info(f'{dry_run_log_string}  Copy  {card} --> {destination}')
+                if len(cameras.CameraSerialNumber.unique())>1:
+                    self.logger.warning(f"Warning multiple cameras in directory {cameras.CameraSerialNumber.unique()} ---> {videopath}")
+                if len(cameras.CreateDate.unique())>1:
+                    self.logger.warning(f"Warning multiple captures in directory {cameras.CreateDate.unique()} ---> {videopath}")
+                #get the last record as it's probably the best one!
+                log=cameras.groupby('CreateDate').agg({'CameraSerialNumber':'first', 'Duration': 'sum'})
+                matched =cameras[(cameras.CreateDate>cameras.BarStartDate) & (cameras.CreateDate<cameras.BarEndDate)]
+                if len(matched)!=len(cameras):
+                    self.logger.warning(f"Warning unmatched camera serial numbers  {videopath} in please serial numbers in  {barpath} ")
+                last =cameras[cameras.CreateDate==cameras.CreateDate.unique().max()].sort_values('SourceFile').iloc[-1]
+                importdetails['instrumentPath'] = self.root_path
+                importdetails['bruvframe'] = last.Frame
+                importdetails['housinglabel'] = last.GoProNumber
+                importdetails['cameraserialNumber'] = last.CameraSerialNumber
+                importdetails['cameracreatedate'] = last.CreateDate
+                destination =importdetails["importtemplate"].format(**importdetails)
+                self.logger.info(f'{dry_run_log_string}  Copy  {card} --> {destination}')
+                command =f"rclone copy {os.path.abspath(card)} {os.path.abspath(destination)} --progress --low-level-retries 1 "
+                command = command.replace('\\','/')
+                self.logger.info(f'{dry_run_log_string}  {command}')
+                if not dry_run:
+                    os.makedirs(destination,exist_ok=True)
+                    process = subprocess.Popen(shlex.split(command))
+                    process.wait()
+                if clean==True:
+                    command =f"rclone move {card} {destination} --progress --delete-empty-src-dirs"
+                    command = command.replace('\\','/')
+                    self.logger.info(f'{dry_run_log_string}  {command}')
                     if not dry_run:
                         os.makedirs(destination,exist_ok=True)
-                        command =f"rclone copy {os.path.abspath(card)} {os.path.abspath(destination)} --progress --low-level-retries 1 --exclude=/**/*.THM --exclude=/**/*.LRV"
-                        command = command.replace('\\','/')
-                        self.logger.info(f'{dry_run_log_string}  {command}')
-                        process = subprocess.Popen(shlex.split(command))
-                        process.wait()
-                    if clean==True:
-                        if platform.system() == "Linux":
-                            command =f'find {card} -type f \( -name "*.LRV" -o -name "*.THM")-exec rm {{}} \;'
-                            process = subprocess.Popen(shlex.split(command))
-                            process.wait()
-                        os.makedirs(destination,exist_ok=True)
-                        command =f"rclone move {card} {destination} --progress --delete-empty-src-dirs --exclude=/**/*.THM --exclude=/**/*.LRV"
-                        self.logger.info(f'{dry_run_log_string}  {command}')
                         process = subprocess.Popen(shlex.split(command))
                         process.wait()
             else:
