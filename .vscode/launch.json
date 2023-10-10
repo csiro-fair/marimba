@@ -13,12 +13,24 @@
             "justMyCode": true,
             "args": [
                 "/mnt/md127/fielddata0/Marimba/DR2023-01",
-                "BRUVS",
-                "--overwrite"
+                "BRUVS"
             ]            
         },
         {
-            "name": "typer import",
+            "name": "marimba import",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "~",
+            "justMyCode": true,
+            "args": [
+                "/mnt/md127/fielddata0/Marimba/DR2023-01",
+                "BRUVS",
+            ]            
+        },
+        {
+            "name": "typer import command",
             "type": "python",
             "request": "launch",
             "program": "${file}",
@@ -36,9 +48,21 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": ["config=/mnt/md127/fielddata0/Marimba/DR2023-01/instruments/BRUVS/work/config.yml"
+            "args": ["config=/mnt/md127/fielddata0/cals/CAL20230516/instruments/BRUVS/work/config.yml"
             ]            
         },
+        {
+            "name": "doit ALL",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": ["config=/mnt/md127/fielddata0/ALL/instruments/BRUVS/work/config.yml"
+            ]            
+        },
+        
+
         {
             "name": "typer import",
             "type": "python",
