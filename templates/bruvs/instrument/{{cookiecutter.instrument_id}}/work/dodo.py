@@ -202,16 +202,29 @@ def task_make_matchbars():
                 else:                 
                     df['CalculatedStartTime']=df['CorrectedTime']
                 return df
-            def makedeploymentkey(df):
-                starttime =df.CorrectedTime.min().strftime("%Y%m%dT%H%M%S")
-                totals =df.groupby('GoProNumber').count().reset_index()
-                left = 0 if len(totals[totals.GoProNumber.str.startswith('L')])==0 else totals[totals.GoProNumber.str.startswith('L')].iloc[0].CreateDate
-                right =0 if len(totals[totals.GoProNumber.str.startswith('R')])==0 else totals[totals.GoProNumber.str.startswith('R')].iloc[0].CreateDate
-                df['StageId']=df.Frame+'_'+starttime
-                if left==right:
-                    df['StageDir']=df.Frame+'_'+starttime+f'_{left:02}'
+            def makedirs(row):
+                if row[1]==row[2]:
+                    result = f'{row[0]}_{int(row[1]):02}'
                 else:
-                    df['StageDir']=df.Frame+'_'+starttime+f'_{left:02}_{right:02}'
+                    result = f'{row[0]}_{int(row[1]):02}_{int(row[2]):02}'
+                return row[0],result
+            def makedeploymentkey(df):
+                left = df[df.GoProNumber.str.contains('L')].groupby('CorrectedTime').first().reset_index()[['CorrectedTime','GoProNumber','Frame']].add_suffix('_Left')
+                left['MatchTime'] = left['CorrectedTime_Left']
+                right = df[df.GoProNumber.str.contains('R')].groupby('CorrectedTime').first().reset_index()[['CorrectedTime','GoProNumber','Frame']].add_suffix('_Right')
+                right['MatchTime'] = right['CorrectedTime_Right']
+                merged_df = pd.merge_asof(right, left, left_on='MatchTime', right_on='MatchTime', direction='nearest', tolerance=pd.Timedelta(minutes=30),suffixes=( '_right','_left'))
+                merged_df =pd.concat([merged_df,left[~left.CorrectedTime_Left.isin(merged_df.CorrectedTime_Left.unique())]])
+                merged_df.loc[merged_df.CorrectedTime_Right.isna(),'Frame_Right'] = merged_df.loc[merged_df.CorrectedTime_Right.isna(),'Frame_Left']
+                merged_df.loc[merged_df.CorrectedTime_Left.isna(),'CorrectedTime_Left'] = merged_df.loc[merged_df.CorrectedTime_Left.isna(),'CorrectedTime_Right']
+                starttime =merged_df.MatchTime.dt.strftime("%Y%m%dT%H%M%S")
+                merged_df['StageId']=merged_df.Frame_Right+'_'+starttime
+                stageId =pd.concat((merged_df[['CorrectedTime_Left','StageId']].rename(columns={'CorrectedTime_Left':'CorrectedTime'}),merged_df[['CorrectedTime_Right','StageId']].rename(columns={'CorrectedTime_Right':'CorrectedTime'}))).dropna()
+                df =pd.merge(df,stageId)
+                totals =df.groupby(['StageId','GoProNumber']).size().reset_index().pivot_table(index ='StageId',values=0,columns='GoProNumber').reset_index().fillna(0)
+                totals =totals.apply(makedirs,axis=1).apply(pd.Series)
+                totals.columns = ['StageId','StageDir']
+                df = df.merge(totals)
                 return df
             dep = pd.read_csv(geturl('autodeployment'),parse_dates=['CreateDate'])
             exifdata = pd.read_csv(geturl('exifstore'),parse_dates=['CreateDate']).set_index(['CreateDate','CameraSerialNumber','GroupId'])
@@ -220,7 +233,7 @@ def task_make_matchbars():
             combined = dep.join(exifdata,rsuffix='_exif').reset_index()
             combined =combined.drop_duplicates(subset=['CameraSerialNumber','CreateDate','GroupId','ItemId'],keep='last')
             combined = combined.sort_values(['CorrectedTime','GroupId','ItemId'])
-            combined =combined.groupby(['CreateDate','CameraSerialNumber','GroupId']).apply(calculatetimes).reset_index()
+            combined =combined.groupby(['CreateDate','CameraSerialNumber','GroupId'],group_keys=False).apply(calculatetimes).reset_index()
             barpath = f'{CATALOG_DIR}/camerabars.csv'
             barnumbers = pd.read_csv(barpath,parse_dates=['BarStartDate','BarEndDate']) 
             result = matchbars(combined,barnumbers,datecolumn='CalculatedStartTime')
@@ -228,7 +241,7 @@ def task_make_matchbars():
             result['CorrectedTime'] = pd.to_datetime(result['CorrectedTime'])
             result['StageName'] = result.apply(lambda x: f'{x.Frame}_{x.GoProNumber}_{x.CalculatedStartTime.strftime("%Y%m%dT%H%M%S")}_{x.CameraSerialNumber}_{int(x.GroupId):02d}_{int(x.ItemId):02d}.MP4',axis=1)
             result =result.drop_duplicates(subset=['CameraSerialNumber','CreateDate','GroupId','ItemId'],keep='last')
-            result=result.groupby(['Frame',pd.Grouper(key='CorrectedTime',freq='5min')],group_keys=True).apply(makedeploymentkey)
+            result=result.groupby('Frame').apply(makedeploymentkey)
             result.to_csv(targets[0],index=False)
         return { 
 
@@ -274,23 +287,26 @@ def task_stage_data():
                 'clean':[clean_targets,delete_empty_folders],
             } 
         
-@create_after(executed='make_matchbars', target_regex='.*\.json') 
+@create_after(executed='stage_data', target_regex='.*\.json') 
 def task_update_stationinformation():
         def finalnames(dependencies, targets):
              stage = pd.read_csv(geturl('stage'),index_col='StageId')
-             stationinfo = targets[0]
-             stations = pd.read_csv(stationinfo,index_col='StageId')
-             stations =stations.join(stage.groupby('StageId').first(),how='outer')[stations.columns]
-             stations.to_csv(targets[0])          
-        targets =geturl('commit')
+             stations = pd.read_csv(geturl('stationinfo'),index_col='StageId')
+             stations =stations.join(stage.groupby('StageId').first(),how='outer',rsuffix='Stage_')[stations.columns.to_list()+['CalculatedStartTime','CorrectedTime','Duration']]
+             stations['Frame'] = stations.index
+             stations[['Frame','CamerTime']] =stations.Frame.str.split('_',expand=True)
+             stations.sort_index().to_csv(geturl('stationinfo'))          
         return { 
 
-            'file_dep':[geturl('stage')],
+            'file_dep':[geturl('stage'),geturl('stationinfo')],
             'actions':[finalnames],
-            'targets':[geturl('stationinfo')],
-            'uptodate':[True],
+            'uptodate':[run_once],
             'clean':True,
         } 
+
+@create_after(executed='update_stationinformation', target_regex='.*\.json') 
+def task_process_names():
+     pass
         
 
 def delete_empty_folders(dryrun):
