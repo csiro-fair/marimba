@@ -7,29 +7,21 @@ import os
 import subprocess
 import shlex
 from typer.testing import CliRunner
-from marimba.marimba import marimba
 import typer
 import platform
 import signal
 import atexit
-
-def killcopy():
-    os.wait()
-
-
-#atexit.register(killcopy)
+import psutil
+import sys
 
 def main(collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
          instrument_id: str = typer.Argument(..., help="MarImBA instrument ID."),
          max_processes:int = typer.Option(4, help="Number of concurrent transfers"),
          format_type:str = typer.Option('exfat', help="Card format type"),
+         clean:bool = typer.Option(False, help="move all the files to location"),
          debug:bool = typer.Option(False, help="Card format type")):
-
-
-
     if debug:
         runner = CliRunner()
-
     processes = set()
     if platform.system() == "Linux":
         mountpoints = pd.DataFrame(json.loads(subprocess.getoutput('lsblk -J -o  NAME,SIZE,FSTYPE,TYPE,MOUNTPOINT'))['blockdevices'])
@@ -45,24 +37,37 @@ def main(collection_path: str = typer.Argument(..., help="Root path to MarImBA c
             args =["import",collection_path,instrument_id]    
             for card in df.mountpoint.to_list():
                 args.append(card)
+            if clean:
+                args.append('--clean')
             commands.append(args)
+        for args in commands:
+                if debug:
+                    runner.invoke(marimba,args)
+                else:
+                    if len(processes) >= max_processes:
+                        os.wait()
+                    processes.add(subprocess.Popen(shlex.split(f'gnome-terminal -- bash --rcfile {os.path.split(__file__)[0]}/bashrc -ci "marimba {" ".join(args)}"')))
+        os.wait()            
     else:
         commands =[]
+        current_env = os.environ.get('VIRTUAL_ENV')
+        marimbapath = os.path.join(current_env,'Scripts','marimba.cmd')  
         for i in psutil.disk_partitions():
-            if i.fstype==format_type:
+            if i.fstype.lower()==format_type:
                 p =psutil.disk_usage(i.mountpoint)
                 if np.ceil(p.total/1000000000)<=512:
-                    #os.system()
-                    args =["import",collection_path,instrument_id,i.mountpoint] 
+                    args =["start", "cmd","/k",marimbapath,"import",collection_path,instrument_id,i.mountpoint.replace('\\','/')] 
+                    if clean:
+                        args.append('--clean')
                     commands.append(args)
-
-    for args in commands:
-        if debug:
-            runner.invoke(marimba,args)
-        else:
+        processes = set()    
+        for args in commands:
+            processes.add(subprocess.Popen(args, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE))               
             if len(processes) >= max_processes:
-                os.wait()
-            processes.add(subprocess.Popen(shlex.split(f'gnome-terminal -- bash --rcfile /home/mor582/code/marimba/scripts/bashrc -ci "marimba {" ".join(args)}"')))
-    os.wait()
+                processes.difference_update([p for p in processes if p.poll() is not None])
+        for p in processes:
+            if p.poll() is None:
+                p.wait()
 
-typer.run(main)
+if __name__ == "__main__":
+    typer.run(main)

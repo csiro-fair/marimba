@@ -69,8 +69,8 @@ def catalog(
 
     run_command('catalog', collection_path, instrument_id,deployment_name, dry_run=dry_run, exiftool_path=exiftool_path, file_extension=file_extension, glob_path=glob_path, overwrite=overwrite)
 
-@marimba.command('initalise')
-def initalise(
+@marimba.command('initialise')
+def initialise(
         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
         instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
         card_path: str = typer.Argument(None, help="MarImBA instrument ID."),
@@ -81,10 +81,10 @@ def initalise(
 
 ):
     """
-    initalise sd cards
+    initialise sd cards
     """
 
-    run_command('initalise', collection_path, instrument_id, None, extra, card_path=card_path,dry_run=dry_run,days=days,overwrite=overwrite)
+    run_command('initialise', collection_path, instrument_id, None, extra, card_path=card_path,dry_run=dry_run,days=days,overwrite=overwrite)
 
 
 @marimba.command('import')
