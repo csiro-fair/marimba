@@ -46,9 +46,10 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
+            "cwd": "${fileDirname}",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": ["config=/mnt/md127/fielddata0/cals/CAL20230516/instruments/BRUVS/work/config.yml"
+            "args": ["config=${fileDirname}/config.yml"
             ]            
         },
         {

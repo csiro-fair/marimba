@@ -93,7 +93,8 @@ def import_command(
         instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
         card_path: list[str] = typer.Argument(None, help="MarImBA instrument ID."),
         exiftool_path: str = typer.Option("exiftool", help="Path to exiftool"),
-        clean: bool = typer.Option(False, help="Clean source"),
+        copy: bool = typer.Option(True, help="Clean source"),
+        move: bool = typer.Option(False, help="move source"),
         extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
         file_extension: str = typer.Option("MP4", help="extension to catalog"),
@@ -102,7 +103,7 @@ def import_command(
     Import SD cards to working directory
     """ 
 
-    run_command('import_command', collection_path, instrument_id,None,extra,card_path=card_path,clean=clean,dry_run=dry_run, exiftool_path=exiftool_path,file_extension=file_extension)
+    run_command('import_command', collection_path, instrument_id,None,extra,card_path=card_path,copy=copy,move=move,dry_run=dry_run, exiftool_path=exiftool_path,file_extension=file_extension)
 
 
 

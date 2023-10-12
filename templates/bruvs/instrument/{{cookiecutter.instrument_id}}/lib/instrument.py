@@ -69,7 +69,7 @@ class BRUVS(Instrument):
             command_name: Name of the MarImBA command to be executed.
             kwargs: Keyword arguments.
         """
-        if command_name=='initalise':
+        if command_name=='initialise':
             self.initialise(**kwargs)
         elif command_name=='import_command':
             self.import_command(**kwargs)
@@ -270,7 +270,7 @@ class BRUVS(Instrument):
         else:
             make_xml(f"{card_path}/import.yaml")
 
-    def import_command(self,card_path,clean,exiftool_path,file_extension,dry_run: bool):
+    def import_command(self,card_path,copy,move,exiftool_path,file_extension,dry_run: bool):
         """
         Implementation of the MarImBA initalise command for the BRUVS
         """
@@ -322,12 +322,13 @@ class BRUVS(Instrument):
                 self.logger.info(f'{dry_run_log_string}  Copy  {card} --> {destination}')
                 command =f"rclone copy {os.path.abspath(card)} {os.path.abspath(destination)} --progress --low-level-retries 1 "
                 command = command.replace('\\','/')
-                self.logger.info(f'{dry_run_log_string}  {command}')
-                if not dry_run:
-                    os.makedirs(destination,exist_ok=True)
-                    process = subprocess.Popen(shlex.split(command))
-                    process.wait()
-                if clean==True:
+                if copy:
+                    self.logger.info(f'{dry_run_log_string}  {command}')
+                    if not dry_run:
+                        os.makedirs(destination,exist_ok=True)
+                        process = subprocess.Popen(shlex.split(command))
+                        process.wait()
+                if move:
                     command =f"rclone move {card} {destination} --progress --delete-empty-src-dirs"
                     command = command.replace('\\','/')
                     self.logger.info(f'{dry_run_log_string}  {command}')

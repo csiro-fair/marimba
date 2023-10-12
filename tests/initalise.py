@@ -2,4 +2,4 @@ import sys
 from marimba.marimba import marimba
 
 if __name__ == '__main__':
-    marimba(["initalise","/home/mor582/data/test/LI2023-01/","bruvs", "/media/mor582/3714-2983/" ])
+    marimba(["initialise","/media/mor582/Video1/data/DR2023-02","BRUVS", "/media/mor582/Video1/DR2023-02/fielddata/BRUVS" ])

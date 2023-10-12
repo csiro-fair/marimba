@@ -121,12 +121,30 @@ def task_concat_json():
                 'uptodate':[True],
                 'clean':True,
             } 
-
+        
 @create_after(executed='concat_json', target_regex='.*\.json') 
+def task_checkbars():
+        def checkbars(dependencies, targets):
+            data = pd.read_csv(dependencies[0],parse_dates=['CreateDate'])
+            stats =data.groupby('CameraSerialNumber')['CreateDate'].agg([('CreateStart', 'min'), ('CreateEnd', 'max')]).reset_index()
+            barnumbers = pd.read_csv(targets[0],parse_dates=['BarStartDate','BarEndDate']).drop(['CreateStart','CreateEnd'],axis=1,errors='ignore')                      
+            barnumbers = pd.merge(barnumbers,stats) 
+            barnumbers.to_csv(targets[0],index=False)
+
+        return { 
+
+            'file_dep':[geturl('exifstore')],
+            'actions':[checkbars],
+            'targets':[geturl('barstore')],
+            'uptodate':[True],
+            'clean':True,
+        }         
+
+@create_after(executed='checkbars', target_regex='.*\.json') 
 def task_make_autodeployments():
 
         def deployments(dependencies, targets):
-            data = pd.read_csv(dependencies[0],parse_dates=['CreateDate'])
+            data = pd.read_csv(geturl('exifstore'),parse_dates=['CreateDate'])
             totaltime =pd.to_datetime(data.groupby(['Directory','CreateDate','CameraSerialNumber','GroupId'])['Duration'].sum(), unit='s').dt.strftime("%H:%M:%S").rename('TotalTime')
             totalfilesize =(data.groupby(['Directory','CreateDate','CameraSerialNumber','GroupId'])['FileSize'].sum()/1000000000).rename('TotalSize')
             maxid =data.groupby(['Directory','CreateDate','CameraSerialNumber','GroupId'])['ItemId'].max().rename('MaxId')
@@ -149,7 +167,7 @@ def task_make_autodeployments():
                  manual.loc[manual.CorrectedTime.isnull(),'CorrectedTime']=manual.loc[manual.CorrectedTime.isnull(),'CreateDate']
             else:
                 manual['CorrectedTime'] = manual['CreateDate']
-            manual.to_csv(manualfile)
+            manual.sort_values('DeploymentId').to_csv(manualfile)
             result.to_csv(targets[0],index=False)
 
 
@@ -159,7 +177,7 @@ def task_make_autodeployments():
 
             'file_dep':[geturl('exifstore')],
             'actions':[deployments],
-            'targets':[target],
+            'targets':[target,geturl('timecorrection')],
             'uptodate':[True],
             'clean':True,
         } 
@@ -202,16 +220,25 @@ def task_make_matchbars():
                 else:                 
                     df['CalculatedStartTime']=df['CorrectedTime']
                 return df
-            def makedirs(row):
-                if row[1]==row[2]:
-                    result = f'{row[0]}_{int(row[1]):02}'
-                else:
-                    result = f'{row[0]}_{int(row[1]):02}_{int(row[2]):02}'
-                return row[0],result
+
             def makedeploymentkey(df):
-                left = df[df.GoProNumber.str.contains('L')].groupby('CorrectedTime').first().reset_index()[['CorrectedTime','GoProNumber','Frame']].add_suffix('_Left')
+                def makedirs(row):
+                    left = 0
+                    right = 0
+                    if leftcam in row.keys():
+                         left = row[leftcam]
+                    if rightcam in row.keys():
+                         right = row[rightcam]
+                    if right==left:
+                        result = f"{row['StageId']}_{int(left):02}"
+                    else:
+                        result = f"{row['StageId']}_{int(left):02}_{int(right):02}"
+                    return row['StageId'],result
+                leftcam = 'L'+df.Frame.min()[-2:]
+                rightcam = 'R'+df.Frame.min()[-2:]
+                left = df[df.GoProNumber==leftcam].groupby('CorrectedTime').first().reset_index()[['CorrectedTime','GoProNumber','Frame']].add_suffix('_Left')
                 left['MatchTime'] = left['CorrectedTime_Left']
-                right = df[df.GoProNumber.str.contains('R')].groupby('CorrectedTime').first().reset_index()[['CorrectedTime','GoProNumber','Frame']].add_suffix('_Right')
+                right = df[df.GoProNumber==rightcam].groupby('CorrectedTime').first().reset_index()[['CorrectedTime','GoProNumber','Frame']].add_suffix('_Right')
                 right['MatchTime'] = right['CorrectedTime_Right']
                 merged_df = pd.merge_asof(right, left, left_on='MatchTime', right_on='MatchTime', direction='nearest', tolerance=pd.Timedelta(minutes=30),suffixes=( '_right','_left'))
                 merged_df =pd.concat([merged_df,left[~left.CorrectedTime_Left.isin(merged_df.CorrectedTime_Left.unique())]])
@@ -245,7 +272,7 @@ def task_make_matchbars():
             result.to_csv(targets[0],index=False)
         return { 
 
-            'file_dep':[geturl('autodeployment'),geturl('timecorrection'),geturl('exifstore'),f'{CATALOG_DIR}/camerabars.csv'],
+            'file_dep':[geturl('autodeployment'),geturl('exifstore'),geturl('barstore')],
             'actions':[stagedeployments],
             'targets':[geturl('stage')],
             'uptodate':[True],
@@ -291,14 +318,19 @@ def task_stage_data():
 def task_update_stationinformation():
         def finalnames(dependencies, targets):
              stage = pd.read_csv(geturl('stage'),index_col='StageId')
-             stations = pd.read_csv(geturl('stationinfo'),index_col='StageId')
-             stations =stations.join(stage.groupby('StageId').first(),how='outer',rsuffix='Stage_')[stations.columns.to_list()+['CalculatedStartTime','CorrectedTime','Duration']]
+             stage = stage.groupby('StageId')['CalculatedStartTime'].agg([('VideoStart', 'min'), ('VideoEnd', 'max')]).reset_index()
+             if os.path.exists(geturl('stationinfo')):
+                stations = pd.read_csv(geturl('stationinfo'),index_col='StageId')
+             else:
+                stations = pd.DataFrame(columns=['StartTime','FinishTime','Station','Operation','Latitude','Longitude','Depth'])
+             stations =stations.join(stage.groupby('StageId').first(),how='outer',rsuffix='Stage_')[stations.columns.to_list()+['VideoStart','VideoEnd']]
              stations['Frame'] = stations.index
-             stations[['Frame','CamerTime']] =stations.Frame.str.split('_',expand=True)
-             stations.sort_index().to_csv(geturl('stationinfo'))          
+             stations[['Frame','CameraTime']] =stations.Frame.str.split('_',expand=True)
+             stations.sort_values('VideoStart').to_csv(geturl('stationinfo'))          
         return { 
 
-            'file_dep':[geturl('stage'),geturl('stationinfo')],
+            'file_dep':[geturl('stage')],
+            'targets': [geturl('stationinfo')],
             'actions':[finalnames],
             'uptodate':[run_once],
             'clean':True,
