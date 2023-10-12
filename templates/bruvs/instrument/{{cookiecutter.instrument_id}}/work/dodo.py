@@ -42,43 +42,10 @@ def task_config():
                 cfg = yaml.load(ymlfile, yaml.SafeLoader)
             CATALOG_DIR = os.path.dirname(os.path.abspath(config))
             COLLECTION_DIR = Path(CATALOG_DIR).resolve().parents[2]
-        config = {"config": get_var('config', 'NO')}
+        config = {"config": get_var('config', f'{os.path.split(__file__)[0]}/config.yml')}
         loadconfig(config['config'])
 
-# def task_import_all():
-#     processes = set()
-#     if platform.system() == "Linux":
-#         mountpoints = pd.DataFrame(json.loads(subprocess.getoutput('lsblk -J -o  NAME,SIZE,FSTYPE,TYPE,MOUNTPOINT'))['blockdevices'])
-#         mountpoints = mountpoints[~mountpoints.children.isna()]
-#         mountpoints =pd.DataFrame(mountpoints.children.apply(lambda x: x[0]).to_list())[['name','mountpoint','fstype']]
-#         mountpoints = mountpoints[mountpoints.fstype==format_type]           
-#         paths = pd.DataFrame(subprocess.getoutput('udevadm info -q path -n $(ls /dev/s*1)').splitlines(),columns=['Path'])
-#         paths[['host','dev']]=paths.Path.str.extract(r'(?P<host>host\d+).*block\/(?P<dev>([^\\]+$))')[['host','dev']]
-#         paths['name'] =paths.dev.str.split('/',expand=True)[1]
-#         mountpoints =mountpoints.merge(paths, on='name', how='inner')
-#         commands =[]
-#         for index, df in mountpoints.groupby('host'):
-#             args =["import",str(COLLECTION_DIR),'BRUVS']    
-#             for card in df.mountpoint.to_list():
-#                 args.append(card)
-#             commands.append(args)
-#     else:
-#         commands =[]
-#         for i in psutil.disk_partitions():
-#             if i.fstype==format_type:
-#                 p =psutil.disk_usage(i.mountpoint)
-#                 if np.ceil(p.total/1000000000)<=512:
-#                     #os.system()
-#                     args =["import",str(COLLECTION_DIR),'BRUVS',i.mountpoint] 
-#                     commands.append(args)
-#     for args in commands:
-#             yield {
-#                 'name':"-".join(args),
-#                 'actions' : [f'gnome-terminal --wait -- bash --rcfile /home/mor582/code/marimba/scripts/bashrc -ci "marimba {" ".join(args)} || :"'],
-#                 'uptodate':[run_once],
-#                 'clean':True
-#             }
-# @create_after(executed='import_all', target_regex='*')
+
 def task_create_json():
         for path in glob.glob(os.path.join(geturl('cardstore'),'**','.'),recursive=True):
             path = os.path.abspath(path)
@@ -322,11 +289,14 @@ def task_update_stationinformation():
              if os.path.exists(geturl('stationinfo')):
                 stations = pd.read_csv(geturl('stationinfo'),index_col='StageId')
              else:
-                stations = pd.DataFrame(columns=['StartTime','FinishTime','Station','Operation','Latitude','Longitude','Depth'])
-             stations =stations.join(stage.groupby('StageId').first(),how='outer',rsuffix='Stage_')[stations.columns.to_list()+['VideoStart','VideoEnd']]
+                stations = pd.DataFrame(columns=['StartTime','FinishTime','Station','Operation','Latitude','Longitude','Depth','VideoStart','VideoEnd'])
+             stations =stations.join(stage.groupby('StageId').first(),how='outer',rsuffix='_Stage')
              stations['Frame'] = stations.index
              stations[['Frame','CameraTime']] =stations.Frame.str.split('_',expand=True)
-             stations.sort_values('VideoStart').to_csv(geturl('stationinfo'))          
+             stations.loc[stations.VideoStart_Stage.isna(),'VideoStart_Stage'] = stations.loc[stations.VideoStart_Stage.isna(),'VideoStart']
+             stations.loc[stations.VideoStart_Stage.isna(),'VideoEnd_Stage'] = stations.loc[stations.VideoEnd_Stage.isna(),'VideoEnd']
+             stations[['VideoStart','VideoEnd']] = stations[['VideoStart_Stage','VideoEnd_Stage']]
+             stations.drop(['VideoStart_Stage','VideoEnd_Stage'],axis=1).sort_values('VideoStart').to_csv(geturl('stationinfo'))          
         return { 
 
             'file_dep':[geturl('stage')],
