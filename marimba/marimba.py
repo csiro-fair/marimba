@@ -8,6 +8,7 @@ import typer
 import marimba.commands.new as new
 from marimba.core.collection import run_command
 from marimba.utils.log import LogLevel, get_collection_logger, get_rich_handler
+from marimba.utils.file_system import list_sdcards
 
 __author__ = "MarImBA Development Team"
 __copyright__ = "Copyright 2023, CSIRO"
@@ -73,18 +74,22 @@ def catalog(
 def initialise(
         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
         instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
-        card_path: str = typer.Argument(None, help="MarImBA instrument ID."),
+        card_path: list[str] = typer.Argument(None, help="MarImBA instrument ID.",),
+        all: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
         days: int = typer.Option(0, help="Add an offset to the import date e.g. +1 = to set the date to tomorrow "),
         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
         overwrite:bool = typer.Option(False, help="Overwrite import.yaml"),
+        cardsize:int = typer.Option(512, help="maximum card size"),
+        format_type:str = typer.Option('exfat', help="Card format type"),
         extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
 
 ):
     """
     initialise sd cards
     """
-
-    run_command('initialise', collection_path, instrument_id, None, extra, card_path=card_path,dry_run=dry_run,days=days,overwrite=overwrite)
+    if all and (not card_path ):
+        card_path = list_sdcards(format_type,cardsize)
+    run_command('initialise', collection_path, instrument_id, None, extra, card_path=card_path,dry_run=dry_run,days=days,overwrite=overwrite,cardsize=cardsize,all=all)
 
 
 @marimba.command('import')
@@ -92,6 +97,7 @@ def import_command(
         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
         instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
         card_path: list[str] = typer.Argument(None, help="MarImBA instrument ID."),
+        all: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
         exiftool_path: str = typer.Option("exiftool", help="Path to exiftool"),
         copy: bool = typer.Option(True, help="Clean source"),
         move: bool = typer.Option(False, help="move source"),
@@ -102,7 +108,8 @@ def import_command(
     """
     Import SD cards to working directory
     """ 
-
+    if all and (not card_path ):
+        card_path = list_sdcards(format_type,cardsize)
     run_command('import_command', collection_path, instrument_id,None,extra,card_path=card_path,copy=copy,move=move,dry_run=dry_run, exiftool_path=exiftool_path,file_extension=file_extension)
 
 
