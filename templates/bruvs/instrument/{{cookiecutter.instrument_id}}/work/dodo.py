@@ -117,16 +117,16 @@ def task_make_autodeployments():
             maxid =data.groupby(['Directory','CreateDate','CameraSerialNumber','GroupId'])['ItemId'].max().rename('MaxId')
             minid =data.groupby(['Directory','CreateDate','CameraSerialNumber','GroupId'])['ItemId'].min().rename('MinId')
             filecount = data.groupby(['Directory','CreateDate','CameraSerialNumber','GroupId'])['ItemId'].count().rename('FileCount')
-            groups =data.groupby(['Directory','CreateDate','CameraSerialNumber','GroupId'])[['FileName','FieldOfView']].first()
+            groups =data.groupby(['Directory','CreateDate','CameraSerialNumber','GroupId'])[['SourceFile','FieldOfView']].first()
             output =groups.join(filecount).join(minid).join(maxid).join(totalfilesize).join(totaltime)
             barpath = f'{CATALOG_DIR}/camerabars.csv'
             barnumbers = pd.read_csv(barpath,parse_dates=['BarStartDate','BarEndDate']) 
             result = matchbars(output.reset_index(),barnumbers)
             result['CreateDate'] = pd.to_datetime(result['CreateDate'] )
-            result['DeploymentId']=result.apply(lambda x: f"{x.CreateDate.strftime('%Y%m%dT%H%M%S')}_{x.Frame}_{x.GoProNumber}_{x.CameraSerialNumber}", axis=1)
+            result['DeploymentId']=result.apply(lambda x: f"{x.CreateDate.strftime('%Y%m%dT%H%M%S')}_{x.Frame}_{x.GoProNumber}_{x.CameraSerialNumber}_{x.GroupId:02}", axis=1)
 
             manualfile = geturl('timecorrection')
-            manual =result.loc[:, ['DeploymentId', 'TotalTime','CreateDate']]
+            manual =result.loc[:, ['DeploymentId', 'TotalTime','CreateDate','SourceFile']]
             manual =manual.set_index('DeploymentId')
             if os.path.exists(manualfile):
                  old = pd.read_csv(manualfile,index_col='DeploymentId')
@@ -134,7 +134,9 @@ def task_make_autodeployments():
                  manual.loc[manual.CorrectedTime.isnull(),'CorrectedTime']=manual.loc[manual.CorrectedTime.isnull(),'CreateDate']
             else:
                 manual['CorrectedTime'] = manual['CreateDate']
+            manual['SourceFile'] = manual['SourceFile'].apply(lambda x: f'=HYPERLINK("file://{x}", "{os.path.basename(x)}")')
             manual.sort_values('DeploymentId').to_csv(manualfile)
+            manual.sort_values('DeploymentId').to_excel(manualfile.replace('.csv','.xlsx'))
             result.to_csv(targets[0],index=False)
 
 
@@ -289,7 +291,7 @@ def task_update_stationinformation():
              if os.path.exists(geturl('stationinfo')):
                 stations = pd.read_csv(geturl('stationinfo'),index_col='StageId')
              else:
-                stations = pd.DataFrame(columns=['StartTime','FinishTime','Station','Operation','Latitude','Longitude','Depth','VideoStart','VideoEnd'])
+                stations = pd.DataFrame(columns=['StartTime','FinishTime','CollectionId','Station','Operation','Latitude','Longitude','Depth','VideoStart','VideoEnd'])
              stations =stations.join(stage.groupby('StageId').first(),how='outer',rsuffix='_Stage')
              stations['Frame'] = stations.index
              stations[['Frame','CameraTime']] =stations.Frame.str.split('_',expand=True)
