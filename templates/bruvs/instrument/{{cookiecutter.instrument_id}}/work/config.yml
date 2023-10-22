@@ -1,0 +1,24 @@
+paths:
+  exiftool : exiftool
+  exifname : .exif.json
+  videolist : "{{CATALOG_DIR}}/videolist.csv"
+  cardstore : "{{CATALOG_DIR}}/raw"
+  stagestore : "{{CATALOG_DIR}}/stage"
+  output : "{{CATALOG_DIR}}/stage"
+  timecorrection : "{{CATALOG_DIR}}/timecorrection.csv"
+  stationinfo : "{{CATALOG_DIR}}/stationinfo.csv"
+  autodeployment : "{{CATALOG_DIR}}/autodeployment.csv"
+  exifstore : "{{CATALOG_DIR}}/exifdata.csv"
+  stage :  "{{CATALOG_DIR}}/stage.csv"
+  commit : "{{CATALOG_DIR}}/commit.csv"
+  
+processing:
+  filterexif: ["SourceFile","FileName","Directory","FileSize","FileModifyDate","FileAccessDate","FileInodeChangeDate","FilePermissions","FileType",
+               "FileTypeExtension","CreateDate","ModifyDate","TimeScale","Duration","CameraSerialNumber","Model","MediaUniqueID",
+               "GoPro_CMOD","GoPro_MTYP","AutoRotation","DigitalZoom","GoPro_DZST","GoPro_SMTR","ProTune","WhiteBalance","Sharpness","ColorMode","MaximumShutterAngle",
+               "AutoISOMax","AutoISOMin","ExposureCompensation","Rate","FieldOfView","SensorReadoutTime","GoPro_ZFOV","GoPro_VLTE","GoPro_EISE","ElectronicImageStabilization","GoPro_HLVL",
+               "GoPro_AUPT","AudioSetting","GoPro_BROD","GoPro_BRID","GoPro_PVUL","GoPro_PRJT","GoPro_SOFF","GoPro_CLKS","GoPro_CAMR","GoPro_64BT","GoPro_USRD","TrackDuration","TrackLayer","TrackVolume","ImageWidth","ImageHeight",
+               "GraphicsMode","OpColor","CompressorID","SourceImageWidth","SourceImageHeight","XResolution","YResolution","CompressorName","BitDepth","Unknown_hvcC","VideoFrameRate","SyncSampleTable",
+               "TimeCode","Balance","AudioFormat","AudioChannels","AudioBitsPerSample","AudioSampleRate","Unknown_esds","TextFont","TextFace","TextSize","TextColor","BackgroundColor","FontName","OtherFormat","MatrixStructure",
+               "MediaHeaderVersion","MediaCreateDate","MediaModifyDate","MediaTimeScale","MediaDuration","HandlerClass","HandlerType","HandlerDescription","GenMediaVersion","GenFlags",
+               "GenGraphicsMode","GenOpColor","GenBalance","Rotation","MediaData","ScaleFactor","RelPath"]
