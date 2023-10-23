@@ -30,12 +30,15 @@ def get_output_file_name(deployment_config: dict, file_path: str) -> str:
 
         # Get all remaining filename identifiers from metadata
         # TODO: This isn't currently correct for the Zeiss Axoiplan (missing factor of 10)
-        magnification_factor = f"X{metadata['ImageDocument']['Metadata']['Information']['Image']['MicroscopeSettings']['EyepieceSettings']['TotalMagnification']}"
+        magnification_factor = (
+            f"X{metadata['ImageDocument']['Metadata']['Information']['Image']['MicroscopeSettings']['EyepieceSettings']['TotalMagnification']}"
+        )
         channel_identifier = "RGB"
         object_identifier = "NA"
         acquisition_date_and_time = metadata["ImageDocument"]["Metadata"]["Information"]["Image"]["AcquisitionDateAndTime"]
-        iso_timestamp = dateutil.parser.isoparse(acquisition_date_and_time).replace(microsecond=0).isoformat().replace("+00:00", "Z").replace(":",
-                                                                                                                                              "-")
+        iso_timestamp = (
+            dateutil.parser.isoparse(acquisition_date_and_time).replace(microsecond=0).isoformat().replace("+00:00", "Z").replace(":", "-")
+        )
         # Construct and return new filename
         return (
             f'{deployment_config.get("strain_identifier")}_'
@@ -51,7 +54,6 @@ def get_output_file_name(deployment_config: dict, file_path: str) -> str:
 
 
 class ZeissAxioPlan(Instrument):
-
     def __init__(self, root_path: str, collection_config: dict, instrument_config: dict):
         super().__init__(root_path, collection_config, instrument_config)
 
@@ -96,7 +98,6 @@ class ZeissAxioPlan(Instrument):
 
         # Loop through each deployment subdirectory in the instrument work directory
         for deployment in os.scandir(self.work_path):
-
             # Get deployment name and config path
             deployment_name = deployment.path.split("/")[-1]
             deployment_config_path = Path(deployment.path) / Path(deployment_name + ".yml")
@@ -104,7 +105,8 @@ class ZeissAxioPlan(Instrument):
             # Check if deployment metadata file exists and skip deployment if not present
             if not deployment_config_path.is_file():
                 self.logger.warning(
-                    f'{dry_run_log_string}SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment.path}"')
+                    f'{dry_run_log_string}SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment.path}"'
+                )
                 continue
             else:
                 # TODO: Need to validate deployment metadata file here and load deployment config
@@ -113,14 +115,12 @@ class ZeissAxioPlan(Instrument):
 
                 # Loop through each file in the deployment directory
                 for file in os.scandir(deployment.path):
-
                     # Define regex to match any of the filetypes to be renamed
                     extensions_pattern = f'({"|".join(re.escape(extension) for extension in self.filetypes)})$'
                     file_path = file.path
 
                     # Match case-insensitive regex expression in file name
                     if re.search(extensions_pattern, file_path, re.IGNORECASE):
-
                         # Get the output filename and path
                         output_file_name = get_output_file_name(deployment_config, file_path)
                         output_file_path = Path(deployment.path) / output_file_name
@@ -132,7 +132,8 @@ class ZeissAxioPlan(Instrument):
                         # elif output_file_path.is_file() and not overwrite:
                         elif output_file_path.is_file():
                             self.logger.info(
-                                f'{dry_run_log_string}Output file already exists and overwrite argument is not set: "{output_file_path}"')
+                                f'{dry_run_log_string}Output file already exists and overwrite argument is not set: "{output_file_path}"'
+                            )
                         # Perform file renaming
                         else:
                             # Only rename files if not in --dry-run mode

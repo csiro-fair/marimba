@@ -1,6 +1,6 @@
 import os
-from pathlib import Path
 import subprocess
+from pathlib import Path
 from typing import Union
 
 import typer
@@ -37,7 +37,9 @@ def check_input_args(source_path: Union[str, Path], destination_path: Union[str,
 
 
 # TODO: Do we really need a straight copy method in MarImBA? The advantage is that we could include some arguments as default, like --archive etc...
-def chunk_command(source_path: Union[str, Path], destination_path: Union[str, Path], chunk_length: int, recursive: bool, overwrite: bool, dry_run: bool):
+def chunk_command(
+    source_path: Union[str, Path], destination_path: Union[str, Path], chunk_length: int, recursive: bool, overwrite: bool, dry_run: bool
+):
     """
     Chunks video files into smaller chunks of a specified length.
 

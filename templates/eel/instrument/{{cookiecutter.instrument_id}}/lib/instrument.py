@@ -26,7 +26,6 @@ __status__ = "Development"
 
 
 class DropCameraFusion360(Instrument):
-
     def __init__(self, root_path: str, collection_config: dict, instrument_config: dict):
         super().__init__(root_path, collection_config, instrument_config)
 
@@ -43,22 +42,21 @@ class DropCameraFusion360(Instrument):
     @staticmethod
     def get_sorted_directory_file_list(directory):
         """Return a list of files with a case-insensitive .mp4 extension in the given directory."""
-        files = [filename for filename in os.listdir(str(directory)) if filename.lower().endswith('.mp4')]
+        files = [filename for filename in os.listdir(str(directory)) if filename.lower().endswith(".mp4")]
         return sorted(files, key=lambda s: s.lower())
 
     def move_ancillary_files(self, directory, dry_run):
-
         files_to_move = []
 
         for filename in os.listdir(directory):
             file_path = os.path.join(directory, filename)
 
             # Check if it's a file and doesn't match our conditions
-            if os.path.isfile(file_path) and not (filename.lower().endswith('.mp4') or filename == '.exif_MP4.json'):
+            if os.path.isfile(file_path) and not (filename.lower().endswith(".mp4") or filename == ".exif_MP4.json"):
                 files_to_move.append(file_path)
 
         if files_to_move:
-            misc_dir = os.path.join(directory, 'misc')
+            misc_dir = os.path.join(directory, "misc")
 
             # Create misc directory if it doesn't exist
             if not os.path.exists(misc_dir) and not dry_run:
@@ -73,11 +71,9 @@ class DropCameraFusion360(Instrument):
                         self.logger.error(f"Error renaming file {file_path} to {misc_dir}")
 
     def process_directory(self, deployment_video_path, deployment_config, camera_direction, dry_run):
-
         deployment_video_list = self.get_sorted_directory_file_list(deployment_video_path)
 
         for video in deployment_video_list:
-
             video_path = deployment_video_path / video
 
             parser = createParser(str(video_path))
@@ -85,13 +81,13 @@ class DropCameraFusion360(Instrument):
 
             # TODO: Try except block here
             for line in metadata.exportPlaintext():
-                if 'Creation date' in line:
-                    creation_date_str = line.split(': ', 1)[1]
-                    creation_date = datetime.strptime(creation_date_str, '%Y-%m-%d %H:%M:%S')
+                if "Creation date" in line:
+                    creation_date_str = line.split(": ", 1)[1]
+                    creation_date = datetime.strptime(creation_date_str, "%Y-%m-%d %H:%M:%S")
                     iso_timestamp = creation_date.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
             # Find match for file ID starting with 'G' and ending with 4 numbers
-            match = re.search(r'G.*\d{4}$', Path(video).stem)
+            match = re.search(r"G.*\d{4}$", Path(video).stem)
             file_id = match.group(0) if match else None
 
             output_file_name = deployment_video_path / self.get_video_output_file_name(deployment_config, camera_direction, iso_timestamp, file_id)
@@ -111,14 +107,12 @@ class DropCameraFusion360(Instrument):
                         self.logger.error(f"Error renaming file {os.path.basename(video_path)} to {output_file_name}")
 
     def add_video_annotation_rows(self, annotations_file_path, video_path):
-
         video_list = self.get_sorted_directory_file_list(video_path)
 
         # Loop through all files in the directory
         for filename in video_list:
             # Check if the file is an mp4 video
             if filename.endswith(".MP4"):
-
                 filename_split = filename.split("_")
                 if len(filename_split) != 6:
                     self.logger.warning(f"Filename does not appear to have all the metatdata elements: {filename}")
@@ -126,22 +120,21 @@ class DropCameraFusion360(Instrument):
 
                 # Create a row for this video
                 instrument_id, camera_direction, survey_id, deployment_id, iso_timestamp, file_id = filename.split("_")
-                row = [instrument_id, camera_direction, survey_id, deployment_id, filename, iso_timestamp, '', '', '', '', '', '', '']
+                row = [instrument_id, camera_direction, survey_id, deployment_id, filename, iso_timestamp, "", "", "", "", "", "", ""]
 
                 # Append the row to the CSV file
-                with open(annotations_file_path, 'a', newline='') as csvfile:
+                with open(annotations_file_path, "a", newline="") as csvfile:
                     writer = csv.writer(csvfile)
                     writer.writerow(row)
 
     def get_video_output_file_name(self, deployment_config: dict, camera_direction: str, iso_timestamp: str, file_id: str) -> str:
-
         # Construct and return new filename
         return (
             f'{self.instrument_config.get("id")}_'
-            f'{camera_direction}_'
+            f"{camera_direction}_"
             f'{deployment_config.get("deployment_id")}_'
-            f'{iso_timestamp}_'
-            f'{file_id}'
+            f"{iso_timestamp}_"
+            f"{file_id}"
             f".MP4"
         )
 
@@ -171,19 +164,19 @@ class DropCameraFusion360(Instrument):
         # Generate an annotation template based on the renamed video files
         annotations_file_path = Path(deployment_path) / "eel_annotations.csv"
         annotations_columns = [
-            'Instrument ID',
-            'Camera Direction',
-            'Survey ID',
-            'Deployment Op',
-            'Filename',
-            'Timestamp',
-            'Eel Count',
-            'Elapsed Time',
-            'Camera Movement',
-            'Comment',
-            'Longitude',
-            'Latitude',
-            'Depth'
+            "Instrument ID",
+            "Camera Direction",
+            "Survey ID",
+            "Deployment Op",
+            "Filename",
+            "Timestamp",
+            "Eel Count",
+            "Elapsed Time",
+            "Camera Movement",
+            "Comment",
+            "Longitude",
+            "Latitude",
+            "Depth",
         ]
 
         # Create the CSV file but do not overwrite if it already exists
@@ -191,7 +184,7 @@ class DropCameraFusion360(Instrument):
             self.logger.info(f'SKIPPING FILE - Annotation file already exists: "{annotations_file_path}"')
         else:
             if not dry_run:
-                with open(annotations_file_path, 'w', newline='') as annotations_file:
+                with open(annotations_file_path, "w", newline="") as annotations_file:
                     writer = csv.writer(annotations_file)
                     writer.writerow(annotations_columns)
 

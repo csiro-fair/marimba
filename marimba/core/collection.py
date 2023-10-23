@@ -135,7 +135,6 @@ def run_command(command_name: str, collection_path: Union[str, Path], instrument
             instrument_instance.process_single_deployment(deployment_path, command_name, merged_kwargs)
 
         else:
-
             instrument_instance.logger.info(f"Executing the MarImBA [bold]{command_name}[/bold] command for instrument {instrument_id}...")
             if command_name in ["run_init", "run_import"]:
                 instrument_instance.run_init_or_import(command_name, merged_kwargs)

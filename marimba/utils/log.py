@@ -10,7 +10,11 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
 
-from marimba.utils.context import get_collection_path, get_instrument_path, set_collection_path
+from marimba.utils.context import (
+    get_collection_path,
+    get_instrument_path,
+    set_collection_path,
+)
 
 # Global collection logger - this is used for all collection-level logging.
 collection_logger: Optional[logging.Logger] = None

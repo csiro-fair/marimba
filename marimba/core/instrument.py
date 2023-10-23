@@ -7,7 +7,11 @@ from rich import print
 from rich.panel import Panel
 
 from marimba.utils.config import load_config
-from marimba.utils.log import LogMixin, get_collection_logger, get_instrument_file_handler
+from marimba.utils.log import (
+    LogMixin,
+    get_collection_logger,
+    get_instrument_file_handler,
+)
 
 collection_logger = get_collection_logger()
 
@@ -116,19 +120,31 @@ class Instrument(ABC, LogMixin):
         command(**kwargs)
 
     def run_catalog(self, deployment_path: str, dry_run: bool):
-        self.logger.warning(f'There is no MarImBA [bold]catalog[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
+        self.logger.warning(
+            f'There is no MarImBA [bold]catalog[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
+        )
 
     def run_metadata(self, deployment_path: str, dry_run: bool):
-        self.logger.warning(f'There is no MarImBA [bold]metadata[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
+        self.logger.warning(
+            f'There is no MarImBA [bold]metadata[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
+        )
 
     def run_package(self, deployment_path: str, dry_run: bool):
-        self.logger.warning(f'There is no MarImBA [bold]package[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
+        self.logger.warning(
+            f'There is no MarImBA [bold]package[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
+        )
 
     def run_process(self, deployment_path: str, dry_run: bool):
-        self.logger.warning(f'There is no MarImBA [bold]process[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
+        self.logger.warning(
+            f'There is no MarImBA [bold]process[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
+        )
 
     def run_rename(self, deployment_path: str, dry_run: bool):
-        self.logger.warning(f'There is no MarImBA [bold]rename[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
+        self.logger.warning(
+            f'There is no MarImBA [bold]rename[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
+        )
 
     def run_report(self, deployment_path: str, dry_run: bool):
-        self.logger.warning(f'There is no MarImBA [bold]report[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
+        self.logger.warning(
+            f'There is no MarImBA [bold]report[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
+        )

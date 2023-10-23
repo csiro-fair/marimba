@@ -26,13 +26,16 @@ def get_base_templates_path() -> Path:
 
 def check_template_exists(base_templates_path: Union[str, Path], template_name: str, template_type: str) -> Path:
     base_templates_path = Path(base_templates_path)
-    logger.info(f"Checking that the provided [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{template_type}[/light_pink3] template exists...")
+    logger.info(
+        f"Checking that the provided [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{template_type}[/light_pink3] template exists..."
+    )
     template_path = base_templates_path / template_name / template_type
 
     if template_path.is_dir():
-        logger.info(f"[bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{template_type}[/light_pink3] template [orchid1]{Path(template_name) / template_type}[/orchid1] exists!")
+        logger.info(
+            f"[bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{template_type}[/light_pink3] template [orchid1]{Path(template_name) / template_type}[/orchid1] exists!"
+        )
     else:
-
         error_message = f"The provided [light_pink3]{template_type}[/light_pink3] template name [orchid1]{Path(template_name) / template_type}[/orchid1] does not exists at {template_path}"
         logger.error(error_message)
         print(
@@ -50,7 +53,9 @@ def check_template_exists(base_templates_path: Union[str, Path], template_name: 
 
 def check_output_path_exists(output_path: Union[str, Path], command: str):
     output_path = Path(output_path)
-    logger.info(f"Checking that the provided [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{command}[/light_pink3] output path exists...")
+    logger.info(
+        f"Checking that the provided [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{command}[/light_pink3] output path exists..."
+    )
 
     if output_path.is_dir():
         logger.info(f'[bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{command}[/light_pink3] output path "{output_path}" exists!')
@@ -70,8 +75,8 @@ def check_output_path_exists(output_path: Union[str, Path], command: str):
 
 @app.command()
 def collection(
-        output_path: Path = typer.Argument(..., help="Root path to create new MarImBA collection."),
-        template_name: str = typer.Argument(..., help="Name of predefined MarImBA project template."),
+    output_path: Path = typer.Argument(..., help="Root path to create new MarImBA collection."),
+    template_name: str = typer.Argument(..., help="Name of predefined MarImBA project template."),
 ):
     """
     Create a new MarImBA collection.
@@ -89,20 +94,20 @@ def collection(
     cookiecutter(
         template=str(template_path.absolute()),
         output_dir=str(output_path.absolute()),
-        extra_context={"datestamp": datetime.today().strftime("%Y-%m-%d")}
+        extra_context={"datestamp": datetime.today().strftime("%Y-%m-%d")},
     )
 
 
 @app.command()
 def instrument(
-        collection_path: Path = typer.Argument(..., help="Root path to MarImBA collection."),
-        template_name: str = typer.Argument(..., help="Name of predefined MarImBA project template."),
+    collection_path: Path = typer.Argument(..., help="Root path to MarImBA collection."),
+    template_name: str = typer.Argument(..., help="Name of predefined MarImBA project template."),
 ):
     """
     Create a new MarImBA instrument in a collection.
     """
     collection_path = Path(collection_path)
-    
+
     setup_logging(collection_path)
 
     logger.info(f"Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new instrument[/steel_blue3] command.")
@@ -120,11 +125,13 @@ def instrument(
         cookiecutter(
             template=str(template_path.absolute()),
             output_dir=str(output_path.absolute()),
-            extra_context={"datestamp": datetime.today().strftime("%Y-%m-%d")}
+            extra_context={"datestamp": datetime.today().strftime("%Y-%m-%d")},
         )
     except OutputDirExistsException as e:
-        exception_path = str(e).split("\"")[1]
-        error_message = f'A [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]instrument[/light_pink3] already exists at: "{exception_path}"'
+        exception_path = str(e).split('"')[1]
+        error_message = (
+            f'A [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]instrument[/light_pink3] already exists at: "{exception_path}"'
+        )
         logger.error(error_message)
         print(
             Panel(
@@ -142,15 +149,15 @@ def instrument(
 
 @app.command()
 def deployment(
-        collection_path: Path = typer.Argument(..., help="Path to root MarImBA collection."),
-        template_name: str = typer.Argument(..., help="Name of predefined MarImBA project template."),
-        instrument_id: str = typer.Argument(..., help="Instrument ID when adding a new deployment."),
+    collection_path: Path = typer.Argument(..., help="Path to root MarImBA collection."),
+    template_name: str = typer.Argument(..., help="Name of predefined MarImBA project template."),
+    instrument_id: str = typer.Argument(..., help="Instrument ID when adding a new deployment."),
 ):
     """
     Create a new MarImBA deployment for an instrument in a collection.
     """
     collection_path = Path(collection_path)
-    
+
     setup_logging(collection_path)
 
     logger.info(f"Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new deployment[/steel_blue3] command.")
@@ -167,5 +174,5 @@ def deployment(
     cookiecutter(
         template=str(template_path.absolute()),
         output_dir=str(output_path.absolute()),
-        extra_context={"utc_timestamp": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")}
+        extra_context={"utc_timestamp": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")},
     )

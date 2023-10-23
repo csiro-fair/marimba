@@ -9,7 +9,7 @@ import shlex
 import shutil
 import subprocess
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from io import StringIO
 from pathlib import Path
 
@@ -35,7 +35,6 @@ __status__ = "Development"
 
 
 class BRUVS(Instrument):
-
     def __init__(self, root_path: str, collection_config: dict, instrument_config: dict):
         super().__init__(root_path, collection_config, instrument_config)
 
@@ -46,13 +45,13 @@ class BRUVS(Instrument):
     @staticmethod
     def get_sorted_directory_file_list(directory):
         """Return a list of files with a case-insensitive .mp4 extension in the given directory."""
-        files = [filename for filename in os.listdir(str(directory)) if filename.lower().endswith('.mp4')]
+        files = [filename for filename in os.listdir(str(directory)) if filename.lower().endswith(".mp4")]
         return sorted(files, key=lambda s: s.lower())
 
     @staticmethod
     def parse_exif_from_json(filename):
         """Open and parse a JSON file containing EXIF metadata."""
-        with open(str(filename), 'r') as file:
+        with open(str(filename), "r") as file:
             data = json.load(file)
         return data
 
@@ -60,23 +59,22 @@ class BRUVS(Instrument):
     def fetch_from_list(filename, dictionaries):
         """Fetch a dictionary from a list where the filename matches."""
         for dic in dictionaries:
-            if dic['FileName'] == filename:
+            if dic["FileName"] == filename:
                 return dic
         return None
 
     def move_ancillary_files(self, directory, dry_run, dry_run_log_string):
-
         files_to_move = []
 
         for filename in os.listdir(directory):
             file_path = os.path.join(directory, filename)
 
             # Check if it's a file and doesn't match our conditions
-            if os.path.isfile(file_path) and not (filename.lower().endswith('.mp4') or filename == '.exif_MP4.json'):
+            if os.path.isfile(file_path) and not (filename.lower().endswith(".mp4") or filename == ".exif_MP4.json"):
                 files_to_move.append(file_path)
 
         if files_to_move:
-            misc_dir = os.path.join(directory, 'misc')
+            misc_dir = os.path.join(directory, "misc")
 
             # Create misc directory if it doesn't exist
             if not os.path.exists(misc_dir) and not dry_run:
@@ -105,14 +103,14 @@ class BRUVS(Instrument):
 
     def replace_string_in_json(self, filename, old_string, new_string):
         # Read the JSON file
-        with open(filename, 'r', encoding='utf-8') as file:
+        with open(filename, "r", encoding="utf-8") as file:
             data = json.load(file)
 
         # Replace the string recursively
         updated_data = self.recursive_replace(data, old_string, new_string)
 
         # Write the updated data back to the JSON file
-        with open(filename, 'w', encoding='utf-8') as file:
+        with open(filename, "w", encoding="utf-8") as file:
             json.dump(updated_data, file, indent=4)
 
     def run_rename(self, dry_run: bool):
@@ -125,7 +123,6 @@ class BRUVS(Instrument):
 
         # Loop through each deployment subdirectory in the instrument work directory
         for deployment in os.scandir(self.work_path):
-
             # Get deployment name and config path
             deployment_path = Path(deployment.path)
             deployment_name = deployment_path.name
@@ -136,7 +133,8 @@ class BRUVS(Instrument):
             # Check if deployment metadata file exists and skip deployment if not present
             if not deployment_config_path.is_file():
                 self.logger.warning(
-                    f'{dry_run_log_string}SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment.path}"')
+                    f'{dry_run_log_string}SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment.path}"'
+                )
                 continue
             else:
                 # TODO: Need to validate deployment metadata file here and load deployment config
@@ -160,7 +158,6 @@ class BRUVS(Instrument):
                     self.logger.error(f"Cannot find .exif_MP4.json - perhaps the data has not yet been copied into the directory?")
 
                 for idx, (port_video, starboard_video) in enumerate(zip(deployment_video_port_list, deployment_video_starboard_list), 1):
-
                     port_video_path = deployment_video_port_path / port_video
                     starboard_video_path = deployment_video_starboard_path / starboard_video
 
@@ -172,22 +169,26 @@ class BRUVS(Instrument):
                         continue
 
                     timestamp = port_json_dict.get("FileCreateDate")
-                    formatted_timestamp = timestamp.replace(':', '-', 2)
+                    formatted_timestamp = timestamp.replace(":", "-", 2)
                     local_timestamp = datetime.fromisoformat(formatted_timestamp)
                     iso_timestamp = local_timestamp.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
                     # Find match for GX code
-                    port_match = re.search(r'GX\d{2}', port_json_dict.get("FileName"))
+                    port_match = re.search(r"GX\d{2}", port_json_dict.get("FileName"))
                     port_file_id = port_match.group(0) if port_match else None
-                    starboard_match = re.search(r'GX\d{2}', starboard_json_dict.get("FileName"))
+                    starboard_match = re.search(r"GX\d{2}", starboard_json_dict.get("FileName"))
                     starboard_file_id = starboard_match.group(0) if starboard_match else None
 
                     if not port_match or not starboard_match:
                         self.logger.info('Cannot find "GX" string in filename, skipping...')
                         continue
 
-                    output_file_name_port = os.path.join(deployment_video_port_path, self.get_video_output_file_name(deployment_config, "VCP", iso_timestamp, port_file_id))
-                    output_file_name_starboard = os.path.join(deployment_video_starboard_path, self.get_video_output_file_name(deployment_config, "VCS", iso_timestamp, starboard_file_id))
+                    output_file_name_port = os.path.join(
+                        deployment_video_port_path, self.get_video_output_file_name(deployment_config, "VCP", iso_timestamp, port_file_id)
+                    )
+                    output_file_name_starboard = os.path.join(
+                        deployment_video_starboard_path, self.get_video_output_file_name(deployment_config, "VCS", iso_timestamp, starboard_file_id)
+                    )
 
                     # Check if input and output file paths are the same
                     if str(port_video_path) == str(output_file_name_port) and str(starboard_video_path) == str(output_file_name_starboard):
@@ -196,7 +197,9 @@ class BRUVS(Instrument):
                     else:
                         # Only rename files if not in --dry-run mode
                         self.logger.info(f'{dry_run_log_string}Renaming file "{os.path.basename(port_video_path)}" to: "{output_file_name_port}"')
-                        self.logger.info(f'{dry_run_log_string}Renaming file "{os.path.basename(starboard_video_path)}" to: "{output_file_name_starboard}"')
+                        self.logger.info(
+                            f'{dry_run_log_string}Renaming file "{os.path.basename(starboard_video_path)}" to: "{output_file_name_starboard}"'
+                        )
                         if not dry_run:
                             try:
                                 # Rename file
@@ -209,9 +212,16 @@ class BRUVS(Instrument):
 
                             try:
                                 # Replace filename in json file
-                                self.replace_string_in_json(str(deployment_video_port_path / ".exif_MP4.json"), str(os.path.basename(port_video_path)), str(os.path.basename(output_file_name_port)))
-                                self.replace_string_in_json(str(deployment_video_starboard_path / ".exif_MP4.json"), str(os.path.basename(starboard_video_path)),
-                                                            str(os.path.basename(output_file_name_starboard)))
+                                self.replace_string_in_json(
+                                    str(deployment_video_port_path / ".exif_MP4.json"),
+                                    str(os.path.basename(port_video_path)),
+                                    str(os.path.basename(output_file_name_port)),
+                                )
+                                self.replace_string_in_json(
+                                    str(deployment_video_starboard_path / ".exif_MP4.json"),
+                                    str(os.path.basename(starboard_video_path)),
+                                    str(os.path.basename(output_file_name_starboard)),
+                                )
                             except Exception as e:
                                 self.logger.error(f"Error replacing new filename in json file: {e}")
 
@@ -220,15 +230,14 @@ class BRUVS(Instrument):
                 self.move_ancillary_files(deployment_video_starboard_path, dry_run, dry_run_log_string)
 
     def get_video_output_file_name(self, deployment_config: dict, camera_direction: str, iso_timestamp: str, file_id: str) -> str:
-
         # Construct and return new filename
         return (
             f'{self.instrument_config.get("id")}_'
             f'{deployment_config.get("unit_id")}_'
-            f'{camera_direction}_'
+            f"{camera_direction}_"
             f'{deployment_config.get("deployment_id")}_'
-            f'{iso_timestamp}_'
-            f'{file_id}'
+            f"{iso_timestamp}_"
+            f"{file_id}"
             f".MP4"
         )
 
@@ -242,11 +251,12 @@ class BRUVS(Instrument):
                 self.logger.warning(f"SKIPPING - SD card already initialised: {file_path}")
             else:
                 env = Environment(loader=FileSystemLoader(self.root_path), trim_blocks=True, lstrip_blocks=True)
-                template = env.get_template('import.yml')
+                template = env.get_template("import.yml")
                 fill = {
-                    "instrument_path": self.root_path, "instrument": self.instrument_config['id'],
+                    "instrument_path": self.root_path,
+                    "instrument": self.instrument_config["id"],
                     "import_date": f"{datetime.now() + timedelta(days=days):%Y-%m-%d}",
-                    "import_token": str(uuid.uuid4())[0:8]
+                    "import_token": str(uuid.uuid4())[0:8],
                 }
                 self.logger.info(f'Making import file "{file_path}"')
                 if not dry_run:
@@ -266,7 +276,7 @@ class BRUVS(Instrument):
 
     # Function to load YAML files safely
     def load_yaml(self, file_path):
-        with file_path.open('r') as stream:
+        with file_path.open("r") as stream:
             try:
                 return yaml.safe_load(stream)
             except yaml.YAMLError:
@@ -275,7 +285,6 @@ class BRUVS(Instrument):
 
     # Main function for importing files
     def run_import(self, card_paths, all, exiftool_path, copy, move, file_extension, card_size, format_type, dry_run: bool):
-
         # Try to automatically find SD cards if card_paths is not defined
         if all and not card_paths:
             card_paths = list_sd_cards(format_type, card_size)
@@ -308,18 +317,18 @@ class BRUVS(Instrument):
             if files:
                 # Load bar numbers and relevant details
                 bar_path = Path(self.root_path) / "work" / "camera_bars.csv"
-                bar_numbers = pd.read_csv(bar_path, parse_dates=['BarStartDate', 'BarEndDate'])
+                bar_numbers = pd.read_csv(bar_path, parse_dates=["BarStartDate", "BarEndDate"])
 
                 # Fetch metadata from video files
                 command = f"{exiftool_path} -api largefilesupport=1 -u -json -ext {file_extension} -q -CameraSerialNumber -CreateDate -SourceFile -Duration -FileSize -FieldOfView {video_path}"
                 process = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 out, _ = process.communicate()
-                data = StringIO(out.decode('utf-8'))
+                data = StringIO(out.decode("utf-8"))
 
                 # Convert metadata to a DataFrame
                 cameras = pd.read_json(data)
-                cameras['Duration'] = pd.to_timedelta(cameras.Duration)
-                cameras['CreateDate'] = pd.to_datetime(cameras['CreateDate'], format='%Y:%m:%d %H:%M:%S')
+                cameras["Duration"] = pd.to_timedelta(cameras.Duration)
+                cameras["CreateDate"] = pd.to_datetime(cameras["CreateDate"], format="%Y:%m:%d %H:%M:%S")
 
                 # Log errors for corrupt video files
                 for index, error in cameras[cameras.CameraSerialNumber.isnull()].iterrows():
@@ -329,7 +338,7 @@ class BRUVS(Instrument):
                 cameras.dropna(inplace=True)
 
                 # Merge camera DataFrame with bar numbers DataFrame
-                cameras = cameras.merge(bar_numbers.loc[bar_numbers.Active], on='CameraSerialNumber', how='left')
+                cameras = cameras.merge(bar_numbers.loc[bar_numbers.Active], on="CameraSerialNumber", how="left")
 
                 # Log errors for unmatched serial numbers
                 if cameras.GoProNumber.isna().any():
@@ -347,20 +356,22 @@ class BRUVS(Instrument):
                     self.logger.warning(f"Warning unmatched camera serial numbers {video_path} in please serial numbers in {bar_path} ")
 
                 # Select the last record for import
-                last = cameras.loc[cameras.CreateDate == cameras.CreateDate.max()].sort_values('SourceFile').iloc[-1]
+                last = cameras.loc[cameras.CreateDate == cameras.CreateDate.max()].sort_values("SourceFile").iloc[-1]
 
                 # Update import details with new metadata
-                import_details.update({
-                    'instrument_path': self.root_path,
-                    'bruv_frame': last.Frame,
-                    'housing_label': last.GoProNumber,
-                    'camera_serial_number': last.CameraSerialNumber,
-                    'camera_create_date': last.CreateDate
-                })
+                import_details.update(
+                    {
+                        "instrument_path": self.root_path,
+                        "bruv_frame": last.Frame,
+                        "housing_label": last.GoProNumber,
+                        "camera_serial_number": last.CameraSerialNumber,
+                        "camera_create_date": last.CreateDate,
+                    }
+                )
 
                 # Define destination path and log the copy operation
                 destination = Path(import_details["import_template"].format(**import_details))
-                self.logger.info(f'Copy {card} --> {destination}')
+                self.logger.info(f"Copy {card} --> {destination}")
 
                 # Execute move command if applicable
                 if move:

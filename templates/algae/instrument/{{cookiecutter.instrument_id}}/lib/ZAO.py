@@ -25,7 +25,6 @@ __status__ = "Development"
 
 
 class ZeissAxioObserver(Instrument):
-
     def __init__(self, root_path: str, collection_config: dict, instrument_config: dict):
         super().__init__(root_path, collection_config, instrument_config)
 
@@ -74,14 +73,12 @@ class ZeissAxioObserver(Instrument):
 
         # Loop through each file in the deployment directory
         for file in os.scandir(deployment_path):
-
             # Define regex to match any of the filetypes to be renamed
             extensions_pattern = f'({"|".join(re.escape(extension) for extension in self.filetypes)})$'
             file_path = file.path
 
             # Match case-insensitive regex expression in file name
             if re.search(extensions_pattern, file_path, re.IGNORECASE):
-
                 # Get the output filename and path
                 output_file_name = self.get_output_file_name(deployment_config, file_path)
                 output_file_path = Path(deployment_path) / output_file_name
@@ -92,8 +89,7 @@ class ZeissAxioObserver(Instrument):
                 # Check if output file path already exists and the overwrite argument is not set
                 # elif output_file_path.is_file() and not overwrite:
                 elif output_file_path.is_file():
-                    self.logger.info(
-                        f'Output file already exists and overwrite argument is not set: "{output_file_path}"')
+                    self.logger.info(f'Output file already exists and overwrite argument is not set: "{output_file_path}"')
                 # Perform file renaming
                 else:
                     # Only rename files if not in --dry-run mode
@@ -113,11 +109,20 @@ class ZeissAxioObserver(Instrument):
 
             # Get all remaining filename identifiers from metadata
             # TODO: This isn't currently correct for the Zeiss Axoiplan (missing factor of 10)
-            magnification_factor = f"X{metadata['ImageDocument']['Metadata']['Information']['Image']['MicroscopeSettings']['EyepieceSettings']['TotalMagnification']}"
+            magnification_factor = (
+                f"X{metadata['ImageDocument']['Metadata']['Information']['Image']['MicroscopeSettings']['EyepieceSettings']['TotalMagnification']}"
+            )
             channel_id = "RGB"
             object_id = "NA"
             acquisition_date_and_time = metadata["ImageDocument"]["Metadata"]["Information"]["Image"]["AcquisitionDateAndTime"]
-            iso_timestamp = dateutil.parser.isoparse(acquisition_date_and_time).replace(microsecond=0).isoformat().replace("+00:00", "Z").replace(":", "").replace("-", "")
+            iso_timestamp = (
+                dateutil.parser.isoparse(acquisition_date_and_time)
+                .replace(microsecond=0)
+                .isoformat()
+                .replace("+00:00", "Z")
+                .replace(":", "")
+                .replace("-", "")
+            )
 
             # TODO: Check if any of the filename identifiers are None
 
@@ -145,7 +150,6 @@ class ZeissAxioObserver(Instrument):
 
         # Loop through each deployment subdirectory in the instrument work directory
         for deployment in os.scandir(self.work_path):
-
             # Get deployment name and config path
             deployment_name = deployment.path.split("/")[-1]
             deployment_config_path = Path(deployment.path) / Path(deployment_name + ".yml")
@@ -153,7 +157,8 @@ class ZeissAxioObserver(Instrument):
             # Check if deployment metadata file exists and skip deployment if not present
             if not deployment_config_path.is_file():
                 self.logger.warning(
-                    f'SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment.path}"')
+                    f'SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment.path}"'
+                )
                 continue
             else:
                 # TODO: Need to validate deployment metadata file here and load deployment config
@@ -162,14 +167,12 @@ class ZeissAxioObserver(Instrument):
 
                 # Loop through each file in the deployment directory
                 for file in os.scandir(deployment.path):
-
                     # Define regex to match any of the filetypes to be renamed
                     extensions_pattern = f'({"|".join(re.escape(extension) for extension in self.filetypes)})$'
                     file_path = file.path
 
                     # Match case-insensitive regex expression in file name
                     if re.search(extensions_pattern, file_path, re.IGNORECASE):
-
                         # Extract the CZI files
                         # self.extract()
                         print(f"Extracting...{file_path}")
@@ -195,7 +198,6 @@ class ZeissAxioObserver(Instrument):
         else:
             return False
 
-
     def construct_new_directory_paths(self, iso_timestamp, strain_id, imaging_system_id, magnification_factor, contrast_id, biological_stain_id):
         # Copy to ANACC image archive
         self.logger.debug("Calculating new ANACC and MLAI image archive paths...")
@@ -219,7 +221,9 @@ class ZeissAxioObserver(Instrument):
         year = split_iso_timestamp[0:4]
         month = split_iso_timestamp[4:6]
         day = split_iso_timestamp[6:8]
-        new_mlai_directory_path = os.path.join(self.mlai_image_directory, year, month, day, strain_id, imaging_system_id, magnification_factor, contrast_id, biological_stain_id)
+        new_mlai_directory_path = os.path.join(
+            self.mlai_image_directory, year, month, day, strain_id, imaging_system_id, magnification_factor, contrast_id, biological_stain_id
+        )
         fs.create_directory_if_necessary(new_mlai_directory_path)
 
         return new_mlai_directory_path
@@ -227,7 +231,6 @@ class ZeissAxioObserver(Instrument):
     def extract_frames(self, image, file_name, new_mlai_directory_path):
         # If CZI file has stacked images, fetch number of images
         if len(image.shape) == 4:
-
             # Squeeze empty image dimensions
             single_image = image.squeeze()
 
@@ -239,7 +242,6 @@ class ZeissAxioObserver(Instrument):
             number_of_stacked_images = image.shape[0]
 
             for i in range(number_of_stacked_images):
-
                 # Squeeze empty image dimensions
                 stacked_image = image[i].squeeze()
 
@@ -247,7 +249,6 @@ class ZeissAxioObserver(Instrument):
 
                 # Write new JPG image to MLAI archive
                 self.write_image_to_disk(new_mlai_file_path, stacked_image, "MLAI")
-
 
     # TODO: This needs to be refactored!
     def extract(self, file_path):
@@ -258,19 +259,20 @@ class ZeissAxioObserver(Instrument):
         file_path = Path(file_path)
 
         file_name = file_path.name
-        print(f'Filename: {file_name}')
+        print(f"Filename: {file_name}")
 
         file_extension = file_path.suffix
-        print(f'Extension: {file_extension}')
+        print(f"Extension: {file_extension}")
 
         # Check file is a CZI file
         if file_extension.lower() == ".czi":
-            self.logger.debug("--------------------------------------------------------------------------------------------------------------------------------")
+            self.logger.debug(
+                "--------------------------------------------------------------------------------------------------------------------------------"
+            )
             self.logger.debug(f"Processing CZI file: {file_path}...")
 
             # Check filename structure conforms with ANACC standard
             if self.annac_naming_standard.is_filename_structure_correct(file_name):
-
                 # Extract filename attributes
                 (
                     strain_id,
@@ -284,7 +286,9 @@ class ZeissAxioObserver(Instrument):
                 ) = file_name.split("_")
 
                 # Construct new directory paths
-                new_mlai_directory_path = self.construct_new_directory_paths(iso_timestamp, strain_id, imaging_system_id, magnification_factor, contrast_id, biological_stain_id)
+                new_mlai_directory_path = self.construct_new_directory_paths(
+                    iso_timestamp, strain_id, imaging_system_id, magnification_factor, contrast_id, biological_stain_id
+                )
 
                 # Check if images have previously been extracted
                 if self.overwrite_images or not self.already_extracted(new_mlai_directory_path, file_name):
@@ -301,8 +305,6 @@ class ZeissAxioObserver(Instrument):
                     except Exception as e:
                         self.logger.error(f"Error opening file {file_path}")
                         self.logger.error(e)
-
-
 
     # TODO: The following identifier checking methods need to moved into a cookiecutter post-generate hook
     # TODO: https://cookiecutter.readthedocs.io/en/1.7.2/advanced/hooks.html
