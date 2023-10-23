@@ -1,8 +1,6 @@
 """
-File system utils
+File system utilities.
 """
-
-import os
 from pathlib import Path
 from typing import Union
 

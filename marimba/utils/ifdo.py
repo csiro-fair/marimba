@@ -1,10 +1,12 @@
 """
 iFDO utilities.
 """
+from pathlib import Path
+from typing import Union
 from ifdo import iFDO
 
 
-def load_ifdo(path: str) -> iFDO:
+def load_ifdo(path: Union[str, Path]) -> iFDO:
     """
     Load an iFDO file from a path.
 
@@ -17,7 +19,7 @@ def load_ifdo(path: str) -> iFDO:
     return iFDO.load(path)
 
 
-def save_ifdo(ifdo: iFDO, path: str):
+def save_ifdo(ifdo: iFDO, path: Union[str, Path]):
     """
     Save an iFDO file to a path.
 
