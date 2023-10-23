@@ -80,15 +80,16 @@ class DropCameraFusion360(Instrument):
 
             video_path = deployment_video_path / video
 
-            parser = createParser(str(video_path))
-            metadata = extractMetadata(parser)
+            with open(str(video_path), "rb") as f:
+                parser = createParser(f)
+                metadata = extractMetadata(parser)
 
-            # TODO: Try except block here
-            for line in metadata.exportPlaintext():
-                if 'Creation date' in line:
-                    creation_date_str = line.split(': ', 1)[1]
-                    creation_date = datetime.strptime(creation_date_str, '%Y-%m-%d %H:%M:%S')
-                    iso_timestamp = creation_date.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+                # TODO: Try except block here
+                for line in metadata.exportPlaintext():
+                    if 'Creation date' in line:
+                        creation_date_str = line.split(': ', 1)[1]
+                        creation_date = datetime.strptime(creation_date_str, '%Y-%m-%d %H:%M:%S')
+                        iso_timestamp = creation_date.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
             # Find match for file ID starting with 'G' and ending with 4 numbers
             match = re.search(r'G.*\d{4}$', Path(video).stem)
