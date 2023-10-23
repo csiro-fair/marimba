@@ -19,7 +19,7 @@ def load_config(config_path: Union[str, Path]) -> dict:
 
     Raises:
         FileNotFoundError: If the config file does not exist.
-        yaml.parser.ParserError: If the config file is not valid YAML.
+        yaml.scanner.ScannerError: If the config file is not valid YAML.
     """
     config_path = Path(config_path)
 
