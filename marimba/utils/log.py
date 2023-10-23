@@ -2,6 +2,7 @@ import logging
 import os.path
 from enum import Enum
 from pathlib import Path
+from typing import Optional, Union
 
 import rich.logging
 import typer
@@ -10,10 +11,10 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
 
-from marimba.utils.context import get_collection_path, set_collection_path, get_instrument_path
+from marimba.utils.context import get_collection_path, get_instrument_path, set_collection_path
 
 # Global collection logger - this is used for all collection-level logging.
-collection_logger = None
+collection_logger: Optional[logging.Logger] = None
 
 # Global file log format - this is used for all file handlers.
 file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -95,7 +96,12 @@ def init_collection_file_handler():
     """
     # Get the collection directory and basename
     collection_path = get_collection_path()
-    collection_basename = Path(collection_path).parts[-1]
+
+    # Check collection path is set
+    if collection_path is None:
+        raise ValueError("Collection path is not set. Call `set_collection_path` first.")
+
+    collection_basename = collection_path.parts[-1]
 
     # Create the file handler and add it to the collection logger
     collection_file_handler = get_file_handler(collection_path, collection_basename)
@@ -140,7 +146,7 @@ def init_instrument_file_handler(instrument_name: str):
     instrument_file_handlers[instrument_name] = instrument_file_handler
 
 
-def get_file_handler(output_dir: str, name: str, level: int = logging.INFO) -> logging.FileHandler:
+def get_file_handler(output_dir: Union[str, Path], name: str, level: int = logging.INFO) -> logging.FileHandler:
     """
     Get a file handler for a given output directory and name.
 
@@ -152,25 +158,28 @@ def get_file_handler(output_dir: str, name: str, level: int = logging.INFO) -> l
     Returns:
         A file handler to `output_dir/name.log`.
     """
+    output_dir = Path(output_dir)
+
     # Ensure the directory exists
-    assert os.path.exists(output_dir), f"Output directory {output_dir} does not exist."
+    assert output_dir.is_dir(), f"Output directory {output_dir} does not exist."
 
     # Build the path as `output_dir/name.log`
-    path = os.path.join(output_dir, f"{name}.log")
+    path = output_dir / f"{name}.log"
 
     # Create the handler and set the level & formatter
-    handler = NoRichFileHandler(path)
+    handler = NoRichFileHandler(path.absolute())
     handler.setLevel(level)
     handler.setFormatter(file_formatter)
 
     return handler
 
 
-def setup_logging(collection_path, dry_run: bool = False):
+def setup_logging(collection_path: Union[str, Path], dry_run: bool = False):
+    collection_path = Path(collection_path)
+
     # Check that collection_path exists and is legit
-    if (not os.path.isdir(collection_path)
-            or not os.path.isfile(Path(collection_path) / "collection.yml")
-            or not os.path.isdir(Path(collection_path) / "instruments")):
+    legit = collection_path.is_dir() and (collection_path / "collection.yml").is_file() and (collection_path / "instruments").is_dir()
+    if not legit:
         print(
             Panel(
                 f'The provided root collection path "[bold]{collection_path}[/bold]" does not appear to be a valid MarImBA collection.',
