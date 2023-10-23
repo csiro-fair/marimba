@@ -1,5 +1,7 @@
 import os
+from pathlib import Path
 import subprocess
+from typing import Union
 
 import typer
 from rich import print
@@ -12,7 +14,7 @@ from marimba.utils.log import get_collection_logger
 logger = get_collection_logger()
 
 
-def check_input_args(source_path: str, destination_path: str):
+def check_input_args(source_path: Union[str, Path], destination_path: Union[str, Path]):
     """
     Check the input arguments for the chunk command.
 
@@ -21,7 +23,8 @@ def check_input_args(source_path: str, destination_path: str):
         destination_path: The path to the directory where the chunked files will be saved.
     """
     # Check if source_path is valid
-    if not os.path.isdir(source_path):
+    source_path = Path(source_path)
+    if not source_path.is_dir():
         print(
             Panel(
                 f"The source_path argument [bold]{source_path}[/bold] is not a valid directory path",
@@ -34,7 +37,7 @@ def check_input_args(source_path: str, destination_path: str):
 
 
 # TODO: Do we really need a straight copy method in MarImBA? The advantage is that we could include some arguments as default, like --archive etc...
-def chunk_command(source_path: str, destination_path: str, chunk_length: int, recursive: bool, overwrite: bool, dry_run: bool):
+def chunk_command(source_path: Union[str, Path], destination_path: Union[str, Path], chunk_length: int, recursive: bool, overwrite: bool, dry_run: bool):
     """
     Chunks video files into smaller chunks of a specified length.
 
@@ -46,13 +49,15 @@ def chunk_command(source_path: str, destination_path: str, chunk_length: int, re
         overwrite: Whether to overwrite existing output files.
         dry_run: Whether to run the command without actually doing anything.
     """
-    check_input_args(source_path)
+    source_path = Path(source_path)
+    destination_path = Path(destination_path)
+    check_input_args(source_path, destination_path)
 
     logger.info(f"Chunking files recursively from: {source_path}")
 
 
 # Get the duration of the video in milliseconds using ffprobe
-def get_video_duration(file: str) -> float:
+def get_video_duration(file: Union[str, Path]) -> float:
     """
     Get a video's duration in milliseconds using ffprobe.
 
@@ -62,10 +67,11 @@ def get_video_duration(file: str) -> float:
     Returns:
         The duration of the video in milliseconds.
     """
+    file = Path(file)
     try:
         duration = float(
             subprocess.check_output(
-                ["ffprobe", "-i", file, "-show_entries", "format=duration", "-v", "quiet", "-of", "default=noprint_wrappers=1:nokey=1"]
+                ["ffprobe", "-i", str(file), "-show_entries", "format=duration", "-v", "quiet", "-of", "default=noprint_wrappers=1:nokey=1"]
             )
         )
         logger.debug("get_video_duration: " + str(int(duration * 1000)))
@@ -75,7 +81,7 @@ def get_video_duration(file: str) -> float:
     return duration
 
 
-def chunk_command(input_path: str, output_path: str, chunk_length: int):
+def chunk_command(input_path: Union[str, Path], output_path: Union[str, Path], chunk_length: int):
     """
     Chunks video files into smaller chunks of a specified length.
 
@@ -84,6 +90,8 @@ def chunk_command(input_path: str, output_path: str, chunk_length: int):
         output_path: The path to the directory where the chunked files will be saved.
         chunk_length: The length of each chunk.
     """
+    input_path = Path(input_path)
+    output_path = Path(output_path)
 
     console = Console()
 
@@ -93,10 +101,11 @@ def chunk_command(input_path: str, output_path: str, chunk_length: int):
     fs.create_directory_if_necessary(output_path)
 
     # with console.status("[bold green]Chunking video files...") as status:
-    for directory_path, _, files in os.walk(input_path):
+    for directory_path, _, files in os.walk(input_path.absolute()):
+        directory_path = Path(directory_path)
         for file in files:
-            file_path = os.path.join(directory_path, file)
-            file_name, file_extension = os.path.splitext(file)
+            file_path = directory_path / file
+            file_name, file_extension = file_path.stem, file_path.suffix
 
             if file_extension.lower() in [".mp4", ".mpg", ".avi"]:
                 # Get video length in seconds
@@ -120,18 +129,16 @@ def chunk_command(input_path: str, output_path: str, chunk_length: int):
                         part_name = file_name_split[3]
 
                     if len(file_name_split) == 4:
-                        new_output_path = os.path.join(output_path, campaign_name + "_" + year, site_name, part_name)
+                        new_output_path = output_path / campaign_name + "_" + year / site_name / part_name
                     elif len(file_name_split) == 3:
-                        new_output_path = os.path.join(output_path, campaign_name + "_" + year, site_name)
+                        new_output_path = output_path / campaign_name + "_" + year / site_name
                     else:
-                        new_output_path = os.path.join(output_path, campaign_name + "_" + year)
+                        new_output_path = output_path / campaign_name + "_" + year
 
-                    if not os.path.isdir(new_output_path):
+                    if not new_output_path.is_dir():
                         fs.create_directory_if_necessary(new_output_path)
 
-                    output_file_path = os.path.join(new_output_path, file_name + "_C" + str(index + 1).zfill(3) + ".MP4")
-
-                    # if not os.path.isfile(output_file_path):
+                    output_file_path = new_output_path / file_name + "_C" + str(index + 1).zfill(3) + ".MP4"
 
                     if file_extension.lower() in [".mp4", ".mpg", ".avi"]:
                         # print(index, i, i + chunk_length, file_path, output_file_path)
