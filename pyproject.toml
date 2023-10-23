@@ -23,6 +23,8 @@ scikit-learn = "^1.2.2"
 stitching = "^0.4.0"
 opencv-python = "^4.7.0.72"
 pyexiv2 = "^2.8.1"
+psutil = "^5.9.5"
+pydoit = "^0.0.4"
 
 [tool.poetry.scripts]
 marimba = "marimba.marimba:marimba"

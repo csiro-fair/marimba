@@ -3,3 +3,4 @@ env
 poetry.lock
 dist
 .idea
+*.db
