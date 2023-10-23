@@ -64,7 +64,7 @@ def get_instrument_instance(collection_config: dict, instrument_path: Union[str,
     instrument_class_path = instrument_path / "lib" / "instrument.py"
 
     # Import and load instrument class
-    instrument_spec = importlib.util.spec_from_file_location("instrument", instrument_class_path)
+    instrument_spec = importlib.util.spec_from_file_location("instrument", str(instrument_class_path))
     instrument_module = importlib.util.module_from_spec(instrument_spec)
     instrument_spec.loader.exec_module(instrument_module)
     instrument_class = getattr(instrument_module, instrument_class_name)
