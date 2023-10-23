@@ -35,8 +35,8 @@ __status__ = "Development"
 
 
 class BRUVS(Instrument):
-    def __init__(self, root_path: str, collection_config: dict, instrument_config: dict):
-        super().__init__(root_path, collection_config, instrument_config)
+    def __init__(self, root_path: str, collection_config: dict, instrument_config: dict, dry_run: bool):
+        super().__init__(root_path, collection_config, instrument_config, dry_run)
 
         # Define instrument filetypes and data files
         self.video_filetypes = ["mp4"]
@@ -63,7 +63,7 @@ class BRUVS(Instrument):
                 return dic
         return None
 
-    def move_ancillary_files(self, directory, dry_run, dry_run_log_string):
+    def move_ancillary_files(self, directory):
         files_to_move = []
 
         for filename in os.listdir(directory):
@@ -77,12 +77,12 @@ class BRUVS(Instrument):
             misc_dir = os.path.join(directory, "misc")
 
             # Create misc directory if it doesn't exist
-            if not os.path.exists(misc_dir) and not dry_run:
+            if not os.path.exists(misc_dir) and not self.dry_run:
                 os.makedirs(misc_dir)
 
             for file_path in files_to_move:
-                self.logger.info(f'{dry_run_log_string}Moving file "{os.path.basename(file_path)}" to misc directory "{misc_dir}"')
-                if not dry_run:
+                self.logger.info(f'Moving file "{os.path.basename(file_path)}" to misc directory "{misc_dir}"')
+                if not self.dry_run:
                     try:
                         shutil.move(file_path, os.path.join(misc_dir, os.path.basename(file_path)))
                     except Exception:
@@ -113,13 +113,10 @@ class BRUVS(Instrument):
         with open(filename, "w", encoding="utf-8") as file:
             json.dump(updated_data, file, indent=4)
 
-    def run_rename(self, dry_run: bool):
+    def run_rename(self):
         """
         Implementation of the MarImBA rename command for the BRUVS
         """
-
-        # Set dry run log string to prepend to logging
-        dry_run_log_string = "DRY_RUN - " if dry_run else ""
 
         # Loop through each deployment subdirectory in the instrument work directory
         for deployment in os.scandir(self.work_path):
@@ -133,12 +130,12 @@ class BRUVS(Instrument):
             # Check if deployment metadata file exists and skip deployment if not present
             if not deployment_config_path.is_file():
                 self.logger.warning(
-                    f'{dry_run_log_string}SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment.path}"'
+                    f'SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment.path}"'
                 )
                 continue
             else:
                 # TODO: Need to validate deployment metadata file here and load deployment config
-                self.logger.info(f'{dry_run_log_string}Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
+                self.logger.info(f'Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
                 deployment_config = load_config(deployment_config_path)
 
                 # Rename pair-wise sorted
@@ -192,15 +189,13 @@ class BRUVS(Instrument):
 
                     # Check if input and output file paths are the same
                     if str(port_video_path) == str(output_file_name_port) and str(starboard_video_path) == str(output_file_name_starboard):
-                        self.logger.info(f'{dry_run_log_string}SKIPPING FILE - input and output file names are identical: "{port_video_path}"')
-                        self.logger.info(f'{dry_run_log_string}SKIPPING FILE - input and output file names are identical: "{starboard_video_path}"')
+                        self.logger.info(f'SKIPPING FILE - input and output file names are identical: "{port_video_path}"')
+                        self.logger.info(f'SKIPPING FILE - input and output file names are identical: "{starboard_video_path}"')
                     else:
                         # Only rename files if not in --dry-run mode
-                        self.logger.info(f'{dry_run_log_string}Renaming file "{os.path.basename(port_video_path)}" to: "{output_file_name_port}"')
-                        self.logger.info(
-                            f'{dry_run_log_string}Renaming file "{os.path.basename(starboard_video_path)}" to: "{output_file_name_starboard}"'
-                        )
-                        if not dry_run:
+                        self.logger.info(f'Renaming file "{os.path.basename(port_video_path)}" to: "{output_file_name_port}"')
+                        self.logger.info(f'Renaming file "{os.path.basename(starboard_video_path)}" to: "{output_file_name_starboard}"')
+                        if not self.dry_run:
                             try:
                                 # Rename file
                                 os.rename(port_video_path, output_file_name_port)
@@ -226,8 +221,8 @@ class BRUVS(Instrument):
                                 self.logger.error(f"Error replacing new filename in json file: {e}")
 
                 # Move all remaining files into a 'misc' directory
-                self.move_ancillary_files(deployment_video_port_path, dry_run, dry_run_log_string)
-                self.move_ancillary_files(deployment_video_starboard_path, dry_run, dry_run_log_string)
+                self.move_ancillary_files(deployment_video_port_path)
+                self.move_ancillary_files(deployment_video_starboard_path)
 
     def get_video_output_file_name(self, deployment_config: dict, camera_direction: str, iso_timestamp: str, file_id: str) -> str:
         # Construct and return new filename
@@ -241,7 +236,7 @@ class BRUVS(Instrument):
             f".MP4"
         )
 
-    def run_init(self, card_paths: list, dry_run: bool, days: int, overwrite: bool):
+    def run_init(self, card_paths: list, days: int, overwrite: bool):
         """
         Implementation of the MarImBA init command for BRUVS
         """
@@ -259,7 +254,7 @@ class BRUVS(Instrument):
                     "import_token": str(uuid.uuid4())[0:8],
                 }
                 self.logger.info(f'Making import file "{file_path}"')
-                if not dry_run:
+                if not self.dry_run:
                     with open(file_path, "w") as file:
                         file.write(template.render(fill))
 
@@ -269,8 +264,8 @@ class BRUVS(Instrument):
             make_xml(f"{card_paths}/import.yml")
 
     # Function to execute shell commands
-    def execute_command(self, command, dry_run):
-        if not dry_run:
+    def execute_command(self, command):
+        if not self.dry_run:
             process = subprocess.Popen(shlex.split(command))
             process.wait()
 
@@ -284,7 +279,7 @@ class BRUVS(Instrument):
                 return None
 
     # Main function for importing files
-    def run_import(self, card_paths, all, exiftool_path, copy, move, file_extension, card_size, format_type, dry_run: bool):
+    def run_import(self, card_paths, all, exiftool_path, copy, move, file_extension, card_size, format_type):
         # Try to automatically find SD cards if card_paths is not defined
         if all and not card_paths:
             card_paths = list_sd_cards(format_type, card_size)
@@ -378,7 +373,7 @@ class BRUVS(Instrument):
                     command = f"rclone move {video_path.resolve()} {destination.resolve()} --progress --delete-empty-src-dirs"
                     self.logger.info(f"Using Rclone to move {video_path.resolve()} to {destination.resolve()}")
                     destination.mkdir(parents=True, exist_ok=True)
-                    self.execute_command(command, dry_run)
+                    self.execute_command(command)
                     return
 
                 # Execute copy command if applicable
@@ -386,11 +381,11 @@ class BRUVS(Instrument):
                     command = f"rclone copy {video_path.resolve()} {destination.resolve()} --progress --low-level-retries 1 "
                     self.logger.info(f"Using Rclone to copy {video_path.resolve()} to {destination.resolve()}")
                     destination.mkdir(parents=True, exist_ok=True)
-                    self.execute_command(command, dry_run)
+                    self.execute_command(command)
 
             # Log a warning if no video files are found
             else:
                 self.logger.warning(f"No {file_extension} files found at {video_path}")
 
-    def run_doit(self, doit_commands, dry_run: bool):
+    def run_doit(self, doit_commands):
         pass

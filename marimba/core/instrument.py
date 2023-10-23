@@ -55,7 +55,7 @@ class Instrument(ABC, LogMixin):
     Instrument abstract base class. All instruments should inherit from this class.
     """
 
-    def __init__(self, root_path: Union[str, Path], collection_config: dict, instrument_config: dict):
+    def __init__(self, root_path: Union[str, Path], collection_config: dict, instrument_config: dict, dry_run: bool):
         root_path = Path(root_path)
 
         # Add the instrument file handler to the logger
@@ -68,6 +68,7 @@ class Instrument(ABC, LogMixin):
         # Root and work paths for the instrument
         self.root_path = root_path
         self.work_path = root_path / "work"
+        self.dry_run = dry_run
 
         # Collection and instrument configuration
         self.collection_config = collection_config
@@ -119,32 +120,32 @@ class Instrument(ABC, LogMixin):
         command = getattr(self, command_name)
         command(**kwargs)
 
-    def run_catalog(self, deployment_path: str, dry_run: bool):
+    def run_catalog(self):
         self.logger.warning(
             f'There is no MarImBA [bold]catalog[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
         )
 
-    def run_metadata(self, deployment_path: str, dry_run: bool):
+    def run_metadata(self):
         self.logger.warning(
             f'There is no MarImBA [bold]metadata[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
         )
 
-    def run_package(self, deployment_path: str, dry_run: bool):
+    def run_package(self):
         self.logger.warning(
             f'There is no MarImBA [bold]package[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
         )
 
-    def run_process(self, deployment_path: str, dry_run: bool):
+    def run_process(self):
         self.logger.warning(
             f'There is no MarImBA [bold]process[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
         )
 
-    def run_rename(self, deployment_path: str, dry_run: bool):
+    def run_rename(self):
         self.logger.warning(
             f'There is no MarImBA [bold]rename[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
         )
 
-    def run_report(self, deployment_path: str, dry_run: bool):
-        self.logger.warning(
-            f'There is no MarImBA [bold]report[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
-        )
+    # def run_report(self):
+    #     self.logger.warning(
+    #         f'There is no MarImBA [bold]report[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
+    #     )
