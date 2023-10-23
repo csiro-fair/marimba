@@ -1,6 +1,6 @@
 from typing import List
 
-from marimba.platforms.instruments.base import Instrument
+from marimba.core.instrument import Instrument
 
 
 class Registry:
