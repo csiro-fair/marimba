@@ -31,7 +31,7 @@ def check_input_args(source_path: Union[str, Path], exiftool_path: str):
         raise typer.Exit()
     # check exiftool path is valid
     if not shutil.which(exiftool_path):
-        print(Panel(f"Need a path to Exiftool", title="Error", title_align="left", border_style="red"))
+        print(Panel("Need a path to Exiftool", title="Error", title_align="left", border_style="red"))
         raise typer.Exit()
 
 

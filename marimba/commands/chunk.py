@@ -5,7 +5,6 @@ from typing import Union
 
 import typer
 from rich import print
-from rich.console import Console
 from rich.panel import Panel
 
 import marimba.utils.file_system as fs
@@ -36,26 +35,26 @@ def check_input_args(source_path: Union[str, Path], destination_path: Union[str,
         raise typer.Exit()
 
 
-# TODO: Do we really need a straight copy method in MarImBA? The advantage is that we could include some arguments as default, like --archive etc...
-def chunk_command(
-    source_path: Union[str, Path], destination_path: Union[str, Path], chunk_length: int, recursive: bool, overwrite: bool, dry_run: bool
-):
-    """
-    Chunks video files into smaller chunks of a specified length.
+# # TODO: Do we really need a straight copy method in MarImBA? The advantage is that we could include some arguments as default, like --archive etc...
+# def chunk_command(
+#     source_path: Union[str, Path], destination_path: Union[str, Path], chunk_length: int, recursive: bool, overwrite: bool, dry_run: bool
+# ):
+#     """
+#     Chunks video files into smaller chunks of a specified length.
 
-    Args:
-        source_path: The path to the directory containing the files to be chunked.
-        destination_path: The path to the directory where the chunked files will be saved.
-        chunk_length: The length of each chunk.
-        recursive: Whether to chunk files recursively.
-        overwrite: Whether to overwrite existing output files.
-        dry_run: Whether to run the command without actually doing anything.
-    """
-    source_path = Path(source_path)
-    destination_path = Path(destination_path)
-    check_input_args(source_path, destination_path)
+#     Args:
+#         source_path: The path to the directory containing the files to be chunked.
+#         destination_path: The path to the directory where the chunked files will be saved.
+#         chunk_length: The length of each chunk.
+#         recursive: Whether to chunk files recursively.
+#         overwrite: Whether to overwrite existing output files.
+#         dry_run: Whether to run the command without actually doing anything.
+#     """
+#     source_path = Path(source_path)
+#     destination_path = Path(destination_path)
+#     check_input_args(source_path, destination_path)
 
-    logger.info(f"Chunking files recursively from: {source_path}")
+#     logger.info(f"Chunking files recursively from: {source_path}")
 
 
 # Get the duration of the video in milliseconds using ffprobe
@@ -77,8 +76,8 @@ def get_video_duration(file: Union[str, Path]) -> float:
             )
         )
         logger.debug("get_video_duration: " + str(int(duration * 1000)))
-    except:
-        logger.error("\tError accessing file metadata: " + file)
+    except Exception as e:
+        logger.error("\tError accessing file metadata: " + file + "\n\t" + str(e))
 
     return duration
 
@@ -94,8 +93,6 @@ def chunk_command(input_path: Union[str, Path], output_path: Union[str, Path], c
     """
     input_path = Path(input_path)
     output_path = Path(output_path)
-
-    console = Console()
 
     logger.info(f"Input path is: {input_path}")
     logger.info(f"Output path is: {output_path}")

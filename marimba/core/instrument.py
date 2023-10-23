@@ -31,7 +31,7 @@ def get_instrument_config(instrument_path: Union[str, Path]) -> dict:
     # Check that this is a valid MarImBA instrument
 
     if not instrument_path.is_dir():
-        print(Panel(f"There are no instruments associated with this MarImBA collection.", title="Error", title_align="left", border_style="red"))
+        print(Panel("There are no instruments associated with this MarImBA collection.", title="Error", title_align="left", border_style="red"))
         raise typer.Exit()
 
     instrument_config_path = instrument_path / "instrument.yml"
@@ -39,7 +39,7 @@ def get_instrument_config(instrument_path: Union[str, Path]) -> dict:
     if not instrument_config_path.is_file():
         print(
             Panel(
-                f"Cannot find instrument.yml in MarImBa instrument - this is not a MarImBA instrument.",
+                "Cannot find instrument.yml in MarImBa instrument - this is not a MarImBA instrument.",
                 title="Error",
                 title_align="left",
                 border_style="red",

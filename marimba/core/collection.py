@@ -26,7 +26,7 @@ def get_collection_config(collection_path: Union[str, Path]) -> dict:
 
     # Check that this is a valid MarImBA collection and
     if not collection_path.is_dir():
-        print(Panel(f"MarImBA collection path does not exist.", title="Error", title_align="left", border_style="red"))
+        print(Panel("MarImBA collection path does not exist.", title="Error", title_align="left", border_style="red"))
         raise typer.Exit()
 
     collection_config_path = collection_path / "collection.yml"
@@ -34,7 +34,7 @@ def get_collection_config(collection_path: Union[str, Path]) -> dict:
     if not collection_config_path.is_file():
         print(
             Panel(
-                f"Cannot find collection.yml in MarImBa collection - this is not a MarImBA collection.",
+                "Cannot find collection.yml in MarImBa collection - this is not a MarImBA collection.",
                 title="Error",
                 title_align="left",
                 border_style="red",

@@ -49,8 +49,8 @@ def get_video_duration(file: str) -> float:
             )
         )
         logger.debug("get_video_duration: " + str(int(duration * 1000)))
-    except:
-        logger.error("\tError accessing file metadata: " + file)
+    except subprocess.CalledProcessError as e:
+        logger.error("\tError accessing file metadata: " + file + "\n\t" + str(e))
 
     return duration
 

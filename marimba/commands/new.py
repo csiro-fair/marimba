@@ -81,7 +81,7 @@ def collection(
     """
     Create a new MarImBA collection.
     """
-    logger.info(f"Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new collection[/steel_blue3] command.")
+    logger.info("Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new collection[/steel_blue3] command.")
 
     # Get base template path and check that it exists
     base_templates_path = get_base_templates_path()
@@ -110,7 +110,7 @@ def instrument(
 
     setup_logging(collection_path)
 
-    logger.info(f"Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new instrument[/steel_blue3] command.")
+    logger.info("Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new instrument[/steel_blue3] command.")
 
     # Get base template path and check that it exists
     base_templates_path = get_base_templates_path()
@@ -160,7 +160,7 @@ def deployment(
 
     setup_logging(collection_path)
 
-    logger.info(f"Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new deployment[/steel_blue3] command.")
+    logger.info("Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new deployment[/steel_blue3] command.")
 
     # Get base template path and check that it exists
     base_templates_path = get_base_templates_path()
