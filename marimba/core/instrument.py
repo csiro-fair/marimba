@@ -1,7 +1,6 @@
-import os
-import os.path
 from abc import ABC
 from pathlib import Path
+from typing import Union
 
 import typer
 from rich import print
@@ -13,7 +12,7 @@ from marimba.utils.log import LogMixin, get_collection_logger, get_instrument_fi
 collection_logger = get_collection_logger()
 
 
-def get_instrument_config(instrument_path) -> dict:
+def get_instrument_config(instrument_path: Union[str, Path]) -> dict:
     """
     Return the instrument config as a dictionary.
 
@@ -23,16 +22,17 @@ def get_instrument_config(instrument_path) -> dict:
     Returns:
         The instrument config data as a dictionary.
     """
+    instrument_path = Path(instrument_path)
 
     # Check that this is a valid MarImBA instrument
 
-    if not os.path.isdir(instrument_path):
+    if not instrument_path.is_dir():
         print(Panel(f"There are no instruments associated with this MarImBA collection.", title="Error", title_align="left", border_style="red"))
         raise typer.Exit()
 
-    instrument_config_path = Path(instrument_path) / "instrument.yml"
+    instrument_config_path = instrument_path / "instrument.yml"
 
-    if not os.path.isfile(instrument_config_path):
+    if not instrument_config_path.is_file():
         print(Panel(f"Cannot find instrument.yml in MarImBa instrument - this is not a MarImBA instrument.", title="Error", title_align="left", border_style="red"))
         raise typer.Exit()
 
@@ -44,23 +44,25 @@ class Instrument(ABC, LogMixin):
     Instrument abstract base class. All instruments should inherit from this class.
     """
 
-    def __init__(self, root_path: str, collection_config: dict, instrument_config: dict):
+    def __init__(self, root_path: Union[str, Path], collection_config: dict, instrument_config: dict):
+        root_path = Path(root_path)
+        
         # Add the instrument file handler to the logger
         try:
-            self.logger.addHandler(get_instrument_file_handler(os.path.basename(root_path)))
+            self.logger.addHandler(get_instrument_file_handler(root_path.name))
             self.logger.info(f'Initialising instrument-level logging for {instrument_config.get("id")}')
         except Exception as e:
             collection_logger.error(f"Failed to add instrument file handler: {e}")
 
         # Root and work paths for the instrument
         self.root_path = root_path
-        self.work_path = Path(self.root_path) / "work"
+        self.work_path = root_path / "work"
 
         # Collection and instrument configuration
         self.collection_config = collection_config
         self.instrument_config = instrument_config
 
-    def process_all_deployments(self, command_name, kwargs):
+    def process_all_deployments(self, command_name: str, kwargs: dict):
         """
         Process all the deployments within the instrument work directory.
 
@@ -70,10 +72,11 @@ class Instrument(ABC, LogMixin):
         """
 
         # Loop through each deployment subdirectory in the instrument work directory
-        for deployment in os.scandir(self.work_path):
-            self.process_single_deployment(deployment.path, command_name, kwargs)
+        for deployment in self.work_path.iterdir():
+            if deployment.is_dir():
+                self.process_single_deployment(deployment, command_name, kwargs)
 
-    def process_single_deployment(self, deployment_path, command_name, kwargs):
+    def process_single_deployment(self, deployment_path: Union[str, Path], command_name: str, kwargs: dict):
         """
         Process a single deployment for the given deployment directory.
 
@@ -82,16 +85,17 @@ class Instrument(ABC, LogMixin):
             command_name: Name of the MarImBA command to be executed.
             kwargs: Keyword arguments.
         """
+        deployment_path = Path(deployment_path)
 
         # Get deployment name and config path
-        deployment_name = Path(deployment_path).name
-        deployment_config_path = Path(deployment_path) / Path(deployment_name + ".yml")
+        deployment_name = deployment_path.name
+        deployment_config_path = deployment_path / (deployment_name + ".yml")
 
         # Check if deployment metadata file exists and skip deployment if not present
         if not deployment_config_path.is_file():
             self.logger.warning(f'SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment_path}"')
             return
-        else:
+        else:  # Invoke the command for the deployment
             # TODO: Need to validate deployment metadata file here
             self.logger.debug(f'Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment_path}"')
             command = getattr(self, command_name)
