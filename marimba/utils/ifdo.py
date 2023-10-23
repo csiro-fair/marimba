@@ -3,6 +3,7 @@ iFDO utilities.
 """
 from pathlib import Path
 from typing import Union
+
 from ifdo import iFDO
 
 
