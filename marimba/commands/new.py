@@ -143,8 +143,8 @@ def instrument(
 @app.command()
 def deployment(
         collection_path: Path = typer.Argument(..., help="Path to root MarImBA collection."),
-        template_name: Path = typer.Argument(..., help="Name of predefined MarImBA project template."),
-        instrument_id: Path = typer.Argument(..., help="Instrument ID when adding a new deployment."),
+        template_name: str = typer.Argument(..., help="Name of predefined MarImBA project template."),
+        instrument_id: str = typer.Argument(..., help="Instrument ID when adding a new deployment."),
 ):
     """
     Create a new MarImBA deployment for an instrument in a collection.
