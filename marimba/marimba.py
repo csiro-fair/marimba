@@ -4,12 +4,9 @@
 import logging
 
 import typer
-from rich import print
-from rich.panel import Panel
 
 import marimba.commands.new as new
 from marimba.core.collection import run_command
-from marimba.utils.file_system import list_sd_cards
 from marimba.utils.log import LogLevel, get_collection_logger, get_rich_handler
 
 __author__ = "MarImBA Development Team"
@@ -79,7 +76,7 @@ def catalog_command(
         exiftool_path=exiftool_path,
         file_extension=file_extension,
         glob_path=glob_path,
-        overwrite=overwrite
+        overwrite=overwrite,
     )
 
 
@@ -99,20 +96,6 @@ def init_command(
     """
     Initialise SD cards with an import.yaml file
     """
-    if all and (not card_paths):
-        card_paths = list_sd_cards(format_type, card_size)
-
-    # Check if there are card_paths
-    if not card_paths:
-        print(
-            Panel(
-                f"The card_paths argument was not provided and we were unable to automatically find any card paths.",
-                title="Error",
-                title_align="left",
-                border_style="red",
-            )
-        )
-        raise typer.Exit()
 
     run_command(
         'run_init',
@@ -121,9 +104,12 @@ def init_command(
         None,
         extra,
         card_paths=card_paths,
-        dry_run=dry_run,
+        all=all,
         days=days,
-        overwrite=overwrite
+        overwrite=overwrite,
+        card_size=card_size,
+        format_type=format_type,
+        dry_run=dry_run,
     )
 
 
@@ -146,33 +132,21 @@ def import_command(
     """
     Import SD cards to working directory
     """
-    if all and (not card_paths):
-        card_path = list_sd_cards(format_type, card_size)
-
-    # Check if there are card_paths
-    if not card_paths:
-        print(
-            Panel(
-                f"The card_paths argument was not provided and we were unable to automatically find any card paths.",
-                title="Error",
-                title_align="left",
-                border_style="red",
-            )
-        )
-        raise typer.Exit()
-
     run_command(
         'run_import',
         collection_path,
         instrument_id,
         None,
         extra,
-        card_path=card_path,
+        card_paths=card_paths,
+        all=all,
+        exiftool_path=exiftool_path,
         copy=copy,
         move=move,
+        file_extension=file_extension,
+        card_size=card_size,
+        format_type=format_type,
         dry_run=dry_run,
-        exiftool_path=exiftool_path,
-        file_extension=file_extension
     )
 
 
@@ -191,7 +165,7 @@ def doit_command(
         'run_doit',
         collection_path,
         instrument_id,
-        doit_commands
+        doit_commands,
     )
 
 

@@ -1,14 +1,14 @@
 paths:
   exiftool : exiftool
   exifname : .exif.json
-  videolist : "{{CATALOG_DIR}}/videolist.csv"
-  cardstore : "{{CATALOG_DIR}}/raw"
-  stagestore : "{{CATALOG_DIR}}/stage"
+  video_list : "{{CATALOG_DIR}}/video_list.csv"
+  card_store : "{{CATALOG_DIR}}/raw"
+  stage_store : "{{CATALOG_DIR}}/stage"
   output : "{{CATALOG_DIR}}/stage"
-  timecorrection : "{{CATALOG_DIR}}/timecorrection.csv"
-  stationinfo : "{{CATALOG_DIR}}/stationinfo.csv"
-  autodeployment : "{{CATALOG_DIR}}/autodeployment.csv"
-  exifstore : "{{CATALOG_DIR}}/exifdata.csv"
+  time_correction : "{{CATALOG_DIR}}/time_correction.csv"
+  station_info : "{{CATALOG_DIR}}/station_info.csv"
+  auto_deployment : "{{CATALOG_DIR}}/auto_deployment.csv"
+  exif_store : "{{CATALOG_DIR}}/exif_data.csv"
   stage :  "{{CATALOG_DIR}}/stage.csv"
   commit : "{{CATALOG_DIR}}/commit.csv"
   

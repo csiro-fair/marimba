@@ -5,21 +5,24 @@ Baited Remote Underwater Video Systems (BRUVS) instrument specification
 import json
 import os
 import re
+import shlex
 import shutil
+import subprocess
+import uuid
 from datetime import datetime, timezone, timedelta
+from io import StringIO
 from pathlib import Path
+
+import pandas as pd
+import typer
 import yaml
 from jinja2 import Environment, FileSystemLoader
+from rich import print
+from rich.panel import Panel
 
 from marimba.core.instrument import Instrument
 from marimba.utils.config import load_config
-import uuid
-import glob
-import pandas as pd
-import subprocess
-import shlex
-from io import StringIO
-import platform
+from marimba.utils.file_system import list_sd_cards
 
 __author__ = "Candice Untiedt"
 __copyright__ = "Copyright 2023, Environment, CSIRO"
@@ -45,6 +48,7 @@ class BRUVS(Instrument):
         """Return a list of files with a case-insensitive .mp4 extension in the given directory."""
         files = [filename for filename in os.listdir(str(directory)) if filename.lower().endswith('.mp4')]
         return sorted(files, key=lambda s: s.lower())
+
     @staticmethod
     def parse_exif_from_json(filename):
         """Open and parse a JSON file containing EXIF metadata."""
@@ -59,24 +63,6 @@ class BRUVS(Instrument):
             if dic['FileName'] == filename:
                 return dic
         return None
-
-
-    def process_all_deployments(self, command_name, kwargs):
-        """
-        Process all the deployments within the instrument work directory.
-
-        Args:
-            command_name: Name of the MarImBA command to be executed.
-            kwargs: Keyword arguments.
-        """
-        if command_name=='initialise':
-            self.initialise(**kwargs)
-        elif command_name=='import_command':
-            self.import_command(**kwargs)
-        else:
-            # Loop through each deployment subdirectory in the instrument work directory
-            for deployment in os.scandir(self.work_path):
-                self.process_single_deployment(deployment.path, command_name, kwargs)
 
     def move_ancillary_files(self, directory, dry_run, dry_run_log_string):
 
@@ -129,7 +115,7 @@ class BRUVS(Instrument):
         with open(filename, 'w', encoding='utf-8') as file:
             json.dump(updated_data, file, indent=4)
 
-    def rename(self, dry_run: bool):
+    def run_rename(self, dry_run: bool):
         """
         Implementation of the MarImBA rename command for the BRUVS
         """
@@ -245,108 +231,155 @@ class BRUVS(Instrument):
             f'{file_id}'
             f".MP4"
         )
-    def initialise(self,card_path,days,overwrite,dry_run: bool):
+
+    def run_init(self, card_paths: list, dry_run: bool, days: int, overwrite: bool):
         """
-        Implementation of the MarImBA initialise command for the BRUVS
+        Implementation of the MarImBA init command for BRUVS
         """
 
         def make_xml(file_path):
             if (os.path.exists(file_path)) and (not overwrite):
-                self.logger.error(f"Error SDCard already initialise {file_path}")
+                self.logger.warning(f"SKIPPING - SD card already initialised: {file_path}")
             else:
-                env = Environment(loader = FileSystemLoader(self.root_path),   trim_blocks=True, lstrip_blocks=True)
+                env = Environment(loader=FileSystemLoader(self.root_path), trim_blocks=True, lstrip_blocks=True)
                 template = env.get_template('import.yml')
-                fill = {"instrumentPath" : self.root_path, "instrument" : self.instrument_config['id'],
-                        "importdate" : f"{datetime.now()+timedelta(days=days):%Y-%m-%d}",
-                        "importtoken" : str(uuid.uuid4())[0:8]}
-                self.logger.info(f'{dry_run_log_string}Making import file "{file_path}"')
+                fill = {
+                    "instrument_path": self.root_path, "instrument": self.instrument_config['id'],
+                    "import_date": f"{datetime.now() + timedelta(days=days):%Y-%m-%d}",
+                    "import_token": str(uuid.uuid4())[0:8]
+                }
+                self.logger.info(f'Making import file "{file_path}"')
                 if not dry_run:
                     with open(file_path, "w") as file:
                         file.write(template.render(fill))
-        # Set dry run log string to prepend to logging
-        dry_run_log_string = "DRY_RUN - " if dry_run else ""    
-        if isinstance(card_path,list):
-            [make_xml(f"{file}/import.yaml") for file in card_path]
+
+        if isinstance(card_paths, list):
+            [make_xml(f"{file}/import.yml") for file in card_paths]
         else:
-            make_xml(f"{card_path}/import.yaml")
+            make_xml(f"{card_paths}/import.yml")
 
-    def import_command(self,card_path,copy,move,exiftool_path,file_extension,dry_run: bool):
-        """
-        Implementation of the MarImBA initalise command for the BRUVS
-        """
-        for card in card_path:
-            dry_run_log_string = "DRY_RUN - " if dry_run else ""
-            importyml =f"{card}/import.yaml"
-            with open(importyml, 'r') as stream:
-                try:
-                    importdetails=yaml.safe_load(stream)
-                except yaml.YAMLError as exc:
-                    self.logger.error(f"Error possible corrupt yaml {importyml}")
+    # Function to execute shell commands
+    def execute_command(self, command, dry_run):
+        if not dry_run:
+            process = subprocess.Popen(shlex.split(command))
+            process.wait()
 
-            videopath = f'{card}/DCIM/100GOPRO'
-            files = glob.glob(f'{videopath}/*.{file_extension}')
+    # Function to load YAML files safely
+    def load_yaml(self, file_path):
+        with file_path.open('r') as stream:
+            try:
+                return yaml.safe_load(stream)
+            except yaml.YAMLError:
+                self.logger.error(f"Possible corrupt YAML file at: {file_path}")
+                return None
+
+    # Main function for importing files
+    def run_import(self, card_paths, all, exiftool_path, copy, move, file_extension, card_size, format_type, dry_run: bool):
+
+        # Try to automatically find SD cards if card_paths is not defined
+        if all and not card_paths:
+            card_paths = list_sd_cards(format_type, card_size)
+
+        # Check if card_paths have been provided or automatically found
+        if not card_paths:
+            print(
+                Panel(
+                    f"The card_paths argument was not provided and unable to be automatically found.",
+                    title="Error",
+                    title_align="left",
+                    border_style="red",
+                )
+            )
+            raise typer.Exit()
+
+        # Loop through each card path provided
+        for card in card_paths:
+            card_path = Path(card)
+
+            # Load import details from YAML file
+            import_yml = card_path / "import.yml"
+            import_details = self.load_yaml(import_yml)
+
+            # Define the video path and search for files with the given extension
+            video_path = card_path / "DCIM" / "100GOPRO"
+            files = list(video_path.glob(f"*.{file_extension}"))
+
+            # If video files are found, proceed with import
             if files:
-                barpath = f'{self.root_path}/work/camerabars.csv'
-                barnumbers = pd.read_csv(barpath,parse_dates=['BarStartDate','BarEndDate']) 
-                command = f"{exiftool_path} -api largefilesupport=1 -u  -json -ext {file_extension} -q -CameraSerialNumber -CreateDate -SourceFile -Duration -FileSize -FieldOfView {videopath}"
+                # Load bar numbers and relevant details
+                bar_path = Path(self.root_path) / "work" / "camera_bars.csv"
+                bar_numbers = pd.read_csv(bar_path, parse_dates=['BarStartDate', 'BarEndDate'])
+
+                # Fetch metadata from video files
+                command = f"{exiftool_path} -api largefilesupport=1 -u -json -ext {file_extension} -q -CameraSerialNumber -CreateDate -SourceFile -Duration -FileSize -FieldOfView {video_path}"
                 process = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                out, err = process.communicate()
-                s=str(out,'utf-8')
-                data = StringIO(s)  
-                cameras =pd.read_json(data)
-                cameras['Duration'] =pd.to_timedelta(cameras.Duration)
-                cameras['CreateDate'] = pd.to_datetime(cameras['CreateDate'],format='%Y:%m:%d %H:%M:%S')
-                for index,error in  cameras[cameras.CameraSerialNumber.isnull()].iterrows():
-                    self.logger.error(f"Error possible corrupt video file {error.SourceFile}")
-                cameras=cameras.dropna()
-                cameras =cameras.merge(barnumbers.loc[barnumbers.Active], on='CameraSerialNumber', how='left')
+                out, _ = process.communicate()
+                data = StringIO(out.decode('utf-8'))
+
+                # Convert metadata to a DataFrame
+                cameras = pd.read_json(data)
+                cameras['Duration'] = pd.to_timedelta(cameras.Duration)
+                cameras['CreateDate'] = pd.to_datetime(cameras['CreateDate'], format='%Y:%m:%d %H:%M:%S')
+
+                # Log errors for corrupt video files
+                for index, error in cameras[cameras.CameraSerialNumber.isnull()].iterrows():
+                    self.logger.error(f"Possible corrupt video file {error.SourceFile}")
+
+                # Drop rows with missing data
+                cameras.dropna(inplace=True)
+
+                # Merge camera DataFrame with bar numbers DataFrame
+                cameras = cameras.merge(bar_numbers.loc[bar_numbers.Active], on='CameraSerialNumber', how='left')
+
+                # Log errors for unmatched serial numbers
                 if cameras.GoProNumber.isna().any():
-                    #not matched to the bar
-                    self.logger.error(f"Error camera serial number not found {cameras[cameras.GoProNumber.isna()].CameraSerialNumber}")
-                if len(cameras.CameraSerialNumber.unique())>1:
-                    self.logger.warning(f"Warning multiple cameras in directory {cameras.CameraSerialNumber.unique()} ---> {videopath}")
-                if len(cameras.CreateDate.unique())>1:
-                    self.logger.warning(f"Warning multiple captures in directory {cameras.CreateDate.unique()} ---> {videopath}")
-                #get the last record as it's probably the best one!
-                log=cameras.groupby('CreateDate').agg({'CameraSerialNumber':'first', 'Duration': 'sum'})
-                matched =cameras[(cameras.CreateDate>cameras.BarStartDate) & (cameras.CreateDate<cameras.BarEndDate)]
-                if len(matched)!=len(cameras):
-                    self.logger.warning(f"Warning unmatched camera serial numbers  {videopath} in please serial numbers in  {barpath} ")
-                last =cameras[cameras.CreateDate==cameras.CreateDate.unique().max()].sort_values('SourceFile').iloc[-1]
-                importdetails['instrumentPath'] = self.root_path
-                importdetails['bruvframe'] = last.Frame
-                importdetails['housinglabel'] = last.GoProNumber
-                importdetails['cameraserialNumber'] = last.CameraSerialNumber
-                importdetails['cameracreatedate'] = last.CreateDate
-                destination =importdetails["importtemplate"].format(**importdetails)
-                self.logger.info(f'{dry_run_log_string}  Copy  {card} --> {destination}')
-                command =f"rclone copy {os.path.abspath(card)} {os.path.abspath(destination)} --progress --low-level-retries 1 "
-                command = command.replace('\\','/')
-                if copy:
-                    self.logger.info(f'{dry_run_log_string}  {command}')
-                    if not dry_run:
-                        os.makedirs(destination,exist_ok=True)
-                        process = subprocess.Popen(shlex.split(command))
-                        process.wait()
+                    self.logger.error(f"Camera serial number not found {cameras[cameras.GoProNumber.isna()].CameraSerialNumber}")
+
+                # Log warnings for multiple cameras or captures in a single directory
+                if len(cameras.CameraSerialNumber.unique()) > 1:
+                    self.logger.warning(f"Multiple cameras in directory {cameras.CameraSerialNumber.unique()} ---> {video_path}")
+                if len(cameras.CreateDate.unique()) > 1:
+                    self.logger.warning(f"Multiple captures in directory {cameras.CreateDate.unique()} ---> {video_path}")
+
+                # Filter cameras by dates and log a warning if any serial numbers are unmatched
+                matched = cameras[(cameras.CreateDate > cameras.BarStartDate) & (cameras.CreateDate < cameras.BarEndDate)]
+                if len(matched) != len(cameras):
+                    self.logger.warning(f"Warning unmatched camera serial numbers {video_path} in please serial numbers in {bar_path} ")
+
+                # Select the last record for import
+                last = cameras.loc[cameras.CreateDate == cameras.CreateDate.max()].sort_values('SourceFile').iloc[-1]
+
+                # Update import details with new metadata
+                import_details.update({
+                    'instrument_path': self.root_path,
+                    'bruv_frame': last.Frame,
+                    'housing_label': last.GoProNumber,
+                    'camera_serial_number': last.CameraSerialNumber,
+                    'camera_create_date': last.CreateDate
+                })
+
+                # Define destination path and log the copy operation
+                destination = Path(import_details["import_template"].format(**import_details))
+                self.logger.info(f'Copy {card} --> {destination}')
+
+                # Execute move command if applicable
                 if move:
-                    command =f"rclone move {card} {destination} --progress --delete-empty-src-dirs"
-                    command = command.replace('\\','/')
-                    self.logger.info(f'{dry_run_log_string}  {command}')
-                    if not dry_run:
-                        os.makedirs(destination,exist_ok=True)
-                        process = subprocess.Popen(shlex.split(command))
-                        process.wait()
+                    command = f"rclone move {video_path.resolve()} {destination.resolve()} --progress --delete-empty-src-dirs"
+                    self.logger.info(f"Using Rclone to move {video_path.resolve()} to {destination.resolve()}")
+                    destination.mkdir(parents=True, exist_ok=True)
+                    self.execute_command(command, dry_run)
+                    return
+
+                # Execute copy command if applicable
+                if copy:
+                    command = f"rclone copy {video_path.resolve()} {destination.resolve()} --progress --low-level-retries 1 "
+                    self.logger.info(f"Using Rclone to copy {video_path.resolve()} to {destination.resolve()}")
+                    destination.mkdir(parents=True, exist_ok=True)
+                    self.execute_command(command, dry_run)
+
+            # Log a warning if no video files are found
             else:
-                self.logger.warning(f"No video files found {videopath}")
+                self.logger.warning(f"No {file_extension} files found at {video_path}")
 
-    def doit(self,doit_commands,dry_run: bool):
+    def run_doit(self, doit_commands, dry_run: bool):
         pass
-
-
-
-               
-
-           
-
-
-        
