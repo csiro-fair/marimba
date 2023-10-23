@@ -33,7 +33,14 @@ def get_instrument_config(instrument_path: Union[str, Path]) -> dict:
     instrument_config_path = instrument_path / "instrument.yml"
 
     if not instrument_config_path.is_file():
-        print(Panel(f"Cannot find instrument.yml in MarImBa instrument - this is not a MarImBA instrument.", title="Error", title_align="left", border_style="red"))
+        print(
+            Panel(
+                f"Cannot find instrument.yml in MarImBa instrument - this is not a MarImBA instrument.",
+                title="Error",
+                title_align="left",
+                border_style="red",
+            )
+        )
         raise typer.Exit()
 
     return load_config(instrument_config_path)
@@ -46,7 +53,7 @@ class Instrument(ABC, LogMixin):
 
     def __init__(self, root_path: Union[str, Path], collection_config: dict, instrument_config: dict):
         root_path = Path(root_path)
-        
+
         # Add the instrument file handler to the logger
         try:
             self.logger.addHandler(get_instrument_file_handler(root_path.name))
@@ -93,7 +100,9 @@ class Instrument(ABC, LogMixin):
 
         # Check if deployment metadata file exists and skip deployment if not present
         if not deployment_config_path.is_file():
-            self.logger.warning(f'SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment_path}"')
+            self.logger.warning(
+                f'SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment_path}"'
+            )
             return
         else:  # Invoke the command for the deployment
             # TODO: Need to validate deployment metadata file here
@@ -102,19 +111,31 @@ class Instrument(ABC, LogMixin):
             command(deployment_path, **kwargs)
 
     def catalog(self, deployment_path: str, dry_run: bool):
-        self.logger.warning(f'There is no MarImBA [bold]catalog[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
+        self.logger.warning(
+            f'There is no MarImBA [bold]catalog[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
+        )
 
     def metadata(self, deployment_path: str, dry_run: bool):
-        self.logger.warning(f'There is no MarImBA [bold]metadata[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
+        self.logger.warning(
+            f'There is no MarImBA [bold]metadata[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
+        )
 
     def package(self, deployment_path: str, dry_run: bool):
-        self.logger.warning(f'There is no MarImBA [bold]package[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
+        self.logger.warning(
+            f'There is no MarImBA [bold]package[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
+        )
 
     def process(self, deployment_path: str, dry_run: bool):
-        self.logger.warning(f'There is no MarImBA [bold]process[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
+        self.logger.warning(
+            f'There is no MarImBA [bold]process[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
+        )
 
     def rename(self, deployment_path: str, dry_run: bool):
-        self.logger.warning(f'There is no MarImBA [bold]rename[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
+        self.logger.warning(
+            f'There is no MarImBA [bold]rename[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
+        )
 
     def report(self, deployment_path: str, dry_run: bool):
-        self.logger.warning(f'There is no MarImBA [bold]report[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]')
+        self.logger.warning(
+            f'There is no MarImBA [bold]report[/bold] command implemented for instrument [bold]{self.instrument_config.get("id")}[/bold]'
+        )

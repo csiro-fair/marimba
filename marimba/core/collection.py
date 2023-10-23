@@ -7,9 +7,9 @@ import typer
 from rich import print
 from rich.panel import Panel
 
-from marimba.core.instrument import get_instrument_config, Instrument
+from marimba.core.instrument import Instrument, get_instrument_config
 from marimba.utils.config import load_config
-from marimba.utils.log import setup_logging, get_collection_logger
+from marimba.utils.log import get_collection_logger, setup_logging
 
 
 def get_collection_config(collection_path: Union[str, Path]) -> dict:
@@ -32,7 +32,14 @@ def get_collection_config(collection_path: Union[str, Path]) -> dict:
     collection_config_path = collection_path / "collection.yml"
 
     if not collection_config_path.is_file():
-        print(Panel(f"Cannot find collection.yml in MarImBa collection - this is not a MarImBA collection.", title="Error", title_align="left", border_style="red"))
+        print(
+            Panel(
+                f"Cannot find collection.yml in MarImBa collection - this is not a MarImBA collection.",
+                title="Error",
+                title_align="left",
+                border_style="red",
+            )
+        )
         raise typer.Exit()
 
     return load_config(collection_config_path)
@@ -50,7 +57,7 @@ def get_instrument_instance(collection_config: dict, instrument_path: Union[str,
         An instance of the instrument class.
     """
     instrument_path = Path(instrument_path)
-    
+
     # Get instrument config data
     instrument_config = get_instrument_config(instrument_path)
     instrument_class_name = instrument_config.get("class_name")
@@ -82,7 +89,7 @@ def get_merged_keyword_args(kwargs: dict, extra_args: list, logger: logging.Logg
     if extra_args:
         for arg in extra_args:
             # Attempt to split the argument into a key and a value
-            parts = arg.split('=')
+            parts = arg.split("=")
             if len(parts) == 2:
                 key, value = parts
                 extra_dict[key] = value
