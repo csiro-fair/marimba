@@ -87,8 +87,8 @@ def collection(
 
     # Run cookiecutter
     cookiecutter(
-        template=template_path.absolute(),
-        output_dir=output_path.absolute(),
+        template=str(template_path.absolute()),
+        output_dir=str(output_path.absolute()),
         extra_context={"datestamp": datetime.today().strftime("%Y-%m-%d")}
     )
 
@@ -118,8 +118,8 @@ def instrument(
     # Run cookiecutter
     try:
         cookiecutter(
-            template=template_path.absolute(),
-            output_dir=output_path.absolute(),
+            template=str(template_path.absolute()),
+            output_dir=str(output_path.absolute()),
             extra_context={"datestamp": datetime.today().strftime("%Y-%m-%d")}
         )
     except OutputDirExistsException as e:
@@ -165,7 +165,7 @@ def deployment(
 
     # Run cookiecutter
     cookiecutter(
-        template=template_path.absolute(),
-        output_dir=output_path.absolute(),
+        template=str(template_path.absolute()),
+        output_dir=str(output_path.absolute()),
         extra_context={"utc_timestamp": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")}
     )
