@@ -25,8 +25,8 @@ __status__ = "Development"
 
 
 class ZeissAxioObserver(Instrument):
-    def __init__(self, root_path: str, collection_config: dict, instrument_config: dict):
-        super().__init__(root_path, collection_config, instrument_config)
+    def __init__(self, root_path: str, collection_config: dict, instrument_config: dict, dry_run: bool):
+        super().__init__(root_path, collection_config, instrument_config, dry_run)
 
         # Define instrument filetypes and data files
         self.filetypes = ["czi"]
@@ -59,7 +59,7 @@ class ZeissAxioObserver(Instrument):
             "NA": "Not Applicable",
         }
 
-    def rename(self, deployment_path: str, dry_run: bool):
+    def run_rename(self, deployment_path: Path):
         """
         Implementation of the MarImBA rename command for the Zeiss Axio Observer
         """
@@ -94,7 +94,7 @@ class ZeissAxioObserver(Instrument):
                 else:
                     # Only rename files if not in --dry-run mode
                     self.logger.info(f'Renaming file "{file.name}" to: "{output_file_path}"')
-                    if not dry_run:
+                    if not self.dry_run:
                         try:
                             # Rename file
                             os.rename(file_path, output_file_path)
@@ -139,14 +139,10 @@ class ZeissAxioObserver(Instrument):
                 f".CZI"
             )
 
-    def process(self, dry_run: bool):
+    def process(self, deployment_path: Path):
         """
         Implementation of the MarImBA process command for the Zeiss Axio Observer
         """
-
-        # TODO: Move this to the instrument logger
-        # Set dry run log string to prepend to logging
-        dry_run_log_string = "DRY_RUN - " if dry_run else ""
 
         # Loop through each deployment subdirectory in the instrument work directory
         for deployment in os.scandir(self.work_path):

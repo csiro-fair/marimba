@@ -54,8 +54,8 @@ def get_output_file_name(deployment_config: dict, file_path: str) -> str:
 
 
 class ZeissAxioPlan(Instrument):
-    def __init__(self, root_path: str, collection_config: dict, instrument_config: dict):
-        super().__init__(root_path, collection_config, instrument_config)
+    def __init__(self, root_path: str, collection_config: dict, instrument_config: dict, dry_run: bool):
+        super().__init__(root_path, collection_config, instrument_config, dry_run)
 
         # Define instrument filetypes and data files
         self.filetypes = ["czi"]
@@ -88,13 +88,10 @@ class ZeissAxioPlan(Instrument):
             "NA": "Not Applicable",
         }
 
-    def rename(self, dry_run: bool):
+    def run_rename(self, deployment_path: Path):
         """
         Implementation of the MarImBA rename command for the Zeiss Axio Observer
         """
-
-        # Set dry run log string to prepend to logging
-        dry_run_log_string = "DRY_RUN - " if dry_run else ""
 
         # Loop through each deployment subdirectory in the instrument work directory
         for deployment in os.scandir(self.work_path):
@@ -105,12 +102,12 @@ class ZeissAxioPlan(Instrument):
             # Check if deployment metadata file exists and skip deployment if not present
             if not deployment_config_path.is_file():
                 self.logger.warning(
-                    f'{dry_run_log_string}SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment.path}"'
+                    f'SKIPPING DEPLOYMENT - Cannot find deployment metadata file "{deployment_name}.yml" in deployment directory at path: "{deployment.path}"'
                 )
                 continue
             else:
                 # TODO: Need to validate deployment metadata file here and load deployment config
-                self.logger.info(f'{dry_run_log_string}Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
+                self.logger.info(f'Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
                 deployment_config = load_config(deployment_config_path)
 
                 # Loop through each file in the deployment directory
@@ -127,18 +124,18 @@ class ZeissAxioPlan(Instrument):
 
                         # Check if input and output file paths are the same
                         if file_path == output_file_path:
-                            self.logger.info(f'{dry_run_log_string}SKIPPING FILE - input and output file names are identical: "{file_path}"')
+                            self.logger.info(f'SKIPPING FILE - input and output file names are identical: "{file_path}"')
                         # Check if output file path already exists and the overwrite argument is not set
                         # elif output_file_path.is_file() and not overwrite:
                         elif output_file_path.is_file():
                             self.logger.info(
-                                f'{dry_run_log_string}Output file already exists and overwrite argument is not set: "{output_file_path}"'
+                                f'Output file already exists and overwrite argument is not set: "{output_file_path}"'
                             )
                         # Perform file renaming
                         else:
                             # Only rename files if not in --dry-run mode
-                            self.logger.info(f'{dry_run_log_string}Renaming file "{file.name}" to: "{output_file_path}"')
-                            if not dry_run:
+                            self.logger.info(f'Renaming file "{file.name}" to: "{output_file_path}"')
+                            if not self.dry_run:
                                 try:
                                     # Rename file
                                     os.rename(file_path, output_file_path)
