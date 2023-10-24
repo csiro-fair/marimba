@@ -1,7 +1,7 @@
 import importlib.util
 import logging
 from pathlib import Path
-from typing import Union
+from typing import List, Optional, Union
 
 import typer
 from rich import print
@@ -9,7 +9,6 @@ from rich.panel import Panel
 
 from marimba.core.instrument import Instrument, get_instrument_config
 from marimba.utils.config import load_config
-from marimba.utils.log import get_collection_logger
 
 
 def get_collection_config(collection_path: Union[str, Path]) -> dict:
@@ -101,15 +100,23 @@ def get_merged_keyword_args(kwargs: dict, extra_args: list, logger: logging.Logg
 
 
 def run_command(
-    command_name: str, collection_path: Union[str, Path], instrument_id: str, deployment_name: str, extra_args: list[str], **kwargs: dict
+    project_dir: Union[str, Path],
+    command_name: str,
+    instrument_name: Optional[str] = None,
+    deployment_name: Optional[str] = None,
+    extra_args: Optional[List[str]] = None,
+    **kwargs: dict,
 ):
     """
-    Traverse the instrument directory and execute deployment-level processing for each instrument
+    Execute a command within a MarImBA project.
+
+    By default, this will execute the command for all instruments and deployments in the project.
+    If an instrument name is provided, it will execute the command for all deployments of that instrument.
 
     Args:
+        project_dir: The path to the MarImBA project.
         command_name: Name of the MarImBA command to be executed.
-        collection_path: The path to the MarImBA collection containing deployments that will be processed.
-        instrument_id: MarImBA instrument containing files that will be processed.
+        instrument_name: MarImBA instrument to use. If None,
         deployment_name: Name of the MarImBA deployment that will be processed.
         extra_args: Additional non-MarImBA keyword arguments to be passed through to command implementations.
         **kwargs: Additional MarImBA keyword arguments.
@@ -118,7 +125,7 @@ def run_command(
 
     # Set up logging
     dry_run = kwargs.pop("dry_run", False)
-    logger = get_collection_logger()
+    # logger = get_collection_logger()
 
     # Get collection config data
     collection_config = get_collection_config(collection_path)
@@ -128,8 +135,8 @@ def run_command(
     merged_kwargs = get_merged_keyword_args(kwargs, extra_args, logger)
 
     # Single deployment processing
-    if instrument_id or deployment_name:
-        instrument_path = instruments_path / instrument_id
+    if instrument_name or deployment_name:
+        instrument_path = instruments_path / instrument_name
         instrument_instance = get_instrument_instance(collection_config, instrument_path, dry_run)
 
         if deployment_name:
@@ -138,7 +145,7 @@ def run_command(
             instrument_instance.process_single_deployment(deployment_path, command_name, merged_kwargs)
 
         else:
-            instrument_instance.logger.info(f"Executing the MarImBA [bold]{command_name}[/bold] command for instrument {instrument_id}...")
+            instrument_instance.logger.info(f"Executing the MarImBA [bold]{command_name}[/bold] command for instrument {instrument_name}...")
             if command_name in ["run_init", "run_import"]:
                 instrument_instance.run_init_or_import(command_name, merged_kwargs)
             else:

@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -90,10 +91,10 @@ class Project(LogMixin):
 
         pass
 
-    def __init__(self, root_dir: Path):
+    def __init__(self, root_dir: Union[str, Path]):
         super().__init__()
 
-        self._root_dir = root_dir
+        self._root_dir = Path(root_dir)
 
         self._instruments_dir = self._root_dir / "instruments"
         self._deployments_dir = self._root_dir / "deployments"
@@ -159,7 +160,7 @@ class Project(LogMixin):
         Set up logging. Create file handler for this instance that writes to `project.log`.
         """
         # Create a file handler for this instance
-        file_handler = get_file_handler(self.root_dir, self.root_dir.name, False)
+        file_handler = get_file_handler(self.root_dir, self.name, False, level=logging.DEBUG)
 
         # Add the file handler to the logger
         self.logger.addHandler(file_handler)
@@ -174,6 +175,8 @@ class Project(LogMixin):
         Raises:
             ImportError: If an instrument module cannot be imported.
         """
+        self.logger.debug(f"Loading instruments from {self._instruments_dir}...")
+
         instrument_dirs = filter(lambda p: p.is_dir(), self._instruments_dir.iterdir())
         instrument_module_paths = map(lambda p: p / "instrument.py", instrument_dirs)
         instrument_module_paths = filter(lambda p: p.is_file(), instrument_module_paths)
@@ -202,6 +205,8 @@ class Project(LogMixin):
         """
         Load deployment instances from the `deployments` directory.
         """
+        self.logger.debug(f"Loading deployments from {self._deployments_dir}...")
+
         pass
 
     def create_instrument(self, name: str, template_name: str):
@@ -215,6 +220,8 @@ class Project(LogMixin):
         Raises:
             Project.CreateInstrumentError: If the instrument cannot be created.
         """
+        self.logger.debug(f'Creating instrument "{name}" from template "{template_name}"...')
+
         # Check that an instrument with the same name doesn't already exist
         instrument_dir = self._instruments_dir / name
         if instrument_dir.exists():
@@ -253,6 +260,8 @@ class Project(LogMixin):
         Raises:
             Project.CreateDeploymentError: If the deployment cannot be created.
         """
+        self.logger.debug(f'Creating deployment "{name}"...')
+
         # Check that a deployment with the same name doesn't already exist
         deployment_dir = self.deployments_dir / name
         if deployment_dir.exists():
@@ -298,6 +307,13 @@ class Project(LogMixin):
         The deployments directory of the project.
         """
         return self._deployments_dir
+
+    @property
+    def name(self) -> str:
+        """
+        The name of the project.
+        """
+        return self._root_dir.name
 
     @property
     def instruments(self) -> Dict[str, Instrument]:

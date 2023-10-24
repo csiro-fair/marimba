@@ -127,14 +127,3 @@ def deployment(
             border_style="green",
         )
     )
-
-    # # Get base template path and check that it exists
-    # base_templates_path = get_base_templates_path()
-    # template_path = check_template_exists(base_templates_path, template_name, "deployment")
-
-    # # Run cookiecutter
-    # cookiecutter(
-    #     template=str(template_path.absolute()),
-    #     output_dir=str(project.deployments_dir.absolute()),
-    #     extra_context={"utc_timestamp": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")},
-    # )

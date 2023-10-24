@@ -1,22 +1,14 @@
 import logging
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Union
+from typing import Union
 
 import rich.logging
 from rich.console import Console
 from rich.logging import RichHandler
 
-from marimba.utils.context import get_collection_path, get_instrument_path
-
-# Global collection logger - this is used for all collection-level logging.
-collection_logger: Optional[logging.Logger] = None
-
 # Global file log format - this is used for all file handlers.
 file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-
-# Global instrument name -> file handler dictionary - this is used for all instrument-level logging.
-instrument_file_handlers = {}
 
 
 class DryRunRichFormatter(RichHandler):
@@ -72,76 +64,6 @@ def get_rich_handler() -> rich.logging.RichHandler:
     return rich_handler
 
 
-def get_collection_logger() -> logging.Logger:
-    """
-    Get the collection-level logger. Initializes the logger if it has not been initialized.
-
-    Returns:
-        The global logger.
-    """
-    global collection_logger
-    if collection_logger is None:
-        collection_logger = get_logger("marimba")
-
-    return collection_logger
-
-
-def init_collection_file_handler(dry_run: bool):
-    """
-    Initialise the collection-level file handler. This should be called after the collection directory has been set by `set_collection_path`.
-    """
-    # Get the collection directory and basename
-    collection_path = get_collection_path()
-
-    # Check collection path is set
-    if collection_path is None:
-        raise ValueError("Collection path is not set. Call `set_collection_path` first.")
-
-    collection_basename = collection_path.parts[-1]
-
-    # Create the file handler and add it to the collection logger
-    collection_file_handler = get_file_handler(collection_path, collection_basename, dry_run)
-    collection_file_handler.setLevel(logging.INFO)
-    collection_file_handler.setFormatter(file_formatter)
-    get_collection_logger().addHandler(collection_file_handler)
-
-
-def get_instrument_file_handler(instrument_name: str, dry_run: bool = False) -> logging.FileHandler:
-    """
-    Get the file handler for an instrument. Initializes the file handler if it has not been initialized.
-
-    Args:
-        instrument_name: The name of the instrument.
-
-    Returns:
-        The file handler for the instrument.
-    """
-    if instrument_name not in instrument_file_handlers:
-        init_instrument_file_handler(instrument_name, dry_run)
-
-    return instrument_file_handlers[instrument_name]
-
-
-def init_instrument_file_handler(instrument_name: str, dry_run: bool):
-    """
-    Initialize the file handler for an instrument.
-
-    Args:
-        instrument_name: The name of the instrument.
-    """
-    # Get the instrument directory
-    instrument_dir = get_instrument_path(instrument_name)
-
-    # Create the file handler and add it to the collection logger
-    instrument_file_handler = get_file_handler(instrument_dir, instrument_name, dry_run)
-    instrument_file_handler.setLevel(logging.INFO)
-    instrument_file_handler.setFormatter(file_formatter)
-
-    # Add it to the map
-    global instrument_file_handlers
-    instrument_file_handlers[instrument_name] = instrument_file_handler
-
-
 def get_file_handler(output_dir: Union[str, Path], name: str, dry_run: bool, level: int = logging.INFO) -> logging.FileHandler:
     """
     Get a file handler for a given output directory and name.
@@ -153,11 +75,15 @@ def get_file_handler(output_dir: Union[str, Path], name: str, dry_run: bool, lev
 
     Returns:
         A file handler to `output_dir/name.log`.
+
+    Raises:
+        FileNotFoundError: If the output directory does not exist.
     """
     output_dir = Path(output_dir)
 
     # Ensure the directory exists
-    assert output_dir.is_dir(), f"Output directory {output_dir} does not exist."
+    if not output_dir.is_dir():
+        raise FileNotFoundError(f"Output directory {output_dir} does not exist.")
 
     # Build the path as `output_dir/name.log`
     path = output_dir / f"{name}.log"
@@ -243,6 +169,3 @@ class LogMixin:
             # Add NullHandler to avoid logs on stdout by default
             self._logger.addHandler(logging.NullHandler())
         return self._logger
-
-
-logger = get_collection_logger()

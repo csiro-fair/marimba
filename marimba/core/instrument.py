@@ -1,3 +1,4 @@
+import logging
 from abc import ABC
 from pathlib import Path
 from typing import Union
@@ -7,13 +8,7 @@ from rich import print
 from rich.panel import Panel
 
 from marimba.utils.config import load_config
-from marimba.utils.log import (
-    LogMixin,
-    get_collection_logger,
-    get_instrument_file_handler,
-)
-
-collection_logger = get_collection_logger()
+from marimba.utils.log import LogMixin, get_file_handler
 
 
 def get_instrument_config(instrument_path: Union[str, Path]) -> dict:
@@ -55,39 +50,59 @@ class Instrument(ABC, LogMixin):
     Instrument abstract base class. All instruments should inherit from this class.
     """
 
-    def __init__(self, root_path: Union[str, Path], collection_config: dict, instrument_config: dict, dry_run: bool):
-        root_path = Path(root_path)
-
-        # Add the instrument file handler to the logger
-        try:
-            self.logger.addHandler(get_instrument_file_handler(root_path.name, dry_run))
-            self.logger.info(f'Initialising instrument-level logging for {instrument_config.get("id")}')
-        except Exception as e:
-            collection_logger.error(f"Failed to add instrument file handler: {e}")
-
-        # Root and work paths for the instrument
-        self.root_path = root_path
-        self.work_path = root_path / "work"
-        self.dry_run = dry_run
-
-        # Collection and instrument configuration
-        self.collection_config = collection_config
-        self.instrument_config = instrument_config
-
-    def process_all_deployments(self, command_name: str, kwargs: dict):
+    class InvalidStructureError(Exception):
         """
-        Process all the deployments within the instrument work directory.
-
-        Args:
-            command_name: Name of the MarImBA command to be executed.
-            kwargs: Keyword arguments.
+        Raised when the instrument file structure is invalid.
         """
 
-        # Loop through each deployment subdirectory in the instrument work directory
-        # TODO: Implement new flexible deployment paths here
-        for deployment in self.work_path.iterdir():
-            if deployment.is_dir():
-                self.process_single_deployment(deployment, command_name, kwargs)
+        pass
+
+    def __init__(self, root_dir: Union[str, Path], config: dict, dry_run: bool):
+        self._root_dir = Path(root_dir)
+        self._config = config
+        self._dry_run = dry_run
+
+        self._check_file_structure()
+        self._setup_logging()
+
+    def _check_file_structure(self):
+        """
+        Check that the instrument file structure is valid. If not, raise an InvalidStructureError with details.
+
+        Raises:
+            Instrument.InvalidStructureError: If the instrument file structure is invalid.
+        """
+
+        def check_file_exists(path: Path):
+            if not path.is_file():
+                raise Instrument.InvalidStructureError(f"Cannot find file at path: {path}")
+
+        check_file_exists(self.root_dir / "instrument.py")
+        # TODO: Check everything here. Note that file logging is not yet set up at this point.
+
+    def _setup_logging(self):
+        """
+        Set up logging. Create file handler for this instance that writes to `instrument.log`.
+        """
+        # Create a file handler for this instance
+        file_handler = get_file_handler(self.root_dir, self.name, self._dry_run, level=logging.DEBUG)
+
+        # Add the file handler to the logger
+        self.logger.addHandler(file_handler)
+
+    @property
+    def root_dir(self) -> Path:
+        """
+        The root directory of the instrument.
+        """
+        return self._root_dir
+
+    @property
+    def name(self) -> str:
+        """
+        The name of the instrument.
+        """
+        self._root_dir.name
 
     def process_single_deployment(self, deployment_path: Union[str, Path], command_name: str, kwargs: dict):
         """
@@ -98,6 +113,8 @@ class Instrument(ABC, LogMixin):
             command_name: Name of the MarImBA command to be executed.
             kwargs: Keyword arguments.
         """
+        # TODO: Take this out of the instrument class. MarImBA should be reponsible for calling into the instrument for a specific command for a specific deployment.
+
         deployment_path = Path(deployment_path)
 
         # Get deployment name and config path
