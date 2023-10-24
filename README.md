@@ -1,11 +1,15 @@
 <a name="readme-top"></a>
 
-<br>
-
 <!-- PROJECT LOGO -->
+<figure markdown style="text-align: center">
+
+![](img/logo.png "MarImBA logo")
+![](docs/img/logo.png "MarImBA logo")
+
+</figure>
+
 <div style="text-align: center">
 
-![](img/logo.png "marimba-logo")
 <h1 style="color: #00A9CE">MarImBA</h1>
 <h3><span style="color: #00A9CE">Mar</span>ine <span style="color: #00A9CE">Im</span>agery <span style="color: #00A9CE">B</span>atch <span style="color: #00A9CE">A</span>ctions</h3>
 <p><i>A Python CLI for batch processing, transforming and FAIR-ising large volumes of marine imagery.</i></p>
@@ -240,7 +244,7 @@ This project is licensed under [MIT](https://opensource.org/licenses/MIT) licens
 ## Contact
 
 The primary point-of-contact for this repository is: 
-* Chris Jackett - [chris.jackett@csiro.au](chris.jackett@csiro.au)
+* Chris Jackett - [chris.jackett@csiro.au](mailto:chris.jackett@csiro.au)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
