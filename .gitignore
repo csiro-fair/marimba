@@ -4,3 +4,4 @@ poetry.lock
 dist
 .idea
 *.db
+site
