@@ -4,17 +4,10 @@ from pathlib import Path
 from typing import Optional, Union
 
 import rich.logging
-import typer
-from rich import print
 from rich.console import Console
 from rich.logging import RichHandler
-from rich.panel import Panel
 
-from marimba.utils.context import (
-    get_collection_path,
-    get_instrument_path,
-    set_collection_path,
-)
+from marimba.utils.context import get_collection_path, get_instrument_path
 
 # Global collection logger - this is used for all collection-level logging.
 collection_logger: Optional[logging.Logger] = None
@@ -177,32 +170,6 @@ def get_file_handler(output_dir: Union[str, Path], name: str, dry_run: bool, lev
     return handler
 
 
-def setup_logging(collection_path: Union[str, Path], dry_run: bool = False):
-    collection_path = Path(collection_path)
-
-    # Check that collection_path exists and is legit
-    legit = collection_path.is_dir() and (collection_path / "collection.yml").is_file() and (collection_path / "instruments").is_dir()
-    if not legit:
-        print(
-            Panel(
-                f'The provided root collection path "[bold]{collection_path}[/bold]" does not appear to be a valid MarImBA collection.',
-                title="Error",
-                title_align="left",
-                border_style="red",
-            )
-        )
-        raise typer.Exit()
-
-    # Set the collection directory
-    set_collection_path(collection_path)
-
-    # Set the Rich handler dry run mode and initialise the collection-level file handler
-    get_rich_handler().set_dry_run(dry_run)
-    init_collection_file_handler(dry_run)
-
-    logger.info(f'Setting up collection-level logging at: "{collection_path}"')
-
-
 # Create a Rich console object
 console = Console()
 
@@ -212,7 +179,7 @@ class NoRichFileHandler(logging.FileHandler):
     Custom FileHandler to remove Rich styling from log entries.
     """
 
-    def __init__(self, filename, mode='a', encoding=None, delay=False, dry_run=False):
+    def __init__(self, filename, mode="a", encoding=None, delay=False, dry_run=False):
         """
         Initialize the NoRichFileHandler.
 
@@ -250,7 +217,6 @@ class NoRichFileHandler(logging.FileHandler):
 
         # Call the original emit method to write the plain text log entry to the file
         super().emit(record)
-
 
 
 class LogLevel(str, Enum):

@@ -9,7 +9,7 @@ from rich.panel import Panel
 
 from marimba.core.instrument import Instrument, get_instrument_config
 from marimba.utils.config import load_config
-from marimba.utils.log import get_collection_logger, setup_logging
+from marimba.utils.log import get_collection_logger
 
 
 def get_collection_config(collection_path: Union[str, Path]) -> dict:
@@ -118,7 +118,6 @@ def run_command(
 
     # Set up logging
     dry_run = kwargs.pop("dry_run", False)
-    setup_logging(collection_path, dry_run)
     logger = get_collection_logger()
 
     # Get collection config data

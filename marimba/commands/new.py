@@ -1,16 +1,14 @@
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Union
+from typing import Optional
 
 import typer
-from cookiecutter.exceptions import OutputDirExistsException
-from cookiecutter.main import cookiecutter
 from rich import print
 from rich.panel import Panel
 
-from marimba.utils.log import get_collection_logger, setup_logging
+from marimba.core.project import Project
+from marimba.utils.log import get_logger
 
-logger = get_collection_logger()
+logger = get_logger(__name__)
 
 app = typer.Typer(
     help="Create a new MarImBA collection, instrument or deployment.",
@@ -18,161 +16,125 @@ app = typer.Typer(
 )
 
 
-def get_base_templates_path() -> Path:
-    base_templates_path = Path(__file__).parent.parent.parent / "templates"
-    logger.info(f'Setting [bold][aquamarine3]MarImBA[/aquamarine3][/bold] base templates path to: "{base_templates_path}"')
-    return base_templates_path
-
-
-def check_template_exists(base_templates_path: Union[str, Path], template_name: str, template_type: str) -> Path:
-    base_templates_path = Path(base_templates_path)
-    logger.info(
-        f"Checking that the provided [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{template_type}[/light_pink3] template exists..."
-    )
-    template_path = base_templates_path / template_name / template_type
-
-    if template_path.is_dir():
-        logger.info(
-            f"[bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{template_type}[/light_pink3] template [orchid1]{Path(template_name) / template_type}[/orchid1] exists!"
-        )
-    else:
-        error_message = f"The provided [light_pink3]{template_type}[/light_pink3] template name [orchid1]{Path(template_name) / template_type}[/orchid1] does not exists at {template_path}"
-        logger.error(error_message)
-        print(
-            Panel(
-                error_message,
-                title="Error",
-                title_align="left",
-                border_style="red",
-            )
-        )
-        raise typer.Exit()
-
-    return template_path
-
-
-def check_output_path_exists(output_path: Union[str, Path], command: str):
-    output_path = Path(output_path)
-    logger.info(
-        f"Checking that the provided [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{command}[/light_pink3] output path exists..."
-    )
-
-    if output_path.is_dir():
-        logger.info(f'[bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{command}[/light_pink3] output path "{output_path}" exists!')
-    else:
-        error_message = f'The provided [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{command}[/light_pink3] output path "{output_path}" does not exists.'
-        logger.error(error_message)
-        print(
-            Panel(
-                error_message,
-                title="Error",
-                title_align="left",
-                border_style="red",
-            )
-        )
-        raise typer.Exit()
-
-
 @app.command()
-def collection(
-    output_path: Path = typer.Argument(..., help="Root path to create new MarImBA collection."),
-    template_name: str = typer.Argument(..., help="Name of predefined MarImBA project template."),
+def project(
+    project_dir: Path = typer.Argument(..., help="Root path to create new MarImBA project."),
 ):
     """
-    Create a new MarImBA collection.
+    Create a new MarImBA project.
     """
-    logger.info("Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new collection[/steel_blue3] command.")
+    logger.info("Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new project[/steel_blue3] command.")
 
-    # Get base template path and check that it exists
-    base_templates_path = get_base_templates_path()
-    template_path = check_template_exists(base_templates_path, template_name, "collection")
+    # Try to create the new project
+    try:
+        project = Project.create(project_dir)
+    except FileExistsError:
+        error_message = f'A [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]project[/light_pink3] already exists at: "{project_dir}"'
+        logger.error(error_message)
+        print(
+            Panel(
+                error_message,
+                title="Error",
+                title_align="left",
+                border_style="red",
+            )
+        )
+        raise typer.Exit()
 
-    # Check output path exists
-    check_output_path_exists(output_path, "collection")
-
-    # Run cookiecutter
-    cookiecutter(
-        template=str(template_path.absolute()),
-        output_dir=str(output_path.absolute()),
-        extra_context={"datestamp": datetime.today().strftime("%Y-%m-%d")},
+    print(
+        Panel(
+            f'Created new [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]project[/light_pink3] at: "{project.root_dir}"',
+            title="Success",
+            title_align="left",
+            border_style="green",
+        )
     )
 
 
 @app.command()
 def instrument(
-    collection_path: Path = typer.Argument(..., help="Root path to MarImBA collection."),
+    project_dir: Path = typer.Argument(..., help="Path to MarImBA project root."),
+    name: str = typer.Argument(..., help="Name of the instrument."),
     template_name: str = typer.Argument(..., help="Name of predefined MarImBA project template."),
 ):
     """
-    Create a new MarImBA instrument in a collection.
+    Create a new MarImBA instrument in a project.
     """
-    collection_path = Path(collection_path)
-
-    setup_logging(collection_path)
-
     logger.info("Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new instrument[/steel_blue3] command.")
 
-    # Get base template path and check that it exists
-    base_templates_path = get_base_templates_path()
-    template_path = check_template_exists(base_templates_path, template_name, "instrument")
+    # Create project instance
+    project = Project(project_dir)
 
-    # Check output path exists
-    output_path = Path(collection_path) / "instruments"
-    check_output_path_exists(output_path, "instrument")
-
-    # Run cookiecutter
+    # Create the instrument
     try:
-        cookiecutter(
-            template=str(template_path.absolute()),
-            output_dir=str(output_path.absolute()),
-            extra_context={"datestamp": datetime.today().strftime("%Y-%m-%d")},
-        )
-    except OutputDirExistsException as e:
-        exception_path = str(e).split('"')[1]
-        error_message = (
-            f'A [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]instrument[/light_pink3] already exists at: "{exception_path}"'
-        )
-        logger.error(error_message)
+        project.create_instrument(name, template_name)
+    except Project.CreateInstrumentError as e:
+        logger.error(e)
         print(
             Panel(
-                error_message,
+                str(e),
                 title="Error",
                 title_align="left",
                 border_style="red",
             )
         )
         raise typer.Exit()
-    # TODO: Need to figure out how to catch this exception properly and feed back into rich exceptions
-    except Exception as e:
-        print(e)
+
+    print(
+        Panel(
+            f'Created new [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]instrument[/light_pink3] "{name}" at: "{project.instruments_dir / name}"',
+            title="Success",
+            title_align="left",
+            border_style="green",
+        )
+    )
 
 
 @app.command()
 def deployment(
-    collection_path: Path = typer.Argument(..., help="Path to root MarImBA collection."),
-    template_name: str = typer.Argument(..., help="Name of predefined MarImBA project template."),
-    instrument_id: str = typer.Argument(..., help="Instrument ID when adding a new deployment."),
+    project_dir: Path = typer.Argument(..., help="Path to MarImBA project root."),
+    name: str = typer.Argument(..., help="Name of the deployment."),
+    parent: Optional[str] = typer.Argument(None, help="Name of the parent deployment. If unspecified, use the last deployment."),
 ):
     """
-    Create a new MarImBA deployment for an instrument in a collection.
+    Create a new MarImBA deployment in a project.
     """
-    collection_path = Path(collection_path)
-
-    setup_logging(collection_path)
-
     logger.info("Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new deployment[/steel_blue3] command.")
 
-    # Get base template path and check that it exists
-    base_templates_path = get_base_templates_path()
-    template_path = check_template_exists(base_templates_path, template_name, "deployment")
+    # Create project instance
+    project = Project(project_dir)
 
-    # Check output path exists
-    output_path = collection_path / "instruments" / instrument_id / "work"
-    check_output_path_exists(output_path, "deployment")
+    # Create the deployment
+    try:
+        project.create_deployment(name, parent=parent)
+    except Project.CreateDeploymentError as e:
+        logger.error(e)
+        print(
+            Panel(
+                str(e),
+                title="Error",
+                title_align="left",
+                border_style="red",
+            )
+        )
+        raise typer.Exit()
 
-    # Run cookiecutter
-    cookiecutter(
-        template=str(template_path.absolute()),
-        output_dir=str(output_path.absolute()),
-        extra_context={"utc_timestamp": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")},
+    print(
+        Panel(
+            f'Created new [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]deployment[/light_pink3] "{name}" at: "{project.deployments_dir / name}"',
+            title="Success",
+            title_align="left",
+            border_style="green",
+        )
     )
+
+    # # Get base template path and check that it exists
+    # base_templates_path = get_base_templates_path()
+    # template_path = check_template_exists(base_templates_path, template_name, "deployment")
+
+    # # Run cookiecutter
+    # cookiecutter(
+    #     template=str(template_path.absolute()),
+    #     output_dir=str(project.deployments_dir.absolute()),
+    #     extra_context={"utc_timestamp": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")},
+    # )
