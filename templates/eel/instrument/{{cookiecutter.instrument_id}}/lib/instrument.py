@@ -26,13 +26,13 @@ __status__ = "Development"
 
 
 class DropCameraFusion360(Instrument):
-    def __init__(self, root_path: str, collection_config: dict, instrument_config: dict):
-        super().__init__(root_path, collection_config, instrument_config)
+    def __init__(self, root_path: str, collection_config: dict, instrument_config: dict, dry_run: bool):
+        super().__init__(root_path, collection_config, instrument_config, dry_run)
 
         # Define instrument filetypes and data files
         self.video_filetypes = ["mp4"]
 
-    def process(self, deployment_path: str, dry_run: bool):
+    def process(self, deployment_path: Path):
         """
         Implementation of the MarImBA process command for the DCF360
         """
@@ -45,7 +45,7 @@ class DropCameraFusion360(Instrument):
         files = [filename for filename in os.listdir(str(directory)) if filename.lower().endswith(".mp4")]
         return sorted(files, key=lambda s: s.lower())
 
-    def move_ancillary_files(self, directory, dry_run):
+    def move_ancillary_files(self, directory):
         files_to_move = []
 
         for filename in os.listdir(directory):
@@ -59,18 +59,18 @@ class DropCameraFusion360(Instrument):
             misc_dir = os.path.join(directory, "misc")
 
             # Create misc directory if it doesn't exist
-            if not os.path.exists(misc_dir) and not dry_run:
+            if not os.path.exists(misc_dir) and not self.dry_run:
                 os.makedirs(misc_dir)
 
             for file_path in files_to_move:
                 self.logger.info(f'Moving file "{os.path.basename(file_path)}" to misc directory "{misc_dir}"')
-                if not dry_run:
+                if not self.dry_run:
                     try:
                         shutil.move(file_path, os.path.join(misc_dir, os.path.basename(file_path)))
                     except Exception:
                         self.logger.error(f"Error renaming file {file_path} to {misc_dir}")
 
-    def process_directory(self, deployment_video_path, deployment_config, camera_direction, dry_run):
+    def process_directory(self, deployment_video_path, deployment_config, camera_direction):
         deployment_video_list = self.get_sorted_directory_file_list(deployment_video_path)
 
         for video in deployment_video_list:
@@ -98,7 +98,7 @@ class DropCameraFusion360(Instrument):
             else:
                 # Only rename files if not in --dry-run mode
                 self.logger.info(f'Renaming file "{os.path.basename(video_path)}" to: "{output_file_name}"')
-                if not dry_run:
+                if not self.dry_run:
                     try:
                         # Rename file
                         os.rename(video_path, output_file_name)
@@ -138,8 +138,7 @@ class DropCameraFusion360(Instrument):
             f".MP4"
         )
 
-    # TODO: Defactor dry_run to be in instrument class - then can use self.dry_run
-    def rename(self, deployment_path: str, dry_run: bool):
+    def rename(self, deployment_path: Path):
         """
         Implementation of the MarImBA rename command for the DCF360
         """
@@ -154,12 +153,12 @@ class DropCameraFusion360(Instrument):
         deployment_video_back_path = Path(deployment_path) / "video" / "back"
 
         # Rename images in both front and back video paths
-        self.process_directory(deployment_video_front_path, deployment_config, "VCF", dry_run)
-        self.process_directory(deployment_video_back_path, deployment_config, "VCB", dry_run)
+        self.process_directory(deployment_video_front_path, deployment_config, "VCF")
+        self.process_directory(deployment_video_back_path, deployment_config, "VCB")
 
         # Move all remaining files into a 'misc' directory
-        self.move_ancillary_files(deployment_video_front_path, dry_run)
-        self.move_ancillary_files(deployment_video_back_path, dry_run)
+        self.move_ancillary_files(deployment_video_front_path)
+        self.move_ancillary_files(deployment_video_back_path)
 
         # Generate an annotation template based on the renamed video files
         annotations_file_path = Path(deployment_path) / "eel_annotations.csv"
@@ -183,7 +182,7 @@ class DropCameraFusion360(Instrument):
         if annotations_file_path.exists():
             self.logger.info(f'SKIPPING FILE - Annotation file already exists: "{annotations_file_path}"')
         else:
-            if not dry_run:
+            if not self.dry_run:
                 with open(annotations_file_path, "w", newline="") as annotations_file:
                     writer = csv.writer(annotations_file)
                     writer.writerow(annotations_columns)

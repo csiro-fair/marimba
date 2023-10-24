@@ -113,7 +113,8 @@ class BRUVS(Instrument):
         with open(filename, "w", encoding="utf-8") as file:
             json.dump(updated_data, file, indent=4)
 
-    def run_rename(self):
+    # TODO: Change this to single deployment path processing
+    def run_rename(self, deployment_path: Path):
         """
         Implementation of the MarImBA rename command for the BRUVS
         """
