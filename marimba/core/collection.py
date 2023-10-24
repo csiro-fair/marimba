@@ -99,7 +99,9 @@ def get_merged_keyword_args(kwargs: dict, extra_args: list, logger: logging.Logg
     return {**kwargs, **extra_dict}
 
 
-def run_command(command_name: str, collection_path: Union[str, Path], instrument_id: str, deployment_name: str, extra_args: list[str], **kwargs):
+def run_command(
+    command_name: str, collection_path: Union[str, Path], instrument_id: str, deployment_name: str, extra_args: list[str], **kwargs: dict
+):
     """
     Traverse the instrument directory and execute deployment-level processing for each instrument
 

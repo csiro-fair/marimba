@@ -7,6 +7,9 @@ nav:
   - 'Hackathon': 'hackathon.md'
   - 'Workflows':
     - 'BRUVS SD Cards': 'sdcardworkflow.md'
+  - 'API Reference':
+    - 'Core': 'api/core.md'
+    - 'Utilities': 'api/utils.md'
 markdown_extensions:
   - meta
   - admonition
