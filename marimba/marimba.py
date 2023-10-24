@@ -147,7 +147,7 @@ def import_command(
         dry_run=dry_run,
     )
 
-
+# TODO: This should be implemented within the MarImBA process command
 @marimba.command("doit")
 def doit_command(
     collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
@@ -167,7 +167,7 @@ def doit_command(
     )
 
 
-# TODO: This could be implemented within the MarImBA process command
+# TODO: This should be implemented within the MarImBA process command
 # @marimba.command()
 # def chunk(
 #     source_path: str = typer.Argument(..., help="Source path of files."),
@@ -185,7 +185,7 @@ def doit_command(
 #     run_command('chunk', collection_path, instrument_id, dry_run=dry_run, chunk_length=chunk_length)
 
 
-# TODO: This could be implemented within the MarImBA process command
+# TODO: This should be implemented within the MarImBA process command
 # @marimba.command()
 # def convert(
 #         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
@@ -201,7 +201,7 @@ def doit_command(
 #     run_command('convert', collection_path, instrument_id, dry_run=dry_run, destination_path=destination_path, overwrite=overwrite)
 
 
-# TODO: This could be implemented within the MarImBA process command
+# TODO: This should be implemented within the MarImBA process command
 # @marimba.command()
 # def extract(
 #         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
@@ -277,19 +277,19 @@ def rename_command(
     run_command("run_rename", collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
 
 
-@marimba.command()
-def report(
-    collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
-    instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
-    deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
-    extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
-    dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-):
-    """
-    Generate reports for a MarImBA collection or instrument.
-    """
-
-    run_command("report", collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
+# @marimba.command()
+# def report(
+#     collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+#     instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
+#     deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
+#     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+#     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+# ):
+#     """
+#     Generate reports for a MarImBA collection or instrument.
+#     """
+#
+#     run_command("report", collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
 
 
 if __name__ == "__main__":

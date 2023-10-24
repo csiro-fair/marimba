@@ -93,7 +93,7 @@ def get_collection_logger() -> logging.Logger:
     return collection_logger
 
 
-def init_collection_file_handler():
+def init_collection_file_handler(dry_run: bool):
     """
     Initialise the collection-level file handler. This should be called after the collection directory has been set by `set_collection_path`.
     """
@@ -107,13 +107,13 @@ def init_collection_file_handler():
     collection_basename = collection_path.parts[-1]
 
     # Create the file handler and add it to the collection logger
-    collection_file_handler = get_file_handler(collection_path, collection_basename)
+    collection_file_handler = get_file_handler(collection_path, collection_basename, dry_run)
     collection_file_handler.setLevel(logging.INFO)
     collection_file_handler.setFormatter(file_formatter)
     get_collection_logger().addHandler(collection_file_handler)
 
 
-def get_instrument_file_handler(instrument_name: str) -> logging.FileHandler:
+def get_instrument_file_handler(instrument_name: str, dry_run: bool = False) -> logging.FileHandler:
     """
     Get the file handler for an instrument. Initializes the file handler if it has not been initialized.
 
@@ -124,12 +124,12 @@ def get_instrument_file_handler(instrument_name: str) -> logging.FileHandler:
         The file handler for the instrument.
     """
     if instrument_name not in instrument_file_handlers:
-        init_instrument_file_handler(instrument_name)
+        init_instrument_file_handler(instrument_name, dry_run)
 
     return instrument_file_handlers[instrument_name]
 
 
-def init_instrument_file_handler(instrument_name: str):
+def init_instrument_file_handler(instrument_name: str, dry_run: bool):
     """
     Initialize the file handler for an instrument.
 
@@ -140,7 +140,7 @@ def init_instrument_file_handler(instrument_name: str):
     instrument_dir = get_instrument_path(instrument_name)
 
     # Create the file handler and add it to the collection logger
-    instrument_file_handler = get_file_handler(instrument_dir, instrument_name)
+    instrument_file_handler = get_file_handler(instrument_dir, instrument_name, dry_run)
     instrument_file_handler.setLevel(logging.INFO)
     instrument_file_handler.setFormatter(file_formatter)
 
@@ -149,7 +149,7 @@ def init_instrument_file_handler(instrument_name: str):
     instrument_file_handlers[instrument_name] = instrument_file_handler
 
 
-def get_file_handler(output_dir: Union[str, Path], name: str, level: int = logging.INFO) -> logging.FileHandler:
+def get_file_handler(output_dir: Union[str, Path], name: str, dry_run: bool, level: int = logging.INFO) -> logging.FileHandler:
     """
     Get a file handler for a given output directory and name.
 
@@ -170,7 +170,7 @@ def get_file_handler(output_dir: Union[str, Path], name: str, level: int = loggi
     path = output_dir / f"{name}.log"
 
     # Create the handler and set the level & formatter
-    handler = NoRichFileHandler(path.absolute())
+    handler = NoRichFileHandler(path.absolute(), dry_run=dry_run)
     handler.setLevel(level)
     handler.setFormatter(file_formatter)
 
@@ -198,7 +198,7 @@ def setup_logging(collection_path: Union[str, Path], dry_run: bool = False):
 
     # Set the Rich handler dry run mode and initialise the collection-level file handler
     get_rich_handler().set_dry_run(dry_run)
-    init_collection_file_handler()
+    init_collection_file_handler(dry_run)
 
     logger.info(f'Setting up collection-level logging at: "{collection_path}"')
 
@@ -212,10 +212,34 @@ class NoRichFileHandler(logging.FileHandler):
     Custom FileHandler to remove Rich styling from log entries.
     """
 
+    def __init__(self, filename, mode='a', encoding=None, delay=False, dry_run=False):
+        """
+        Initialize the NoRichFileHandler.
+
+        Parameters:
+        - filename (str): The filename to which the log will be written.
+        - mode (str): The mode in which the file will be opened.
+        - encoding (str): The encoding to use when writing to the file.
+        - delay (bool): If true, the file opening is deferred until the first emit.
+        - dry_run (bool): If true, no log entries will be written to the file.
+
+        """
+        super().__init__(filename, mode, encoding, delay)
+        self.dry_run = dry_run
+
     def emit(self, record):
         """
-        Over-ride the emit method to remove styling.
+        Over-ride the emit method to conditionally remove styling and write log.
+
+        If dry_run is True, the method will return early, not logging the message to file.
+
+        Parameters:
+        - record (logging.LogRecord): The log record to emit.
+
         """
+        # Check if dry_run is set to True
+        if self.dry_run:
+            return
 
         # Render the log message to a string using Rich Console
         rendered_message = Console().render_str(record.getMessage())
@@ -226,6 +250,7 @@ class NoRichFileHandler(logging.FileHandler):
 
         # Call the original emit method to write the plain text log entry to the file
         super().emit(record)
+
 
 
 class LogLevel(str, Enum):

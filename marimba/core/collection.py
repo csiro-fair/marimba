@@ -45,13 +45,14 @@ def get_collection_config(collection_path: Union[str, Path]) -> dict:
     return load_config(collection_config_path)
 
 
-def get_instrument_instance(collection_config: dict, instrument_path: Union[str, Path]) -> Instrument:
+def get_instrument_instance(collection_config: dict, instrument_path: Union[str, Path], dry_run: bool) -> Instrument:
     """
     Given a collection configuration and an instrument path, return an instance of the instrument class.
 
     Args:
         collection_config: A dictionary containing the configuration for the collection.
         instrument_path: The path to the instrument.
+        dry_run: Execute in dry-run mode - print logging to the terminal but do not change any files.
 
     Returns:
         An instance of the instrument class.
@@ -68,7 +69,7 @@ def get_instrument_instance(collection_config: dict, instrument_path: Union[str,
     instrument_module = importlib.util.module_from_spec(instrument_spec)
     instrument_spec.loader.exec_module(instrument_module)
     instrument_class = getattr(instrument_module, instrument_class_name)
-    instrument_instance = instrument_class(instrument_path, collection_config, instrument_config)
+    instrument_instance = instrument_class(instrument_path, collection_config, instrument_config, dry_run)
 
     return instrument_instance
 
@@ -116,7 +117,8 @@ def run_command(
     collection_path = Path(collection_path)
 
     # Set up logging
-    setup_logging(collection_path, kwargs.get("dry_run"))
+    dry_run = kwargs.pop("dry_run", False)
+    setup_logging(collection_path, dry_run)
     logger = get_collection_logger()
 
     # Get collection config data
@@ -129,7 +131,7 @@ def run_command(
     # Single deployment processing
     if instrument_id or deployment_name:
         instrument_path = instruments_path / instrument_id
-        instrument_instance = get_instrument_instance(collection_config, instrument_path)
+        instrument_instance = get_instrument_instance(collection_config, instrument_path, dry_run)
 
         if deployment_name:
             deployment_path = instrument_path / "work" / deployment_name
@@ -148,6 +150,6 @@ def run_command(
         # Traverse instruments in MarImBA collection
         for instrument_path in instruments_path.iterdir():
             if instrument_path.is_dir():
-                instrument_instance = get_instrument_instance(collection_config, instrument_path)
+                instrument_instance = get_instrument_instance(collection_config, instrument_path, dry_run)
                 instrument_instance.logger.info(f"Executing the MarImBA [bold]{command_name}[/bold] command for the collection")
                 instrument_instance.process_all_deployments(command_name, merged_kwargs)
