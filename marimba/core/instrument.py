@@ -60,7 +60,7 @@ class Instrument(ABC, LogMixin):
 
         # Add the instrument file handler to the logger
         try:
-            self.logger.addHandler(get_instrument_file_handler(root_path.name))
+            self.logger.addHandler(get_instrument_file_handler(root_path.name, dry_run))
             self.logger.info(f'Initialising instrument-level logging for {instrument_config.get("id")}')
         except Exception as e:
             collection_logger.error(f"Failed to add instrument file handler: {e}")
