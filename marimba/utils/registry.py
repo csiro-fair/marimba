@@ -1,6 +1,6 @@
 from typing import List
 
-from marimba.core.instrument import Instrument
+from marimba.core.base_instrument import BaseInstrument
 
 
 class Registry:
@@ -11,7 +11,7 @@ class Registry:
     CLASS_MAP = {}
 
     @staticmethod
-    def get(name: str) -> Instrument:
+    def get(name: str) -> BaseInstrument:
         """
         Get the instrument class for the given name.
 
@@ -26,7 +26,7 @@ class Registry:
         return Registry.CLASS_MAP[name]
 
     @staticmethod
-    def add(name: str, instrument: Instrument):
+    def add(name: str, instrument: BaseInstrument):
         """
         Add a new instrument to the registry.
 
@@ -36,7 +36,7 @@ class Registry:
         """
         if not isinstance(name, str):
             raise ValueError("Provided name must be a string.")
-        if not issubclass(instrument, Instrument):
+        if not issubclass(instrument, BaseInstrument):
             raise ValueError("Provided class must be a subclass of Instrument.")
         Registry.CLASS_MAP[name] = instrument
 

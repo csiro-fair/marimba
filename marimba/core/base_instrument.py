@@ -3,9 +3,9 @@ from abc import ABC
 from marimba.utils.log import LogMixin
 
 
-class Instrument(ABC, LogMixin):
+class BaseInstrument(ABC, LogMixin):
     """
-    Instrument abstract base class. All instruments should inherit from this class.
+    MarImBA instrument abstract base class. All instruments should inherit from this class.
     """
 
     def __init__(self, config: dict, dry_run: bool):
@@ -26,6 +26,13 @@ class Instrument(ABC, LogMixin):
         """
         return self._dry_run
 
+    @property
+    def class_name(self) -> str:
+        """
+        The name of the instrument class.
+        """
+        return self.__class__.__name__
+
     def run_init_or_import(self, command_name, kwargs):
         command = getattr(self, command_name)
         command(**kwargs)
@@ -44,13 +51,6 @@ class Instrument(ABC, LogMixin):
 
     def run_rename(self, data_dir, config, **kwargs):
         self.logger.warning(f"There is no MarImBA [bold]rename[/bold] command implemented for instrument [bold]{self.class_name}[/bold]")
-
-    @property
-    def class_name(self) -> str:
-        """
-        The name of the instrument.
-        """
-        return self.__class__.__name__
 
     # def run_report(self):
     #     self.logger.warning(

@@ -7,8 +7,8 @@ from typing import Dict, List, Optional, Union
 from cookiecutter.exceptions import OutputDirExistsException
 from cookiecutter.main import cookiecutter
 
+from marimba.core.base_instrument import BaseInstrument
 from marimba.core.deployment import Deployment
-from marimba.core.instrument import Instrument
 from marimba.utils.config import load_config
 from marimba.utils.log import LogMixin, get_file_handler, get_logger
 
@@ -75,6 +75,20 @@ def get_merged_keyword_args(kwargs: dict, extra_args: list, logger: logging.Logg
 
 
 class Project(LogMixin):
+    """
+    MarImBA project class. Wraps a project directory and provides methods for interacting with the project.
+
+    To create a new project, use the `create` method:
+    ```python
+    project = Project.create("my_project")
+    ```
+
+    To wrap an existing project, use the constructor:
+    ```python
+    project = Project("my_project")
+    ```
+    """
+
     class InvalidStructureError(Exception):
         """
         Raised when the project file structure is invalid.
@@ -211,7 +225,7 @@ class Project(LogMixin):
 
             # Find any Instrument subclasses
             for _, obj in instrument_module.__dict__.items():
-                if isinstance(obj, type) and issubclass(obj, Instrument) and obj is not Instrument:
+                if isinstance(obj, type) and issubclass(obj, BaseInstrument) and obj is not BaseInstrument:
                     # Read the instrument config
                     instrument_config = load_config(instrument_dir / "instrument.yml")
 
@@ -407,7 +421,7 @@ class Project(LogMixin):
         return self._root_dir.name
 
     @property
-    def instruments(self) -> Dict[str, Instrument]:
+    def instruments(self) -> Dict[str, BaseInstrument]:
         """
         The loaded instruments in the project.
         """

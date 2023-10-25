@@ -10,7 +10,7 @@ import czifile
 import dateutil.parser
 import pandas as pd
 
-from marimba.core.instrument import Instrument
+from marimba.core.base_instrument import BaseInstrument
 from marimba.utils.config import load_config
 
 __author__ = "Chris Jackett"
@@ -53,7 +53,7 @@ def get_output_file_name(deployment_config: dict, file_path: str) -> str:
         )
 
 
-class ZeissAxioPlan(Instrument):
+class ZeissAxioPlan(BaseInstrument):
     def __init__(self, root_path: str, collection_config: dict, instrument_config: dict, dry_run: bool):
         super().__init__(root_path, collection_config, instrument_config, dry_run)
 
@@ -128,9 +128,7 @@ class ZeissAxioPlan(Instrument):
                         # Check if output file path already exists and the overwrite argument is not set
                         # elif output_file_path.is_file() and not overwrite:
                         elif output_file_path.is_file():
-                            self.logger.info(
-                                f'Output file already exists and overwrite argument is not set: "{output_file_path}"'
-                            )
+                            self.logger.info(f'Output file already exists and overwrite argument is not set: "{output_file_path}"')
                         # Perform file renaming
                         else:
                             # Only rename files if not in --dry-run mode

@@ -11,7 +11,7 @@ import dateutil.parser
 import pandas as pd
 
 import marimba.utils.file_system as fs
-from marimba.core.instrument import Instrument
+from marimba.core.base_instrument import BaseInstrument
 from marimba.utils.config import load_config
 
 __author__ = "Chris Jackett"
@@ -24,7 +24,7 @@ __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
 
 
-class ZeissAxioObserver(Instrument):
+class ZeissAxioObserver(BaseInstrument):
     def __init__(self, root_path: str, collection_config: dict, instrument_config: dict, dry_run: bool):
         super().__init__(root_path, collection_config, instrument_config, dry_run)
 
