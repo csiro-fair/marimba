@@ -3,9 +3,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from marimba.core.base_instrument import BaseInstrument
-from marimba.core.deployment import DeploymentDirectory
-from marimba.core.instrument import InstrumentDirectory
 from marimba.utils.log import LogMixin, get_file_handler, get_logger
+from marimba.wrappers.deployment import DeploymentWrapper
+from marimba.wrappers.instrument import InstrumentWrapper
 
 logger = get_logger(__name__)
 
@@ -69,18 +69,18 @@ def get_merged_keyword_args(kwargs: dict, extra_args: list, logger: logging.Logg
     return {**kwargs, **extra_dict}
 
 
-class Project(LogMixin):
+class ProjectWrapper(LogMixin):
     """
-    MarImBA project class. Wraps a project directory and provides methods for interacting with the project.
+    MarImBA project directory wrapper. Provides methods for interacting with the project.
 
     To create a new project, use the `create` method:
     ```python
-    project = Project.create("my_project")
+    project_wrapper = ProjectWrapper.create("my_project")
     ```
 
     To wrap an existing project, use the constructor:
     ```python
-    project = Project("my_project")
+    project_wrapper = ProjectWrapper("my_project")
     ```
     """
 
@@ -119,20 +119,19 @@ class Project(LogMixin):
 
         self._instruments_dir = self._root_dir / "instruments"
         self._deployments_dir = self._root_dir / "deployments"
+        self._marimba_dir = self._root_dir / ".marimba"
 
-        self._instruments = {}  # instrument name -> instance
-        self._deployments = {}  # deployment name -> instance
+        self._instrument_wrappers = {}  # instrument name -> InstrumentWrapper instance
+        self._deployment_wrappers = {}  # deployment name -> DeploymentWrapper instance
 
         self._check_file_structure()
         self._setup_logging()
-        try:
-            self._load_instruments()
-        except ImportError as e:
-            self.logger.error(f"Failed to load instrument: {e}")
+
+        self._load_instruments()
         self._load_deployments()
 
     @classmethod
-    def create(cls, root_dir: Union[str, Path]) -> "Project":
+    def create(cls, root_dir: Union[str, Path]) -> "ProjectWrapper":
         """
         Create a project from a root directory.
 
@@ -149,6 +148,7 @@ class Project(LogMixin):
         root_dir = Path(root_dir)
         instruments_dir = root_dir / "instruments"
         deployments_dir = root_dir / "deployments"
+        marimba_dir = root_dir / ".marimba"
 
         # Check that the root directory doesn't already exist
         if root_dir.exists():
@@ -158,6 +158,7 @@ class Project(LogMixin):
         root_dir.mkdir(parents=True)
         instruments_dir.mkdir()
         deployments_dir.mkdir()
+        marimba_dir.mkdir()
 
         return cls(root_dir)
 
@@ -171,11 +172,12 @@ class Project(LogMixin):
 
         def check_dir_exists(path: Path):
             if not path.is_dir():
-                raise Project.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
+                raise ProjectWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
 
         check_dir_exists(self._root_dir)
         check_dir_exists(self._instruments_dir)
         check_dir_exists(self._deployments_dir)
+        check_dir_exists(self._marimba_dir)
 
     def _setup_logging(self):
         """
@@ -189,41 +191,36 @@ class Project(LogMixin):
 
     def _load_instruments(self):
         """
-        Load instrument instances from the `instruments` directory.
+        Load instrument wrappers from the `instruments` directory.
 
-        Dynamically loads all modules named `instrument` in the `instruments` subdirectories and finds any Instrument subclasses.
-        Populates the `_instruments` map with the instrument name (subdirectory name) as the key and the instrument instance as the value.
+        Populates the `_instrument_wrappers` dictionary with `InstrumentWrapper` instances.
+
+        Raises:
+            InstrumentWrapper.InvalidStructureError: If the instrument directory structure is invalid.
         """
-        self.logger.debug(f"Loading instruments from {self._instruments_dir}...")
-
         instrument_dirs = filter(lambda p: p.is_dir(), self._instruments_dir.iterdir())
 
-        try:
-            for instrument_dir in instrument_dirs:
-                wrapper = InstrumentDirectory(instrument_dir)
-                self._instruments[instrument_dir.name] = wrapper.load_instrument()
-        except (ImportError, FileNotFoundError) as e:
-            self.logger.error(f"Failed to load instrument: {e}")
+        self._instrument_wrappers.clear()
+        for instrument_dir in instrument_dirs:
+            self._instrument_wrappers[instrument_dir.name] = InstrumentWrapper(instrument_dir)
 
     def _load_deployments(self):
         """
         Load deployment instances from the `deployments` directory.
 
+        Populates the `_deployment_wrappers` dictionary with `DeploymentWrapper` instances.
+
         Raises:
             Deployment.InvalidStructureError: If the deployment directory structure is invalid.
         """
-        self.logger.debug(f"Loading deployments from {self._deployments_dir}...")
 
         deployment_dirs = filter(lambda p: p.is_dir(), self._deployments_dir.iterdir())
 
+        self._deployment_wrappers.clear()
         for deployment_dir in deployment_dirs:
-            # Wrap the deployment directory
-            deployment = DeploymentDirectory(deployment_dir)
+            self._deployment_wrappers[deployment_dir.name] = DeploymentWrapper(deployment_dir)
 
-            # Add the deployment
-            self._deployments[deployment_dir.name] = deployment
-
-    def create_instrument(self, name: str, url: str):
+    def create_instrument(self, name: str, url: str) -> InstrumentWrapper:
         """
         Create a new instrument.
 
@@ -231,23 +228,29 @@ class Project(LogMixin):
             name: The name of the instrument.
             url: URL of the instrument git repository.
 
+        Returns:
+            The instrument directory wrapper.
+
         Raises:
             Project.CreateInstrumentError: If the instrument cannot be created.
         """
-        self.logger.debug(f'Creating instrument "{name}" from {url}...')
+        self.logger.debug(f'Creating instrument "{name}" from {url}')
 
         # Check that an instrument with the same name doesn't already exist
         instrument_dir = self._instruments_dir / name
         if instrument_dir.exists():
-            raise Project.CreateInstrumentError(f'An instrument with the name "{name}" already exists.')
+            raise ProjectWrapper.CreateInstrumentError(f'An instrument with the name "{name}" already exists.')
 
         # Create the instrument directory
-        InstrumentDirectory.create(instrument_dir, url)
+        instrument_wrapper = InstrumentWrapper.create(instrument_dir, url)
 
         # Reload the instruments
+        # TODO: Do we need to do this every time?
         self._load_instruments()
 
-    def create_deployment(self, name: str, parent: Optional[str] = None):
+        return instrument_wrapper
+
+    def create_deployment(self, name: str, parent: Optional[str] = None) -> DeploymentWrapper:
         """
         Create a new deployment.
 
@@ -255,17 +258,20 @@ class Project(LogMixin):
             name: The name of the deployment.
             parent: The name of the parent deployment.
 
+        Returns:
+            The deployment directory wrapper.
+
         Raises:
             Project.CreateDeploymentError: If the deployment cannot be created.
         """
-        self.logger.debug(f'Creating deployment "{name}"...')
+        self.logger.debug(f'Creating deployment "{name}"')
 
         # Check that a deployment with the same name doesn't already exist
         deployment_dir = self.deployments_dir / name
         if deployment_dir.exists():
-            raise Project.CreateDeploymentError(f'A deployment with the name "{name}" already exists.')
-        if parent is not None and parent not in self._deployments:
-            raise Project.CreateDeploymentError(f'The parent deployment "{parent}" does not exist.')
+            raise ProjectWrapper.CreateDeploymentError(f'A deployment with the name "{name}" already exists.')
+        if parent is not None and parent not in self._deployment_wrappers:
+            raise ProjectWrapper.CreateDeploymentError(f'The parent deployment "{parent}" does not exist.')
 
         if parent is None:
             # TODO: Assign parent to the last deployment, if there is one
@@ -273,16 +279,19 @@ class Project(LogMixin):
 
         # TODO: Use the parent deployment to populate the default deployment config
 
-        # Create the deployment
-        deployment = DeploymentDirectory.create(deployment_dir, {})
+        # Create the deployment directory
+        deployment_wrapper = DeploymentWrapper.create(deployment_dir, {})
 
         # Create the per-instrument directories
-        for instrument_name, instrument_instance in self._instruments.items():
+        for instrument_name in self._instrument_wrappers:
             # TODO: Direct this from the instrument implementation?
-            deployment.get_instrument_data_dir(instrument_name).mkdir()
+            deployment_wrapper.get_instrument_data_dir(instrument_name).mkdir()
 
         # Reload the deployments
+        # TODO: Do we need to do this every time?
         self._load_deployments()
+
+        return deployment_wrapper
 
     def run_command(
         self,
@@ -313,33 +322,52 @@ class Project(LogMixin):
         merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
 
         if instrument_name is not None:
-            instrument = self._instruments.get(instrument_name, None)
-            if instrument is None:
-                raise Project.RunCommandError(f'Instrument "{instrument_name}" does not exist within the project.')
+            instrument_wrapper = self._instrument_wrappers.get(instrument_name, None)
+            if instrument_wrapper is None:
+                raise ProjectWrapper.RunCommandError(f'Instrument "{instrument_name}" does not exist within the project.')
 
         if deployment_name is not None:
-            deployment = self._deployments.get(deployment_name, None)
-            if deployment is None:
-                raise Project.RunCommandError(f'Deployment "{deployment_name}" does not exist within the project.')
+            deployment_wrapper = self._deployment_wrappers.get(deployment_name, None)
+            if deployment_wrapper is None:
+                raise ProjectWrapper.RunCommandError(f'Deployment "{deployment_name}" does not exist within the project.')
 
         # Select the instruments and deployments to run the command for
-        instruments_to_run = {instrument_name: instrument} if instrument_name is not None else self._instruments
-        deployments_to_run = {deployment_name: deployment} if deployment_name is not None else self._deployments
+        instrument_wrappers_to_run = {instrument_name: instrument_wrapper} if instrument_name is not None else self._instrument_wrappers
+        deployment_wrappers_to_run = {deployment_name: deployment_wrapper} if deployment_name is not None else self._deployment_wrappers
+
+        # Load instrument instances
+        instruments_to_run = {
+            instrument_name: instrument_wrapper.load_instrument() for instrument_name, instrument_wrapper in instrument_wrappers_to_run.items()
+        }
 
         # Check that the command exists for all instruments
         for run_instrument_name, run_instrument in instruments_to_run.items():
             if not hasattr(run_instrument, command_name):
-                raise Project.RunCommandError(f'Command "{command_name}" does not exist for instrument "{run_instrument_name}".')
+                raise ProjectWrapper.RunCommandError(f'Command "{command_name}" does not exist for instrument "{run_instrument_name}".')
 
         # Invoke the command for each instrument and deployment
-        for _, run_deployment in deployments_to_run.items():
+        for _, run_deployment_wrapper in deployment_wrappers_to_run.items():
             for run_instrument_name, run_instrument in instruments_to_run.items():
                 # Get the instrument-specific data directory and config
-                instrument_deployment_data_dir = run_deployment.get_instrument_data_dir(run_instrument_name)
-                instrument_deployment_config = run_deployment.get_instrument_config(run_instrument_name)
+                instrument_deployment_data_dir = run_deployment_wrapper.get_instrument_data_dir(run_instrument_name)
+                instrument_deployment_config = run_deployment_wrapper.load_instrument_config(run_instrument_name)
 
                 method = getattr(run_instrument, command_name)
                 method(instrument_deployment_data_dir, instrument_deployment_config, **merged_kwargs)
+
+    @property
+    def instrument_wrappers(self) -> Dict[str, InstrumentWrapper]:
+        """
+        The loaded instrument wrappers in the project.
+        """
+        return self._instrument_wrappers
+
+    @property
+    def deployment_wrappers(self) -> Dict[str, DeploymentWrapper]:
+        """
+        The loaded deployment wrappers in the project.
+        """
+        return self._deployment_wrappers
 
     @property
     def root_dir(self) -> Path:
@@ -363,6 +391,13 @@ class Project(LogMixin):
         return self._deployments_dir
 
     @property
+    def marimba_dir(self) -> Path:
+        """
+        The MarImBA directory of the project.
+        """
+        return self._marimba_dir
+
+    @property
     def name(self) -> str:
         """
         The name of the project.
@@ -374,11 +409,11 @@ class Project(LogMixin):
         """
         The loaded instruments in the project.
         """
-        return self._instruments
+        return self._instrument_wrappers
 
     @property
-    def deployments(self) -> Dict[str, DeploymentDirectory]:
+    def deployments(self) -> Dict[str, DeploymentWrapper]:
         """
         The loaded deployments in the project.
         """
-        return self._deployments
+        return self._deployment_wrappers

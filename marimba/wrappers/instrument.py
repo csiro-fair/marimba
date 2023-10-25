@@ -10,7 +10,7 @@ from marimba.utils.config import load_config, save_config
 from marimba.utils.log import LogMixin, get_file_handler
 
 
-class InstrumentDirectory(LogMixin):
+class InstrumentWrapper(LogMixin):
     """
     Instrument directory wrapper.
     """
@@ -60,11 +60,11 @@ class InstrumentDirectory(LogMixin):
 
         def check_dir_exists(path: Path):
             if not path.is_dir():
-                raise InstrumentDirectory.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
+                raise InstrumentWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
 
         def check_file_exists(path: Path):
             if not path.is_file():
-                raise InstrumentDirectory.InvalidStructureError(f'"{path}" does not exist or is not a file.')
+                raise InstrumentWrapper.InvalidStructureError(f'"{path}" does not exist or is not a file.')
 
         check_dir_exists(self.root_dir)
         check_dir_exists(self.repo_dir)
@@ -109,7 +109,7 @@ class InstrumentDirectory(LogMixin):
         config_path = root_dir / "instrument.yml"
         save_config(config_path, {})
 
-        cls(root_dir)
+        return cls(root_dir)
 
     def load_config(self) -> dict:
         """

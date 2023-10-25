@@ -4,7 +4,7 @@ from typing import Union
 from marimba.utils.config import load_config, save_config
 
 
-class DeploymentDirectory:
+class DeploymentWrapper:
     """
     Deployment directory wrapper.
     """
@@ -29,7 +29,7 @@ class DeploymentDirectory:
         self._check_file_structure()
 
     @classmethod
-    def create(cls, root_dir: Union[str, Path], config: dict) -> "DeploymentDirectory":
+    def create(cls, root_dir: Union[str, Path], config: dict) -> "DeploymentWrapper":
         """
         Create a new deployment directory.
 
@@ -81,22 +81,22 @@ class DeploymentDirectory:
 
         def check_dir_exists(path: Path):
             if not path.is_dir():
-                raise DeploymentDirectory.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
+                raise DeploymentWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
 
         def check_file_exists(path: Path):
             if not path.is_file():
-                raise DeploymentDirectory.InvalidStructureError(f'"{path}" does not exist or is not a file.')
+                raise DeploymentWrapper.InvalidStructureError(f'"{path}" does not exist or is not a file.')
 
         check_dir_exists(self._root_dir)
         check_file_exists(self.config_path)
 
-    def load_config(self) -> dict:
+    def _load_config(self) -> dict:
         """
         Load the deployment configuration. Reads `deployment.yml` from the deployment root directory.
         """
         return load_config(self.config_path)
 
-    def save_config(self, config: dict):
+    def _save_config(self, config: dict):
         """
         Save a new deployment configuration to `deployment.yml` in the deployment root directory.
         """
@@ -114,7 +114,7 @@ class DeploymentDirectory:
         """
         return self.root_dir / instrument_name
 
-    def get_instrument_config(self, instrument_name: str) -> dict:
+    def load_instrument_config(self, instrument_name: str) -> dict:
         """
         Get the instrument-specific configuration.
 
@@ -129,11 +129,21 @@ class DeploymentDirectory:
         Raises:
             DeploymentDirectory.NoSuchInstrumentError: If the instrument is not found.
         """
-        config = self.load_config()
+        config = self._load_config()
 
         if instrument_name not in config:
-            raise DeploymentDirectory.NoSuchInstrumentError(
-                f"Instrument {instrument_name} not found in the configuration file at {self.config_path}."
-            )
+            raise DeploymentWrapper.NoSuchInstrumentError(f"Instrument {instrument_name} not found in the configuration file at {self.config_path}.")
 
         return config[instrument_name]
+
+    def save_instrument_config(self, instrument_name: str, config: dict):
+        """
+        Save the instrument-specific configuration.
+
+        Args:
+            instrument_name: The name of the instrument.
+            config: The instrument-specific configuration.
+        """
+        deployment_config = self._load_config()
+        deployment_config[instrument_name] = config
+        self._save_config(deployment_config)
