@@ -4,7 +4,7 @@ from typing import Union
 from marimba.utils.config import load_config, save_config
 
 
-class Deployment:
+class DeploymentDirectory:
     """
     Deployment directory wrapper.
     """
@@ -29,7 +29,7 @@ class Deployment:
         self._check_file_structure()
 
     @classmethod
-    def create(cls, root_dir: Union[str, Path], config: dict) -> "Deployment":
+    def create(cls, root_dir: Union[str, Path], config: dict) -> "DeploymentDirectory":
         """
         Create a new deployment directory.
 
@@ -76,16 +76,16 @@ class Deployment:
         Check that the deployment directory structure is valid. If not, raise an InvalidStructureError with details.
 
         Raises:
-            InvalidStructureError: If the deployment directory structure is invalid.
+            DeploymentDirectory.InvalidStructureError: If the deployment directory structure is invalid.
         """
 
         def check_dir_exists(path: Path):
             if not path.is_dir():
-                raise Deployment.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
+                raise DeploymentDirectory.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
 
         def check_file_exists(path: Path):
             if not path.is_file():
-                raise Deployment.InvalidStructureError(f'"{path}" does not exist or is not a file.')
+                raise DeploymentDirectory.InvalidStructureError(f'"{path}" does not exist or is not a file.')
 
         check_dir_exists(self._root_dir)
         check_file_exists(self.config_path)
@@ -125,10 +125,15 @@ class Deployment:
 
         Returns:
             The instrument-specific configuration.
+
+        Raises:
+            DeploymentDirectory.NoSuchInstrumentError: If the instrument is not found.
         """
         config = self.load_config()
 
         if instrument_name not in config:
-            raise self.NoSuchInstrumentError(f"Instrument {instrument_name} not found in the configuration file at {self.config_path}.")
+            raise DeploymentDirectory.NoSuchInstrumentError(
+                f"Instrument {instrument_name} not found in the configuration file at {self.config_path}."
+            )
 
         return config[instrument_name]

@@ -55,7 +55,7 @@ def project(
 def instrument(
     project_dir: Path = typer.Argument(..., help="Path to MarImBA project root."),
     name: str = typer.Argument(..., help="Name of the instrument."),
-    template_name: str = typer.Argument(..., help="Name of predefined MarImBA project template."),
+    url: str = typer.Argument(..., help="URL of the instrument git repository."),
 ):
     """
     Create a new MarImBA instrument in a project.
@@ -67,7 +67,7 @@ def instrument(
 
     # Create the instrument
     try:
-        project.create_instrument(name, template_name)
+        project.create_instrument(name, url)
     except Project.CreateInstrumentError as e:
         logger.error(e)
         print(
@@ -88,6 +88,9 @@ def instrument(
             border_style="green",
         )
     )
+
+    # Configure the instrument from the command line
+    # instrument_config_schema =
 
 
 @app.command()

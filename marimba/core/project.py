@@ -1,14 +1,10 @@
 import logging
-from datetime import datetime
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-from cookiecutter.exceptions import OutputDirExistsException
-from cookiecutter.main import cookiecutter
-
 from marimba.core.base_instrument import BaseInstrument
-from marimba.core.deployment import Deployment
+from marimba.core.deployment import DeploymentDirectory
 from marimba.utils.config import load_config
 from marimba.utils.log import LogMixin, get_file_handler, get_logger
 
@@ -226,11 +222,14 @@ class Project(LogMixin):
             # Find any Instrument subclasses
             for _, obj in instrument_module.__dict__.items():
                 if isinstance(obj, type) and issubclass(obj, BaseInstrument) and obj is not BaseInstrument:
-                    # Read the instrument config
-                    instrument_config = load_config(instrument_dir / "instrument.yml")
+                    # Read the instrument config, if it exists
+                    instrument_config = None
+                    instrument_config_path = instrument_dir / "instrument.yml"
+                    if instrument_config_path.is_file():
+                        instrument_config = load_config(instrument_config_path)
 
                     # Create an instance of the instrument
-                    instrument_instance = obj(instrument_config, dry_run=False)
+                    instrument_instance = obj(config=instrument_config, dry_run=False)
 
                     # Set up instrument file logging
                     file_handler = get_file_handler(instrument_dir, instrument_name, False, level=logging.DEBUG)
@@ -253,47 +252,30 @@ class Project(LogMixin):
 
         for deployment_dir in deployment_dirs:
             # Wrap the deployment directory
-            deployment = Deployment(deployment_dir)
+            deployment = DeploymentDirectory(deployment_dir)
 
             # Add the deployment
             self._deployments[deployment_dir.name] = deployment
 
-    def create_instrument(self, name: str, template_name: str):
+    def create_instrument(self, name: str, url: str):
         """
         Create a new instrument.
 
         Args:
             name: The name of the instrument.
-            template_name: The name of the template to use.
+            url: URL of the instrument git repository.
 
         Raises:
             Project.CreateInstrumentError: If the instrument cannot be created.
         """
-        self.logger.debug(f'Creating instrument "{name}" from template "{template_name}"...')
+        self.logger.debug(f'Creating instrument "{name}" from {url}...')
 
         # Check that an instrument with the same name doesn't already exist
         instrument_dir = self._instruments_dir / name
         if instrument_dir.exists():
             raise Project.CreateInstrumentError(f'An instrument with the name "{name}" already exists.')
 
-        # Get base template path and check that it exists
-        base_templates_path = get_base_templates_path()
-        template_path = check_template_exists(base_templates_path, template_name, "instrument")
-
         # Create the instrument directory
-        instrument_dir.mkdir()
-
-        # Run cookiecutter
-        try:
-            cookiecutter(
-                template=str(template_path.absolute()),
-                output_dir=str(instrument_dir.absolute()),
-                extra_context={"datestamp": datetime.today().strftime("%Y-%m-%d")},
-            )
-        except OutputDirExistsException as e:
-            raise Project.CreateInstrumentError(f'An instrument with the name "{name}" already exists.') from e
-        except Exception as e:
-            raise Project.CreateInstrumentError(f'Failed to create instrument "{name}": {e}') from e
 
         # Reload the instruments
         self._load_instruments()
@@ -325,7 +307,7 @@ class Project(LogMixin):
         # TODO: Use the parent deployment to populate the default deployment config
 
         # Create the deployment
-        deployment = Deployment.create(deployment_dir, {})
+        deployment = DeploymentDirectory.create(deployment_dir, {})
 
         # Create the per-instrument directories
         for instrument_name, instrument_instance in self._instruments.items():
@@ -428,7 +410,7 @@ class Project(LogMixin):
         return self._instruments
 
     @property
-    def deployments(self) -> Dict[str, Deployment]:
+    def deployments(self) -> Dict[str, DeploymentDirectory]:
         """
         The loaded deployments in the project.
         """
