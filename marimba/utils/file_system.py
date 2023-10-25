@@ -7,9 +7,9 @@ from typing import Union
 
 import psutil
 
-from marimba.utils.log import get_collection_logger
+from marimba.utils.log import get_logger
 
-logger = get_collection_logger()
+logger = get_logger(__name__)
 
 
 def create_directory_if_necessary(path: Union[str, Path]):

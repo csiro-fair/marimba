@@ -7,9 +7,9 @@ from rich import print
 from rich.panel import Panel
 
 import marimba.utils.file_system as fs
-from marimba.utils.log import get_collection_logger
+from marimba.utils.log import get_logger
 
-logger = get_collection_logger()
+logger = get_logger(__name__)
 
 
 def check_input_args(source_path: str, destination_path: str):

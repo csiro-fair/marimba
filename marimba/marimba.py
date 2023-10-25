@@ -6,8 +6,8 @@ import logging
 import typer
 
 import marimba.commands.new as new
-from marimba.core.collection import run_command
-from marimba.utils.log import LogLevel, get_collection_logger, get_rich_handler
+from marimba.core.project import Project
+from marimba.utils.log import LogLevel, get_logger, get_rich_handler
 
 __author__ = "MarImBA Development Team"
 __copyright__ = "Copyright 2023, CSIRO"
@@ -36,7 +36,7 @@ marimba = typer.Typer(
 
 marimba.add_typer(new.app, name="new")
 
-logger = get_collection_logger()
+logger = get_logger(__name__)
 
 
 @marimba.callback()
@@ -52,7 +52,7 @@ def global_options(
 
 @marimba.command("catalog")
 def catalog_command(
-    collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+    project_dir: str = typer.Argument(..., help="Path to MarImBA project root."),
     instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
     deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
@@ -65,10 +65,10 @@ def catalog_command(
     """
     Create an exif catalog of files stored in .exif_{extension}.
     """
+    project = Project(project_dir)
 
-    run_command(
+    project.run_command(
         "run_catalog",
-        collection_path,
         instrument_id,
         deployment_name,
         dry_run=dry_run,
@@ -81,7 +81,7 @@ def catalog_command(
 
 @marimba.command("init")
 def init_command(
-    collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+    project_dir: str = typer.Argument(..., help="Path to MarImBA project root."),
     instrument_id: str = typer.Argument(..., help="MarImBA instrument ID."),
     card_paths: list[str] = typer.Argument(None, help="List of paths to SD cards to be initialised."),
     all: bool = typer.Option(False, help="."),
@@ -95,10 +95,10 @@ def init_command(
     """
     Initialise SD cards with an import.yaml file
     """
+    project = Project(project_dir)
 
-    run_command(
+    project.run_command(
         "run_init",
-        collection_path,
         instrument_id,
         None,
         extra,
@@ -114,7 +114,7 @@ def init_command(
 
 @marimba.command("import")
 def import_command(
-    collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+    project_dir: str = typer.Argument(..., help="Path to MarImBA project root."),
     instrument_id: str = typer.Argument(..., help="MarImBA instrument ID."),
     card_paths: list[str] = typer.Argument(None, help="List of paths to SD cards to be initialised."),
     all: bool = typer.Option(False, help="."),
@@ -130,9 +130,10 @@ def import_command(
     """
     Import SD cards to working directory
     """
-    run_command(
+    project = Project(project_dir)
+
+    project.run_command(
         "run_import",
-        collection_path,
         instrument_id,
         None,
         extra,
@@ -147,10 +148,11 @@ def import_command(
         dry_run=dry_run,
     )
 
+
 # TODO: This should be implemented within the MarImBA process command
 @marimba.command("doit")
 def doit_command(
-    collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+    project_dir: str = typer.Argument(..., help="Path to MarImBA project root."),
     instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
     doit_commands: list[str] = typer.Argument(None, help="MarImBA instrument ID."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
@@ -158,10 +160,10 @@ def doit_command(
     """
     Import SD cards to working directory
     """
+    project = Project(project_dir)
 
-    run_command(
+    project.run_command(
         "run_doit",
-        collection_path,
         instrument_id,
         doit_commands,
     )
@@ -220,7 +222,7 @@ def doit_command(
 
 @marimba.command("metadata")
 def metadata_command(
-    collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+    project_dir: str = typer.Argument(..., help="Path to MarImBA project root."),
     instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
     deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
@@ -229,13 +231,14 @@ def metadata_command(
     """
     Process metadata including merging nav data files, writing metadata into image EXIF tags, and writing iFDO files.
     """
+    project = Project(project_dir)
 
-    run_command("run_metadata", collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
+    project.run_command("run_metadata", instrument_id, deployment_name, extra, dry_run=dry_run)
 
 
 @marimba.command("package")
 def package_command(
-    collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+    project_dir: str = typer.Argument(..., help="Path to MarImBA project root."),
     instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
     deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
@@ -244,12 +247,14 @@ def package_command(
     """
     Package up a MarImBA collection ready for distribution.
     """
-    run_command("run_package", collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
+    project = Project(project_dir)
+
+    project.run_command("run_package", instrument_id, deployment_name, extra, dry_run=dry_run)
 
 
 @marimba.command("process")
 def process_command(
-    collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+    project_dir: str = typer.Argument(..., help="Path to MarImBA project root."),
     instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
     deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
@@ -258,13 +263,14 @@ def process_command(
     """
     Process the MarImBA collection based on the instrument specification.
     """
+    project = Project(project_dir)
 
-    run_command("run_process", collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
+    project.run_command("run_process", instrument_id, deployment_name, extra, dry_run=dry_run)
 
 
 @marimba.command("rename")
 def rename_command(
-    collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
+    project_dir: str = typer.Argument(..., help="Path to MarImBA project root."),
     instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
     deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
@@ -273,8 +279,9 @@ def rename_command(
     """
     Rename files based on the instrument specification.
     """
+    project = Project(project_dir)
 
-    run_command("run_rename", collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
+    project.run_command("run_rename", instrument_id, deployment_name, extra, dry_run=dry_run)
 
 
 # @marimba.command()

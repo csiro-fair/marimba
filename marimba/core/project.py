@@ -2,13 +2,14 @@ import logging
 from datetime import datetime
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from cookiecutter.exceptions import OutputDirExistsException
 from cookiecutter.main import cookiecutter
 
 from marimba.core.deployment import Deployment
 from marimba.core.instrument import Instrument
+from marimba.utils.config import load_config
 from marimba.utils.log import LogMixin, get_file_handler, get_logger
 
 logger = get_logger(__name__)
@@ -47,26 +48,30 @@ def check_template_exists(base_templates_path: Union[str, Path], template_name: 
     return template_path
 
 
-def check_output_path_exists(output_path: Union[str, Path], command: str):
-    output_path = Path(output_path)
-    logger.info(
-        f"Checking that the provided [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{command}[/light_pink3] output path exists..."
-    )
+def get_merged_keyword_args(kwargs: dict, extra_args: list, logger: logging.Logger) -> dict:
+    """
+    Merge any extra key-value arguments with other keyword arguments.
 
-    if output_path.is_dir():
-        logger.info(f'[bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{command}[/light_pink3] output path "{output_path}" exists!')
-    else:
-        error_message = f'The provided [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{command}[/light_pink3] output path "{output_path}" does not exists.'
-        logger.error(error_message)
-        # print(
-        #     Panel(
-        #         error_message,
-        #         title="Error",
-        #         title_align="left",
-        #         border_style="red",
-        #     )
-        # )
-        # raise typer.Exit()
+    Args:
+        kwargs: The keyword arguments to merge with.
+        extra_args: A list of extra key-value arguments to merge.
+        logger: A logger object to log any warnings.
+
+    Returns:
+        A dictionary containing the merged keyword arguments.
+    """
+    extra_dict = {}
+    if extra_args:
+        for arg in extra_args:
+            # Attempt to split the argument into a key and a value
+            parts = arg.split("=")
+            if len(parts) == 2:
+                key, value = parts
+                extra_dict[key] = value
+            else:
+                logger.warning(f'Invalid extra argument provided: "{arg}"')
+
+    return {**kwargs, **extra_dict}
 
 
 class Project(LogMixin):
@@ -91,6 +96,13 @@ class Project(LogMixin):
 
         pass
 
+    class RunCommandError(Exception):
+        """
+        Raised when a command cannot be run.
+        """
+
+        pass
+
     def __init__(self, root_dir: Union[str, Path]):
         super().__init__()
 
@@ -108,6 +120,7 @@ class Project(LogMixin):
             self._load_instruments()
         except ImportError as e:
             self.logger.error(f"Failed to load instrument: {e}")
+        self._load_deployments()
 
     @classmethod
     def create(cls, root_dir: Union[str, Path]) -> "Project":
@@ -178,10 +191,15 @@ class Project(LogMixin):
         self.logger.debug(f"Loading instruments from {self._instruments_dir}...")
 
         instrument_dirs = filter(lambda p: p.is_dir(), self._instruments_dir.iterdir())
-        instrument_module_paths = map(lambda p: p / "instrument.py", instrument_dirs)
-        instrument_module_paths = filter(lambda p: p.is_file(), instrument_module_paths)
 
-        for instrument_module_path in instrument_module_paths:
+        for instrument_dir in instrument_dirs:
+            if not instrument_dir.is_dir():  # TODO: Log/raise
+                continue
+
+            instrument_module_path = instrument_dir / "instrument.py"
+            if not instrument_module_path.is_file():  # TODO: Log/raise
+                continue
+
             instrument_name = instrument_module_path.parent.name
 
             # Get the instrument module spec
@@ -194,8 +212,15 @@ class Project(LogMixin):
             # Find any Instrument subclasses
             for _, obj in instrument_module.__dict__.items():
                 if isinstance(obj, type) and issubclass(obj, Instrument) and obj is not Instrument:
+                    # Read the instrument config
+                    instrument_config = load_config(instrument_dir / "instrument.yml")
+
                     # Create an instance of the instrument
-                    instrument_instance = obj()
+                    instrument_instance = obj(instrument_config, dry_run=False)
+
+                    # Set up instrument file logging
+                    file_handler = get_file_handler(instrument_dir, instrument_name, False, level=logging.DEBUG)
+                    instrument_instance.logger.addHandler(file_handler)
 
                     # Add the instrument
                     self._instruments[instrument_name] = instrument_instance
@@ -204,10 +229,20 @@ class Project(LogMixin):
     def _load_deployments(self):
         """
         Load deployment instances from the `deployments` directory.
+
+        Raises:
+            Deployment.InvalidStructureError: If the deployment directory structure is invalid.
         """
         self.logger.debug(f"Loading deployments from {self._deployments_dir}...")
 
-        pass
+        deployment_dirs = filter(lambda p: p.is_dir(), self._deployments_dir.iterdir())
+
+        for deployment_dir in deployment_dirs:
+            # Wrap the deployment directory
+            deployment = Deployment(deployment_dir)
+
+            # Add the deployment
+            self._deployments[deployment_dir.name] = deployment
 
     def create_instrument(self, name: str, template_name: str):
         """
@@ -275,17 +310,73 @@ class Project(LogMixin):
 
         # TODO: Use the parent deployment to populate the default deployment config
 
-        # Create the deployment directory
-        deployment_dir.mkdir()
+        # Create the deployment
+        deployment = Deployment.create(deployment_dir, {})
 
         # Create the per-instrument directories
         for instrument_name, instrument_instance in self._instruments.items():
-            # TODO: Direct this from the instrument implementation
-            instrument_data_dir = deployment_dir / instrument_name
-            instrument_data_dir.mkdir()
+            # TODO: Direct this from the instrument implementation?
+            deployment.get_instrument_data_dir(instrument_name).mkdir()
 
         # Reload the deployments
         self._load_deployments()
+
+    def run_command(
+        self,
+        command_name: str,
+        instrument_name: Optional[str] = None,
+        deployment_name: Optional[str] = None,
+        extra_args: Optional[List[str]] = None,
+        **kwargs: dict,
+    ):
+        """
+        Run a command within the project.
+
+        By default, this will run the command for all instruments and deployments in the project.
+        If an instrument name is provided, it will run the command for all deployments of that instrument.
+        If a deployment name is provided, it will run the command for that deployment only.
+        These can be combined to run the command for a specific deployment of a specific instrument.
+
+        Args:
+            command_name: The name of the command to run.
+            instrument_name: The name of the instrument to run the command for.
+            deployment_name: The name of the deployment to run the command for.
+            extra_args: Any extra arguments to pass to the command.
+            kwargs: Any keyword arguments to pass to the command.
+
+        Raises:
+            Project.RunCommandError: If the command cannot be run.
+        """
+        merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
+
+        if instrument_name is not None:
+            instrument = self._instruments.get(instrument_name, None)
+            if instrument is None:
+                raise Project.RunCommandError(f'Instrument "{instrument_name}" does not exist within the project.')
+
+        if deployment_name is not None:
+            deployment = self._deployments.get(deployment_name, None)
+            if deployment is None:
+                raise Project.RunCommandError(f'Deployment "{deployment_name}" does not exist within the project.')
+
+        # Select the instruments and deployments to run the command for
+        instruments_to_run = {instrument_name: instrument} if instrument_name is not None else self._instruments
+        deployments_to_run = {deployment_name: deployment} if deployment_name is not None else self._deployments
+
+        # Check that the command exists for all instruments
+        for run_instrument_name, run_instrument in instruments_to_run.items():
+            if not hasattr(run_instrument, command_name):
+                raise Project.RunCommandError(f'Command "{command_name}" does not exist for instrument "{run_instrument_name}".')
+
+        # Invoke the command for each instrument and deployment
+        for _, run_deployment in deployments_to_run.items():
+            for run_instrument_name, run_instrument in instruments_to_run.items():
+                # Get the instrument-specific data directory and config
+                instrument_deployment_data_dir = run_deployment.get_instrument_data_dir(run_instrument_name)
+                instrument_deployment_config = run_deployment.get_instrument_config(run_instrument_name)
+
+                method = getattr(run_instrument, command_name)
+                method(instrument_deployment_data_dir, instrument_deployment_config, **merged_kwargs)
 
     @property
     def root_dir(self) -> Path:
