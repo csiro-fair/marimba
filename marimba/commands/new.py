@@ -54,7 +54,7 @@ def project(
 @app.command()
 def instrument(
     project_dir: Path = typer.Argument(..., help="Path to MarImBA project root."),
-    name: str = typer.Argument(..., help="Name of the instrument."),
+    instrument_name: str = typer.Argument(..., help="Name of the instrument."),
     url: str = typer.Argument(..., help="URL of the instrument git repository."),
 ):
     """
@@ -67,7 +67,7 @@ def instrument(
 
     # Create the instrument
     try:
-        project.create_instrument(name, url)
+        project.create_instrument(instrument_name, url)
     except Project.CreateInstrumentError as e:
         logger.error(e)
         print(
@@ -82,7 +82,7 @@ def instrument(
 
     print(
         Panel(
-            f'Created new [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]instrument[/light_pink3] "{name}" at: "{project.instruments_dir / name}"',
+            f'Created new [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]instrument[/light_pink3] "{instrument_name}" at: "{project.instruments_dir / instrument_name}"',
             title="Success",
             title_align="left",
             border_style="green",
@@ -96,7 +96,7 @@ def instrument(
 @app.command()
 def deployment(
     project_dir: Path = typer.Argument(..., help="Path to MarImBA project root."),
-    name: str = typer.Argument(..., help="Name of the deployment."),
+    deployment_name: str = typer.Argument(..., help="Name of the deployment."),
     parent: Optional[str] = typer.Argument(None, help="Name of the parent deployment. If unspecified, use the last deployment."),
 ):
     """
@@ -109,7 +109,7 @@ def deployment(
 
     # Create the deployment
     try:
-        project.create_deployment(name, parent=parent)
+        project.create_deployment(deployment_name, parent=parent)
     except Project.CreateDeploymentError as e:
         logger.error(e)
         print(
@@ -124,7 +124,7 @@ def deployment(
 
     print(
         Panel(
-            f'Created new [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]deployment[/light_pink3] "{name}" at: "{project.deployments_dir / name}"',
+            f'Created new [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]deployment[/light_pink3] "{deployment_name}" at: "{project.deployments_dir / deployment_name}"',
             title="Success",
             title_align="left",
             border_style="green",
