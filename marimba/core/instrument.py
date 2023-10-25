@@ -140,6 +140,7 @@ class InstrumentDirectory(LogMixin):
 
         Raises:
             FileNotFoundError: If the instrument implementation file cannot be found, or if there are multiple instrument implementation files.
+            ImportError: If the instrument implementation file cannot be imported.
         """
         # Find files that end with .instrument.py in the repository
         instrument_module_paths = list(self.repo_dir.glob("**/*.instrument.py"))

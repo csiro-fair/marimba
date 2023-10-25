@@ -1,11 +1,10 @@
 import logging
-from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from marimba.core.base_instrument import BaseInstrument
 from marimba.core.deployment import DeploymentDirectory
-from marimba.utils.config import load_config
+from marimba.core.instrument import InstrumentDirectory
 from marimba.utils.log import LogMixin, get_file_handler, get_logger
 
 logger = get_logger(__name__)
@@ -194,50 +193,17 @@ class Project(LogMixin):
 
         Dynamically loads all modules named `instrument` in the `instruments` subdirectories and finds any Instrument subclasses.
         Populates the `_instruments` map with the instrument name (subdirectory name) as the key and the instrument instance as the value.
-
-        Raises:
-            ImportError: If an instrument module cannot be imported.
         """
         self.logger.debug(f"Loading instruments from {self._instruments_dir}...")
 
         instrument_dirs = filter(lambda p: p.is_dir(), self._instruments_dir.iterdir())
 
-        for instrument_dir in instrument_dirs:
-            if not instrument_dir.is_dir():  # TODO: Log/raise
-                continue
-
-            instrument_module_path = instrument_dir / "instrument.py"
-            if not instrument_module_path.is_file():  # TODO: Log/raise
-                continue
-
-            instrument_name = instrument_module_path.parent.name
-
-            # Get the instrument module spec
-            instrument_module_spec = spec_from_file_location("instrument", str(instrument_module_path.absolute()))
-
-            # Load the instrument module
-            instrument_module = module_from_spec(instrument_module_spec)
-            instrument_module_spec.loader.exec_module(instrument_module)
-
-            # Find any Instrument subclasses
-            for _, obj in instrument_module.__dict__.items():
-                if isinstance(obj, type) and issubclass(obj, BaseInstrument) and obj is not BaseInstrument:
-                    # Read the instrument config, if it exists
-                    instrument_config = None
-                    instrument_config_path = instrument_dir / "instrument.yml"
-                    if instrument_config_path.is_file():
-                        instrument_config = load_config(instrument_config_path)
-
-                    # Create an instance of the instrument
-                    instrument_instance = obj(config=instrument_config, dry_run=False)
-
-                    # Set up instrument file logging
-                    file_handler = get_file_handler(instrument_dir, instrument_name, False, level=logging.DEBUG)
-                    instrument_instance.logger.addHandler(file_handler)
-
-                    # Add the instrument
-                    self._instruments[instrument_name] = instrument_instance
-                    break
+        try:
+            for instrument_dir in instrument_dirs:
+                wrapper = InstrumentDirectory(instrument_dir)
+                self._instruments[instrument_dir.name] = wrapper.load_instrument()
+        except (ImportError, FileNotFoundError) as e:
+            self.logger.error(f"Failed to load instrument: {e}")
 
     def _load_deployments(self):
         """
@@ -276,6 +242,7 @@ class Project(LogMixin):
             raise Project.CreateInstrumentError(f'An instrument with the name "{name}" already exists.')
 
         # Create the instrument directory
+        InstrumentDirectory.create(instrument_dir, url)
 
         # Reload the instruments
         self._load_instruments()
