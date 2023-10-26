@@ -5,6 +5,7 @@ from typing import Optional, Union
 import typer
 from rich import print
 from rich.panel import Panel
+from rich.prompt import Confirm, FloatPrompt, IntPrompt, Prompt
 
 from marimba.utils.log import get_logger
 from marimba.wrappers.project import ProjectWrapper
@@ -36,13 +37,25 @@ def prompt_schema(schema: dict) -> Optional[dict]:
 
     Returns:
         The user values as a dictionary, or None if the input was interrupted.
+
+    Raises:
+        NotImplementedError: If the schema contains a type that is not supported.
     """
     user_values = schema.copy()
 
     try:
         for key, default_value in schema.items():
             value_type = type(default_value)
-            value = typer.prompt(f"{key} [{value_type.__name__}]", default=default_value, type=value_type)
+            if value_type == bool:
+                value = Confirm.ask(key, default=default_value)
+            elif value_type == int:
+                value = IntPrompt.ask(key, default=default_value)
+            elif value_type == float:
+                value = FloatPrompt.ask(key, default=default_value)
+            elif value_type == str:
+                value = Prompt.ask(key, default=default_value)
+            else:
+                raise NotImplementedError(f"Unsupported type: {value_type.__name__}")
             if value is not None:
                 user_values[key] = value
     except KeyboardInterrupt:
@@ -157,18 +170,18 @@ def instrument(
 
     logger.info("Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new instrument[/steel_blue3] command.")
 
-    # Create project wrapper instance
-    project_wrapper = ProjectWrapper(project_dir)
-
-    # Create the instrument
     try:
+        # Create project wrapper instance
+        project_wrapper = ProjectWrapper(project_dir)
+
+        # Create the instrument
         instrument_wrapper = project_wrapper.create_instrument(instrument_name, url)
-    except ProjectWrapper.CreateInstrumentError as e:
+    except Exception as e:
         logger.error(e)
         print(
             Panel(
                 str(e),
-                title="Error",
+                title=f"Error - {e.__class__.__name__}",
                 title_align="left",
                 border_style="red",
             )
@@ -207,18 +220,18 @@ def deployment(
 
     logger.info("Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new deployment[/steel_blue3] command.")
 
-    # Create project wrapper instance
-    project_wrapper = ProjectWrapper(project_dir)
-
-    # Create the deployment
     try:
-        deployment_wrapper = project_wrapper.create_deployment(deployment_name, parent=parent)
-    except ProjectWrapper.CreateDeploymentError as e:
+        # Create project wrapper instance
+        project_wrapper = ProjectWrapper(project_dir)
+
+        # Create the deployment
+        deployment_wrapper = project_wrapper.create_deployment(deployment_name)
+    except Exception as e:
         logger.error(e)
         print(
             Panel(
                 str(e),
-                title="Error",
+                title=f"Error - {e.__class__.__name__}",
                 title_align="left",
                 border_style="red",
             )
@@ -234,10 +247,42 @@ def deployment(
         )
     )
 
-    # Configure the deployment from the command line
+    # Get the union of all instrument-specific deployment config schemas
+    resolved_deployment_schema = {}
     for instrument_name, instrument_wrapper in project_wrapper.instrument_wrappers.items():
         instrument = instrument_wrapper.load_instrument()
         deployment_config_schema = instrument.get_deployment_config_schema()
-        print(f"Instrument {instrument_name}")
-        deployment_config = prompt_schema(deployment_config_schema)
-        deployment_wrapper.save_instrument_config(instrument_name, deployment_config)
+        resolved_deployment_schema.update(deployment_config_schema)
+
+    def get_last_deployment_name(project_wrapper: ProjectWrapper) -> Optional[str]:  # TODO: Make this less clunky
+        deployment_wrappers = project_wrapper.deployment_wrappers.copy()
+        deployment_wrappers.pop(deployment_name, None)
+        if len(deployment_wrappers) == 0:
+            return None
+        return max(deployment_wrappers, key=lambda k: deployment_wrappers[k].root_dir.stat().st_mtime)
+
+    # Use the last deployment if no parent is specified
+    if parent is None:
+        parent = get_last_deployment_name(project_wrapper)  # may be None
+
+    # Update the schema with the parent deployment
+    if parent is not None:
+        parent_deployment_wrapper = project_wrapper.deployment_wrappers.get(parent, None)
+
+        if parent_deployment_wrapper is None:
+            print(
+                Panel(
+                    f'Parent deployment "{parent}" does not exist.',
+                    title="Error",
+                    title_align="left",
+                    border_style="red",
+                )
+            )
+            raise typer.Exit(f'Parent deployment "{parent}" does not exist.')
+
+        parent_deployment_config = parent_deployment_wrapper.load_config()
+        resolved_deployment_schema.update(parent_deployment_config)
+
+    # Configure the deployment from the resolved schema
+    deployment_config = prompt_schema(resolved_deployment_schema)
+    deployment_wrapper.save_config(deployment_config)

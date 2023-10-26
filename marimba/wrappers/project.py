@@ -350,7 +350,7 @@ class ProjectWrapper(LogMixin):
             for run_instrument_name, run_instrument in instruments_to_run.items():
                 # Get the instrument-specific data directory and config
                 instrument_deployment_data_dir = run_deployment_wrapper.get_instrument_data_dir(run_instrument_name)
-                instrument_deployment_config = run_deployment_wrapper.load_instrument_config(run_instrument_name)
+                instrument_deployment_config = run_deployment_wrapper.load_config()
 
                 method = getattr(run_instrument, command_name)
                 method(instrument_deployment_data_dir, instrument_deployment_config, **merged_kwargs)
