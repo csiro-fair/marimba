@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from marimba.core.base_instrument import BaseInstrument
 from marimba.utils.log import LogMixin, get_file_handler, get_logger
@@ -300,7 +300,7 @@ class ProjectWrapper(LogMixin):
         deployment_name: Optional[str] = None,
         extra_args: Optional[List[str]] = None,
         **kwargs: dict,
-    ):
+    ) -> Dict[str, Dict[str, Any]]:
         """
         Run a command within the project.
 
@@ -315,6 +315,9 @@ class ProjectWrapper(LogMixin):
             deployment_name: The name of the deployment to run the command for.
             extra_args: Any extra arguments to pass to the command.
             kwargs: Any keyword arguments to pass to the command.
+
+        Returns:
+            A dictionary containing the results of the command for each deployment: {deployment_name: {instrument_name: result}}.
 
         Raises:
             Project.RunCommandError: If the command cannot be run.
@@ -346,14 +349,33 @@ class ProjectWrapper(LogMixin):
                 raise ProjectWrapper.RunCommandError(f'Command "{command_name}" does not exist for instrument "{run_instrument_name}".')
 
         # Invoke the command for each instrument and deployment
-        for _, run_deployment_wrapper in deployment_wrappers_to_run.items():
+        results_by_deployment = {}
+        for run_deployment_name, run_deployment_wrapper in deployment_wrappers_to_run.items():
+            results_by_instrument = {}
             for run_instrument_name, run_instrument in instruments_to_run.items():
                 # Get the instrument-specific data directory and config
                 instrument_deployment_data_dir = run_deployment_wrapper.get_instrument_data_dir(run_instrument_name)
                 instrument_deployment_config = run_deployment_wrapper.load_config()
 
+                # Call the method
                 method = getattr(run_instrument, command_name)
-                method(instrument_deployment_data_dir, instrument_deployment_config, **merged_kwargs)
+                results_by_instrument[run_instrument_name] = method(instrument_deployment_data_dir, instrument_deployment_config, **merged_kwargs)
+
+            results_by_deployment[run_deployment_name] = results_by_instrument
+
+        return results_by_deployment
+
+    def update_instruments(self):
+        """
+        Update all instruments in the project.
+        """
+        for instrument_name, instrument_wrapper in self._instrument_wrappers.items():
+            self.logger.info(f'Updating instrument "{instrument_name}"')
+            try:
+                instrument_wrapper.update()
+                self.logger.info(f'Successfully updated instrument "{instrument_name}"')
+            except Exception as e:
+                self.logger.error(f'Failed to update instrument "{instrument_name}": {e}')
 
     @property
     def instrument_wrappers(self) -> Dict[str, InstrumentWrapper]:

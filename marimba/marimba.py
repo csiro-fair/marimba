@@ -260,8 +260,8 @@ def metadata_command(
 
 @marimba.command("package")
 def package_command(
-    instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
-    deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
+    instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted packaging."),
+    deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted packaging."),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
@@ -275,7 +275,12 @@ def package_command(
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
-    project_wrapper.run_command("run_package", instrument_id, deployment_name, extra, dry_run=dry_run)
+    print(project_wrapper.root_dir)
+
+    # TODO: Figure out specification of deployments to package
+    # TODO: Figure out specification of instruments to package
+
+    # TODO: Call run_compose in each instrument
 
 
 @marimba.command("process")
@@ -331,6 +336,22 @@ def rename_command(
 #     """
 #
 #     run_command("report", collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
+
+
+@marimba.command("update")
+def update_command(
+    project_dir: Optional[Path] = typer.Option(
+        None,
+        help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
+    ),
+):
+    """
+    Update (pull) all MarImBA instruments.
+    """
+    project_dir = new.find_project_dir_or_exit(project_dir)
+    project_wrapper = ProjectWrapper(project_dir)
+
+    project_wrapper.update_instruments()
 
 
 if __name__ == "__main__":

@@ -168,3 +168,10 @@ class InstrumentWrapper(LogMixin):
                 instrument_instance.logger.addHandler(self._file_handler)
 
                 return instrument_instance
+
+    def update(self):
+        """
+        Update the instrument repository by issuing a git pull.
+        """
+        repo = Repo(self.repo_dir)
+        repo.remotes.origin.pull()
