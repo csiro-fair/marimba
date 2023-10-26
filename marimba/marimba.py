@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import logging
+from typing import List
 
 import typer
 
@@ -83,7 +84,7 @@ def catalog_command(
 def init_command(
     collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
     instrument_id: str = typer.Argument(..., help="MarImBA instrument ID."),
-    card_paths: list[str] = typer.Argument(None, help="List of paths to SD cards to be initialised."),
+    card_paths: List[str] = typer.Argument(None, help="List of paths to SD cards to be initialised."),
     all: bool = typer.Option(False, help="."),
     days: int = typer.Option(0, help='Add an offset to the import date (e.g. "+1" to set the date to tomorrow).'),
     overwrite: bool = typer.Option(False, help="Overwrite import.yaml file on SD cards if they already exist."),
@@ -146,6 +147,7 @@ def import_command(
         format_type=format_type,
         dry_run=dry_run,
     )
+
 
 # TODO: This should be implemented within the MarImBA process command
 @marimba.command("doit")
