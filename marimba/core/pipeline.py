@@ -9,7 +9,7 @@ from marimba.utils.log import LogMixin
 
 class BasePipeline(ABC, LogMixin):
     """
-    MarImBA instrument abstract base class. All instruments should inherit from this class.
+    MarImBA pipeline abstract base class. All pipelines should inherit from this class.
     """
 
     def __init__(self, config: Optional[dict] = None, dry_run: bool = False):
@@ -19,7 +19,7 @@ class BasePipeline(ABC, LogMixin):
     @staticmethod
     def get_pipeline_config_schema() -> dict:
         """
-        Returns the instrument configuration schema.
+        Returns the pipeline configuration schema.
 
         The returned dictionary should be a flat map of key -> default value.
         All keys must be strings, and values must be YAML-serializable.
@@ -35,11 +35,11 @@ class BasePipeline(ABC, LogMixin):
         }
         ```
 
-        The instrument configuration schema represents values that are static for the instrument across all deployments.
+        The pipeline configuration schema represents values that are static for the pipeline across all deployments.
         Use `get_deployment_config_schema` for values that are specific to a deployment.
 
         Returns:
-            The instrument configuration schema.
+            The pipeline configuration schema.
         """
         return {}
 
@@ -48,17 +48,17 @@ class BasePipeline(ABC, LogMixin):
         """
         Returns the deployment configuration schema.
 
-        The deployment configuration schema represents the values that the instrument requires that are specific to a deployment.
-        Use `get_instrument_config_schema` for values that are static for the instrument across all deployments.
+        The deployment configuration schema represents the values that the pipeline requires that are specific to a deployment.
+        Use `get_pipeline_config_schema` for values that are static for the pipeline across all deployments.
 
-        See `get_instrument_config_schema` for more details.
+        See `get_pipeline_config_schema` for more details.
         """
         return {}
 
     @property
     def config(self) -> Optional[dict]:
         """
-        The instrument static configuration.
+        The pipeline static configuration.
         """
         return self._config
 
@@ -72,7 +72,7 @@ class BasePipeline(ABC, LogMixin):
     @property
     def class_name(self) -> str:
         """
-        The name of the instrument class.
+        The name of the pipeline class.
         """
         return self.__class__.__name__
 
@@ -88,7 +88,7 @@ class BasePipeline(ABC, LogMixin):
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
-            f"Running [bold]init[/bold] command for instrument [bold]{self.class_name}[/bold] with args: {data_dir=}, {config=}, {kwargs=}"
+            f"Running [bold]init[/bold] command for pipeline [bold]{self.class_name}[/bold] with args: {data_dir=}, {config=}, {kwargs=}"
         )
         return self._init(self, data_dir, config, **kwargs)
 
@@ -104,7 +104,7 @@ class BasePipeline(ABC, LogMixin):
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
-            f"Running [bold]import[/bold] command for instrument [bold]{self.class_name}[/bold] with args: {data_dir=}, {config=}, {kwargs=}"
+            f"Running [bold]import[/bold] command for pipeline [bold]{self.class_name}[/bold] with args: {data_dir=}, {config=}, {kwargs=}"
         )
         return self._import(data_dir, config, **kwargs)
 
@@ -120,7 +120,7 @@ class BasePipeline(ABC, LogMixin):
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
-            f"Running [bold]rename[/bold] command for instrument [bold]{self.class_name}[/bold] with args: {data_dir=}, {config=}, {kwargs=}"
+            f"Running [bold]rename[/bold] command for pipeline [bold]{self.class_name}[/bold] with args: {data_dir=}, {config=}, {kwargs=}"
         )
         return self._rename(data_dir, config, **kwargs)
 
@@ -136,7 +136,7 @@ class BasePipeline(ABC, LogMixin):
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
-            f"Running [bold]process[/bold] command for instrument [bold]{self.class_name}[/bold] with args: {data_dir=}, {config=}, {kwargs=}"
+            f"Running [bold]process[/bold] command for pipeline [bold]{self.class_name}[/bold] with args: {data_dir=}, {config=}, {kwargs=}"
         )
         return self._process(data_dir, config, **kwargs)
 
@@ -152,7 +152,7 @@ class BasePipeline(ABC, LogMixin):
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
-            f"Running [bold]metadata[/bold] command for instrument [bold]{self.class_name}[/bold] with args: {data_dir=}, {config=}, {kwargs=}"
+            f"Running [bold]metadata[/bold] command for pipeline [bold]{self.class_name}[/bold] with args: {data_dir=}, {config=}, {kwargs=}"
         )
         return self._metadata(data_dir, config, **kwargs)
 
@@ -171,7 +171,7 @@ class BasePipeline(ABC, LogMixin):
             The iFDO and path mapping dict.
         """
         self.logger.debug(
-            f"Running [bold]compose[/bold] command for instrument [bold]{self.class_name}[/bold] with args: {data_dirs=}, {configs=}, {kwargs=}"
+            f"Running [bold]compose[/bold] command for pipeline [bold]{self.class_name}[/bold] with args: {data_dirs=}, {configs=}, {kwargs=}"
         )
         return self._compose(data_dirs, configs, **kwargs)
 
@@ -181,7 +181,7 @@ class BasePipeline(ABC, LogMixin):
 
         TODO: Add docs on how to implement this method.
         """
-        self.logger.warning(f"There is no MarImBA [bold]init[/bold] command implemented for instrument [bold]{self.class_name}[/bold]")
+        self.logger.warning(f"There is no MarImBA [bold]init[/bold] command implemented for pipeline [bold]{self.class_name}[/bold]")
 
     def _import(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
         """
@@ -189,7 +189,7 @@ class BasePipeline(ABC, LogMixin):
 
         TODO: Add docs on how to implement this method.
         """
-        self.logger.warning(f"There is no MarImBA [bold]import[/bold] command implemented for instrument [bold]{self.class_name}[/bold]")
+        self.logger.warning(f"There is no MarImBA [bold]import[/bold] command implemented for pipeline [bold]{self.class_name}[/bold]")
 
     def _rename(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
         """
@@ -197,7 +197,7 @@ class BasePipeline(ABC, LogMixin):
 
         TODO: Add docs on how to implement this method.
         """
-        self.logger.warning(f"There is no MarImBA [bold]rename[/bold] command implemented for instrument [bold]{self.class_name}[/bold]")
+        self.logger.warning(f"There is no MarImBA [bold]rename[/bold] command implemented for pipeline [bold]{self.class_name}[/bold]")
 
     def _process(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
         """
@@ -205,7 +205,7 @@ class BasePipeline(ABC, LogMixin):
 
         TODO: Add docs on how to implement this method.
         """
-        self.logger.warning(f"There is no MarImBA [bold]process[/bold] command implemented for instrument [bold]{self.class_name}[/bold]")
+        self.logger.warning(f"There is no MarImBA [bold]process[/bold] command implemented for pipeline [bold]{self.class_name}[/bold]")
 
     def _metadata(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
         """
@@ -213,7 +213,7 @@ class BasePipeline(ABC, LogMixin):
 
         TODO: Add docs on how to implement this method.
         """
-        self.logger.warning(f"There is no MarImBA [bold]init[/bold] command implemented for instrument [bold]{self.class_name}[/bold]")
+        self.logger.warning(f"There is no MarImBA [bold]init[/bold] command implemented for pipeline [bold]{self.class_name}[/bold]")
 
     @abstractmethod
     def _compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Tuple[iFDO, Dict[Path, Path]]:

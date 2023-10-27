@@ -235,7 +235,7 @@ def process_command(
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
-    Process the MarImBA collection based on the instrument specification.
+    Process the MarImBA collection based on the pipeline specification.
     """
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
@@ -255,7 +255,7 @@ def rename_command(
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
-    Rename files based on the instrument specification.
+    Rename files based on the pipeline specification.
     """
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
@@ -271,7 +271,7 @@ def update_command(
     ),
 ):
     """
-    Update (pull) all MarImBA instruments.
+    Update (pull) all MarImBA pipelines.
     """
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)

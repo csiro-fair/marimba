@@ -12,7 +12,7 @@ from marimba.utils.log import LogMixin, get_file_handler
 
 class PipelineWrapper(LogMixin):
     """
-    Instrument directory wrapper.
+    Pipeline directory wrapper.
     """
 
     class InvalidStructureError(Exception):
@@ -32,30 +32,30 @@ class PipelineWrapper(LogMixin):
     @property
     def root_dir(self) -> Path:
         """
-        The root directory of the instrument.
+        The root directory of the pipeline.
         """
         return self._root_dir
 
     @property
     def repo_dir(self) -> Path:
         """
-        The repository directory of the instrument.
+        The repository directory of the pipeline.
         """
         return self.root_dir / "repository"
 
     @property
     def config_path(self) -> Path:
         """
-        The path to the instrument configuration file.
+        The path to the pipeline configuration file.
         """
         return self.root_dir / "pipeline.yml"
 
     def _check_file_structure(self):
         """
-        Check that the instrument file structure is valid. If not, raise an InvalidStructureError with details.
+        Check that the pipeline file structure is valid. If not, raise an InvalidStructureError with details.
 
         Raises:
-            InstrumentDirectory.InvalidStructureError: If the instrument file structure is invalid.
+            PipelineDirectory.InvalidStructureError: If the pipeline file structure is invalid.
         """
 
         def check_dir_exists(path: Path):
@@ -83,29 +83,29 @@ class PipelineWrapper(LogMixin):
     @classmethod
     def create(cls, root_dir: Union[str, Path], url: str):
         """
-        Create a new instrument directory from a remote git repository.
+        Create a new pipeline directory from a remote git repository.
 
         Args:
-            root_dir: The root directory of the instrument.
-            url: The URL of the instrument implementation git repository.
+            root_dir: The root directory of the pipeline.
+            url: The URL of the pipeline implementation git repository.
 
         Raises:
-            FileExistsError: If the instrument root directory already exists.
+            FileExistsError: If the pipeline root directory already exists.
         """
         root_dir = Path(root_dir)
 
         # Check that the root directory doesn't already exist
         if root_dir.exists():
-            raise FileExistsError(f'Instrument root directory "{root_dir}" already exists.')
+            raise FileExistsError(f'Pipeline root directory "{root_dir}" already exists.')
 
-        # Create the instrument root directory
+        # Create the pipeline root directory
         root_dir.mkdir(parents=True)
 
-        # Clone the instrument repository
+        # Clone the pipeline repository
         repo_dir = root_dir / "repository"
         Repo.clone_from(url, repo_dir)
 
-        # Create the instrument configuration file (initialize as empty)
+        # Create the pipeline configuration file (initialize as empty)
         config_path = root_dir / "pipeline.yml"
         save_config(config_path, {})
 
@@ -113,65 +113,65 @@ class PipelineWrapper(LogMixin):
 
     def load_config(self) -> dict:
         """
-        Load the instrument configuration.
+        Load the pipeline configuration.
 
         Returns:
-            The instrument configuration.
+            The pipeline configuration.
         """
         return load_config(self.config_path)
 
     def save_config(self, config: dict):
         """
-        Save the instrument configuration.
+        Save the pipeline configuration.
 
         Args:
-            config: The instrument configuration.
+            config: The pipeline configuration.
         """
         save_config(self.config_path, config)
 
     def load_pipeline(self) -> BasePipeline:
         """
-        Dynamically load an instance of the instrument implementation.
+        Dynamically load an instance of the pipeline implementation.
 
-        Injects the instrument configuration and logger into the instance.
+        Injects the pipeline configuration and logger into the instance.
 
         Returns:
-            The instrument instance.
+            The pipeline instance.
 
         Raises:
-            FileNotFoundError: If the instrument implementation file cannot be found, or if there are multiple instrument implementation files.
-            ImportError: If the instrument implementation file cannot be imported.
+            FileNotFoundError: If the pipeline implementation file cannot be found, or if there are multiple pipeline implementation files.
+            ImportError: If the pipeline implementation file cannot be imported.
         """
         # Find files that end with .pipeline.py in the repository
         pipeline_module_paths = list(self.repo_dir.glob("**/*.pipeline.py"))
 
         # Ensure there is one result
         if len(pipeline_module_paths) == 0:
-            raise FileNotFoundError(f'No instrument implementation found in "{self.repo_dir}".')
+            raise FileNotFoundError(f'No pipeline implementation found in "{self.repo_dir}".')
         elif len(pipeline_module_paths) > 1:
-            raise FileNotFoundError(f'Multiple instrument implementations found in "{self.repo_dir}": {pipeline_module_paths}.')
+            raise FileNotFoundError(f'Multiple pipeline implementations found in "{self.repo_dir}": {pipeline_module_paths}.')
         pipeline_module_path = pipeline_module_paths[0]
 
-        pipeline_module_spec = spec_from_file_location("instrument", str(pipeline_module_path.absolute()))
+        pipeline_module_spec = spec_from_file_location("pipeline", str(pipeline_module_path.absolute()))
 
-        # Load the instrument module
+        # Load the pipeline module
         pipeline_module = module_from_spec(pipeline_module_spec)
         pipeline_module_spec.loader.exec_module(pipeline_module)
 
-        # Find any BaseInstrument implementations
+        # Find any BasePipeline implementations
         for _, obj in pipeline_module.__dict__.items():
             if isinstance(obj, type) and issubclass(obj, BasePipeline) and obj is not BasePipeline:
-                # Create an instance of the instrument
+                # Create an instance of the pipeline
                 pipeline_instance = obj(config=self.load_config(), dry_run=False)
 
-                # Set up instrument file logging
+                # Set up pipeline file logging
                 pipeline_instance.logger.addHandler(self._file_handler)
 
                 return pipeline_instance
 
     def update(self):
         """
-        Update the instrument repository by issuing a git pull.
+        Update the pipeline repository by issuing a git pull.
         """
         repo = Repo(self.repo_dir)
         repo.remotes.origin.pull()

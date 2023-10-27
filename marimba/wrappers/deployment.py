@@ -16,9 +16,9 @@ class DeploymentWrapper:
 
         pass
 
-    class NoSuchInstrumentError(Exception):
+    class NoSuchPipelineError(Exception):
         """
-        Raised when an instrument is not found.
+        Raised when an pipeline is not found.
         """
 
         pass
@@ -104,12 +104,12 @@ class DeploymentWrapper:
 
     def get_pipeline_data_dir(self, pipeline_name: str) -> Path:
         """
-        Get the path to the instrument data directory.
+        Get the path to the pipeline data directory.
 
         Args:
-            instrument_name: The name of the instrument.
+            pipeline_name: The name of the pipeline.
 
         Returns:
-            The path to the instrument data directory.
+            The path to the pipeline data directory.
         """
         return self.root_dir / pipeline_name

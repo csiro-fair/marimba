@@ -14,7 +14,7 @@ from marimba.wrappers.project import ProjectWrapper
 logger = get_logger(__name__)
 
 app = typer.Typer(
-    help="Create a new MarImBA collection, instrument or deployment.",
+    help="Create a new MarImBA collection, pipeline or deployment.",
     no_args_is_help=True,
 )
 
@@ -144,24 +144,24 @@ def project(
 @app.command()
 def pipeline(
     pipeline_name: str = typer.Argument(..., help="Name of the pipeline."),
-    url: str = typer.Argument(..., help="URL of the instrument git repository."),
+    url: str = typer.Argument(..., help="URL of the pipeline git repository."),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
     ),
 ):
     """
-    Create a new MarImBA instrument in a project.
+    Create a new MarImBA pipeline in a project.
     """
     project_dir = find_project_dir_or_exit(project_dir)
 
-    logger.info(f"Executing the {MARIMBA} [steel_blue3]new instrument[/steel_blue3] command.")
+    logger.info(f"Executing the {MARIMBA} [steel_blue3]new pipeline[/steel_blue3] command.")
 
     try:
         # Create project wrapper instance
         project_wrapper = ProjectWrapper(project_dir)
 
-        # Create the instrument
+        # Create the pipeline
         pipeline_wrapper = project_wrapper.create_pipeline(pipeline_name, url)
     except Exception as e:
         logger.error(e)
@@ -170,11 +170,11 @@ def pipeline(
 
     print(
         success_panel(
-            f'Created new {MARIMBA} [light_pink3]instrument[/light_pink3] "{pipeline_name}" at: "{project_wrapper.pipeline_dir / pipeline_name}"'
+            f'Created new {MARIMBA} [light_pink3]pipeline[/light_pink3] "{pipeline_name}" at: "{project_wrapper.pipeline_dir / pipeline_name}"'
         )
     )
 
-    # Configure the instrument from the command line
+    # Configure the pipeline from the command line
     pipeline = pipeline_wrapper.load_pipeline()
     pipeline_config_schema = pipeline.get_pipeline_config_schema()
     pipeline_config = prompt_schema(pipeline_config_schema)
@@ -210,7 +210,7 @@ def deployment(
 
     print(success_panel(f'Created new {MARIMBA} [light_pink3]deployment[/light_pink3] "{deployment_name}" at: "{deployment_wrapper.root_dir}"'))
 
-    # Get the union of all instrument-specific deployment config schemas
+    # Get the union of all pipeline-specific deployment config schemas
     resolved_deployment_schema = {}
     for pipeline_name, pipeline_wrapper in project_wrapper.pipeline_wrappers.items():
         pipeline = pipeline_wrapper.load_pipeline()

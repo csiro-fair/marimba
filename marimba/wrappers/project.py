@@ -92,7 +92,7 @@ class ProjectWrapper(LogMixin):
 
     class CreatePipelineError(Exception):
         """
-        Raised when an instrument cannot be created.
+        Raised when an pipeline cannot be created.
         """
 
         pass
@@ -113,7 +113,7 @@ class ProjectWrapper(LogMixin):
 
     class NoSuchPipelineError(Exception):
         """
-        Raised when an instrument does not exist in the project.
+        Raised when an pipeline does not exist in the project.
         """
 
         pass
@@ -134,7 +134,7 @@ class ProjectWrapper(LogMixin):
         self._deployments_dir = self._root_dir / "deployments"
         self._marimba_dir = self._root_dir / ".marimba"
 
-        self._pipeline_wrappers = {}  # instrument name -> InstrumentWrapper instance
+        self._pipeline_wrappers = {}  # pipeline name -> PipelineWrapper instance
         self._deployment_wrappers = {}  # deployment name -> DeploymentWrapper instance
 
         self._check_file_structure()
@@ -204,12 +204,12 @@ class ProjectWrapper(LogMixin):
 
     def _load_pipeline(self):
         """
-        Load instrument wrappers from the `instruments` directory.
+        Load pipeline wrappers from the `pipelines` directory.
 
-        Populates the `_instrument_wrappers` dictionary with `InstrumentWrapper` instances.
+        Populates the `_pipeline_wrappers` dictionary with `PipelineWrapper` instances.
 
         Raises:
-            InstrumentWrapper.InvalidStructureError: If the instrument directory structure is invalid.
+            PipelineWrapper.InvalidStructureError: If the pipeline directory structure is invalid.
         """
         pipeline_dirs = filter(lambda p: p.is_dir(), self._pipeline_dir.iterdir())
 
@@ -235,29 +235,29 @@ class ProjectWrapper(LogMixin):
 
     def create_pipeline(self, name: str, url: str) -> PipelineWrapper:
         """
-        Create a new instrument.
+        Create a new pipeline.
 
         Args:
-            name: The name of the instrument.
-            url: URL of the instrument git repository.
+            name: The name of the pipeline.
+            url: URL of the pipeline git repository.
 
         Returns:
-            The instrument directory wrapper.
+            The pipeline directory wrapper.
 
         Raises:
-            ProjectWrapper.CreateInstrumentError: If the instrument cannot be created.
+            ProjectWrapper.CreatePipelineError: If the pipeline cannot be created.
         """
-        self.logger.debug(f'Creating instrument "{name}" from {url}')
+        self.logger.debug(f'Creating pipeline "{name}" from {url}')
 
-        # Check that an instrument with the same name doesn't already exist
+        # Check that an pipeline with the same name doesn't already exist
         pipeline_dir = self._pipeline_dir / name
         if pipeline_dir.exists():
-            raise ProjectWrapper.CreatePipelineError(f'An instrument with the name "{name}" already exists.')
+            raise ProjectWrapper.CreatePipelineError(f'An pipeline with the name "{name}" already exists.')
 
-        # Create the instrument directory
+        # Create the pipeline directory
         pipeline_wrapper = PipelineWrapper.create(pipeline_dir, url)
 
-        # Reload the instruments
+        # Reload the pipelines
         # TODO: Do we need to do this every time?
         self._load_pipeline()
 
@@ -295,9 +295,9 @@ class ProjectWrapper(LogMixin):
         # Create the deployment directory
         deployment_wrapper = DeploymentWrapper.create(deployment_dir, {})
 
-        # Create the per-instrument directories
+        # Create the per-pipeline directories
         for pipeline_name in self._pipeline_wrappers:
-            # TODO: Direct this from the instrument implementation?
+            # TODO: Direct this from the pipeline implementation?
             deployment_wrapper.get_pipeline_data_dir(pipeline_name).mkdir()
 
         # Reload the deployments
@@ -317,20 +317,20 @@ class ProjectWrapper(LogMixin):
         """
         Run a command within the project.
 
-        By default, this will run the command for all instruments and deployments in the project.
-        If an instrument name is provided, it will run the command for all deployments of that instrument.
+        By default, this will run the command for all pipelines and deployments in the project.
+        If an pipeline name is provided, it will run the command for all deployments of that pipeline.
         If a deployment name is provided, it will run the command for that deployment only.
-        These can be combined to run the command for a specific deployment of a specific instrument.
+        These can be combined to run the command for a specific deployment of a specific pipeline.
 
         Args:
             command_name: The name of the command to run.
-            instrument_name: The name of the instrument to run the command for.
+            pipeline_name: The name of the pipeline to run the command for.
             deployment_name: The name of the deployment to run the command for.
             extra_args: Any extra arguments to pass to the command.
             kwargs: Any keyword arguments to pass to the command.
 
         Returns:
-            A dictionary containing the results of the command for each deployment: {deployment_name: {instrument_name: result}}.
+            A dictionary containing the results of the command for each deployment: {deployment_name: {pipeline_name: result}}.
 
         Raises:
             ProjectWrapper.RunCommandError: If the command cannot be run.
@@ -340,31 +340,31 @@ class ProjectWrapper(LogMixin):
         if pipeline_name is not None:
             pipeline_wrapper = self._pipeline_wrappers.get(pipeline_name, None)
             if pipeline_wrapper is None:
-                raise ProjectWrapper.RunCommandError(f'Instrument "{pipeline_name}" does not exist within the project.')
+                raise ProjectWrapper.RunCommandError(f'Pipeline "{pipeline_name}" does not exist within the project.')
 
         if deployment_name is not None:
             deployment_wrapper = self._deployment_wrappers.get(deployment_name, None)
             if deployment_wrapper is None:
                 raise ProjectWrapper.RunCommandError(f'Deployment "{deployment_name}" does not exist within the project.')
 
-        # Select the instruments and deployments to run the command for
+        # Select the pipelines and deployments to run the command for
         pipeline_wrappers_to_run = {pipeline_name: pipeline_wrapper} if pipeline_name is not None else self._pipeline_wrappers
         deployment_wrappers_to_run = {deployment_name: deployment_wrapper} if deployment_name is not None else self._deployment_wrappers
 
-        # Load instrument instances
+        # Load pipeline instances
         pipeline_to_run = {pipeline_name: pipeline_wrapper.load_pipeline() for pipeline_name, pipeline_wrapper in pipeline_wrappers_to_run.items()}
 
-        # Check that the command exists for all instruments
+        # Check that the command exists for all pipelines
         for run_pipeline_name, run_pipeline in pipeline_to_run.items():
             if not hasattr(run_pipeline, command_name):
-                raise ProjectWrapper.RunCommandError(f'Command "{command_name}" does not exist for instrument "{run_pipeline_name}".')
+                raise ProjectWrapper.RunCommandError(f'Command "{command_name}" does not exist for pipeline "{run_pipeline_name}".')
 
-        # Invoke the command for each instrument and deployment
+        # Invoke the command for each pipeline and deployment
         results_by_deployment = {}
         for run_deployment_name, run_deployment_wrapper in deployment_wrappers_to_run.items():
             results_by_pipeline = {}
             for run_pipeline_name, run_pipeline in pipeline_to_run.items():
-                # Get the instrument-specific data directory and config
+                # Get the pipeline-specific data directory and config
                 pipeline_deployment_data_dir = run_deployment_wrapper.get_pipeline_data_dir(run_pipeline_name)
                 pipeline_deployment_config = run_deployment_wrapper.load_config()
 
@@ -380,10 +380,10 @@ class ProjectWrapper(LogMixin):
         self, pipeline_name: str, deployment_names: List[str], extra_args: Optional[List[str]] = None, **kwargs: dict
     ) -> Tuple[iFDO, Dict[Path, Path]]:
         """
-        Compose a dataset for a given instrument.
+        Compose a dataset for a given pipeline.
 
         Args:
-            instrument_name: The name of the instrument to use.
+            pipeline_name: The name of the pipeline to use.
             deployment_names: The names of the deployments to compose.
             extra_args: Any extra CLI arguments to pass to the command.
             kwargs: Any keyword arguments to pass to the command.
@@ -392,17 +392,17 @@ class ProjectWrapper(LogMixin):
             A tuple containing the iFDO and a dictionary of deployment data file paths to the desired relative dataset paths.
 
         Raises:
-            ProjectWrapper.NoSuchInstrumentError: If the instrument does not exist in the project.
+            ProjectWrapper.NoSuchPipelineError: If the pipeline does not exist in the project.
             ProjectWrapper.NoSuchDeploymentError: If a deployment does not exist in the project.
         """
         merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
 
-        # Get the instrument wrapper
+        # Get the pipeline wrapper
         pipeline_wrapper = self.pipeline_wrappers.get(pipeline_name, None)
         if pipeline_wrapper is None:
             raise ProjectWrapper.NoSuchPipelineError(pipeline_name)
 
-        # Get the instrument instance
+        # Get the pipeline instance
         pipeline = pipeline_wrapper.load_pipeline()
 
         # Get the deployment wrappers
@@ -413,7 +413,7 @@ class ProjectWrapper(LogMixin):
                 raise ProjectWrapper.NoSuchDeploymentError(deployment_name)
             deployment_wrappers.append(deployment_wrapper)
 
-        # Get the deployment data directories for the instrument
+        # Get the deployment data directories for the pipeline
         deployment_data_dirs = [deployment_wrapper.get_pipeline_data_dir(pipeline_name) for deployment_wrapper in deployment_wrappers]
 
         # Load the deployment configs
@@ -451,20 +451,20 @@ class ProjectWrapper(LogMixin):
 
     def update_pipelines(self):
         """
-        Update all instruments in the project.
+        Update all pipelines in the project.
         """
         for pipeline_name, pipeline_wrapper in self._pipeline_wrappers.items():
-            self.logger.info(f'Updating instrument "{pipeline_name}"')
+            self.logger.info(f'Updating pipeline "{pipeline_name}"')
             try:
                 pipeline_wrapper.update()
-                self.logger.info(f'Successfully updated instrument "{pipeline_name}"')
+                self.logger.info(f'Successfully updated pipeline "{pipeline_name}"')
             except Exception as e:
-                self.logger.error(f'Failed to update instrument "{pipeline_name}": {e}')
+                self.logger.error(f'Failed to update pipeline "{pipeline_name}": {e}')
 
     @property
     def pipeline_wrappers(self) -> Dict[str, PipelineWrapper]:
         """
-        The loaded instrument wrappers in the project.
+        The loaded pipeline wrappers in the project.
         """
         return self._pipeline_wrappers
 
@@ -485,7 +485,7 @@ class ProjectWrapper(LogMixin):
     @property
     def pipeline_dir(self) -> Path:
         """
-        The instruments directory of the project.
+        The pipelines directory of the project.
         """
         return self._pipeline_dir
 
@@ -522,7 +522,7 @@ class ProjectWrapper(LogMixin):
     @property
     def pipelines(self) -> Dict[str, PipelineWrapper]:
         """
-        The loaded instruments in the project.
+        The loaded pipelines in the project.
         """
         return self._pipeline_wrappers
 
