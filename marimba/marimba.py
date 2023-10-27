@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import typer
+from rich import print
 
 import marimba.commands.new as new
 from marimba.utils.log import LogLevel, get_logger, get_rich_handler
@@ -280,7 +281,7 @@ def package_command(
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
-    if deployment_names is None:  # If no deployment names are specified, package all deployments
+    if not deployment_names:  # If no deployment names are specified, package all deployments
         deployment_names = list(project_wrapper.deployments.keys())
 
     try:
