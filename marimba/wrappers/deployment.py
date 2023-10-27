@@ -102,7 +102,7 @@ class DeploymentWrapper:
         """
         save_config(self.config_path, config)
 
-    def get_instrument_data_dir(self, instrument_name: str) -> Path:
+    def get_pipeline_data_dir(self, pipeline_name: str) -> Path:
         """
         Get the path to the instrument data directory.
 
@@ -112,4 +112,4 @@ class DeploymentWrapper:
         Returns:
             The path to the instrument data directory.
         """
-        return self.root_dir / instrument_name
+        return self.root_dir / pipeline_name

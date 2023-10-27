@@ -10,7 +10,7 @@ import czifile
 import dateutil.parser
 import pandas as pd
 
-from marimba.core.base_instrument import BaseInstrument
+from marimba.core.pipeline import BasePipeline
 from marimba.utils.config import load_config
 
 __author__ = "Chris Jackett"
@@ -53,7 +53,7 @@ def get_output_file_name(deployment_config: dict, file_path: str) -> str:
         )
 
 
-class ZeissAxioPlan(BaseInstrument):
+class ZeissAxioPlan(BasePipeline):
     def __init__(self, root_path: str, collection_config: dict, instrument_config: dict, dry_run: bool):
         super().__init__(root_path, collection_config, instrument_config, dry_run)
 

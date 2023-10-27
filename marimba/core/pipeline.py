@@ -7,7 +7,7 @@ from ifdo import iFDO
 from marimba.utils.log import LogMixin
 
 
-class BaseInstrument(ABC, LogMixin):
+class BasePipeline(ABC, LogMixin):
     """
     MarImBA instrument abstract base class. All instruments should inherit from this class.
     """
@@ -17,7 +17,7 @@ class BaseInstrument(ABC, LogMixin):
         self._dry_run = dry_run
 
     @staticmethod
-    def get_instrument_config_schema() -> dict:
+    def get_pipeline_config_schema() -> dict:
         """
         Returns the instrument configuration schema.
 

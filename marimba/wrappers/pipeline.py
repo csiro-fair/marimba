@@ -5,12 +5,12 @@ from typing import Union
 
 from git import Repo
 
-from marimba.core.base_instrument import BaseInstrument
+from marimba.core.pipeline import BasePipeline
 from marimba.utils.config import load_config, save_config
 from marimba.utils.log import LogMixin, get_file_handler
 
 
-class InstrumentWrapper(LogMixin):
+class PipelineWrapper(LogMixin):
     """
     Instrument directory wrapper.
     """
@@ -48,7 +48,7 @@ class InstrumentWrapper(LogMixin):
         """
         The path to the instrument configuration file.
         """
-        return self.root_dir / "instrument.yml"
+        return self.root_dir / "pipeline.yml"
 
     def _check_file_structure(self):
         """
@@ -60,11 +60,11 @@ class InstrumentWrapper(LogMixin):
 
         def check_dir_exists(path: Path):
             if not path.is_dir():
-                raise InstrumentWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
+                raise PipelineWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
 
         def check_file_exists(path: Path):
             if not path.is_file():
-                raise InstrumentWrapper.InvalidStructureError(f'"{path}" does not exist or is not a file.')
+                raise PipelineWrapper.InvalidStructureError(f'"{path}" does not exist or is not a file.')
 
         check_dir_exists(self.root_dir)
         check_dir_exists(self.repo_dir)
@@ -72,10 +72,10 @@ class InstrumentWrapper(LogMixin):
 
     def _setup_logging(self):
         """
-        Set up logging. Create file handler for this instance that writes to `instrument.log`.
+        Set up logging. Create file handler for this instance that writes to `pipeline.log`.
         """
         # Create a file handler for this instance
-        self._file_handler = get_file_handler(self.root_dir, "instrument", False, level=logging.DEBUG)
+        self._file_handler = get_file_handler(self.root_dir, "pipeline", False, level=logging.DEBUG)
 
         # Add the file handler to the logger
         self.logger.addHandler(self._file_handler)
@@ -106,7 +106,7 @@ class InstrumentWrapper(LogMixin):
         Repo.clone_from(url, repo_dir)
 
         # Create the instrument configuration file (initialize as empty)
-        config_path = root_dir / "instrument.yml"
+        config_path = root_dir / "pipeline.yml"
         save_config(config_path, {})
 
         return cls(root_dir)
@@ -129,7 +129,7 @@ class InstrumentWrapper(LogMixin):
         """
         save_config(self.config_path, config)
 
-    def load_instrument(self) -> BaseInstrument:
+    def load_pipeline(self) -> BasePipeline:
         """
         Dynamically load an instance of the instrument implementation.
 
@@ -142,32 +142,32 @@ class InstrumentWrapper(LogMixin):
             FileNotFoundError: If the instrument implementation file cannot be found, or if there are multiple instrument implementation files.
             ImportError: If the instrument implementation file cannot be imported.
         """
-        # Find files that end with .instrument.py in the repository
-        instrument_module_paths = list(self.repo_dir.glob("**/*.instrument.py"))
+        # Find files that end with .pipeline.py in the repository
+        pipeline_module_paths = list(self.repo_dir.glob("**/*.pipeline.py"))
 
         # Ensure there is one result
-        if len(instrument_module_paths) == 0:
+        if len(pipeline_module_paths) == 0:
             raise FileNotFoundError(f'No instrument implementation found in "{self.repo_dir}".')
-        elif len(instrument_module_paths) > 1:
-            raise FileNotFoundError(f'Multiple instrument implementations found in "{self.repo_dir}": {instrument_module_paths}.')
-        instrument_module_path = instrument_module_paths[0]
+        elif len(pipeline_module_paths) > 1:
+            raise FileNotFoundError(f'Multiple instrument implementations found in "{self.repo_dir}": {pipeline_module_paths}.')
+        pipeline_module_path = pipeline_module_paths[0]
 
-        instrument_module_spec = spec_from_file_location("instrument", str(instrument_module_path.absolute()))
+        pipeline_module_spec = spec_from_file_location("instrument", str(pipeline_module_path.absolute()))
 
         # Load the instrument module
-        instrument_module = module_from_spec(instrument_module_spec)
-        instrument_module_spec.loader.exec_module(instrument_module)
+        pipeline_module = module_from_spec(pipeline_module_spec)
+        pipeline_module_spec.loader.exec_module(pipeline_module)
 
         # Find any BaseInstrument implementations
-        for _, obj in instrument_module.__dict__.items():
-            if isinstance(obj, type) and issubclass(obj, BaseInstrument) and obj is not BaseInstrument:
+        for _, obj in pipeline_module.__dict__.items():
+            if isinstance(obj, type) and issubclass(obj, BasePipeline) and obj is not BasePipeline:
                 # Create an instance of the instrument
-                instrument_instance = obj(config=self.load_config(), dry_run=False)
+                pipeline_instance = obj(config=self.load_config(), dry_run=False)
 
                 # Set up instrument file logging
-                instrument_instance.logger.addHandler(self._file_handler)
+                pipeline_instance.logger.addHandler(self._file_handler)
 
-                return instrument_instance
+                return pipeline_instance
 
     def update(self):
         """

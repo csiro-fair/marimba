@@ -20,7 +20,7 @@ from jinja2 import Environment, FileSystemLoader
 from rich import print
 from rich.panel import Panel
 
-from marimba.core.base_instrument import BaseInstrument
+from marimba.core.pipeline import BasePipeline
 from marimba.utils.config import load_config
 from marimba.utils.file_system import list_sd_cards
 
@@ -34,7 +34,7 @@ __email__ = "candice.untiedt@csiro.au"
 __status__ = "Development"
 
 
-class BRUVS(BaseInstrument):
+class BRUVS(BasePipeline):
     def __init__(self, root_path: str, collection_config: dict, instrument_config: dict, dry_run: bool):
         super().__init__(root_path, collection_config, instrument_config, dry_run)
 

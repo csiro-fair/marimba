@@ -16,7 +16,7 @@ from PIL import Image
 from rich import print
 from rich.panel import Panel
 
-from marimba.core.base_instrument import BaseInstrument
+from marimba.core.pipeline import BasePipeline
 from marimba.utils.config import load_config
 from marimba.utils.exif_tags import TAGS, get_key
 
@@ -72,7 +72,7 @@ def check_input_args(source_path: str, ifdo_path: str):
         raise typer.Exit()
 
 
-class MNFDeepTowedCamera(BaseInstrument):
+class MNFDeepTowedCamera(BasePipeline):
     def __init__(self, root_path: str, collection_config: dict, instrument_config: dict):
         super().__init__(root_path, collection_config, instrument_config)
 

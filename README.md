@@ -28,7 +28,7 @@
 
 This repository contains the MarImBA Python CLI (Command Line Interface) which is a scientific marine image processing library initially develop at [CSIRO](https://www.csiro.au/). MarImBA is based on the [Typer](https://typer.tiangolo.com/) and [Rich](https://pypi.org/project/rich/) Python packages and contains a range of capabilities including:
 
-* File renaming and directory structuring using instrument-specific naming conventions
+* File renaming and directory structuring using pipeline-specific naming conventions
 * Integration with the [iFDO](https://marine-imaging.com/fair/ifdos/iFDO-overview/) (image FAIR Digital Object) standards
 * Image conversion, compression and resizing using Python [Pillow](https://pypi.org/project/Pillow/)
 * Video transcoding, chunking and frame extraction using [Ffmpeg](https://ffmpeg.org/)
@@ -90,7 +90,7 @@ marimba
 └───img                         - Images for this README.md file
 └───marimba                     - Source directory containing the MarImBA Python CLI application code
 │   │
-│   └───naming                  - File naming schemes for different instruments
+│   └───naming                  - File naming schemes for different pipelines
 │   └───utils                   - Utility modules
 │   │   │   file_system.py      - File system tools
 │   │   │   logger_config.py    - Logging configuration settings
@@ -162,27 +162,27 @@ marimba
 
 ![](img/marimba_default-help.png "marimba_default-help")
 
-The default entry point to start using MarImBA is the `new` command. This allows you to create a new MarImBA collection, instrument or deployment that adheres to the following standard MarImBA structure:
+The default entry point to start using MarImBA is the `new` command. This allows you to create a new MarImBA collection, pipeline or deployment that adheres to the following standard MarImBA structure:
 
 ```
 {collection}
 │
 └───distribution                    - 
 │
-└───instruments                     - 
+└───pipelines                     - 
 │   │
-│   └───{instrument}                - 
+│   └───{pipeline}                - 
 │       │
 │       └───lib                     - 
-│       │   │   instrument.py       - 
+│       │   │   pipeline.py       - 
 │       │   │   requirement.txt     - 
 │       │
 │       └───work                    - 
 │       │   │
 │       │   └───{deployment}        - 
 │       │
-│       │   {instrument}.log        - 
-│       │   instrument.yml          - 
+│       │   {pipeline}.log        - 
+│       │   pipeline.yml          - 
 │       │   metadata.yml            - 
 │
 └───collection.yml                  - 
@@ -191,7 +191,7 @@ The default entry point to start using MarImBA is the `new` command. This allows
 
 The usual order you might use the MarImBA commands might be:
 * `marimba new {collection}`
-* `marimba new {instrument}`
+* `marimba new {pipeline}`
 * `marimba new {deployment}`
 * `marimba qc` - it applicable
 * `marimba rename`

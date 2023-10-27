@@ -142,8 +142,8 @@ def project(
 
 
 @app.command()
-def instrument(
-    instrument_name: str = typer.Argument(..., help="Name of the instrument."),
+def pipeline(
+    pipeline_name: str = typer.Argument(..., help="Name of the pipeline."),
     url: str = typer.Argument(..., help="URL of the instrument git repository."),
     project_dir: Optional[Path] = typer.Option(
         None,
@@ -162,7 +162,7 @@ def instrument(
         project_wrapper = ProjectWrapper(project_dir)
 
         # Create the instrument
-        instrument_wrapper = project_wrapper.create_instrument(instrument_name, url)
+        pipeline_wrapper = project_wrapper.create_pipeline(pipeline_name, url)
     except Exception as e:
         logger.error(e)
         print(error_panel(str(e), title=f"Error - {e.__class__.__name__}"))
@@ -170,15 +170,15 @@ def instrument(
 
     print(
         success_panel(
-            f'Created new {MARIMBA} [light_pink3]instrument[/light_pink3] "{instrument_name}" at: "{project_wrapper.instruments_dir / instrument_name}"'
+            f'Created new {MARIMBA} [light_pink3]instrument[/light_pink3] "{pipeline_name}" at: "{project_wrapper.pipeline_dir / pipeline_name}"'
         )
     )
 
     # Configure the instrument from the command line
-    instrument = instrument_wrapper.load_instrument()
-    instrument_config_schema = instrument.get_instrument_config_schema()
-    instrument_config = prompt_schema(instrument_config_schema)
-    instrument_wrapper.save_config(instrument_config)
+    pipeline = pipeline_wrapper.load_pipeline()
+    pipeline_config_schema = pipeline.get_pipeline_config_schema()
+    pipeline_config = prompt_schema(pipeline_config_schema)
+    pipeline_wrapper.save_config(pipeline_config)
 
 
 @app.command()
@@ -212,9 +212,9 @@ def deployment(
 
     # Get the union of all instrument-specific deployment config schemas
     resolved_deployment_schema = {}
-    for instrument_name, instrument_wrapper in project_wrapper.instrument_wrappers.items():
-        instrument = instrument_wrapper.load_instrument()
-        deployment_config_schema = instrument.get_deployment_config_schema()
+    for pipeline_name, pipeline_wrapper in project_wrapper.pipeline_wrappers.items():
+        pipeline = pipeline_wrapper.load_pipeline()
+        deployment_config_schema = pipeline.get_deployment_config_schema()
         resolved_deployment_schema.update(deployment_config_schema)
 
     def get_last_deployment_name(project_wrapper: ProjectWrapper) -> Optional[str]:  # TODO: Make this less clunky

@@ -18,7 +18,7 @@ from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
 
 import marimba.utils.file_system as fs
-from marimba.core.base_instrument import BaseInstrument
+from marimba.core.pipeline import BasePipeline
 
 __author__ = "Chris Jackett"
 __copyright__ = "Copyright 2023, Environment, CSIRO"
@@ -32,7 +32,7 @@ __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
 
 
-class CanonEOS(BaseInstrument):
+class CanonEOS(BasePipeline):
     def __init__(self, root_path: str, collection_config: dict, instrument_config: dict):
         super().__init__(root_path, collection_config, instrument_config)
 

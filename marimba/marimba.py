@@ -56,7 +56,7 @@ def global_options(
 
 @marimba.command("catalog")
 def catalog_command(
-    instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
+    pipeline_name: str = typer.Argument(None, help="MarImBA pipeline name for targeted processing."),
     deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
     project_dir: Optional[Path] = typer.Option(
         None,
@@ -77,7 +77,7 @@ def catalog_command(
 
     project_wrapper.run_command(
         "run_catalog",
-        instrument_id,
+        pipeline_name,
         deployment_name,
         dry_run=dry_run,
         exiftool_path=exiftool_path,
@@ -89,7 +89,7 @@ def catalog_command(
 
 @marimba.command("init")
 def init_command(
-    instrument_id: str = typer.Argument(..., help="MarImBA instrument ID."),
+    pipeline_name: str = typer.Argument(..., help="MarImBA pipeline name."),
     card_paths: list[str] = typer.Argument(None, help="List of paths to SD cards to be initialised."),
     project_dir: Optional[Path] = typer.Option(
         None,
@@ -111,7 +111,7 @@ def init_command(
 
     project_wrapper.run_command(
         "run_init",
-        instrument_id,
+        pipeline_name,
         None,
         extra,
         card_paths=card_paths,
@@ -126,7 +126,7 @@ def init_command(
 
 @marimba.command("import")
 def import_command(
-    instrument_id: str = typer.Argument(..., help="MarImBA instrument ID."),
+    pipeline_name: str = typer.Argument(..., help="MarImBA pipeline name."),
     card_paths: list[str] = typer.Argument(None, help="List of paths to SD cards to be initialised."),
     project_dir: Optional[Path] = typer.Option(
         None,
@@ -150,7 +150,7 @@ def import_command(
 
     project_wrapper.run_command(
         "run_import",
-        instrument_id,
+        pipeline_name,
         None,
         extra,
         card_paths=card_paths,
@@ -168,8 +168,8 @@ def import_command(
 # TODO: This should be implemented within the MarImBA process command
 @marimba.command("doit")
 def doit_command(
-    instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
-    doit_commands: list[str] = typer.Argument(None, help="MarImBA instrument ID."),
+    pipeline_name: str = typer.Argument(None, help="MarImBA pipeline name."),
+    doit_commands: list[str] = typer.Argument(None, help=""),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
@@ -184,7 +184,7 @@ def doit_command(
 
     project_wrapper.run_command(
         "run_doit",
-        instrument_id,
+        pipeline_name,
         doit_commands,
     )
 
@@ -242,7 +242,7 @@ def doit_command(
 
 @marimba.command("metadata")
 def metadata_command(
-    instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
+    pipeline_name: str = typer.Argument(None, help="MarImBA pipeline name for targeted processing."),
     deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
     project_dir: Optional[Path] = typer.Option(
         None,
@@ -257,13 +257,13 @@ def metadata_command(
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
-    project_wrapper.run_command("run_metadata", instrument_id, deployment_name, extra, dry_run=dry_run)
+    project_wrapper.run_command("run_metadata", pipeline_name, deployment_name, extra, dry_run=dry_run)
 
 
 @marimba.command("package")
 def package_command(
     package_name: str = typer.Argument(..., help="MarImBA package name."),
-    instrument_name: str = typer.Argument(..., help="MarImBA instrument name to package."),
+    pipeline_name: str = typer.Argument(..., help="MarImBA pipeline name to package."),
     deployment_names: Optional[List[str]] = typer.Argument(
         None, help="MarImBA deployment names to package. If none are specified, all deployments will be packaged together."
     ),
@@ -286,7 +286,7 @@ def package_command(
 
     try:
         # Compose the dataset
-        ifdo, path_mapping = project_wrapper.compose(instrument_name, deployment_names, extra, dry_run=dry_run)
+        ifdo, path_mapping = project_wrapper.compose(pipeline_name, deployment_names, extra, dry_run=dry_run)
 
         # Package it
         package_wrapper = project_wrapper.package(package_name, ifdo, path_mapping, copy=copy)
@@ -300,7 +300,7 @@ def package_command(
 
 @marimba.command("process")
 def process_command(
-    instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
+    pipeline_name: str = typer.Argument(None, help="MarImBA pipeline name for targeted processing."),
     deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
     project_dir: Optional[Path] = typer.Option(
         None,
@@ -315,12 +315,12 @@ def process_command(
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
-    project_wrapper.run_command("run_process", instrument_id, deployment_name, extra, dry_run=dry_run)
+    project_wrapper.run_command("run_process", pipeline_name, deployment_name, extra, dry_run=dry_run)
 
 
 @marimba.command("rename")
 def rename_command(
-    instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
+    pipeline_name: str = typer.Argument(None, help="MarImBA pipeline name for targeted processing."),
     deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
     project_dir: Optional[Path] = typer.Option(
         None,
@@ -335,7 +335,7 @@ def rename_command(
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
-    project_wrapper.run_command("run_rename", instrument_id, deployment_name, extra, dry_run=dry_run)
+    project_wrapper.run_command("run_rename", pipeline_name, deployment_name, extra, dry_run=dry_run)
 
 
 # @marimba.command()
@@ -366,7 +366,7 @@ def update_command(
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
-    project_wrapper.update_instruments()
+    project_wrapper.update_pipelines()
 
 
 if __name__ == "__main__":

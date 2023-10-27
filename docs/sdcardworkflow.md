@@ -18,14 +18,14 @@ Prerequisites:
 >(marimba-py3.10) (base) bruvman@bruv:~/data$mkdir bruvcollection 
 >```
 
-2. Create bruv Collection and add bruv instrument to the collection 
+2. Create bruv Collection and add bruv pipeline to the collection 
 
 
 >```console
 >(marimba-py3.10) (base) bruvman@bruv:~/data$marimba new collection ./bruvcollection/ bruvs
 >```
 
-3. add a bruvs instrument to the collection 
+3. add a bruvs pipeline to the collection 
 
 
 >```console

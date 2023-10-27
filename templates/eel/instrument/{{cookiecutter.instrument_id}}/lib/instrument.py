@@ -12,7 +12,7 @@ from pathlib import Path
 from hachoir.metadata import extractMetadata
 from hachoir.parser import createParser
 
-from marimba.core.base_instrument import BaseInstrument
+from marimba.core.pipeline import BasePipeline
 from marimba.utils.config import load_config
 
 __author__ = "Carlie Devine"
@@ -25,7 +25,7 @@ __email__ = "carlie.devine@csiro.au"
 __status__ = "Development"
 
 
-class DropCameraFusion360(BaseInstrument):
+class DropCameraFusion360(BasePipeline):
     def __init__(self, root_path: str, collection_config: dict, instrument_config: dict, dry_run: bool):
         super().__init__(root_path, collection_config, instrument_config, dry_run)
 
