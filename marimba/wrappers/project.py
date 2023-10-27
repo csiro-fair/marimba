@@ -423,7 +423,7 @@ class ProjectWrapper(LogMixin):
         deployment_configs = [deployment_wrapper.load_config() for deployment_wrapper in deployment_wrappers]
 
         # Compose the dataset
-        return instrument.compose(deployment_data_dirs, deployment_configs, **merged_kwargs)
+        return instrument.run_compose(deployment_data_dirs, deployment_configs, **merged_kwargs)
 
     def package(self, name: str, ifdo: iFDO, path_mapping: Dict[Path, Path], copy: bool = True) -> PackageWrapper:
         """
