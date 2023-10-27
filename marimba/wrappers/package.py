@@ -176,6 +176,7 @@ class PackageWrapper(LogMixin):
         # Verify that there are no collisions in destination paths
         reverse_mapping = {dst: src for src, dst in path_mapping.items()}
         for src, dst in path_mapping.items():
-            dst_other = reverse_mapping.get(dst)
-            if dst.resolve() != dst_other.resolve():
+            src_other = reverse_mapping.get(dst)
+            dst_other = path_mapping[src_other]
+            if dst.resolve() != path_mapping[src_other].resolve():
                 raise PackageWrapper.InvalidPathMappingError(f"Destination path {dst} collides with {dst_other} for source path {src}.")
