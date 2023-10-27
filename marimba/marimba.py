@@ -3,12 +3,13 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import typer
 
 import marimba.commands.new as new
 from marimba.utils.log import LogLevel, get_logger, get_rich_handler
+from marimba.utils.rich import MARIMBA, error_panel, success_panel
 from marimba.wrappers.project import ProjectWrapper
 
 __author__ = "MarImBA Development Team"
@@ -260,13 +261,17 @@ def metadata_command(
 
 @marimba.command("package")
 def package_command(
-    instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted packaging."),
-    deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted packaging."),
+    package_name: str = typer.Argument(..., help="MarImBA package name."),
+    instrument_name: str = typer.Argument(..., help="MarImBA instrument name to package."),
+    deployment_names: Optional[List[str]] = typer.Argument(
+        None, help="MarImBA deployment names to package. If none are specified, all deployments will be packaged together."
+    ),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
     ),
-    extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+    copy: bool = typer.Option(True, help="Copy files to package directory. Set to False to move files instead."),
+    extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
@@ -275,12 +280,21 @@ def package_command(
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
-    print(project_wrapper.root_dir)
+    if deployment_names is None:  # If no deployment names are specified, package all deployments
+        deployment_names = list(project_wrapper.deployments.keys())
 
-    # TODO: Figure out specification of deployments to package
-    # TODO: Figure out specification of instruments to package
+    try:
+        # Compose the dataset
+        ifdo, path_mapping = project_wrapper.compose(instrument_name, deployment_names, extra, dry_run=dry_run)
 
-    # TODO: Call run_compose in each instrument
+        # Package it
+        package_wrapper = project_wrapper.package(package_name, ifdo, path_mapping, copy=copy)
+    except Exception as e:
+        logger.error(e)
+        print(error_panel(str(e)))
+        raise typer.Exit()
+
+    print(success_panel(f"Created {MARIMBA} package {package_name} in {package_wrapper.root_dir}"))
 
 
 @marimba.command("process")

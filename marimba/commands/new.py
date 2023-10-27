@@ -8,6 +8,7 @@ from rich.panel import Panel
 from rich.prompt import Confirm, FloatPrompt, IntPrompt, Prompt
 
 from marimba.utils.log import get_logger
+from marimba.utils.rich import MARIMBA, error_panel, success_panel
 from marimba.wrappers.project import ProjectWrapper
 
 logger = get_logger(__name__)
@@ -104,16 +105,9 @@ def find_project_dir_or_exit(project_dir: Optional[Union[str, Path]] = None) -> 
 
     # If no project directory was found, exit with an error
     if project_dir is None:
-        error_message = "Could not find a MarImBA project."
+        error_message = f"Could not find a {MARIMBA} project."
         logger.error(error_message)
-        print(
-            Panel(
-                error_message,
-                title="Error",
-                title_align="left",
-                border_style="red",
-            )
-        )
+        print(error_panel(error_message))
         raise typer.Exit()
 
     return project_dir
@@ -126,27 +120,20 @@ def project(
     """
     Create a new MarImBA project.
     """
-    logger.info("Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new project[/steel_blue3] command.")
+    logger.info(f"Executing the {MARIMBA} [steel_blue3]new project[/steel_blue3] command.")
 
     # Try to create the new project
     try:
         project_wrapper = ProjectWrapper.create(project_dir)
     except FileExistsError:
-        error_message = f'A [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]project[/light_pink3] already exists at: "{project_dir}"'
+        error_message = f'A {MARIMBA} [light_pink3]project[/light_pink3] already exists at: "{project_dir}"'
         logger.error(error_message)
-        print(
-            Panel(
-                error_message,
-                title="Error",
-                title_align="left",
-                border_style="red",
-            )
-        )
+        print(error_panel(error_message))
         raise typer.Exit()
 
     print(
         Panel(
-            f'Created new [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]project[/light_pink3] at: "{project_wrapper.root_dir}"',
+            f'Created new {MARIMBA} [light_pink3]project[/light_pink3] at: "{project_wrapper.root_dir}"',
             title="Success",
             title_align="left",
             border_style="green",
@@ -168,7 +155,7 @@ def instrument(
     """
     project_dir = find_project_dir_or_exit(project_dir)
 
-    logger.info("Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new instrument[/steel_blue3] command.")
+    logger.info(f"Executing the {MARIMBA} [steel_blue3]new instrument[/steel_blue3] command.")
 
     try:
         # Create project wrapper instance
@@ -178,22 +165,12 @@ def instrument(
         instrument_wrapper = project_wrapper.create_instrument(instrument_name, url)
     except Exception as e:
         logger.error(e)
-        print(
-            Panel(
-                str(e),
-                title=f"Error - {e.__class__.__name__}",
-                title_align="left",
-                border_style="red",
-            )
-        )
+        print(error_panel(str(e), title=f"Error - {e.__class__.__name__}"))
         raise typer.Exit()
 
     print(
-        Panel(
-            f'Created new [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]instrument[/light_pink3] "{instrument_name}" at: "{project_wrapper.instruments_dir / instrument_name}"',
-            title="Success",
-            title_align="left",
-            border_style="green",
+        success_panel(
+            f'Created new {MARIMBA} [light_pink3]instrument[/light_pink3] "{instrument_name}" at: "{project_wrapper.instruments_dir / instrument_name}"'
         )
     )
 
@@ -218,7 +195,7 @@ def deployment(
     """
     project_dir = find_project_dir_or_exit(project_dir)
 
-    logger.info("Executing the [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [steel_blue3]new deployment[/steel_blue3] command.")
+    logger.info(f"Executing the {MARIMBA} [steel_blue3]new deployment[/steel_blue3] command.")
 
     try:
         # Create project wrapper instance
@@ -228,24 +205,10 @@ def deployment(
         deployment_wrapper = project_wrapper.create_deployment(deployment_name)
     except Exception as e:
         logger.error(e)
-        print(
-            Panel(
-                str(e),
-                title=f"Error - {e.__class__.__name__}",
-                title_align="left",
-                border_style="red",
-            )
-        )
+        print(error_panel(str(e), title=f"Error - {e.__class__.__name__}"))
         raise typer.Exit()
 
-    print(
-        Panel(
-            f'Created new [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]deployment[/light_pink3] "{deployment_name}" at: "{deployment_wrapper.root_dir}"',
-            title="Success",
-            title_align="left",
-            border_style="green",
-        )
-    )
+    print(success_panel(f'Created new {MARIMBA} [light_pink3]deployment[/light_pink3] "{deployment_name}" at: "{deployment_wrapper.root_dir}"'))
 
     # Get the union of all instrument-specific deployment config schemas
     resolved_deployment_schema = {}
@@ -270,14 +233,7 @@ def deployment(
         parent_deployment_wrapper = project_wrapper.deployment_wrappers.get(parent, None)
 
         if parent_deployment_wrapper is None:
-            print(
-                Panel(
-                    f'Parent deployment "{parent}" does not exist.',
-                    title="Error",
-                    title_align="left",
-                    border_style="red",
-                )
-            )
+            print(error_panel(f'Parent deployment "{parent}" does not exist.'))
             raise typer.Exit(f'Parent deployment "{parent}" does not exist.')
 
         parent_deployment_config = parent_deployment_wrapper.load_config()

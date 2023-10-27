@@ -1,32 +1,32 @@
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+from ifdo import iFDO
 
 from marimba.core.base_instrument import BaseInstrument
 from marimba.utils.log import LogMixin, get_file_handler, get_logger
+from marimba.utils.rich import MARIMBA
 from marimba.wrappers.deployment import DeploymentWrapper
 from marimba.wrappers.instrument import InstrumentWrapper
+from marimba.wrappers.package import PackageWrapper
 
 logger = get_logger(__name__)
 
 
 def get_base_templates_path() -> Path:
     base_templates_path = Path(__file__).parent.parent.parent / "templates"
-    logger.info(f'Setting [bold][aquamarine3]MarImBA[/aquamarine3][/bold] base templates path to: "{base_templates_path}"')
+    logger.info(f'Setting {MARIMBA} base templates path to: "{base_templates_path}"')
     return base_templates_path
 
 
 def check_template_exists(base_templates_path: Union[str, Path], template_name: str, template_type: str) -> Path:
     base_templates_path = Path(base_templates_path)
-    logger.info(
-        f"Checking that the provided [bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{template_type}[/light_pink3] template exists..."
-    )
+    logger.info(f"Checking that the provided {MARIMBA} [light_pink3]{template_type}[/light_pink3] template exists...")
     template_path = base_templates_path / template_name / template_type
 
     if template_path.is_dir():
-        logger.info(
-            f"[bold][aquamarine3]MarImBA[/aquamarine3][/bold] [light_pink3]{template_type}[/light_pink3] template [orchid1]{Path(template_name) / template_type}[/orchid1] exists!"
-        )
+        logger.info(f"{MARIMBA} [light_pink3]{template_type}[/light_pink3] template [orchid1]{Path(template_name) / template_type}[/orchid1] exists!")
     else:
         error_message = f"The provided [light_pink3]{template_type}[/light_pink3] template name [orchid1]{Path(template_name) / template_type}[/orchid1] does not exists at {template_path}"
         logger.error(error_message)
@@ -112,6 +112,20 @@ class ProjectWrapper(LogMixin):
 
         pass
 
+    class NoSuchInstrumentError(Exception):
+        """
+        Raised when an instrument does not exist in the project.
+        """
+
+        pass
+
+    class NoSuchDeploymentError(Exception):
+        """
+        Raised when a deployment does not exist in the project.
+        """
+
+        pass
+
     def __init__(self, root_dir: Union[str, Path]):
         super().__init__()
 
@@ -167,7 +181,7 @@ class ProjectWrapper(LogMixin):
         Check that the project file structure is valid. If not, raise an InvalidStructureError with details.
 
         Raises:
-            Project.InvalidStructureError: If the project file structure is invalid.
+            ProjectWrapper.InvalidStructureError: If the project file structure is invalid.
         """
 
         def check_dir_exists(path: Path):
@@ -232,7 +246,7 @@ class ProjectWrapper(LogMixin):
             The instrument directory wrapper.
 
         Raises:
-            Project.CreateInstrumentError: If the instrument cannot be created.
+            ProjectWrapper.CreateInstrumentError: If the instrument cannot be created.
         """
         self.logger.debug(f'Creating instrument "{name}" from {url}')
 
@@ -262,7 +276,7 @@ class ProjectWrapper(LogMixin):
             The deployment directory wrapper.
 
         Raises:
-            Project.CreateDeploymentError: If the deployment cannot be created.
+            ProjectWrapper.CreateDeploymentError: If the deployment cannot be created.
         """
         self.logger.debug(f'Creating deployment "{name}"')
 
@@ -320,7 +334,7 @@ class ProjectWrapper(LogMixin):
             A dictionary containing the results of the command for each deployment: {deployment_name: {instrument_name: result}}.
 
         Raises:
-            Project.RunCommandError: If the command cannot be run.
+            ProjectWrapper.RunCommandError: If the command cannot be run.
         """
         merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
 
@@ -364,6 +378,79 @@ class ProjectWrapper(LogMixin):
             results_by_deployment[run_deployment_name] = results_by_instrument
 
         return results_by_deployment
+
+    def compose(
+        self, instrument_name: str, deployment_names: List[str], extra_args: Optional[List[str]] = None, **kwargs: dict
+    ) -> Tuple[iFDO, Dict[Path, Path]]:
+        """
+        Compose a dataset for a given instrument.
+
+        Args:
+            instrument_name: The name of the instrument to use.
+            deployment_names: The names of the deployments to compose.
+            extra_args: Any extra CLI arguments to pass to the command.
+            kwargs: Any keyword arguments to pass to the command.
+
+        Returns:
+            A tuple containing the iFDO and a dictionary of deployment data file paths to the desired relative dataset paths.
+
+        Raises:
+            ProjectWrapper.NoSuchInstrumentError: If the instrument does not exist in the project.
+            ProjectWrapper.NoSuchDeploymentError: If a deployment does not exist in the project.
+        """
+        merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
+
+        # Get the instrument wrapper
+        instrument_wrapper = self.instrument_wrappers.get(instrument_name, None)
+        if instrument_wrapper is None:
+            raise ProjectWrapper.NoSuchInstrumentError(instrument_name)
+
+        # Get the instrument instance
+        instrument = instrument_wrapper.load_instrument()
+
+        # Get the deployment wrappers
+        deployment_wrappers: List[DeploymentWrapper] = []
+        for deployment_name in deployment_names:
+            deployment_wrapper = self.deployment_wrappers.get(deployment_name, None)
+            if deployment_wrapper is None:
+                raise ProjectWrapper.NoSuchDeploymentError(deployment_name)
+            deployment_wrappers.append(deployment_wrapper)
+
+        # Get the deployment data directories for the instrument
+        deployment_data_dirs = [deployment_wrapper.get_instrument_data_dir(instrument_name) for deployment_wrapper in deployment_wrappers]
+
+        # Load the deployment configs
+        deployment_configs = [deployment_wrapper.load_config() for deployment_wrapper in deployment_wrappers]
+
+        # Compose the dataset
+        return instrument.compose(deployment_data_dirs, deployment_configs, **merged_kwargs)
+
+    def package(self, name: str, ifdo: iFDO, path_mapping: Dict[Path, Path], copy: bool = True) -> PackageWrapper:
+        """
+        Create a MarImBA package from an iFDO and a path mapping.
+
+        Args:
+            name: The name of the package.
+            ifdo: The iFDO to package.
+            path_mapping: A dictionary of paths to relative paths.
+            copy: Whether to copy the files (True) or move them (False).
+
+        Returns:
+            A package wrapper instance for the created package.
+
+        Raises:
+            FileExistsError: If the package root directory already exists.
+            PackageWrapper.InvalidPathMappingError: If the path mapping is invalid.
+        """
+        package_root_dir = self.distribution_dir / name
+
+        # Create the package
+        package_wrapper = PackageWrapper.create(package_root_dir, ifdo)
+
+        # Populate it
+        package_wrapper.populate(path_mapping, copy=copy)
+
+        return package_wrapper
 
     def update_instruments(self):
         """
@@ -411,6 +498,15 @@ class ProjectWrapper(LogMixin):
         The deployments directory of the project.
         """
         return self._deployments_dir
+
+    @property
+    def distribution_dir(self) -> Path:
+        """
+        The path to the distribution directory. Lazy-created on first access.
+        """
+        distribution_dir = self._root_dir / "dist"
+        distribution_dir.mkdir(exist_ok=True)
+        return distribution_dir
 
     @property
     def marimba_dir(self) -> Path:
