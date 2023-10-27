@@ -9,7 +9,7 @@ from marimba.utils.log import LogMixin
 
 class BasePipeline(ABC, LogMixin):
     """
-    MarImBA pipeline abstract base class. All pipelines should inherit from this class.
+    Marimba pipeline abstract base class. All pipelines should inherit from this class.
     """
 
     def __init__(self, config: Optional[dict] = None, dry_run: bool = False):
@@ -181,7 +181,7 @@ class BasePipeline(ABC, LogMixin):
 
         TODO: Add docs on how to implement this method.
         """
-        self.logger.warning(f"There is no MarImBA [bold]init[/bold] command implemented for pipeline [bold]{self.class_name}[/bold]")
+        self.logger.warning(f"There is no Marimba [bold]init[/bold] command implemented for pipeline [bold]{self.class_name}[/bold]")
 
     def _import(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
         """
@@ -189,7 +189,7 @@ class BasePipeline(ABC, LogMixin):
 
         TODO: Add docs on how to implement this method.
         """
-        self.logger.warning(f"There is no MarImBA [bold]import[/bold] command implemented for pipeline [bold]{self.class_name}[/bold]")
+        self.logger.warning(f"There is no Marimba [bold]import[/bold] command implemented for pipeline [bold]{self.class_name}[/bold]")
 
     def _rename(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
         """
@@ -197,7 +197,7 @@ class BasePipeline(ABC, LogMixin):
 
         TODO: Add docs on how to implement this method.
         """
-        self.logger.warning(f"There is no MarImBA [bold]rename[/bold] command implemented for pipeline [bold]{self.class_name}[/bold]")
+        self.logger.warning(f"There is no Marimba [bold]rename[/bold] command implemented for pipeline [bold]{self.class_name}[/bold]")
 
     def _process(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
         """
@@ -205,7 +205,7 @@ class BasePipeline(ABC, LogMixin):
 
         TODO: Add docs on how to implement this method.
         """
-        self.logger.warning(f"There is no MarImBA [bold]process[/bold] command implemented for pipeline [bold]{self.class_name}[/bold]")
+        self.logger.warning(f"There is no Marimba [bold]process[/bold] command implemented for pipeline [bold]{self.class_name}[/bold]")
 
     def _metadata(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
         """
@@ -213,7 +213,7 @@ class BasePipeline(ABC, LogMixin):
 
         TODO: Add docs on how to implement this method.
         """
-        self.logger.warning(f"There is no MarImBA [bold]init[/bold] command implemented for pipeline [bold]{self.class_name}[/bold]")
+        self.logger.warning(f"There is no Marimba [bold]init[/bold] command implemented for pipeline [bold]{self.class_name}[/bold]")
 
     @abstractmethod
     def _compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Tuple[iFDO, Dict[Path, Path]]:

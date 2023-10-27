@@ -82,7 +82,7 @@ class CanonEOS(BasePipeline):
 
     def rename(self, dry_run: bool):
         """
-        Implementation of the MarImBA rename command for the Canon EOS 600D and 700D cameras
+        Implementation of the Marimba rename command for the Canon EOS 600D and 700D cameras
         """
 
         # Set dry run log string to prepend to logging
@@ -101,7 +101,7 @@ class CanonEOS(BasePipeline):
                 )
                 continue
             else:
-                self.logger.info(f'{dry_run_prefix}Found MarImBA deployment file at path: "{deployment.path}/{deployment_name}.yml"')
+                self.logger.info(f'{dry_run_prefix}Found Marimba deployment file at path: "{deployment.path}/{deployment_name}.yml"')
 
                 # Define regex to match any of the filetypes to be renamed
                 extensions_pattern = f'({"|".join(re.escape(extension) for extension in self.filetypes)})$'
@@ -140,7 +140,7 @@ class CanonEOS(BasePipeline):
 
     def process(self, dry_run: bool):
         """
-        Implementation of the MarImBA process command for the Canon EOS 600D and 700D cameras.
+        Implementation of the Marimba process command for the Canon EOS 600D and 700D cameras.
         This implementation
         """
 
@@ -160,7 +160,7 @@ class CanonEOS(BasePipeline):
                 )
                 continue
             else:
-                self.logger.info(f'{dry_run_prefix}Found MarImBA deployment file at path: "{deployment.path}/{deployment_name}.yml"')
+                self.logger.info(f'{dry_run_prefix}Found Marimba deployment file at path: "{deployment.path}/{deployment_name}.yml"')
 
                 # Traverse the deployment porcessed images directory
                 for root, dirs, files in os.walk(Path(deployment.path) / "processed" / "images"):

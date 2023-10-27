@@ -13,7 +13,7 @@ from marimba.utils.log import LogLevel, get_logger, get_rich_handler
 from marimba.utils.rich import MARIMBA, error_panel, success_panel
 from marimba.wrappers.project import ProjectWrapper
 
-__author__ = "MarImBA Development Team"
+__author__ = "Marimba Development Team"
 __copyright__ = "Copyright 2023, CSIRO"
 __credits__ = [
     "Chris Jackett <chris.jackett@csiro.au>",
@@ -31,10 +31,10 @@ __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
 
 marimba = typer.Typer(
-    name="MarImBA - Marine Imagery Batch Actions",
-    help="""MarImBA - Marine Imagery Batch Actions\n
+    name="Marimba - Marine Imagery Batch Actions",
+    help="""Marimba - Marine Imagery Batch Actions\n
         A Python CLI for batch processing, transforming and FAIR-ising large volumes of marine imagery.""",
-    short_help="MarImBA - Marine Imagery Batch Actions",
+    short_help="Marimba - Marine Imagery Batch Actions",
     no_args_is_help=True,
 )
 
@@ -48,19 +48,19 @@ def global_options(
     level: LogLevel = typer.Option(LogLevel.INFO, help="Logging level."),
 ):
     """
-    Global options for MarImBA CLI.
+    Global options for Marimba CLI.
     """
     get_rich_handler().setLevel(logging.getLevelName(level.value))
-    logger.info(f"Initialised MarImBA CLI v{__version__}")
+    logger.info(f"Initialised Marimba CLI v{__version__}")
 
 
 # @marimba.command("catalog")
 # def catalog_command(
-#     pipeline_name: str = typer.Argument(None, help="MarImBA pipeline name for targeted processing."),
-#     deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
+#     pipeline_name: str = typer.Argument(None, help="Marimba pipeline name for targeted processing."),
+#     deployment_name: str = typer.Argument(None, help="Marimba deployment name for targeted processing."),
 #     project_dir: Optional[Path] = typer.Option(
 #         None,
-#         help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
+#         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
 #     ),
 #     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
 #     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
@@ -89,11 +89,11 @@ def global_options(
 
 @marimba.command("init")
 def init_command(
-    pipeline_name: str = typer.Argument(..., help="MarImBA pipeline name."),
+    pipeline_name: str = typer.Argument(..., help="Marimba pipeline name."),
     card_paths: list[str] = typer.Argument(None, help="List of paths to SD cards to be initialised."),
     project_dir: Optional[Path] = typer.Option(
         None,
-        help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
+        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
     all: bool = typer.Option(False, help="."),
     days: int = typer.Option(0, help='Add an offset to the import date (e.g. "+1" to set the date to tomorrow).'),
@@ -126,11 +126,11 @@ def init_command(
 
 @marimba.command("import")
 def import_command(
-    pipeline_name: str = typer.Argument(..., help="MarImBA pipeline name."),
+    pipeline_name: str = typer.Argument(..., help="Marimba pipeline name."),
     card_paths: list[str] = typer.Argument(None, help="List of paths to SD cards to be initialised."),
     project_dir: Optional[Path] = typer.Option(
         None,
-        help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
+        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
     all: bool = typer.Option(False, help="."),
     exiftool_path: str = typer.Option("exiftool", help="Path to exiftool"),
@@ -167,11 +167,11 @@ def import_command(
 
 @marimba.command("metadata")
 def metadata_command(
-    pipeline_name: str = typer.Argument(None, help="MarImBA pipeline name for targeted processing."),
-    deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
+    pipeline_name: str = typer.Argument(None, help="Marimba pipeline name for targeted processing."),
+    deployment_name: str = typer.Argument(None, help="Marimba deployment name for targeted processing."),
     project_dir: Optional[Path] = typer.Option(
         None,
-        help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
+        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
@@ -187,21 +187,21 @@ def metadata_command(
 
 @marimba.command("package")
 def package_command(
-    package_name: str = typer.Argument(..., help="MarImBA package name."),
-    pipeline_name: str = typer.Argument(..., help="MarImBA pipeline name to package."),
+    package_name: str = typer.Argument(..., help="Marimba package name."),
+    pipeline_name: str = typer.Argument(..., help="Marimba pipeline name to package."),
     deployment_names: Optional[List[str]] = typer.Argument(
-        None, help="MarImBA deployment names to package. If none are specified, all deployments will be packaged together."
+        None, help="Marimba deployment names to package. If none are specified, all deployments will be packaged together."
     ),
     project_dir: Optional[Path] = typer.Option(
         None,
-        help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
+        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
     copy: bool = typer.Option(True, help="Copy files to package directory. Set to False to move files instead."),
     extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
-    Package up a MarImBA collection ready for distribution.
+    Package up a Marimba collection ready for distribution.
     """
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
@@ -225,17 +225,17 @@ def package_command(
 
 @marimba.command("process")
 def process_command(
-    pipeline_name: str = typer.Argument(None, help="MarImBA pipeline name for targeted processing."),
-    deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
+    pipeline_name: str = typer.Argument(None, help="Marimba pipeline name for targeted processing."),
+    deployment_name: str = typer.Argument(None, help="Marimba deployment name for targeted processing."),
     project_dir: Optional[Path] = typer.Option(
         None,
-        help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
+        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
-    Process the MarImBA collection based on the pipeline specification.
+    Process the Marimba collection based on the pipeline specification.
     """
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
@@ -245,11 +245,11 @@ def process_command(
 
 @marimba.command("rename")
 def rename_command(
-    pipeline_name: str = typer.Argument(None, help="MarImBA pipeline name for targeted processing."),
-    deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
+    pipeline_name: str = typer.Argument(None, help="Marimba pipeline name for targeted processing."),
+    deployment_name: str = typer.Argument(None, help="Marimba deployment name for targeted processing."),
     project_dir: Optional[Path] = typer.Option(
         None,
-        help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
+        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
@@ -267,11 +267,11 @@ def rename_command(
 def update_command(
     project_dir: Optional[Path] = typer.Option(
         None,
-        help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
+        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
 ):
     """
-    Update (pull) all MarImBA pipelines.
+    Update (pull) all Marimba pipelines.
     """
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)

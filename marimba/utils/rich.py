@@ -4,7 +4,7 @@ Rich console output utilities.
 
 from rich.panel import Panel
 
-MARIMBA = "[bold][aquamarine3]MarImBA[/aquamarine3][/bold]"
+MARIMBA = "[bold][aquamarine3]Marimba[/aquamarine3][/bold]"
 
 
 def success_panel(message: str, title: str = "Success") -> Panel:

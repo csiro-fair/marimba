@@ -90,7 +90,7 @@ class ZeissAxioPlan(BasePipeline):
 
     def run_rename(self, deployment_path: Path):
         """
-        Implementation of the MarImBA rename command for the Zeiss Axio Observer
+        Implementation of the Marimba rename command for the Zeiss Axio Observer
         """
 
         # Loop through each deployment subdirectory in the instrument work directory
@@ -107,7 +107,7 @@ class ZeissAxioPlan(BasePipeline):
                 continue
             else:
                 # TODO: Need to validate deployment metadata file here and load deployment config
-                self.logger.info(f'Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
+                self.logger.info(f'Found valid Marimba deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
                 deployment_config = load_config(deployment_config_path)
 
                 # Loop through each file in the deployment directory

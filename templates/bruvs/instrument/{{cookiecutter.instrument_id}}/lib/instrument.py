@@ -116,7 +116,7 @@ class BRUVS(BasePipeline):
     # TODO: Change this to single deployment path processing
     def run_rename(self, deployment_path: Path):
         """
-        Implementation of the MarImBA rename command for the BRUVS
+        Implementation of the Marimba rename command for the BRUVS
         """
 
         # Loop through each deployment subdirectory in the instrument work directory
@@ -136,7 +136,7 @@ class BRUVS(BasePipeline):
                 continue
             else:
                 # TODO: Need to validate deployment metadata file here and load deployment config
-                self.logger.info(f'Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
+                self.logger.info(f'Found valid Marimba deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
                 deployment_config = load_config(deployment_config_path)
 
                 # Rename pair-wise sorted
@@ -239,7 +239,7 @@ class BRUVS(BasePipeline):
 
     def run_init(self, card_paths: list, days: int, overwrite: bool):
         """
-        Implementation of the MarImBA init command for BRUVS
+        Implementation of the Marimba init command for BRUVS
         """
 
         def make_xml(file_path):

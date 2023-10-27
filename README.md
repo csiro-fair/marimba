@@ -3,14 +3,14 @@
 <!-- PROJECT LOGO -->
 <figure markdown style="text-align: center">
 
-![](img/logo.png "MarImBA logo")
-![](docs/img/logo.png "MarImBA logo")
+![](img/logo.png "Marimba logo")
+![](docs/img/logo.png "Marimba logo")
 
 </figure>
 
 <div style="text-align: center">
 
-<h1 style="color: #00A9CE">MarImBA</h1>
+<h1 style="color: #00A9CE">Marimba</h1>
 <h3><span style="color: #00A9CE">Mar</span>ine <span style="color: #00A9CE">Im</span>agery <span style="color: #00A9CE">B</span>atch <span style="color: #00A9CE">A</span>ctions</h3>
 <p><i>A Python CLI for batch processing, transforming and FAIR-ising large volumes of marine imagery.</i></p>
 <div>
@@ -26,7 +26,7 @@
 </div>
 
 
-This repository contains the MarImBA Python CLI (Command Line Interface) which is a scientific marine image processing library initially develop at [CSIRO](https://www.csiro.au/). MarImBA is based on the [Typer](https://typer.tiangolo.com/) and [Rich](https://pypi.org/project/rich/) Python packages and contains a range of capabilities including:
+This repository contains the Marimba Python CLI (Command Line Interface) which is a scientific marine image processing library initially develop at [CSIRO](https://www.csiro.au/). Marimba is based on the [Typer](https://typer.tiangolo.com/) and [Rich](https://pypi.org/project/rich/) Python packages and contains a range of capabilities including:
 
 * File renaming and directory structuring using pipeline-specific naming conventions
 * Integration with the [iFDO](https://marine-imaging.com/fair/ifdos/iFDO-overview/) (image FAIR Digital Object) standards
@@ -34,7 +34,7 @@ This repository contains the MarImBA Python CLI (Command Line Interface) which i
 * Video transcoding, chunking and frame extraction using [Ffmpeg](https://ffmpeg.org/)
 * Automated logfile capturing to archive image processing provenance
 
-MarImBA can be used directly after data acquisition has occurred and can efficiently produce well-described image datasets that are aligned with the FAIR data standards.
+Marimba can be used directly after data acquisition has occurred and can efficiently produce well-described image datasets that are aligned with the FAIR data standards.
 
 ---
 
@@ -59,19 +59,19 @@ MarImBA can be used directly after data acquisition has occurred and can efficie
 <a name="install"></a>
 ### Install
 
-MarImBA has a few system level dependencies such as `ffmpeg` and `ffprobe` (which is installed with `ffmpeg`) (it would be very nice to move away from this, especially if we can find a cross-platform pip ffmpeg library!). On Ubuntu you can install `ffmpeg` with:
+Marimba has a few system level dependencies such as `ffmpeg` and `ffprobe` (which is installed with `ffmpeg`) (it would be very nice to move away from this, especially if we can find a cross-platform pip ffmpeg library!). On Ubuntu you can install `ffmpeg` with:
 
 ```bash
 sudo apt install ffmpeg
 ```
 
-Then clone the MarImBA repository:
+Then clone the Marimba repository:
 
 ```bash
 git clone https://bitbucket.csiro.au/scm/biaa/marimba.git
 ```
 
-In the future we are anticipating making MarImBA an official [PyPI](https://pypi.org/) package, which will be installable with `pip install marimba` and usable anywhere on your system.
+In the future we are anticipating making Marimba an official [PyPI](https://pypi.org/) package, which will be installable with `pip install marimba` and usable anywhere on your system.
 
 
 <a name="project-structure"></a>
@@ -86,9 +86,9 @@ The specific structure for this project is:
 
 ```
 marimba
-└───doc                         - Documentation files for MarImBA
+└───doc                         - Documentation files for Marimba
 └───img                         - Images for this README.md file
-└───marimba                     - Source directory containing the MarImBA Python CLI application code
+└───marimba                     - Source directory containing the Marimba Python CLI application code
 │   │
 │   └───naming                  - File naming schemes for different pipelines
 │   └───utils                   - Utility modules
@@ -102,7 +102,7 @@ marimba
 │
 │   .flake8                     - Custom flake8 settings
 │   .pre-commit-config.yaml     - Pre-commit hooks that can be executed locally and in CI
-│   Dockerfile                  - Main Dockerfile to build MarImBA in a Docker container
+│   Dockerfile                  - Main Dockerfile to build Marimba in a Docker container
 │   pyproject.toml              - Custom Python Black settings
 │   README.md                   - This file!
 │   requirements.txt            - Pip dependencies for Python virtual environment
@@ -118,14 +118,14 @@ Let's install the Python dependencies into a virtual environment using [Poetry](
 pip install poetry
 ```
 
-Then, from the root directory of the MarImBA project, run:
+Then, from the root directory of the Marimba project, run:
 
 ```bash
 poetry install
 poetry shell
 ```
 
-This will create a new environment, install the package dependencies and activate the environment. You can now run the MarImBA CLI application from the activated environment:
+This will create a new environment, install the package dependencies and activate the environment. You can now run the Marimba CLI application from the activated environment:
 
 ```bash
 marimba --help
@@ -135,7 +135,7 @@ marimba --help
 <a name="poetry-build"></a>
 ### Build
 
-To build MarImBA application as a Python wheel, run:
+To build Marimba application as a Python wheel, run:
 
 ```bash
 poetry build
@@ -154,7 +154,7 @@ pip install dist/marimba-0.1.0-py3-none-any.whl
 <a name="usage"></a>
 ## Usage
 
-MarImBA is based on the [Typer](https://typer.tiangolo.com/) Python package which is self-documenting by default. Try running MarImBA to see the default help menu:
+Marimba is based on the [Typer](https://typer.tiangolo.com/) Python package which is self-documenting by default. Try running Marimba to see the default help menu:
 
 ```bash
 marimba
@@ -162,7 +162,7 @@ marimba
 
 ![](img/marimba_default-help.png "marimba_default-help")
 
-The default entry point to start using MarImBA is the `new` command. This allows you to create a new MarImBA collection, pipeline or deployment that adheres to the following standard MarImBA structure:
+The default entry point to start using Marimba is the `new` command. This allows you to create a new Marimba collection, pipeline or deployment that adheres to the following standard Marimba structure:
 
 ```
 {collection}
@@ -189,7 +189,7 @@ The default entry point to start using MarImBA is the `new` command. This allows
 └───{collection}.log                - 
 ```
 
-The usual order you might use the MarImBA commands might be:
+The usual order you might use the Marimba commands might be:
 * `marimba new {collection}`
 * `marimba new {pipeline}`
 * `marimba new {deployment}`
@@ -208,7 +208,7 @@ The usual order you might use the MarImBA commands might be:
 <a name="contributing"></a>
 ## Contributing
 
-This is an open-source project and we welcome contibutions. If you have a suggestion that would make MarImBA better, please clone the repo and submit a pull request.
+This is an open-source project and we welcome contibutions. If you have a suggestion that would make Marimba better, please clone the repo and submit a pull request.
 
 1. Clone the project: <a href="#getting-started">Getting Started</a>
 2. Create your new feature branch: 
@@ -253,7 +253,7 @@ The primary point-of-contact for this repository is:
 <a name="acknowledgments"></a>
 ## Acknowledgments
 
-The inception of MarImBA was at CSIRO in 2021 and much of the initial design and implementation took place at the CSIRO 2022 [Image Data Collection and Delivery Hackathon](/docs/hackathon.md).
+The inception of Marimba was at CSIRO in 2021 and much of the initial design and implementation took place at the CSIRO 2022 [Image Data Collection and Delivery Hackathon](/docs/hackathon.md).
 
 There have been many contributors to this project including:
 

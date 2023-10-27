@@ -70,7 +70,7 @@ def get_merged_keyword_args(kwargs: dict, extra_args: list, logger: logging.Logg
 
 class ProjectWrapper(LogMixin):
     """
-    MarImBA project directory wrapper. Provides methods for interacting with the project.
+    Marimba project directory wrapper. Provides methods for interacting with the project.
 
     To create a new project, use the `create` method:
     ```python
@@ -424,7 +424,7 @@ class ProjectWrapper(LogMixin):
 
     def package(self, name: str, ifdo: iFDO, path_mapping: Dict[Path, Path], copy: bool = True) -> PackageWrapper:
         """
-        Create a MarImBA package from an iFDO and a path mapping.
+        Create a Marimba package from an iFDO and a path mapping.
 
         Args:
             name: The name of the package.
@@ -508,7 +508,7 @@ class ProjectWrapper(LogMixin):
     @property
     def marimba_dir(self) -> Path:
         """
-        The MarImBA directory of the project.
+        The Marimba directory of the project.
         """
         return self._marimba_dir
 

@@ -147,7 +147,7 @@ class MNFDeepTowedCamera(BasePipeline):
 
     def rename(self, dry_run: bool):
         """
-        Implementation of the MarImBA rename command for the MNF Deep Towed Camera
+        Implementation of the Marimba rename command for the MNF Deep Towed Camera
         """
 
         # Set dry run log string to prepend to logging
@@ -171,7 +171,7 @@ class MNFDeepTowedCamera(BasePipeline):
                 continue
             else:
                 # TODO: Need to validate deployment metadata file here and load deployment config
-                self.logger.info(f'{dry_run_log_string}Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
+                self.logger.info(f'{dry_run_log_string}Found valid Marimba deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
                 deployment_config = load_config(deployment_config_path)
 
                 # Loop through each file in the deployment port and starboard image directories
@@ -271,7 +271,7 @@ class MNFDeepTowedCamera(BasePipeline):
 
     def metadata(self, dry_run: bool):
         """
-        Implementation of the MarImBA metadata command for the MNF Deep Towed Camera
+        Implementation of the Marimba metadata command for the MNF Deep Towed Camera
         """
 
         # Set dry run log string to prepend to logging
@@ -295,7 +295,7 @@ class MNFDeepTowedCamera(BasePipeline):
                 continue
             else:
                 # TODO: Need to validate deployment metadata file here and load deployment config
-                self.logger.info(f'{dry_run_log_string}Found valid MarImBA deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
+                self.logger.info(f'{dry_run_log_string}Found valid Marimba deployment with "{deployment_name}.yml" at path: "{deployment.path}"')
                 deployment_config = load_config(deployment_config_path)
 
                 # Initialize an empty list to store the image data

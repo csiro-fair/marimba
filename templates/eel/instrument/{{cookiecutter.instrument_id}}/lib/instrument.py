@@ -34,7 +34,7 @@ class DropCameraFusion360(BasePipeline):
 
     def process(self, deployment_path: Path):
         """
-        Implementation of the MarImBA process command for the DCF360
+        Implementation of the Marimba process command for the DCF360
         """
 
         self.logger.info("Process command")
@@ -140,10 +140,10 @@ class DropCameraFusion360(BasePipeline):
 
     def rename(self, deployment_path: Path):
         """
-        Implementation of the MarImBA rename command for the DCF360
+        Implementation of the Marimba rename command for the DCF360
         """
 
-        self.logger.info(f'Renaming files in MarImBA deployment: "{deployment_path}"')
+        self.logger.info(f'Renaming files in Marimba deployment: "{deployment_path}"')
 
         # Get deployment name and load deployment config
         deployment_name = Path(deployment_path).name

@@ -14,7 +14,7 @@ from marimba.wrappers.project import ProjectWrapper
 logger = get_logger(__name__)
 
 app = typer.Typer(
-    help="Create a new MarImBA collection, pipeline or deployment.",
+    help="Create a new Marimba collection, pipeline or deployment.",
     no_args_is_help=True,
 )
 
@@ -115,10 +115,10 @@ def find_project_dir_or_exit(project_dir: Optional[Union[str, Path]] = None) -> 
 
 @app.command()
 def project(
-    project_dir: Path = typer.Argument(..., help="Root path to create new MarImBA project."),
+    project_dir: Path = typer.Argument(..., help="Root path to create new Marimba project."),
 ):
     """
-    Create a new MarImBA project.
+    Create a new Marimba project.
     """
     logger.info(f"Executing the {MARIMBA} [steel_blue3]new project[/steel_blue3] command.")
 
@@ -147,11 +147,11 @@ def pipeline(
     url: str = typer.Argument(..., help="URL of the pipeline git repository."),
     project_dir: Optional[Path] = typer.Option(
         None,
-        help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
+        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
 ):
     """
-    Create a new MarImBA pipeline in a project.
+    Create a new Marimba pipeline in a project.
     """
     project_dir = find_project_dir_or_exit(project_dir)
 
@@ -187,11 +187,11 @@ def deployment(
     parent: Optional[str] = typer.Argument(None, help="Name of the parent deployment. If unspecified, use the last deployment."),
     project_dir: Optional[Path] = typer.Option(
         None,
-        help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
+        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
 ):
     """
-    Create a new MarImBA deployment in a project.
+    Create a new Marimba deployment in a project.
     """
     project_dir = find_project_dir_or_exit(project_dir)
 

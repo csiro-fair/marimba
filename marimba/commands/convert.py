@@ -33,7 +33,7 @@ def check_input_args(source_path: str, destination_path: str):
         raise typer.Exit()
 
 
-# TODO: Do we really need a straight copy method in MarImBA? The advantage is that we could include some arguments as default, like --archive etc...
+# TODO: Do we really need a straight copy method in Marimba? The advantage is that we could include some arguments as default, like --archive etc...
 def convert_command(
     source_path: str,
     destination_path: str,

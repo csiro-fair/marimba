@@ -1,5 +1,5 @@
 """
-MarImBA configuration utilities.
+Marimba configuration utilities.
 """
 from pathlib import Path
 from typing import Union

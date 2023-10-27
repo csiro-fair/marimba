@@ -147,7 +147,7 @@ class NoRichFileHandler(logging.FileHandler):
 
 class LogLevel(str, Enum):
     """
-    Enumerated log levels for MarImBA CLI.
+    Enumerated log levels for Marimba CLI.
     """
 
     DEBUG = "DEBUG"
