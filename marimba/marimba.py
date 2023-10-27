@@ -54,37 +54,37 @@ def global_options(
     logger.info(f"Initialised MarImBA CLI v{__version__}")
 
 
-@marimba.command("catalog")
-def catalog_command(
-    pipeline_name: str = typer.Argument(None, help="MarImBA pipeline name for targeted processing."),
-    deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
-    project_dir: Optional[Path] = typer.Option(
-        None,
-        help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
-    ),
-    extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
-    dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-    exiftool_path: str = typer.Option("exiftool", help="Path to exiftool"),
-    file_extension: str = typer.Option("JPG", help="extension to catalog"),
-    glob_path: str = typer.Option("**", help="masked used in glob"),
-    overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
-):
-    """
-    Create an exif catalog of files stored in .exif_{extension}.
-    """
-    project_dir = new.find_project_dir_or_exit(project_dir)
-    project_wrapper = ProjectWrapper(project_dir)
+# @marimba.command("catalog")
+# def catalog_command(
+#     pipeline_name: str = typer.Argument(None, help="MarImBA pipeline name for targeted processing."),
+#     deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
+#     project_dir: Optional[Path] = typer.Option(
+#         None,
+#         help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
+#     ),
+#     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+#     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+#     exiftool_path: str = typer.Option("exiftool", help="Path to exiftool"),
+#     file_extension: str = typer.Option("JPG", help="extension to catalog"),
+#     glob_path: str = typer.Option("**", help="masked used in glob"),
+#     overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
+# ):
+#     """
+#     Create an exif catalog of files stored in .exif_{extension}.
+#     """
+#     project_dir = new.find_project_dir_or_exit(project_dir)
+#     project_wrapper = ProjectWrapper(project_dir)
 
-    project_wrapper.run_command(
-        "run_catalog",
-        pipeline_name,
-        deployment_name,
-        dry_run=dry_run,
-        exiftool_path=exiftool_path,
-        file_extension=file_extension,
-        glob_path=glob_path,
-        overwrite=overwrite,
-    )
+#     project_wrapper.run_command(
+#         "run_catalog",
+#         pipeline_name,
+#         deployment_name,
+#         dry_run=dry_run,
+#         exiftool_path=exiftool_path,
+#         file_extension=file_extension,
+#         glob_path=glob_path,
+#         overwrite=overwrite,
+#     )
 
 
 @marimba.command("init")
@@ -163,81 +163,6 @@ def import_command(
         format_type=format_type,
         dry_run=dry_run,
     )
-
-
-# TODO: This should be implemented within the MarImBA process command
-@marimba.command("doit")
-def doit_command(
-    pipeline_name: str = typer.Argument(None, help="MarImBA pipeline name."),
-    doit_commands: list[str] = typer.Argument(None, help=""),
-    project_dir: Optional[Path] = typer.Option(
-        None,
-        help="Path to MarImBA project root. If unspecified, MarImBA will search for a project root directory in the current working directory and its parents.",
-    ),
-    dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-):
-    """
-    Import SD cards to working directory
-    """
-    project_dir = new.find_project_dir_or_exit(project_dir)
-    project_wrapper = ProjectWrapper(project_dir)
-
-    project_wrapper.run_command(
-        "run_doit",
-        pipeline_name,
-        doit_commands,
-    )
-
-
-# TODO: This should be implemented within the MarImBA process command
-# @marimba.command()
-# def chunk(
-#     source_path: str = typer.Argument(..., help="Source path of files."),
-#     destination_path: str = typer.Argument(..., help="Destination path to output files."),
-#     chunk_length: int = typer.Argument(10, help="Video chunk length in number of seconds."),
-#     recursive: bool = typer.Option(True, help="Recursively process entire directory structure."),
-#     overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
-#     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-# ):
-#     """
-#     Chunk video files into fixed-length videos (default 10 seconds).
-#     """
-#
-#     chunk_command(source_path, destination_path, chunk_length)
-#     run_command('chunk', collection_path, instrument_id, dry_run=dry_run, chunk_length=chunk_length)
-
-
-# TODO: This should be implemented within the MarImBA process command
-# @marimba.command()
-# def convert(
-#         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
-#         instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
-#         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-#         destination_path: str = typer.Argument(..., help="Destination path to output files."),
-#         overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
-# ):
-#     """
-#     Convert images and videos to standardised formats using Pillow and ffmpeg.
-#     """
-#
-#     run_command('convert', collection_path, instrument_id, dry_run=dry_run, destination_path=destination_path, overwrite=overwrite)
-
-
-# TODO: This should be implemented within the MarImBA process command
-# @marimba.command()
-# def extract(
-#         collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
-#         instrument_id: str = typer.Argument(None, help="MarImBA instrument ID."),
-#         dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-#         destination_path: str = typer.Argument(..., help="Destination path to output files."),
-#         chunk_length: int = typer.Argument(None, help="Video chunk length in number of seconds."),
-#         overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
-# ):
-#     """
-#     Extract frames from videos using ffmpeg.
-#     """
-#
-#     run_command('extract', collection_path, instrument_id, dry_run=dry_run, destination_path=destination_path, chunk_length=chunk_length, overwrite=overwrite)
 
 
 @marimba.command("metadata")
@@ -336,21 +261,6 @@ def rename_command(
     project_wrapper = ProjectWrapper(project_dir)
 
     project_wrapper.run_command("run_rename", pipeline_name, deployment_name, extra, dry_run=dry_run)
-
-
-# @marimba.command()
-# def report(
-#     collection_path: str = typer.Argument(..., help="Root path to MarImBA collection."),
-#     instrument_id: str = typer.Argument(None, help="MarImBA instrument ID for targeted processing."),
-#     deployment_name: str = typer.Argument(None, help="MarImBA deployment name for targeted processing."),
-#     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
-#     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-# ):
-#     """
-#     Generate reports for a MarImBA collection or instrument.
-#     """
-#
-#     run_command("report", collection_path, instrument_id, deployment_name, extra, dry_run=dry_run)
 
 
 @marimba.command("update")
