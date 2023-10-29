@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy2
 from typing import Dict, Union
@@ -6,6 +7,102 @@ from typing import Dict, Union
 from ifdo import iFDO
 
 from marimba.utils.log import LogMixin, get_file_handler
+
+
+def sizeof_fmt(num: int, suffix: str = "B") -> str:
+    """
+    Convert a number of bytes to a human-readable format.
+
+    Args:
+        num: The number of bytes.
+        suffix: The suffix to use for the size (default is "B").
+
+    Returns:
+        A string representing the human-readable size.
+    """
+    for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
+        if abs(num) < 1024:
+            return f"{num:.1f} {unit}{suffix}"
+        num /= 1024
+    return f"{num:.1f} Yi{suffix}"
+
+
+@dataclass
+class ImagerySummary:
+    """
+    Summary of an imagery collection.
+    """
+
+    num_images: int
+    size_images_bytes: int
+    num_videos: int
+    size_videos_bytes: int
+    num_other: int
+    size_other_bytes: int
+
+    @property
+    def num_files(self) -> int:
+        return self.num_images + self.num_videos + self.num_other
+
+    @property
+    def size_files_bytes(self) -> int:
+        return self.size_images_bytes + self.size_videos_bytes + self.size_other_bytes
+
+    @classmethod
+    def from_package(cls, package_wrapper: "PackageWrapper") -> "ImagerySummary":
+        """
+        Create an imagery summary from a package wrapper.
+
+        Args:
+            package_wrapper: The package wrapper.
+
+        Returns:
+            An imagery summary.
+        """
+        return ImagerySummary.from_dir(package_wrapper.data_dir)
+
+    @classmethod
+    def from_dir(cls, directory: Path) -> "ImagerySummary":
+        """
+        Create an imagery summary from a directory.
+
+        Args:
+            directory: The directory.
+
+        Returns:
+            An imagery summary.
+        """
+        num_images = 0
+        size_images_bytes = 0
+        num_videos = 0
+        size_videos_bytes = 0
+        num_other = 0
+        size_other_bytes = 0
+
+        for path in directory.iterdir():
+            if path.is_dir():
+                continue
+
+            # Match the suffix to determine the file type and update the counts/sizes
+            suffix = path.suffix.lower()
+            if suffix in [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif"]:
+                num_images += 1
+                size_images_bytes += path.stat().st_size
+            elif suffix in [".mp4", ".mov", ".avi", ".wmv", ".flv", ".mkv", ".webm"]:
+                num_videos += 1
+                size_videos_bytes += path.stat().st_size
+            else:
+                num_other += 1
+                size_other_bytes += path.stat().st_size
+
+        return cls(num_images, size_images_bytes, num_videos, size_videos_bytes, num_other, size_other_bytes)
+
+    def __str__(self) -> str:
+        return f"""Package summary:
+    {self.num_images} images ({sizeof_fmt(self.size_images_bytes)})
+    {self.num_videos} videos ({sizeof_fmt(self.size_videos_bytes)})
+    {self.num_other} other files ({sizeof_fmt(self.size_other_bytes)})
+    {self.num_files} total files ({sizeof_fmt(self.size_files_bytes)})"""
 
 
 class PackageWrapper(LogMixin):
@@ -123,6 +220,19 @@ class PackageWrapper(LogMixin):
                 src.rename(dst)  # use rename to move the file
             self.logger.info(f"{src.absolute()} -> {dst} ({copy=})")
 
+        # Update the package summary
+        summary = self.summarize()
+        self.summary_path.write_text(str(summary))
+
+    def summarize(self) -> ImagerySummary:
+        """
+        Create an imagery summary for this package.
+
+        Returns:
+            An imagery summary.
+        """
+        return ImagerySummary.from_package(self)
+
     @property
     def root_dir(self) -> Path:
         """
@@ -144,6 +254,13 @@ class PackageWrapper(LogMixin):
         """
         return self._root_dir / "metadata.yml"
 
+    @property
+    def summary_path(self) -> Path:
+        """
+        The path to the package summary.
+        """
+        return self._root_dir / "summary.txt"
+
     @staticmethod
     def check_path_mapping(path_mapping: Dict[Path, Path]):
         """
@@ -163,7 +280,7 @@ class PackageWrapper(LogMixin):
         # Verify that all source paths resolve to unique paths
         reverse_src_resolution = {}
         for src in path_mapping:
-            resolved = src.resolve()
+            resolved = src.resolve().absolute()
             if resolved in reverse_src_resolution:
                 raise PackageWrapper.InvalidPathMappingError(f"Source paths {src} and {reverse_src_resolution[resolved]} both resolve to {resolved}.")
             reverse_src_resolution[resolved] = src
@@ -174,9 +291,10 @@ class PackageWrapper(LogMixin):
                 raise PackageWrapper.InvalidPathMappingError(f"Destination path {dst} must be relative.")
 
         # Verify that there are no collisions in destination paths
-        reverse_mapping = {dst: src for src, dst in path_mapping.items()}
+        reverse_mapping = {dst.resolve(): src for src, dst in path_mapping.items()}
         for src, dst in path_mapping.items():
             src_other = reverse_mapping.get(dst)
-            dst_other = path_mapping[src_other]
-            if dst.resolve() != path_mapping[src_other].resolve():
-                raise PackageWrapper.InvalidPathMappingError(f"Destination path {dst} collides with {dst_other} for source path {src}.")
+            if src.resolve() != src_other.resolve():
+                raise PackageWrapper.InvalidPathMappingError(
+                    f"Resolved destination path {dst.resolve()} is the same for source paths {src} and {src_other}."
+                )

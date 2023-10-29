@@ -1,4 +1,6 @@
 import logging
+import subprocess
+import sys
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Union
@@ -22,9 +24,17 @@ class PipelineWrapper(LogMixin):
 
         pass
 
+    class InstallError(Exception):
+        """
+        Raised when there is an error installing pipeline dependencies.
+        """
+
+        pass
+
     def __init__(self, root_dir: Union[str, Path]):
         self._root_dir = Path(root_dir)
         self._file_handler = None
+        self._pipeline_class = None
 
         self._check_file_structure()
         self._setup_logging()
@@ -49,6 +59,13 @@ class PipelineWrapper(LogMixin):
         The path to the pipeline configuration file.
         """
         return self.root_dir / "pipeline.yml"
+
+    @property
+    def requirements_path(self) -> Path:
+        """
+        The path to the pipeline requirements file.
+        """
+        return self.repo_dir / "requirements.txt"
 
     def _check_file_structure(self):
         """
@@ -129,9 +146,9 @@ class PipelineWrapper(LogMixin):
         """
         save_config(self.config_path, config)
 
-    def load_pipeline(self) -> BasePipeline:
+    def get_instance(self) -> BasePipeline:
         """
-        Dynamically load an instance of the pipeline implementation.
+        Get an instance of the pipeline implementation.
 
         Injects the pipeline configuration and logger into the instance.
 
@@ -142,32 +159,63 @@ class PipelineWrapper(LogMixin):
             FileNotFoundError: If the pipeline implementation file cannot be found, or if there are multiple pipeline implementation files.
             ImportError: If the pipeline implementation file cannot be imported.
         """
-        # Find files that end with .pipeline.py in the repository
-        pipeline_module_paths = list(self.repo_dir.glob("**/*.pipeline.py"))
+        # Get the pipeline class
+        pipeline_class = self.get_pipeline_class()
 
-        # Ensure there is one result
-        if len(pipeline_module_paths) == 0:
-            raise FileNotFoundError(f'No pipeline implementation found in "{self.repo_dir}".')
-        elif len(pipeline_module_paths) > 1:
-            raise FileNotFoundError(f'Multiple pipeline implementations found in "{self.repo_dir}": {pipeline_module_paths}.')
-        pipeline_module_path = pipeline_module_paths[0]
+        # Create an instance of the pipeline
+        pipeline_instance = pipeline_class(config=self.load_config(), dry_run=False)
 
-        pipeline_module_spec = spec_from_file_location("pipeline", str(pipeline_module_path.absolute()))
+        # Set up pipeline file logging
+        pipeline_instance.logger.addHandler(self._file_handler)
 
-        # Load the pipeline module
-        pipeline_module = module_from_spec(pipeline_module_spec)
-        pipeline_module_spec.loader.exec_module(pipeline_module)
+        return pipeline_instance
 
-        # Find any BasePipeline implementations
-        for _, obj in pipeline_module.__dict__.items():
-            if isinstance(obj, type) and issubclass(obj, BasePipeline) and obj is not BasePipeline:
-                # Create an instance of the pipeline
-                pipeline_instance = obj(config=self.load_config(), dry_run=False)
+    def get_pipeline_class(self) -> BasePipeline:
+        """
+        Get the pipeline class. Lazy-loaded and cached. Automatically scans the repository for a pipeline implementation.
 
-                # Set up pipeline file logging
-                pipeline_instance.logger.addHandler(self._file_handler)
+        Returns:
+            The pipeline class.
 
-                return pipeline_instance
+        Raises:
+            FileNotFoundError: If the pipeline implementation file cannot be found, or if there are multiple pipeline implementation files.
+            ImportError: If the pipeline implementation file cannot be imported.
+        """
+        if self._pipeline_class is None:
+            # Find files that end with .pipeline.py in the repository
+            pipeline_module_paths = list(self.repo_dir.glob("**/*.pipeline.py"))
+
+            # Ensure there is one result
+            if len(pipeline_module_paths) == 0:
+                raise FileNotFoundError(f'No pipeline implementation found in "{self.repo_dir}".')
+            elif len(pipeline_module_paths) > 1:
+                raise FileNotFoundError(f'Multiple pipeline implementations found in "{self.repo_dir}": {pipeline_module_paths}.')
+            pipeline_module_path = pipeline_module_paths[0]
+
+            pipeline_module_name = pipeline_module_path.stem
+            pipeline_module_spec = spec_from_file_location(
+                pipeline_module_name,
+                str(pipeline_module_path.absolute()),
+            )
+
+            # Create the pipeline module
+            pipeline_module = module_from_spec(pipeline_module_spec)
+
+            # Enable repo-relative imports by temporarily adding the repository directory to the module search path
+            sys.path.insert(0, str(self.repo_dir.absolute()))
+
+            # Execute it
+            pipeline_module_spec.loader.exec_module(pipeline_module)
+
+            # Remove the repository directory from the module search path to avoid conflicts
+            sys.path.pop(0)
+
+            # Find any BasePipeline implementations
+            for _, obj in pipeline_module.__dict__.items():
+                if isinstance(obj, type) and issubclass(obj, BasePipeline) and obj is not BasePipeline:
+                    self._pipeline_class = obj
+                    break
+        return self._pipeline_class
 
     def update(self):
         """
@@ -175,3 +223,30 @@ class PipelineWrapper(LogMixin):
         """
         repo = Repo(self.repo_dir)
         repo.remotes.origin.pull()
+
+    def install(self):
+        """
+        Install the pipeline dependencies as provided in a requirements.txt file, if present.
+
+        Raises:
+            PipelineWrapper.InstallError: If there is an error installing pipeline dependencies.
+        """
+        if self.requirements_path.is_file():
+            self.logger.info(f"Installing pipeline dependencies from {self.requirements_path}...")
+            try:
+                process = subprocess.Popen(
+                    ["pip", "install", "--no-input", "-r", str(self.requirements_path.absolute())], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                )
+                output, error = process.communicate()
+                if output:
+                    self.logger.debug(output.decode("utf-8"))
+                if error:
+                    self.logger.warning(error.decode("utf-8"))
+
+                if process.returncode != 0:
+                    raise Exception(f"pip install had a non-zero return code: {process.returncode}")
+
+                self.logger.info("Pipeline dependencies installed successfully.")
+            except Exception as e:
+                self.logger.error(f"Error installing pipeline dependencies: {e}")
+                raise PipelineWrapper.InstallError from e

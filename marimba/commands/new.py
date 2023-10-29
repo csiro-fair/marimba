@@ -175,7 +175,7 @@ def pipeline(
     )
 
     # Configure the pipeline from the command line
-    pipeline = pipeline_wrapper.load_pipeline()
+    pipeline = pipeline_wrapper.get_instance()
     pipeline_config_schema = pipeline.get_pipeline_config_schema()
     pipeline_config = prompt_schema(pipeline_config_schema)
     pipeline_wrapper.save_config(pipeline_config)
@@ -213,7 +213,7 @@ def deployment(
     # Get the union of all pipeline-specific deployment config schemas
     resolved_deployment_schema = {}
     for pipeline_name, pipeline_wrapper in project_wrapper.pipeline_wrappers.items():
-        pipeline = pipeline_wrapper.load_pipeline()
+        pipeline = pipeline_wrapper.get_instance()
         deployment_config_schema = pipeline.get_deployment_config_schema()
         resolved_deployment_schema.update(deployment_config_schema)
 

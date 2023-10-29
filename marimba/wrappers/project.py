@@ -140,7 +140,7 @@ class ProjectWrapper(LogMixin):
         self._check_file_structure()
         self._setup_logging()
 
-        self._load_pipeline()
+        self._load_pipelines()
         self._load_deployments()
 
     @classmethod
@@ -202,7 +202,7 @@ class ProjectWrapper(LogMixin):
         # Add the file handler to the logger
         self.logger.addHandler(file_handler)
 
-    def _load_pipeline(self):
+    def _load_pipelines(self):
         """
         Load pipeline wrappers from the `pipelines` directory.
 
@@ -211,7 +211,7 @@ class ProjectWrapper(LogMixin):
         Raises:
             PipelineWrapper.InvalidStructureError: If the pipeline directory structure is invalid.
         """
-        pipeline_dirs = filter(lambda p: p.is_dir(), self._pipeline_dir.iterdir())
+        pipeline_dirs = filter(lambda p: p.is_dir(), self.pipeline_dir.iterdir())
 
         self._pipeline_wrappers.clear()
         for pipeline_dir in pipeline_dirs:
@@ -259,7 +259,7 @@ class ProjectWrapper(LogMixin):
 
         # Reload the pipelines
         # TODO: Do we need to do this every time?
-        self._load_pipeline()
+        self._load_pipelines()
 
         return pipeline_wrapper
 
@@ -352,7 +352,7 @@ class ProjectWrapper(LogMixin):
         deployment_wrappers_to_run = {deployment_name: deployment_wrapper} if deployment_name is not None else self._deployment_wrappers
 
         # Load pipeline instances
-        pipeline_to_run = {pipeline_name: pipeline_wrapper.load_pipeline() for pipeline_name, pipeline_wrapper in pipeline_wrappers_to_run.items()}
+        pipeline_to_run = {pipeline_name: pipeline_wrapper.get_instance() for pipeline_name, pipeline_wrapper in pipeline_wrappers_to_run.items()}
 
         # Check that the command exists for all pipelines
         for run_pipeline_name, run_pipeline in pipeline_to_run.items():
@@ -403,7 +403,7 @@ class ProjectWrapper(LogMixin):
             raise ProjectWrapper.NoSuchPipelineError(pipeline_name)
 
         # Get the pipeline instance
-        pipeline = pipeline_wrapper.load_pipeline()
+        pipeline = pipeline_wrapper.get_instance()
 
         # Get the deployment wrappers
         deployment_wrappers: List[DeploymentWrapper] = []
@@ -453,13 +453,25 @@ class ProjectWrapper(LogMixin):
         """
         Update all pipelines in the project.
         """
-        for pipeline_name, pipeline_wrapper in self._pipeline_wrappers.items():
+        for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
             self.logger.info(f'Updating pipeline "{pipeline_name}"')
             try:
                 pipeline_wrapper.update()
                 self.logger.info(f'Successfully updated pipeline "{pipeline_name}"')
             except Exception as e:
                 self.logger.error(f'Failed to update pipeline "{pipeline_name}": {e}')
+
+    def install_pipelines(self):
+        """
+        Install all pipelines dependencies in the project into the current environment.
+        """
+        for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
+            self.logger.info(f'Installing pipeline "{pipeline_name}"')
+            try:
+                pipeline_wrapper.install()
+                self.logger.info(f'Successfully installed pipeline "{pipeline_name}"')
+            except PipelineWrapper.InstallError:
+                self.logger.error(f'Failed to install pipeline "{pipeline_name}"')
 
     @property
     def pipeline_wrappers(self) -> Dict[str, PipelineWrapper]:

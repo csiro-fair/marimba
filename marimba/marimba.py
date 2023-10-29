@@ -279,5 +279,21 @@ def update_command(
     project_wrapper.update_pipelines()
 
 
+@marimba.command("install")
+def install_command(
+    project_dir: Optional[Path] = typer.Option(
+        None,
+        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
+    ),
+):
+    """
+    Install Python dependencies from requirements.txt files defined by a project's pipelines.
+    """
+    project_dir = new.find_project_dir_or_exit(project_dir)
+    project_wrapper = ProjectWrapper(project_dir)
+
+    project_wrapper.install_pipelines()
+
+
 if __name__ == "__main__":
     marimba()
