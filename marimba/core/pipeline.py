@@ -76,23 +76,7 @@ class BasePipeline(ABC, LogMixin):
         """
         return self.__class__.__name__
 
-    def run_init(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
-        """
-        Public interface for the init command. Delegate to the private implementation method `_init`.
-
-        Do not override this method. Override `_init` instead.
-
-        Args:
-            data_dir: The data directory.
-            config: The deployment configuration.
-            kwargs: Additional keyword arguments.
-        """
-        self.logger.debug(
-            f"Running [bold]init[/bold] command for pipeline [bold]{self.class_name}[/bold] with args: {data_dir=}, {config=}, {kwargs=}"
-        )
-        return self._init(self, data_dir, config, **kwargs)
-
-    def run_import(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
+    def run_import(self, data_dir: Path, source_dir: Path, config: Dict[str, Any], **kwargs: dict):
         """
         Public interface for the import command. Delegate to the private implementation method `_import`.
 
@@ -100,13 +84,14 @@ class BasePipeline(ABC, LogMixin):
 
         Args:
             data_dir: The data directory.
+            source_dir: The source data directory.
             config: The deployment configuration.
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
-            f"Running [bold]import[/bold] command for pipeline [bold]{self.class_name}[/bold] with args: {data_dir=}, {config=}, {kwargs=}"
+            f"Running [bold]import[/bold] command for pipeline [bold]{self.class_name}[/bold] with args: {data_dir=}, {source_dir=}, {config=}, {kwargs=}"
         )
-        return self._import(data_dir, config, **kwargs)
+        return self._import(data_dir, source_dir, config, **kwargs)
 
     def run_rename(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
         """
@@ -175,15 +160,7 @@ class BasePipeline(ABC, LogMixin):
         )
         return self._compose(data_dirs, configs, **kwargs)
 
-    def _init(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
-        """
-        `run_init` implementation; override this to implement the init command.
-
-        TODO: Add docs on how to implement this method.
-        """
-        self.logger.warning(f"There is no Marimba [bold]init[/bold] command implemented for pipeline [bold]{self.class_name}[/bold]")
-
-    def _import(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
+    def _import(self, data_dir: Path, source_dir: Path, config: Dict[str, Any], **kwargs: dict):
         """
         `run_import` implementation; override this to implement the import command.
 

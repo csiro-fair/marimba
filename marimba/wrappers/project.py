@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from ifdo import iFDO
 
 from marimba.utils.log import LogMixin, get_file_handler, get_logger
+from marimba.utils.prompt import prompt_schema
 from marimba.utils.rich import MARIMBA
 from marimba.wrappers.deployment import DeploymentWrapper
 from marimba.wrappers.package import PackageWrapper
@@ -257,19 +258,18 @@ class ProjectWrapper(LogMixin):
         # Create the pipeline directory
         pipeline_wrapper = PipelineWrapper.create(pipeline_dir, url)
 
-        # Reload the pipelines
-        # TODO: Do we need to do this every time?
-        self._load_pipelines()
+        # Add the pipeline to the project
+        self._pipeline_wrappers[name] = pipeline_wrapper
 
         return pipeline_wrapper
 
-    def create_deployment(self, name: str, parent: Optional[str] = None) -> DeploymentWrapper:
+    def create_deployment(self, name: str, config: Dict[str, Any]) -> DeploymentWrapper:
         """
         Create a new deployment.
 
         Args:
             name: The name of the deployment.
-            parent: The name of the parent deployment.
+            config: The deployment configuration.
 
         Returns:
             The deployment directory wrapper.
@@ -283,26 +283,16 @@ class ProjectWrapper(LogMixin):
         deployment_dir = self.deployments_dir / name
         if deployment_dir.exists():
             raise ProjectWrapper.CreateDeploymentError(f'A deployment with the name "{name}" already exists.')
-        if parent is not None and parent not in self._deployment_wrappers:
-            raise ProjectWrapper.CreateDeploymentError(f'The parent deployment "{parent}" does not exist.')
-
-        if parent is None:
-            # TODO: Assign parent to the last deployment, if there is one
-            pass
-
-        # TODO: Use the parent deployment to populate the default deployment config
 
         # Create the deployment directory
-        deployment_wrapper = DeploymentWrapper.create(deployment_dir, {})
+        deployment_wrapper = DeploymentWrapper.create(deployment_dir, config)
 
-        # Create the per-pipeline directories
+        # Create the pipeline data directories
         for pipeline_name in self._pipeline_wrappers:
-            # TODO: Direct this from the pipeline implementation?
             deployment_wrapper.get_pipeline_data_dir(pipeline_name).mkdir()
 
-        # Reload the deployments
-        # TODO: Do we need to do this every time?
-        self._load_deployments()
+        # Add the deployment to the project
+        self._deployment_wrappers[name] = deployment_wrapper
 
         return deployment_wrapper
 
@@ -448,6 +438,92 @@ class ProjectWrapper(LogMixin):
         package_wrapper.populate(path_mapping, copy=copy)
 
         return package_wrapper
+
+    def run_import(
+        self, source_dir: Union[str, Path], deployment_name: str, overwrite: bool = False, extra_args: Optional[List[str]] = None, **kwargs: dict
+    ) -> None:
+        """
+        Run the import command to create a new deployment from a source data directory.
+
+        Args:
+            source_dir: The source directory to import from.
+            deployment_name: The name of the deployment to import into.
+            overwrite: Overwrite an existing deployment with the same name.
+            extra_args: Any extra CLI arguments to pass to the command.
+            kwargs: Any keyword arguments to pass to the command.
+        """
+        source_dir = Path(source_dir)
+
+        merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
+
+        # Create the deployment
+        deployment_wrapper = self.deployment_wrappers.get(deployment_name, None)
+        if deployment_wrapper is None:
+            deployment_wrapper = self.create_deployment(deployment_name)
+        elif not overwrite:
+            raise ProjectWrapper.CreateDeploymentError(
+                f'A deployment with the name "{deployment_name}" already exists, and the overwrite flag was not set.'
+            )
+
+        # Import each pipeline
+        for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
+            # Get the pipeline instance
+            pipeline = pipeline_wrapper.get_instance()
+
+            # Get the deployment data directory
+            deployment_data_dir = deployment_wrapper.get_pipeline_data_dir(pipeline_name)
+
+            # Load the deployment config
+            deployment_config = deployment_wrapper.load_config()
+
+            # Run the import
+            pipeline.run_import(deployment_data_dir, source_dir, deployment_config, **merged_kwargs)
+
+    def prompt_deployment_config(self, parent_deployment_name: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Prompt the user for a deployment configuration.
+
+        The schema will be generated from the pipeline-specific deployment config schemas of all pipelines in the project, as well as the deployment config of the parent deployment if specified.
+
+        Args:
+            parent_deployment_name: The name of the parent deployment. If unspecified, use the last deployment by modification time.
+
+        Returns:
+            The deployment configuration as a dictionary.
+
+        Raises:
+            ProjectWrapper.NoSuchDeploymentError: If the parent deployment does not exist in the project.
+        """
+        # Get the union of all pipeline-specific deployment config schemas
+        resolved_deployment_schema = {}
+        for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
+            pipeline = pipeline_wrapper.get_instance()
+            deployment_config_schema = pipeline.get_deployment_config_schema()
+            resolved_deployment_schema.update(deployment_config_schema)
+
+        def get_last_deployment_name() -> Optional[str]:
+            if len(self.deployment_wrappers) == 0:
+                return None
+            return max(self.deployment_wrappers, key=lambda k: self.deployment_wrappers[k].root_dir.stat().st_mtime)
+
+        # Use the last deployment if no parent is specified
+        if parent_deployment_name is None:
+            parent_deployment_name = get_last_deployment_name()  # may be None
+
+        # Update the schema with the parent deployment
+        if parent_deployment_name is not None:
+            parent_deployment_wrapper = self.deployment_wrappers.get(parent_deployment_name, None)
+
+            if parent_deployment_wrapper is None:
+                raise ProjectWrapper.NoSuchDeploymentError(parent_deployment_name)
+
+            parent_deployment_config = parent_deployment_wrapper.load_config()
+            resolved_deployment_schema.update(parent_deployment_config)
+
+        # Prompt from the resolved schema
+        deployment_config = prompt_schema(resolved_deployment_schema)
+
+        return deployment_config
 
     def update_pipelines(self):
         """

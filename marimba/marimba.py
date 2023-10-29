@@ -87,58 +87,15 @@ def global_options(
 #     )
 
 
-@marimba.command("init")
-def init_command(
-    pipeline_name: str = typer.Argument(..., help="Marimba pipeline name."),
-    card_paths: list[str] = typer.Argument(None, help="List of paths to SD cards to be initialised."),
-    project_dir: Optional[Path] = typer.Option(
-        None,
-        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
-    ),
-    all: bool = typer.Option(False, help="."),
-    days: int = typer.Option(0, help='Add an offset to the import date (e.g. "+1" to set the date to tomorrow).'),
-    overwrite: bool = typer.Option(False, help="Overwrite import.yaml file on SD cards if they already exist."),
-    card_size: int = typer.Option(512, help="Maximum card size (GB)."),
-    format_type: str = typer.Option("exfat", help="Card filesystem format."),
-    extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
-    dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-):
-    """
-    Initialise SD cards with an import.yaml file
-    """
-    project_dir = new.find_project_dir_or_exit(project_dir)
-    project_wrapper = ProjectWrapper(project_dir)
-
-    project_wrapper.run_command(
-        "run_init",
-        pipeline_name,
-        None,
-        extra,
-        card_paths=card_paths,
-        all=all,
-        days=days,
-        overwrite=overwrite,
-        card_size=card_size,
-        format_type=format_type,
-        dry_run=dry_run,
-    )
-
-
 @marimba.command("import")
 def import_command(
-    pipeline_name: str = typer.Argument(..., help="Marimba pipeline name."),
-    card_paths: list[str] = typer.Argument(None, help="List of paths to SD cards to be initialised."),
+    source_dir: Path = typer.Argument(..., help="Path to directory containing files to import."),
+    deployment_name: str = typer.Argument(None, help="Marimba deployment name for targeted processing."),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
-    all: bool = typer.Option(False, help="."),
-    exiftool_path: str = typer.Option("exiftool", help="Path to exiftool"),
-    copy: bool = typer.Option(True, help="Clean source"),
-    move: bool = typer.Option(False, help="Move source"),
-    file_extension: str = typer.Option("MP4", help="extension to catalog"),
-    card_size: int = typer.Option(512, help="Maximum card size (GB)."),
-    format_type: str = typer.Option("exfat", help="Card filesystem format."),
+    overwrite: bool = typer.Option(False, help="Overwrite an existing deployment with the same name."),
     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
@@ -148,21 +105,7 @@ def import_command(
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
-    project_wrapper.run_command(
-        "run_import",
-        pipeline_name,
-        None,
-        extra,
-        card_paths=card_paths,
-        all=all,
-        exiftool_path=exiftool_path,
-        copy=copy,
-        move=move,
-        file_extension=file_extension,
-        card_size=card_size,
-        format_type=format_type,
-        dry_run=dry_run,
-    )
+    project_wrapper.run_import(source_dir, deployment_name, overwrite=overwrite, extra_args=extra, dry_run=dry_run)
 
 
 @marimba.command("metadata")
@@ -215,7 +158,7 @@ def package_command(
 
         # Package it
         package_wrapper = project_wrapper.package(package_name, ifdo, path_mapping, copy=copy)
-    except Exception as e:
+    except (ProjectWrapper.NoSuchDeploymentError, ProjectWrapper.NoSuchPipelineError) as e:
         logger.error(e)
         print(error_panel(str(e)))
         raise typer.Exit()

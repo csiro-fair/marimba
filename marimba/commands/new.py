@@ -5,9 +5,9 @@ from typing import Optional, Union
 import typer
 from rich import print
 from rich.panel import Panel
-from rich.prompt import Confirm, FloatPrompt, IntPrompt, Prompt
 
 from marimba.utils.log import get_logger
+from marimba.utils.prompt import prompt_schema
 from marimba.utils.rich import MARIMBA, error_panel, success_panel
 from marimba.wrappers.project import ProjectWrapper
 
@@ -17,52 +17,6 @@ app = typer.Typer(
     help="Create a new Marimba collection, pipeline or deployment.",
     no_args_is_help=True,
 )
-
-
-def prompt_schema(schema: dict) -> Optional[dict]:
-    """
-    Prompt the user for values for each field in the schema.
-
-    The schema is given as a dictionary of field names to defaults.
-    The user will be prompted for a value for each field, and the default will be used if no value is entered.
-    User values will be converted into the appropriate type as given by the schema default.
-
-    Supported types:
-    - str
-    - int
-    - float
-    - bool
-
-    Args:
-        schema: The schema to prompt the user for.
-
-    Returns:
-        The user values as a dictionary, or None if the input was interrupted.
-
-    Raises:
-        NotImplementedError: If the schema contains a type that is not supported.
-    """
-    user_values = schema.copy()
-
-    try:
-        for key, default_value in schema.items():
-            value_type = type(default_value)
-            if value_type == bool:
-                value = Confirm.ask(key, default=default_value)
-            elif value_type == int:
-                value = IntPrompt.ask(key, default=default_value)
-            elif value_type == float:
-                value = FloatPrompt.ask(key, default=default_value)
-            elif value_type == str:
-                value = Prompt.ask(key, default=default_value)
-            else:
-                raise NotImplementedError(f"Unsupported type: {value_type.__name__}")
-            if value is not None:
-                user_values[key] = value
-    except KeyboardInterrupt:
-        return None
-
-    return user_values
 
 
 def find_project_dir(path: Union[str, Path]) -> Optional[Path]:
@@ -201,44 +155,22 @@ def deployment(
         # Create project wrapper instance
         project_wrapper = ProjectWrapper(project_dir)
 
+        # Configure the deployment from the resolved schema
+        deployment_config = project_wrapper.prompt_deployment_config(parent_deployment_name=parent)
+
         # Create the deployment
-        deployment_wrapper = project_wrapper.create_deployment(deployment_name)
+        deployment_wrapper = project_wrapper.create_deployment(deployment_name, deployment_config)
+    except ProjectWrapper.NoSuchDeploymentError as e:
+        logger.error(e)
+        print(error_panel(f"No such parent deployment: {e}"))
+        raise typer.Exit()
+    except ProjectWrapper.CreateDeploymentError as e:
+        logger.error(e)
+        print(error_panel(f"Could not create deployment: {e}"))
+        raise typer.Exit()
     except Exception as e:
         logger.error(e)
         print(error_panel(str(e), title=f"Error - {e.__class__.__name__}"))
         raise typer.Exit()
 
     print(success_panel(f'Created new {MARIMBA} [light_pink3]deployment[/light_pink3] "{deployment_name}" at: "{deployment_wrapper.root_dir}"'))
-
-    # Get the union of all pipeline-specific deployment config schemas
-    resolved_deployment_schema = {}
-    for pipeline_name, pipeline_wrapper in project_wrapper.pipeline_wrappers.items():
-        pipeline = pipeline_wrapper.get_instance()
-        deployment_config_schema = pipeline.get_deployment_config_schema()
-        resolved_deployment_schema.update(deployment_config_schema)
-
-    def get_last_deployment_name(project_wrapper: ProjectWrapper) -> Optional[str]:  # TODO: Make this less clunky
-        deployment_wrappers = project_wrapper.deployment_wrappers.copy()
-        deployment_wrappers.pop(deployment_name, None)
-        if len(deployment_wrappers) == 0:
-            return None
-        return max(deployment_wrappers, key=lambda k: deployment_wrappers[k].root_dir.stat().st_mtime)
-
-    # Use the last deployment if no parent is specified
-    if parent is None:
-        parent = get_last_deployment_name(project_wrapper)  # may be None
-
-    # Update the schema with the parent deployment
-    if parent is not None:
-        parent_deployment_wrapper = project_wrapper.deployment_wrappers.get(parent, None)
-
-        if parent_deployment_wrapper is None:
-            print(error_panel(f'Parent deployment "{parent}" does not exist.'))
-            raise typer.Exit(f'Parent deployment "{parent}" does not exist.')
-
-        parent_deployment_config = parent_deployment_wrapper.load_config()
-        resolved_deployment_schema.update(parent_deployment_config)
-
-    # Configure the deployment from the resolved schema
-    deployment_config = prompt_schema(resolved_deployment_schema)
-    deployment_wrapper.save_config(deployment_config)
