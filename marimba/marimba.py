@@ -8,7 +8,7 @@ from typing import List, Optional
 import typer
 from rich import print
 
-import marimba.commands.new as new
+from marimba.commands import new
 from marimba.utils.log import LogLevel, get_logger, get_rich_handler
 from marimba.utils.rich import MARIMBA, error_panel, success_panel
 from marimba.wrappers.project import ProjectWrapper
@@ -71,7 +71,8 @@ def import_command(
     Import data in a source directory into a new or existing Marimba collection.
     """
     project_dir = new.find_project_dir_or_exit(project_dir)
-    project_wrapper = ProjectWrapper(project_dir)
+    project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
+    get_rich_handler().set_dry_run(dry_run)
 
     # Get the collection (create if appropriate)
     collection_wrapper = project_wrapper.collection_wrappers.get(collection_name, None)
@@ -92,7 +93,7 @@ def import_command(
 
     # Run the import
     try:
-        project_wrapper.run_import(collection_name, source_paths, extra_args=extra, dry_run=dry_run)
+        project_wrapper.run_import(collection_name, source_paths, extra_args=extra)
     except Exception as e:
         error_message = f"Error during import: {e}"
         logger.error(error_message)
@@ -118,9 +119,10 @@ def metadata_command(
     Process metadata including merging nav data files, writing metadata into image EXIF tags, and writing iFDO files.
     """
     project_dir = new.find_project_dir_or_exit(project_dir)
-    project_wrapper = ProjectWrapper(project_dir)
+    project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
+    get_rich_handler().set_dry_run(dry_run)
 
-    project_wrapper.run_command("run_metadata", pipeline_name, collection_name, extra, dry_run=dry_run)
+    project_wrapper.run_command("run_metadata", pipeline_name, collection_name, extra)
 
 
 @marimba.command("package")
@@ -142,14 +144,15 @@ def package_command(
     Package up a Marimba collection ready for distribution.
     """
     project_dir = new.find_project_dir_or_exit(project_dir)
-    project_wrapper = ProjectWrapper(project_dir)
+    project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
+    get_rich_handler().set_dry_run(dry_run)
 
     if not collection_names:  # If no collection names are specified, package all collections
         collection_names = list(project_wrapper.collection_wrappers.keys())
 
     try:
         # Compose the dataset
-        dataset_mapping = project_wrapper.compose(collection_names, extra, dry_run=dry_run)
+        dataset_mapping = project_wrapper.compose(collection_names, extra)
 
         # Package it
         dataset_wrapper = project_wrapper.package(dataset_name, dataset_mapping, copy=copy)
@@ -191,9 +194,10 @@ def process_command(
     Process the Marimba collection based on the pipeline specification.
     """
     project_dir = new.find_project_dir_or_exit(project_dir)
-    project_wrapper = ProjectWrapper(project_dir)
+    project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
+    get_rich_handler().set_dry_run(dry_run)
 
-    project_wrapper.run_command("run_process", pipeline_name, collection_name, extra, dry_run=dry_run)
+    project_wrapper.run_command("run_process", pipeline_name, collection_name, extra)
 
 
 @marimba.command("rename")
@@ -211,9 +215,10 @@ def rename_command(
     Rename files based on the pipeline specification.
     """
     project_dir = new.find_project_dir_or_exit(project_dir)
-    project_wrapper = ProjectWrapper(project_dir)
+    project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
+    get_rich_handler().set_dry_run(dry_run)
 
-    project_wrapper.run_command("run_rename", pipeline_name, collection_name, extra, dry_run=dry_run)
+    project_wrapper.run_command("run_rename", pipeline_name, collection_name, extra)
 
 
 @marimba.command("update")

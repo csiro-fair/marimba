@@ -31,8 +31,10 @@ class PipelineWrapper(LogMixin):
 
         pass
 
-    def __init__(self, root_dir: Union[str, Path]):
+    def __init__(self, root_dir: Union[str, Path], dry_run: bool = False):
         self._root_dir = Path(root_dir)
+        self._dry_run = dry_run
+
         self._file_handler = None
         self._pipeline_class = None
 
@@ -67,6 +69,13 @@ class PipelineWrapper(LogMixin):
         """
         return self.repo_dir / "requirements.txt"
 
+    @property
+    def dry_run(self) -> bool:
+        """
+        Whether the pipeline should run in dry-run mode.
+        """
+        return self._dry_run
+
     def _check_file_structure(self):
         """
         Check that the pipeline file structure is valid. If not, raise an InvalidStructureError with details.
@@ -98,13 +107,14 @@ class PipelineWrapper(LogMixin):
         self.logger.addHandler(self._file_handler)
 
     @classmethod
-    def create(cls, root_dir: Union[str, Path], url: str):
+    def create(cls, root_dir: Union[str, Path], url: str, dry_run: bool = False):
         """
         Create a new pipeline directory from a remote git repository.
 
         Args:
             root_dir: The root directory of the pipeline.
             url: The URL of the pipeline implementation git repository.
+            dry_run: Whether to run in dry-run mode.
 
         Raises:
             FileExistsError: If the pipeline root directory already exists.
@@ -126,7 +136,7 @@ class PipelineWrapper(LogMixin):
         config_path = root_dir / "pipeline.yml"
         save_config(config_path, {})
 
-        return cls(root_dir)
+        return cls(root_dir, dry_run=dry_run)
 
     def load_config(self) -> dict:
         """
@@ -163,7 +173,7 @@ class PipelineWrapper(LogMixin):
         pipeline_class = self.get_pipeline_class()
 
         # Create an instance of the pipeline
-        pipeline_instance = pipeline_class(self.repo_dir, config=self.load_config(), dry_run=False)
+        pipeline_instance = pipeline_class(self.repo_dir, config=self.load_config(), dry_run=self.dry_run)
 
         # Set up pipeline file logging
         pipeline_instance.logger.addHandler(self._file_handler)

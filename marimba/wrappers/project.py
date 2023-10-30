@@ -111,10 +111,11 @@ class ProjectWrapper(LogMixin):
 
         pass
 
-    def __init__(self, root_dir: Union[str, Path]):
+    def __init__(self, root_dir: Union[str, Path], dry_run: bool = False):
         super().__init__()
 
         self._root_dir = Path(root_dir)
+        self._dry_run = dry_run
 
         self._pipeline_dir = self._root_dir / "pipelines"
         self._collections_dir = self._root_dir / "collections"
@@ -130,12 +131,13 @@ class ProjectWrapper(LogMixin):
         self._load_collections()
 
     @classmethod
-    def create(cls, root_dir: Union[str, Path]) -> "ProjectWrapper":
+    def create(cls, root_dir: Union[str, Path], dry_run: bool = False) -> "ProjectWrapper":
         """
         Create a project from a root directory.
 
         Args:
             root_dir: The root directory of the project.
+            dry_run: Whether to run in dry-run mode.
 
         Returns:
             A project.
@@ -159,7 +161,7 @@ class ProjectWrapper(LogMixin):
         collections_dir.mkdir()
         marimba_dir.mkdir()
 
-        return cls(root_dir)
+        return cls(root_dir, dry_run=dry_run)
 
     def _check_file_structure(self):
         """
@@ -201,7 +203,7 @@ class ProjectWrapper(LogMixin):
 
         self._pipeline_wrappers.clear()
         for pipeline_dir in pipeline_dirs:
-            self._pipeline_wrappers[pipeline_dir.name] = PipelineWrapper(pipeline_dir)
+            self._pipeline_wrappers[pipeline_dir.name] = PipelineWrapper(pipeline_dir, dry_run=self.dry_run)
 
     def _load_collections(self):
         """
@@ -245,7 +247,7 @@ class ProjectWrapper(LogMixin):
             raise ProjectWrapper.CreatePipelineError(f'A pipeline with the name "{name}" already exists.')
 
         # Create the pipeline directory
-        pipeline_wrapper = PipelineWrapper.create(pipeline_dir, url)
+        pipeline_wrapper = PipelineWrapper.create(pipeline_dir, url, dry_run=self.dry_run)
 
         # Add the pipeline to the project
         self._pipeline_wrappers[name] = pipeline_wrapper
@@ -426,7 +428,7 @@ class ProjectWrapper(LogMixin):
 
         # Create the dataset
         dataset_root_dir = self.distribution_dir / name
-        dataset_wrapper = DatasetWrapper.create(dataset_root_dir)
+        dataset_wrapper = DatasetWrapper.create(dataset_root_dir, dry_run=self.dry_run)
 
         # Populate it
         dataset_wrapper.populate(name, dataset_mapping, copy=copy)
@@ -600,6 +602,13 @@ class ProjectWrapper(LogMixin):
         The name of the project.
         """
         return self._root_dir.name
+
+    @property
+    def dry_run(self) -> bool:
+        """
+        Whether the project is in dry-run mode.
+        """
+        return self._dry_run
 
     @staticmethod
     def check_name(name: str):

@@ -125,19 +125,21 @@ class DatasetWrapper(LogMixin):
 
         pass
 
-    def __init__(self, root_dir: Union[str, Path]):
+    def __init__(self, root_dir: Union[str, Path], dry_run: bool = False):
         self._root_dir = Path(root_dir)
+        self._dry_run = dry_run
 
         self._check_file_structure()
         self._setup_logging()
 
     @classmethod
-    def create(cls, root_dir: Union[str, Path]) -> "DatasetWrapper":
+    def create(cls, root_dir: Union[str, Path], dry_run: bool = False) -> "DatasetWrapper":
         """
         Create a new dataset from an iFDO.
 
         Args:
             root_dir: The root directory of the dataset.
+            dry_run: Whether to perform a dry run.
 
         Returns:
             A dataset wrapper instance.
@@ -157,7 +159,7 @@ class DatasetWrapper(LogMixin):
         root_dir.mkdir(parents=True)
         data_dir.mkdir()
 
-        return cls(root_dir)
+        return cls(root_dir, dry_run=dry_run)
 
     def _check_file_structure(self):
         """
@@ -226,11 +228,12 @@ class DatasetWrapper(LogMixin):
                 # Create the parent directory if it doesn't exist
                 dst.parent.mkdir(parents=True, exist_ok=True)
 
-                # Copy or move the file
-                if copy:
-                    copy2(src, dst)  # use copy2 to preserve metadata
-                else:
-                    src.rename(dst)  # use rename to move the file
+                # Copy or move the file if not in dry-run mode
+                if not self.dry_run:
+                    if copy:
+                        copy2(src, dst)  # use copy2 to preserve metadata
+                    else:
+                        src.rename(dst)  # use rename to move the file
                 self.logger.debug(f"{src.absolute()} -> {dst} ({copy=})")
 
         # Generate and write the iFDO
@@ -242,11 +245,13 @@ class DatasetWrapper(LogMixin):
             ),
             image_set_items=image_set_items,
         )
-        ifdo.save(self.metadata_path)
+        if not self.dry_run:
+            ifdo.save(self.metadata_path)
 
         # Update the dataset summary
         summary = self.summarize()
-        self.summary_path.write_text(str(summary))
+        if not self.dry_run:
+            self.summary_path.write_text(str(summary))
 
     def summarize(self) -> ImagerySummary:
         """
@@ -284,6 +289,13 @@ class DatasetWrapper(LogMixin):
         The path to the dataset summary.
         """
         return self._root_dir / "summary.txt"
+
+    @property
+    def dry_run(self) -> bool:
+        """
+        Whether the dataset generation should run in dry-run mode.
+        """
+        return self._dry_run
 
     @staticmethod
     def check_dataset_mapping(dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]]):

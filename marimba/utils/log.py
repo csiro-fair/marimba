@@ -3,7 +3,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Union
 
-import rich.logging
 from rich.console import Console
 from rich.logging import RichHandler
 
@@ -11,7 +10,7 @@ from rich.logging import RichHandler
 file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
-class DryRunRichFormatter(RichHandler):
+class DryRunRichHandler(RichHandler):
     def __init__(self, dry_run, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.dry_run = dry_run
@@ -25,7 +24,7 @@ class DryRunRichFormatter(RichHandler):
         self.dry_run = dry_run
 
 
-rich_handler = DryRunRichFormatter(
+rich_handler = DryRunRichHandler(
     dry_run=False,
     level=logging.WARNING,
     log_time_format="%Y-%m-%d %H:%M:%S,%f",
@@ -54,7 +53,7 @@ def get_logger(name: str, level: int = logging.DEBUG) -> logging.Logger:
     return logger
 
 
-def get_rich_handler() -> rich.logging.RichHandler:
+def get_rich_handler() -> DryRunRichHandler:
     """
     Get the global Rich handler.
 
