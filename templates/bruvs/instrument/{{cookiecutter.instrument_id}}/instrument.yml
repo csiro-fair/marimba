@@ -1,3 +1,0 @@
-id: "{{cookiecutter.instrument_id}}"
-name: "Baited Remote Underwater Video System"
-class_name: "BRUVS"

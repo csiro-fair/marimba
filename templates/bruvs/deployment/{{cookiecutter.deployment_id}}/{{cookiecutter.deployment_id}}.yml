@@ -1,2 +1,0 @@
-deployment_id : {{cookiecutter.deployment_id}}
-unit_id: {{cookiecutter.unit_id}}
