@@ -159,7 +159,7 @@ def metadata_command(
 @marimba.command("package")
 def package_command(
     package_name: str = typer.Argument(..., help="Marimba package name."),
-    pipeline_name: str = typer.Argument(..., help="Marimba pipeline name to package."),
+    # pipeline_name: str = typer.Argument(..., help="Marimba pipeline name to package."),
     deployment_names: Optional[List[str]] = typer.Argument(
         None, help="Marimba deployment names to package. If none are specified, all deployments will be packaged together."
     ),
@@ -182,10 +182,10 @@ def package_command(
 
     try:
         # Compose the dataset
-        ifdo, path_mapping = project_wrapper.compose(pipeline_name, deployment_names, extra, dry_run=dry_run)
+        dataset_mapping = project_wrapper.compose(deployment_names, extra, dry_run=dry_run)
 
         # Package it
-        package_wrapper = project_wrapper.package(package_name, ifdo, path_mapping, copy=copy)
+        package_wrapper = project_wrapper.package(package_name, dataset_mapping, copy=copy)
     except ProjectWrapper.NoSuchPipelineError as e:
         error_message = f"No such pipeline: {e}"
         logger.error(error_message)
@@ -196,10 +196,15 @@ def package_command(
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()
-    except Exception as e:
-        logger.error(e)
-        print(error_panel(f"Could not package collection: {e}"))
+    except FileExistsError as e:
+        error_message = f"Package already exists: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
         raise typer.Exit()
+    # except Exception as e:
+    #     logger.error(e)
+    #     print(error_panel(f"Could not package collection: {e}"))
+    #     raise typer.Exit()
 
     print(success_panel(f"Created {MARIMBA} package {package_name} in {package_wrapper.root_dir}"))
 

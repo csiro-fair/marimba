@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
-from ifdo import iFDO
+from ifdo.models import ImageData
 
 from marimba.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.utils.prompt import prompt_schema
@@ -359,33 +359,23 @@ class ProjectWrapper(LogMixin):
         return results_by_deployment
 
     def compose(
-        self, pipeline_name: str, deployment_names: List[str], extra_args: Optional[List[str]] = None, **kwargs: dict
-    ) -> Tuple[iFDO, Dict[Path, Path]]:
+        self, deployment_names: List[str], extra_args: Optional[List[str]] = None, **kwargs: dict
+    ) -> Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]]:
         """
-        Compose a dataset for a given pipeline.
+        Compose a dataset for the given deployments across all pipelines.
 
         Args:
-            pipeline_name: The name of the pipeline to use.
             deployment_names: The names of the deployments to compose.
             extra_args: Any extra CLI arguments to pass to the command.
             kwargs: Any keyword arguments to pass to the command.
 
         Returns:
-            A tuple containing the iFDO and a dictionary of deployment data file paths to the desired relative dataset paths.
+            A dict mapping pipeline name -> { output file path -> (input file path, image data) }
 
         Raises:
-            ProjectWrapper.NoSuchPipelineError: If the pipeline does not exist in the project.
             ProjectWrapper.NoSuchDeploymentError: If a deployment does not exist in the project.
         """
         merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
-
-        # Get the pipeline wrapper
-        pipeline_wrapper = self.pipeline_wrappers.get(pipeline_name, None)
-        if pipeline_wrapper is None:
-            raise ProjectWrapper.NoSuchPipelineError(pipeline_name)
-
-        # Get the pipeline instance
-        pipeline = pipeline_wrapper.get_instance()
 
         # Get the deployment wrappers
         deployment_wrappers: List[DeploymentWrapper] = []
@@ -395,29 +385,39 @@ class ProjectWrapper(LogMixin):
                 raise ProjectWrapper.NoSuchDeploymentError(deployment_name)
             deployment_wrappers.append(deployment_wrapper)
 
-        # Get the deployment data directories for the pipeline
-        deployment_data_dirs = [deployment_wrapper.get_pipeline_data_dir(pipeline_name) for deployment_wrapper in deployment_wrappers]
-
         # Load the deployment configs
         deployment_configs = [deployment_wrapper.load_config() for deployment_wrapper in deployment_wrappers]
 
-        # Compose the dataset
-        return pipeline.run_compose(deployment_data_dirs, deployment_configs, **merged_kwargs)
+        dataset_mapping = {}
+        for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
+            # Get the pipeline instance
+            pipeline = pipeline_wrapper.get_instance()
 
-    def package(self, name: str, ifdo: iFDO, path_mapping: Dict[Path, Path], copy: bool = True) -> PackageWrapper:
+            # Get the deployment data directories for the pipeline
+            deployment_data_dirs = [deployment_wrapper.get_pipeline_data_dir(pipeline_name) for deployment_wrapper in deployment_wrappers]
+
+            # Compose the pipeline data mapping
+            pipeline_data_mapping = pipeline.run_compose(deployment_data_dirs, deployment_configs, **merged_kwargs)
+
+            # Add the pipeline data mapping to the dataset mapping
+            dataset_mapping[pipeline_name] = pipeline_data_mapping
+
+        return dataset_mapping
+
+    def package(self, name: str, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]], copy: bool = True) -> PackageWrapper:
         """
-        Create a Marimba package from an iFDO and a path mapping.
+        Create a Marimba package from a dataset mapping.
 
         Args:
             name: The name of the package.
-            ifdo: The iFDO to package.
-            path_mapping: A dictionary of paths to relative paths.
+            dataset_mapping: The dataset mapping to package.
             copy: Whether to copy the files (True) or move them (False).
 
         Returns:
             A package wrapper instance for the created package.
 
         Raises:
+            ProjectWrapper.NameError: If the name is invalid.
             FileExistsError: If the package root directory already exists.
             PackageWrapper.InvalidPathMappingError: If the path mapping is invalid.
         """
@@ -426,10 +426,10 @@ class ProjectWrapper(LogMixin):
 
         # Create the package
         package_root_dir = self.distribution_dir / name
-        package_wrapper = PackageWrapper.create(package_root_dir, ifdo)
+        package_wrapper = PackageWrapper.create(package_root_dir)
 
         # Populate it
-        package_wrapper.populate(path_mapping, copy=copy)
+        package_wrapper.populate(name, dataset_mapping, copy=copy)
 
         return package_wrapper
 

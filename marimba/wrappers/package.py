@@ -2,9 +2,10 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy2
-from typing import Dict, Union
+from typing import Dict, List, Tuple, Union
+from uuid import uuid4
 
-from ifdo import iFDO
+from ifdo.models import ImageData, ImageSetHeader, iFDO
 
 from marimba.utils.log import LogMixin, get_file_handler
 
@@ -79,7 +80,7 @@ class ImagerySummary:
         num_other = 0
         size_other_bytes = 0
 
-        for path in directory.iterdir():
+        for path in directory.glob("**/*"):
             if path.is_dir():
                 continue
 
@@ -117,7 +118,7 @@ class PackageWrapper(LogMixin):
 
         pass
 
-    class InvalidPathMappingError(Exception):
+    class InvalidDatasetMappingError(Exception):
         """
         Raised when a path mapping dictionary is invalid.
         """
@@ -131,13 +132,12 @@ class PackageWrapper(LogMixin):
         self._setup_logging()
 
     @classmethod
-    def create(cls, root_dir: Union[str, Path], ifdo: iFDO) -> "PackageWrapper":
+    def create(cls, root_dir: Union[str, Path]) -> "PackageWrapper":
         """
         Create a new package from an iFDO.
 
         Args:
             root_dir: The root directory of the package.
-            ifdo: The iFDO to package.
 
         Returns:
             A package wrapper instance.
@@ -148,16 +148,14 @@ class PackageWrapper(LogMixin):
         # Define the package directory structure
         root_dir = Path(root_dir)
         data_dir = root_dir / "data"
-        metadata_path = root_dir / "metadata.yml"
 
         # Check that the root directory doesn't already exist
         if root_dir.is_dir():
-            raise FileExistsError(f"Package directory {root_dir} already exists.")
+            raise FileExistsError(root_dir)
 
-        # Create the file structure and write the iFDO
+        # Create the file structure
         root_dir.mkdir(parents=True)
         data_dir.mkdir()
-        ifdo.save(metadata_path)
 
         return cls(root_dir)
 
@@ -173,13 +171,8 @@ class PackageWrapper(LogMixin):
             if not path.is_dir():
                 raise PackageWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
 
-        def check_file_exists(path: Path):
-            if not path.is_file():
-                raise PackageWrapper.InvalidStructureError(f'"{path}" does not exist or is not a file.')
-
         check_dir_exists(self.root_dir)
         check_dir_exists(self.data_dir)
-        check_file_exists(self.metadata_path)
 
     def _setup_logging(self):
         """
@@ -191,34 +184,65 @@ class PackageWrapper(LogMixin):
         # Add the file handler to the logger
         self.logger.addHandler(self._file_handler)
 
-    def populate(self, path_mapping: Dict[Path, Path], copy: bool = True):
+    def get_pipeline_data_dir(self, pipeline_name: str) -> Path:
         """
-        Populate the package with files from the given path mapping.
+        Get the path to the data directory for the given pipeline.
 
         Args:
-            path_mapping: A mapping from source paths to destination paths.
+            pipeline_name: The name of the pipeline.
+
+        Returns:
+            The absolute path to the pipeline data directory.
+        """
+        return self.data_dir / pipeline_name
+
+    def populate(self, dataset_name: str, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]], copy: bool = True):
+        """
+        Populate the dataset with files from the given dataset mapping.
+
+        Args:
+            dataset_name: The name of the dataset.
+            dataset_mapping: A dict mapping pipeline name -> { output file path -> (input file path, image data) }
             copy: Whether to copy (True) or move (False) the files.
 
         Raises:
             PackageWrapper.InvalidPathMappingError: If the path mapping is invalid.
         """
         # Verify that the path mapping is valid
-        PackageWrapper.check_path_mapping(path_mapping)
+        PackageWrapper.check_dataset_mapping(dataset_mapping)
 
-        # Copy or move the files
-        for src, relative_dst in path_mapping.items():
-            # Compute the absolute destination path
-            dst = self.data_dir / relative_dst
+        # Copy or move the files and populate the iFDO image set items
+        image_set_items = {}
+        for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
+            pipeline_data_dir = self.get_pipeline_data_dir(pipeline_name)
+            for src, (relative_dst, image_data_list) in pipeline_data_mapping.items():
+                # Compute the absolute destination path
+                dst = pipeline_data_dir / relative_dst
 
-            # Create the parent directory if it doesn't exist
-            dst.parent.mkdir(parents=True, exist_ok=True)
+                # Compute the data directory-relative destination path for the iFDO
+                dst_relative = dst.relative_to(self.data_dir)
+                image_set_items[str(dst_relative)] = image_data_list
 
-            # Copy or move the file
-            if copy:
-                copy2(src, dst)  # use copy2 to preserve metadata
-            else:
-                src.rename(dst)  # use rename to move the file
-            self.logger.info(f"{src.absolute()} -> {dst} ({copy=})")
+                # Create the parent directory if it doesn't exist
+                dst.parent.mkdir(parents=True, exist_ok=True)
+
+                # Copy or move the file
+                if copy:
+                    copy2(src, dst)  # use copy2 to preserve metadata
+                else:
+                    src.rename(dst)  # use rename to move the file
+                self.logger.info(f"{src.absolute()} -> {dst} ({copy=})")
+
+        # Generate and write the iFDO
+        ifdo = iFDO(
+            image_set_header=ImageSetHeader(
+                image_set_name=dataset_name,
+                image_set_uuid=str(uuid4()),
+                image_set_handle="",  # TODO: Populate this from the distribution target URL
+            ),
+            image_set_items=image_set_items,
+        )
+        ifdo.save(self.metadata_path)
 
         # Update the package summary
         summary = self.summarize()
@@ -262,7 +286,7 @@ class PackageWrapper(LogMixin):
         return self._root_dir / "summary.txt"
 
     @staticmethod
-    def check_path_mapping(path_mapping: Dict[Path, Path]):
+    def check_dataset_mapping(dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]]):
         """
         Verify that the given path mapping is valid.
 
@@ -272,29 +296,32 @@ class PackageWrapper(LogMixin):
         Raises:
             PackageWrapper.InvalidPathMappingError: If the path mapping is invalid.
         """
-        # Verify that all source paths exist
-        for src in path_mapping:
-            if not src.exists():
-                raise PackageWrapper.InvalidPathMappingError(f"Source path {src} does not exist.")
+        for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
+            # Verify that all source paths exist
+            for src in pipeline_data_mapping:
+                if not src.exists():
+                    raise PackageWrapper.InvalidDatasetMappingError(f"Source path {src} does not exist.")
 
-        # Verify that all source paths resolve to unique paths
-        reverse_src_resolution = {}
-        for src in path_mapping:
-            resolved = src.resolve().absolute()
-            if resolved in reverse_src_resolution:
-                raise PackageWrapper.InvalidPathMappingError(f"Source paths {src} and {reverse_src_resolution[resolved]} both resolve to {resolved}.")
-            reverse_src_resolution[resolved] = src
+            # Verify that all source paths resolve to unique paths
+            reverse_src_resolution = {}
+            for src in pipeline_data_mapping:
+                resolved = src.resolve().absolute()
+                if resolved in reverse_src_resolution:
+                    raise PackageWrapper.InvalidDatasetMappingError(
+                        f"Source paths {src} and {reverse_src_resolution[resolved]} both resolve to {resolved}."
+                    )
+                reverse_src_resolution[resolved] = src
 
-        # Verify that all destination paths are relative
-        for dst in path_mapping.values():
-            if dst.is_absolute():
-                raise PackageWrapper.InvalidPathMappingError(f"Destination path {dst} must be relative.")
+            # Verify that all destination paths are relative
+            for dst, _ in pipeline_data_mapping.values():
+                if dst.is_absolute():
+                    raise PackageWrapper.InvalidDatasetMappingError(f"Destination path {dst} must be relative.")
 
-        # Verify that there are no collisions in destination paths
-        reverse_mapping = {dst.resolve(): src for src, dst in path_mapping.items()}
-        for src, dst in path_mapping.items():
-            src_other = reverse_mapping.get(dst)
-            if src.resolve() != src_other.resolve():
-                raise PackageWrapper.InvalidPathMappingError(
-                    f"Resolved destination path {dst.resolve()} is the same for source paths {src} and {src_other}."
-                )
+            # Verify that there are no collisions in destination paths
+            reverse_mapping = {dst.resolve(): src for src, (dst, _) in pipeline_data_mapping.items()}
+            for src, (dst, _) in pipeline_data_mapping.items():
+                src_other = reverse_mapping.get(dst)
+                if src.resolve() != src_other.resolve():
+                    raise PackageWrapper.InvalidDatasetMappingError(
+                        f"Resolved destination path {dst.resolve()} is the same for source paths {src} and {src_other}."
+                    )
