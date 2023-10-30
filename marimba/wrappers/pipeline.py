@@ -51,7 +51,7 @@ class PipelineWrapper(LogMixin):
         """
         The repository directory of the pipeline.
         """
-        return self.root_dir / "repository"
+        return self.root_dir / "repo"
 
     @property
     def config_path(self) -> Path:
@@ -119,7 +119,7 @@ class PipelineWrapper(LogMixin):
         root_dir.mkdir(parents=True)
 
         # Clone the pipeline repository
-        repo_dir = root_dir / "repository"
+        repo_dir = root_dir / "repo"
         Repo.clone_from(url, repo_dir)
 
         # Create the pipeline configuration file (initialize as empty)
@@ -163,7 +163,7 @@ class PipelineWrapper(LogMixin):
         pipeline_class = self.get_pipeline_class()
 
         # Create an instance of the pipeline
-        pipeline_instance = pipeline_class(config=self.load_config(), dry_run=False)
+        pipeline_instance = pipeline_class(self.repo_dir, config=self.load_config(), dry_run=False)
 
         # Set up pipeline file logging
         pipeline_instance.logger.addHandler(self._file_handler)
