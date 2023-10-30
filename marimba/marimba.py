@@ -178,7 +178,7 @@ def package_command(
     project_wrapper = ProjectWrapper(project_dir)
 
     if not deployment_names:  # If no deployment names are specified, package all deployments
-        deployment_names = list(project_wrapper.deployments.keys())
+        deployment_names = list(project_wrapper.deployment_wrappers.keys())
 
     try:
         # Compose the dataset
