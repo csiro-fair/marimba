@@ -90,7 +90,8 @@ def global_options(
 @marimba.command("import")
 def import_command(
     source_dir: Path = typer.Argument(..., help="Path to directory containing files to import."),
-    deployment_name: str = typer.Argument(None, help="Marimba deployment name for targeted processing."),
+    deployment_name: str = typer.Argument(..., help="Marimba deployment name for targeted processing."),
+    parent_deployment_name: Optional[str] = typer.Argument(None, help="Name of the parent deployment. If unspecified, use the last deployment."),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
@@ -100,12 +101,26 @@ def import_command(
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
-    Import SD cards to working directory
+    Import data in a source directory into a new or existing Marimba deployment.
     """
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
-    project_wrapper.run_import(source_dir, deployment_name, overwrite=overwrite, extra_args=extra, dry_run=dry_run)
+    # Get the deployment (create if appropriate)
+    deployment_wrapper = project_wrapper.deployment_wrappers.get(deployment_name, None)
+    if deployment_wrapper is None:
+        deployment_config = project_wrapper.prompt_deployment_config(parent_deployment_name=parent_deployment_name)
+        deployment_wrapper = project_wrapper.create_deployment(deployment_name, deployment_config)
+    elif not overwrite:
+        error_message = f"Deployment {deployment_name} already exists, and the overwrite flag is not set."
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+
+    # Run the import
+    project_wrapper.run_import(source_dir, deployment_name, extra_args=extra, dry_run=dry_run)
+
+    print(success_panel(f"Imported data from {source_dir} to deployment {deployment_name}"))
 
 
 @marimba.command("metadata")
@@ -219,7 +234,12 @@ def update_command(
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
-    project_wrapper.update_pipelines()
+    try:
+        project_wrapper.update_pipelines()
+    except Exception as e:
+        logger.error(e)
+        print(error_panel(f"Could not update pipelines: {e}"))
+        raise typer.Exit()
 
 
 @marimba.command("install")

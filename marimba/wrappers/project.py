@@ -439,31 +439,27 @@ class ProjectWrapper(LogMixin):
 
         return package_wrapper
 
-    def run_import(
-        self, source_dir: Union[str, Path], deployment_name: str, overwrite: bool = False, extra_args: Optional[List[str]] = None, **kwargs: dict
-    ) -> None:
+    def run_import(self, source_dir: Union[str, Path], deployment_name: str, extra_args: Optional[List[str]] = None, **kwargs: dict) -> None:
         """
-        Run the import command to create a new deployment from a source data directory.
+        Run the import command to populate a deployment from a source data directory.
 
         Args:
             source_dir: The source directory to import from.
             deployment_name: The name of the deployment to import into.
-            overwrite: Overwrite an existing deployment with the same name.
             extra_args: Any extra CLI arguments to pass to the command.
             kwargs: Any keyword arguments to pass to the command.
+
+        Raises:
+            ProjectWrapper.NoSuchDeploymentError: If the deployment does not exist in the project.
         """
         source_dir = Path(source_dir)
 
         merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
 
-        # Create the deployment
+        # Get the deployment wrapper
         deployment_wrapper = self.deployment_wrappers.get(deployment_name, None)
         if deployment_wrapper is None:
-            deployment_wrapper = self.create_deployment(deployment_name)
-        elif not overwrite:
-            raise ProjectWrapper.CreateDeploymentError(
-                f'A deployment with the name "{deployment_name}" already exists, and the overwrite flag was not set.'
-            )
+            raise ProjectWrapper.NoSuchDeploymentError(deployment_name)
 
         # Import each pipeline
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
@@ -606,17 +602,3 @@ class ProjectWrapper(LogMixin):
         The name of the project.
         """
         return self._root_dir.name
-
-    @property
-    def pipelines(self) -> Dict[str, PipelineWrapper]:
-        """
-        The loaded pipelines in the project.
-        """
-        return self._pipeline_wrappers
-
-    @property
-    def deployments(self) -> Dict[str, DeploymentWrapper]:
-        """
-        The loaded deployments in the project.
-        """
-        return self._deployment_wrappers

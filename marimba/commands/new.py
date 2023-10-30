@@ -138,7 +138,7 @@ def pipeline(
 @app.command()
 def deployment(
     deployment_name: str = typer.Argument(..., help="Name of the deployment."),
-    parent: Optional[str] = typer.Argument(None, help="Name of the parent deployment. If unspecified, use the last deployment."),
+    parent_deployment_name: Optional[str] = typer.Argument(None, help="Name of the parent deployment. If unspecified, use the last deployment."),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
@@ -156,7 +156,7 @@ def deployment(
         project_wrapper = ProjectWrapper(project_dir)
 
         # Configure the deployment from the resolved schema
-        deployment_config = project_wrapper.prompt_deployment_config(parent_deployment_name=parent)
+        deployment_config = project_wrapper.prompt_deployment_config(parent_deployment_name=parent_deployment_name)
 
         # Create the deployment
         deployment_wrapper = project_wrapper.create_deployment(deployment_name, deployment_config)
