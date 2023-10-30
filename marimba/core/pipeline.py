@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ifdo import iFDO
 
@@ -13,7 +13,8 @@ class BasePipeline(ABC, LogMixin):
     Marimba pipeline abstract base class. All pipelines should inherit from this class.
     """
 
-    def __init__(self, config: Optional[dict] = None, dry_run: bool = False):
+    def __init__(self, root_path: Union[str, Path], config: Optional[dict] = None, dry_run: bool = False):
+        self._root_path = root_path
         self._config = config
         self._dry_run = dry_run
 
