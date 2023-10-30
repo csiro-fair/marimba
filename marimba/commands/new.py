@@ -4,11 +4,16 @@ from typing import Optional, Union
 
 import typer
 from rich import print
-from rich.panel import Panel
 
 from marimba.utils.log import get_logger
 from marimba.utils.prompt import prompt_schema
-from marimba.utils.rich import MARIMBA, error_panel, success_panel
+from marimba.utils.rich import (
+    MARIMBA,
+    error_panel,
+    format_command,
+    format_entity,
+    success_panel,
+)
 from marimba.wrappers.project import ProjectWrapper
 
 logger = get_logger(__name__)
@@ -74,25 +79,18 @@ def project(
     """
     Create a new Marimba project.
     """
-    logger.info(f"Executing the {MARIMBA} [steel_blue3]new project[/steel_blue3] command.")
+    logger.info(f"Executing the {MARIMBA} {format_command('new project')} command.")
 
     # Try to create the new project
     try:
         project_wrapper = ProjectWrapper.create(project_dir)
     except FileExistsError:
-        error_message = f'A {MARIMBA} [light_pink3]project[/light_pink3] already exists at: "{project_dir}"'
+        error_message = f'A {MARIMBA} {format_entity("project")} already exists at: "{project_dir}"'
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()
 
-    print(
-        Panel(
-            f'Created new {MARIMBA} [light_pink3]project[/light_pink3] at: "{project_wrapper.root_dir}"',
-            title="Success",
-            title_align="left",
-            border_style="green",
-        )
-    )
+    print(success_panel(f'Created new {MARIMBA} {format_entity("project")} at: "{project_wrapper.root_dir}"'))
 
 
 @app.command()
@@ -109,7 +107,7 @@ def pipeline(
     """
     project_dir = find_project_dir_or_exit(project_dir)
 
-    logger.info(f"Executing the {MARIMBA} [steel_blue3]new pipeline[/steel_blue3] command.")
+    logger.info(f"Executing the {MARIMBA} {format_command('new pipeline')} command.")
 
     try:
         # Create project wrapper instance
@@ -117,16 +115,18 @@ def pipeline(
 
         # Create the pipeline
         pipeline_wrapper = project_wrapper.create_pipeline(pipeline_name, url)
+    except ProjectWrapper.NameError as e:
+        error_message = f"Invalid pipeline name: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
     except Exception as e:
-        logger.error(e)
-        print(error_panel(str(e), title=f"Error - {e.__class__.__name__}"))
+        error_message = f"Could not create pipeline: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
         raise typer.Exit()
 
-    print(
-        success_panel(
-            f'Created new {MARIMBA} [light_pink3]pipeline[/light_pink3] "{pipeline_name}" at: "{project_wrapper.pipeline_dir / pipeline_name}"'
-        )
-    )
+    print(success_panel(f'Created new {MARIMBA} {format_entity("pipeline")} "{pipeline_name}" at: "{pipeline_wrapper.root_dir}"'))
 
     # Configure the pipeline from the command line
     pipeline = pipeline_wrapper.get_instance()
@@ -149,7 +149,7 @@ def deployment(
     """
     project_dir = find_project_dir_or_exit(project_dir)
 
-    logger.info(f"Executing the {MARIMBA} [steel_blue3]new deployment[/steel_blue3] command.")
+    logger.info(f"Executing the {MARIMBA} {format_command('new deployment')} command.")
 
     try:
         # Create project wrapper instance
@@ -160,6 +160,10 @@ def deployment(
 
         # Create the deployment
         deployment_wrapper = project_wrapper.create_deployment(deployment_name, deployment_config)
+    except ProjectWrapper.NameError as e:
+        logger.error(e)
+        print(error_panel(f"Invalid deployment name: {e}"))
+        raise typer.Exit()
     except ProjectWrapper.NoSuchDeploymentError as e:
         logger.error(e)
         print(error_panel(f"No such parent deployment: {e}"))
@@ -169,8 +173,9 @@ def deployment(
         print(error_panel(f"Could not create deployment: {e}"))
         raise typer.Exit()
     except Exception as e:
-        logger.error(e)
-        print(error_panel(str(e), title=f"Error - {e.__class__.__name__}"))
+        error_message = f"Could not create deployment: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
         raise typer.Exit()
 
-    print(success_panel(f'Created new {MARIMBA} [light_pink3]deployment[/light_pink3] "{deployment_name}" at: "{deployment_wrapper.root_dir}"'))
+    print(success_panel(f'Created new {MARIMBA} {format_entity("deployment")} "{deployment_name}" at: "{deployment_wrapper.root_dir}"'))

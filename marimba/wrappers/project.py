@@ -6,41 +6,11 @@ from ifdo import iFDO
 
 from marimba.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.utils.prompt import prompt_schema
-from marimba.utils.rich import MARIMBA
 from marimba.wrappers.deployment import DeploymentWrapper
 from marimba.wrappers.package import PackageWrapper
 from marimba.wrappers.pipeline import PipelineWrapper
 
 logger = get_logger(__name__)
-
-
-def get_base_templates_path() -> Path:
-    base_templates_path = Path(__file__).parent.parent.parent / "templates"
-    logger.info(f'Setting {MARIMBA} base templates path to: "{base_templates_path}"')
-    return base_templates_path
-
-
-def check_template_exists(base_templates_path: Union[str, Path], template_name: str, template_type: str) -> Path:
-    base_templates_path = Path(base_templates_path)
-    logger.info(f"Checking that the provided {MARIMBA} [light_pink3]{template_type}[/light_pink3] template exists...")
-    template_path = base_templates_path / template_name / template_type
-
-    if template_path.is_dir():
-        logger.info(f"{MARIMBA} [light_pink3]{template_type}[/light_pink3] template [orchid1]{Path(template_name) / template_type}[/orchid1] exists!")
-    else:
-        error_message = f"The provided [light_pink3]{template_type}[/light_pink3] template name [orchid1]{Path(template_name) / template_type}[/orchid1] does not exists at {template_path}"
-        logger.error(error_message)
-        # print(
-        #     Panel(
-        #         error_message,
-        #         title="Error",
-        #         title_align="left",
-        #         border_style="red",
-        #     )
-        # )
-        # raise typer.Exit()
-
-    return template_path
 
 
 def get_merged_keyword_args(kwargs: dict, extra_args: list, logger: logging.Logger) -> dict:
@@ -93,7 +63,7 @@ class ProjectWrapper(LogMixin):
 
     class CreatePipelineError(Exception):
         """
-        Raised when an pipeline cannot be created.
+        Raised when a pipeline cannot be created.
         """
 
         pass
@@ -114,7 +84,7 @@ class ProjectWrapper(LogMixin):
 
     class NoSuchPipelineError(Exception):
         """
-        Raised when an pipeline does not exist in the project.
+        Raised when a pipeline does not exist in the project.
         """
 
         pass
@@ -122,6 +92,13 @@ class ProjectWrapper(LogMixin):
     class NoSuchDeploymentError(Exception):
         """
         Raised when a deployment does not exist in the project.
+        """
+
+        pass
+
+    class NameError(Exception):
+        """
+        Raised when an invalid name is used.
         """
 
         pass
@@ -247,13 +224,17 @@ class ProjectWrapper(LogMixin):
 
         Raises:
             ProjectWrapper.CreatePipelineError: If the pipeline cannot be created.
+            ProjectWrapper.NameError: If the name is invalid.
         """
         self.logger.debug(f'Creating pipeline "{name}" from {url}')
 
-        # Check that an pipeline with the same name doesn't already exist
+        # Check the name is valid
+        ProjectWrapper.check_name(name)
+
+        # Check that a pipeline with the same name doesn't already exist
         pipeline_dir = self._pipeline_dir / name
         if pipeline_dir.exists():
-            raise ProjectWrapper.CreatePipelineError(f'An pipeline with the name "{name}" already exists.')
+            raise ProjectWrapper.CreatePipelineError(f'A pipeline with the name "{name}" already exists.')
 
         # Create the pipeline directory
         pipeline_wrapper = PipelineWrapper.create(pipeline_dir, url)
@@ -278,6 +259,9 @@ class ProjectWrapper(LogMixin):
             ProjectWrapper.CreateDeploymentError: If the deployment cannot be created.
         """
         self.logger.debug(f'Creating deployment "{name}"')
+
+        # Check the name is valid
+        ProjectWrapper.check_name(name)
 
         # Check that a deployment with the same name doesn't already exist
         deployment_dir = self.deployments_dir / name
@@ -308,7 +292,7 @@ class ProjectWrapper(LogMixin):
         Run a command within the project.
 
         By default, this will run the command for all pipelines and deployments in the project.
-        If an pipeline name is provided, it will run the command for all deployments of that pipeline.
+        If a pipeline name is provided, it will run the command for all deployments of that pipeline.
         If a deployment name is provided, it will run the command for that deployment only.
         These can be combined to run the command for a specific deployment of a specific pipeline.
 
@@ -429,9 +413,11 @@ class ProjectWrapper(LogMixin):
             FileExistsError: If the package root directory already exists.
             PackageWrapper.InvalidPathMappingError: If the path mapping is invalid.
         """
-        package_root_dir = self.distribution_dir / name
+        # Check the name is valid
+        ProjectWrapper.check_name(name)
 
         # Create the package
+        package_root_dir = self.distribution_dir / name
         package_wrapper = PackageWrapper.create(package_root_dir, ifdo)
 
         # Populate it
@@ -442,6 +428,8 @@ class ProjectWrapper(LogMixin):
     def run_import(self, source_dir: Union[str, Path], deployment_name: str, extra_args: Optional[List[str]] = None, **kwargs: dict) -> None:
         """
         Run the import command to populate a deployment from a source data directory.
+
+        May overwrite existing data in the deployment.
 
         Args:
             source_dir: The source directory to import from.
@@ -602,3 +590,17 @@ class ProjectWrapper(LogMixin):
         The name of the project.
         """
         return self._root_dir.name
+
+    @staticmethod
+    def check_name(name: str):
+        """
+        Check that a name is valid.
+
+        Args:
+            name: The name to check.
+
+        Raises:
+            ProjectWrapper.NameError: If the name is invalid.
+        """
+        if not name.isidentifier():
+            raise ProjectWrapper.NameError(name)

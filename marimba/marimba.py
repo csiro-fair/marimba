@@ -109,8 +109,14 @@ def import_command(
     # Get the deployment (create if appropriate)
     deployment_wrapper = project_wrapper.deployment_wrappers.get(deployment_name, None)
     if deployment_wrapper is None:
-        deployment_config = project_wrapper.prompt_deployment_config(parent_deployment_name=parent_deployment_name)
-        deployment_wrapper = project_wrapper.create_deployment(deployment_name, deployment_config)
+        try:
+            deployment_config = project_wrapper.prompt_deployment_config(parent_deployment_name=parent_deployment_name)
+            deployment_wrapper = project_wrapper.create_deployment(deployment_name, deployment_config)
+        except ProjectWrapper.NameError as e:
+            error_message = f"Invalid deployment name: {e}"
+            logger.error(error_message)
+            print(error_panel(error_message))
+            raise typer.Exit()
     elif not overwrite:
         error_message = f"Deployment {deployment_name} already exists, and the overwrite flag is not set."
         logger.error(error_message)
@@ -118,7 +124,13 @@ def import_command(
         raise typer.Exit()
 
     # Run the import
-    project_wrapper.run_import(source_dir, deployment_name, extra_args=extra, dry_run=dry_run)
+    try:
+        project_wrapper.run_import(source_dir, deployment_name, extra_args=extra, dry_run=dry_run)
+    except Exception as e:
+        error_message = f"Error during import: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
 
     print(success_panel(f"Imported data from {source_dir} to deployment {deployment_name}"))
 
@@ -173,9 +185,19 @@ def package_command(
 
         # Package it
         package_wrapper = project_wrapper.package(package_name, ifdo, path_mapping, copy=copy)
-    except (ProjectWrapper.NoSuchDeploymentError, ProjectWrapper.NoSuchPipelineError) as e:
+    except ProjectWrapper.NoSuchPipelineError as e:
+        error_message = f"No such pipeline: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+    except ProjectWrapper.NoSuchDeploymentError as e:
+        error_message = f"No such deployment: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+    except Exception as e:
         logger.error(e)
-        print(error_panel(str(e)))
+        print(error_panel(f"Could not package collection: {e}"))
         raise typer.Exit()
 
     print(success_panel(f"Created {MARIMBA} package {package_name} in {package_wrapper.root_dir}"))

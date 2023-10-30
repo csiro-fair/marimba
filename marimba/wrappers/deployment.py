@@ -18,7 +18,7 @@ class DeploymentWrapper:
 
     class NoSuchPipelineError(Exception):
         """
-        Raised when an pipeline is not found.
+        Raised when a pipeline is not found.
         """
 
         pass
