@@ -1,5 +1,0 @@
-{
- "survey_id":"Voyage name",
- "start_date": "Please enter start date in ISO8601 (e.g. 2018-01-01)",
- "end_date": "Please enter end date in ISO8601 (e.g. 2018-01-01)"
-}
