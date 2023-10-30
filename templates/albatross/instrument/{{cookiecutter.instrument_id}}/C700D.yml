@@ -1,3 +1,0 @@
-id: "{{cookiecutter.instrument_id}}"
-name: "Canon EOS 700D"
-class_name: "CanonEOS"
