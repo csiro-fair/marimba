@@ -89,9 +89,9 @@ def global_options(
 
 @marimba.command("import")
 def import_command(
-    source_dir: Path = typer.Argument(..., help="Path to directory containing files to import."),
     deployment_name: str = typer.Argument(..., help="Marimba deployment name for targeted processing."),
-    parent_deployment_name: Optional[str] = typer.Argument(None, help="Name of the parent deployment. If unspecified, use the last deployment."),
+    source_paths: List[Path] = typer.Argument(..., help="Paths to source files/directories to provide for import."),
+    parent_deployment_name: Optional[str] = typer.Option(None, help="Name of the parent deployment. If unspecified, use the last deployment."),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
@@ -125,14 +125,15 @@ def import_command(
 
     # Run the import
     try:
-        project_wrapper.run_import(source_dir, deployment_name, extra_args=extra, dry_run=dry_run)
+        project_wrapper.run_import(deployment_name, source_paths, extra_args=extra, dry_run=dry_run)
     except Exception as e:
         error_message = f"Error during import: {e}"
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()
 
-    print(success_panel(f"Imported data from {source_dir} to deployment {deployment_name}"))
+    pretty_source_paths = "\n".join([f"  - {source_path.resolve().absolute()}" for source_path in source_paths])
+    print(success_panel(f"Imported data to deployment {deployment_name} from source paths:\n{pretty_source_paths}"))
 
 
 @marimba.command("metadata")

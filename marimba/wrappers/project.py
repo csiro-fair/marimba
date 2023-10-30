@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from ifdo import iFDO
 
@@ -425,22 +425,24 @@ class ProjectWrapper(LogMixin):
 
         return package_wrapper
 
-    def run_import(self, source_dir: Union[str, Path], deployment_name: str, extra_args: Optional[List[str]] = None, **kwargs: dict) -> None:
+    def run_import(
+        self, deployment_name: str, source_paths: Iterable[Union[str, Path]], extra_args: Optional[List[str]] = None, **kwargs: dict
+    ) -> None:
         """
         Run the import command to populate a deployment from a source data directory.
 
         May overwrite existing data in the deployment.
 
         Args:
-            source_dir: The source directory to import from.
             deployment_name: The name of the deployment to import into.
+            source_paths: The source paths to import from.
             extra_args: Any extra CLI arguments to pass to the command.
             kwargs: Any keyword arguments to pass to the command.
 
         Raises:
             ProjectWrapper.NoSuchDeploymentError: If the deployment does not exist in the project.
         """
-        source_dir = Path(source_dir)
+        source_paths = list(map(lambda p: Path(p), source_paths))
 
         merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
 
@@ -461,7 +463,7 @@ class ProjectWrapper(LogMixin):
             deployment_config = deployment_wrapper.load_config()
 
             # Run the import
-            pipeline.run_import(deployment_data_dir, source_dir, deployment_config, **merged_kwargs)
+            pipeline.run_import(deployment_data_dir, source_paths, deployment_config, **merged_kwargs)
 
     def prompt_deployment_config(self, parent_deployment_name: Optional[str] = None) -> Dict[str, Any]:
         """
