@@ -19,7 +19,7 @@ from marimba.wrappers.project import ProjectWrapper
 logger = get_logger(__name__)
 
 app = typer.Typer(
-    help="Create a new Marimba collection, pipeline or deployment.",
+    help="Create a new Marimba project, pipeline or collection.",
     no_args_is_help=True,
 )
 
@@ -136,46 +136,46 @@ def pipeline(
 
 
 @app.command()
-def deployment(
-    deployment_name: str = typer.Argument(..., help="Name of the deployment."),
-    parent_deployment_name: Optional[str] = typer.Argument(None, help="Name of the parent deployment. If unspecified, use the last deployment."),
+def collection(
+    collection_name: str = typer.Argument(..., help="Name of the collection."),
+    parent_collection_name: Optional[str] = typer.Argument(None, help="Name of the parent collection. If unspecified, use the last collection."),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
 ):
     """
-    Create a new Marimba deployment in a project.
+    Create a new Marimba collection in a project.
     """
     project_dir = find_project_dir_or_exit(project_dir)
 
-    logger.info(f"Executing the {MARIMBA} {format_command('new deployment')} command.")
+    logger.info(f"Executing the {MARIMBA} {format_command('new collection')} command.")
 
     try:
         # Create project wrapper instance
         project_wrapper = ProjectWrapper(project_dir)
 
-        # Configure the deployment from the resolved schema
-        deployment_config = project_wrapper.prompt_deployment_config(parent_deployment_name=parent_deployment_name)
+        # Configure the collection from the resolved schema
+        collection_config = project_wrapper.prompt_collection_config(parent_collection_name=parent_collection_name)
 
-        # Create the deployment
-        deployment_wrapper = project_wrapper.create_deployment(deployment_name, deployment_config)
+        # Create the collection
+        collection_wrapper = project_wrapper.create_collection(collection_name, collection_config)
     except ProjectWrapper.NameError as e:
         logger.error(e)
-        print(error_panel(f"Invalid deployment name: {e}"))
+        print(error_panel(f"Invalid collection name: {e}"))
         raise typer.Exit()
-    except ProjectWrapper.NoSuchDeploymentError as e:
+    except ProjectWrapper.NoSuchCollectionError as e:
         logger.error(e)
-        print(error_panel(f"No such parent deployment: {e}"))
+        print(error_panel(f"No such parent collection: {e}"))
         raise typer.Exit()
-    except ProjectWrapper.CreateDeploymentError as e:
+    except ProjectWrapper.CreateCollectionError as e:
         logger.error(e)
-        print(error_panel(f"Could not create deployment: {e}"))
+        print(error_panel(f"Could not create collection: {e}"))
         raise typer.Exit()
     except Exception as e:
-        error_message = f"Could not create deployment: {e}"
+        error_message = f"Could not create collection: {e}"
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()
 
-    print(success_panel(f'Created new {MARIMBA} {format_entity("deployment")} "{deployment_name}" at: "{deployment_wrapper.root_dir}"'))
+    print(success_panel(f'Created new {MARIMBA} {format_entity("collection")} "{collection_name}" at: "{collection_wrapper.root_dir}"'))

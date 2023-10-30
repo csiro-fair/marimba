@@ -4,14 +4,14 @@ from typing import Union
 from marimba.utils.config import load_config, save_config
 
 
-class DeploymentWrapper:
+class CollectionWrapper:
     """
-    Deployment directory wrapper.
+    Collection directory wrapper.
     """
 
     class InvalidStructureError(Exception):
         """
-        Raised when the deployment directory structure is invalid.
+        Raised when the collection directory structure is invalid.
         """
 
         pass
@@ -29,27 +29,27 @@ class DeploymentWrapper:
         self._check_file_structure()
 
     @classmethod
-    def create(cls, root_dir: Union[str, Path], config: dict) -> "DeploymentWrapper":
+    def create(cls, root_dir: Union[str, Path], config: dict) -> "CollectionWrapper":
         """
-        Create a new deployment directory.
+        Create a new collection directory.
 
         Args:
-            root_dir: The deployment root directory.
-            config: The deployment configuration.
+            root_dir: The collection root directory.
+            config: The collection configuration.
 
         Returns:
-            A deployment.
+            A collection.
 
         Raises:
             FileExistsError: If the root directory already exists.
         """
-        # Define the deployment directory structure
+        # Define the collection directory structure
         root_dir = Path(root_dir)
-        config_path = root_dir / "deployment.yml"
+        config_path = root_dir / "collection.yml"
 
         # Check that the root directory doesn't already exist
         if root_dir.is_dir():
-            raise FileExistsError(f"Deployment directory {root_dir} already exists.")
+            raise FileExistsError(f"Collection directory {root_dir} already exists.")
 
         # Create the file structure and write the config
         root_dir.mkdir(parents=True)
@@ -60,45 +60,45 @@ class DeploymentWrapper:
     @property
     def root_dir(self) -> Path:
         """
-        The deployment root directory.
+        The collection root directory.
         """
         return self._root_dir
 
     @property
     def config_path(self) -> Path:
         """
-        The path to the deployment configuration file.
+        The path to the collection configuration file.
         """
-        return self.root_dir / "deployment.yml"
+        return self.root_dir / "collection.yml"
 
     def _check_file_structure(self):
         """
-        Check that the deployment directory structure is valid. If not, raise an InvalidStructureError with details.
+        Check that the collection directory structure is valid. If not, raise an InvalidStructureError with details.
 
         Raises:
-            DeploymentDirectory.InvalidStructureError: If the deployment directory structure is invalid.
+            CollectionDirectory.InvalidStructureError: If the collection directory structure is invalid.
         """
 
         def check_dir_exists(path: Path):
             if not path.is_dir():
-                raise DeploymentWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
+                raise CollectionWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
 
         def check_file_exists(path: Path):
             if not path.is_file():
-                raise DeploymentWrapper.InvalidStructureError(f'"{path}" does not exist or is not a file.')
+                raise CollectionWrapper.InvalidStructureError(f'"{path}" does not exist or is not a file.')
 
         check_dir_exists(self._root_dir)
         check_file_exists(self.config_path)
 
     def load_config(self) -> dict:
         """
-        Load the deployment configuration. Reads `deployment.yml` from the deployment root directory.
+        Load the collection configuration. Reads `collection.yml` from the collection root directory.
         """
         return load_config(self.config_path)
 
     def save_config(self, config: dict):
         """
-        Save a new deployment configuration to `deployment.yml` in the deployment root directory.
+        Save a new collection configuration to `collection.yml` in the collection root directory.
         """
         save_config(self.config_path, config)
 

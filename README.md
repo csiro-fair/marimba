@@ -162,7 +162,7 @@ marimba
 
 ![](img/marimba_default-help.png "marimba_default-help")
 
-The default entry point to start using Marimba is the `new` command. This allows you to create a new Marimba collection, pipeline or deployment that adheres to the following standard Marimba structure:
+The default entry point to start using Marimba is the `new` command. This allows you to create a new Marimba collection, pipeline or collection that adheres to the following standard Marimba structure:
 
 ```
 {collection}
@@ -179,7 +179,7 @@ The default entry point to start using Marimba is the `new` command. This allows
 │       │
 │       └───work                    - 
 │       │   │
-│       │   └───{deployment}        - 
+│       │   └───{collection}        - 
 │       │
 │       │   {pipeline}.log        - 
 │       │   pipeline.yml          - 
@@ -192,7 +192,7 @@ The default entry point to start using Marimba is the `new` command. This allows
 The usual order you might use the Marimba commands might be:
 * `marimba new {collection}`
 * `marimba new {pipeline}`
-* `marimba new {deployment}`
+* `marimba new {collection}`
 * `marimba qc` - it applicable
 * `marimba rename`
 * `marimba metadata`

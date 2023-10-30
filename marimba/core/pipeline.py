@@ -37,8 +37,8 @@ class BasePipeline(ABC, LogMixin):
         }
         ```
 
-        The pipeline configuration schema represents values that are static for the pipeline across all deployments.
-        Use `get_deployment_config_schema` for values that are specific to a deployment.
+        The pipeline configuration schema represents values that are static for the pipeline across all collections.
+        Use `get_collection_config_schema` for values that are specific to a collection.
 
         Returns:
             The pipeline configuration schema.
@@ -46,12 +46,12 @@ class BasePipeline(ABC, LogMixin):
         return {}
 
     @staticmethod
-    def get_deployment_config_schema() -> dict:
+    def get_collection_config_schema() -> dict:
         """
-        Returns the deployment configuration schema.
+        Returns the collection configuration schema.
 
-        The deployment configuration schema represents the values that the pipeline requires that are specific to a deployment.
-        Use `get_pipeline_config_schema` for values that are static for the pipeline across all deployments.
+        The collection configuration schema represents the values that the pipeline requires that are specific to a collection.
+        Use `get_pipeline_config_schema` for values that are static for the pipeline across all collections.
 
         See `get_pipeline_config_schema` for more details.
         """
@@ -87,7 +87,7 @@ class BasePipeline(ABC, LogMixin):
         Args:
             data_dir: The data directory.
             source_paths: The source paths.
-            config: The deployment configuration.
+            config: The collection configuration.
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
@@ -103,7 +103,7 @@ class BasePipeline(ABC, LogMixin):
 
         Args:
             data_dir: The data directory.
-            config: The deployment configuration.
+            config: The collection configuration.
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
@@ -119,7 +119,7 @@ class BasePipeline(ABC, LogMixin):
 
         Args:
             data_dir: The data directory.
-            config: The deployment configuration.
+            config: The collection configuration.
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
@@ -135,7 +135,7 @@ class BasePipeline(ABC, LogMixin):
 
         Args:
             data_dir: The data directory.
-            config: The deployment configuration.
+            config: The collection configuration.
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
@@ -145,13 +145,13 @@ class BasePipeline(ABC, LogMixin):
 
     def run_compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Tuple[iFDO, Dict[Path, Path]]:
         """
-        Compose a dataset from the given data directories and their corresponding deployment configurations.
+        Compose a dataset from the given data directories and their corresponding collection configurations.
 
         Return an [iFDO](https://marine-imaging.com/fair/ifdos/iFDO-overview/) instance that represents the composed dataset and a dictionary that maps files within the provided data directories to relative paths for the resulting distributable dataset.
 
         Args:
             data_dirs: The data directories to compose.
-            configs: The deployment configurations for the data directories.
+            configs: The collection configurations for the data directories.
             kwargs: Additional keyword arguments.
 
         Returns:

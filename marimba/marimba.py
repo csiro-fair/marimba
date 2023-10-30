@@ -54,78 +54,45 @@ def global_options(
     logger.info(f"Initialised Marimba CLI v{__version__}")
 
 
-# @marimba.command("catalog")
-# def catalog_command(
-#     pipeline_name: str = typer.Argument(None, help="Marimba pipeline name for targeted processing."),
-#     deployment_name: str = typer.Argument(None, help="Marimba deployment name for targeted processing."),
-#     project_dir: Optional[Path] = typer.Option(
-#         None,
-#         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
-#     ),
-#     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
-#     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-#     exiftool_path: str = typer.Option("exiftool", help="Path to exiftool"),
-#     file_extension: str = typer.Option("JPG", help="extension to catalog"),
-#     glob_path: str = typer.Option("**", help="masked used in glob"),
-#     overwrite: bool = typer.Option(False, help="Overwrite output files if they contain the same filename."),
-# ):
-#     """
-#     Create an exif catalog of files stored in .exif_{extension}.
-#     """
-#     project_dir = new.find_project_dir_or_exit(project_dir)
-#     project_wrapper = ProjectWrapper(project_dir)
-
-#     project_wrapper.run_command(
-#         "run_catalog",
-#         pipeline_name,
-#         deployment_name,
-#         dry_run=dry_run,
-#         exiftool_path=exiftool_path,
-#         file_extension=file_extension,
-#         glob_path=glob_path,
-#         overwrite=overwrite,
-#     )
-
-
 @marimba.command("import")
 def import_command(
-    deployment_name: str = typer.Argument(..., help="Marimba deployment name for targeted processing."),
+    collection_name: str = typer.Argument(..., help="Marimba collection name for targeted processing."),
     source_paths: List[Path] = typer.Argument(..., help="Paths to source files/directories to provide for import."),
-    parent_deployment_name: Optional[str] = typer.Option(None, help="Name of the parent deployment. If unspecified, use the last deployment."),
+    parent_collection_name: Optional[str] = typer.Option(None, help="Name of the parent collection. If unspecified, use the last collection."),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
-    overwrite: bool = typer.Option(False, help="Overwrite an existing deployment with the same name."),
+    overwrite: bool = typer.Option(False, help="Overwrite an existing collection with the same name."),
     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
-    Import data in a source directory into a new or existing Marimba deployment.
+    Import data in a source directory into a new or existing Marimba collection.
     """
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
-    # Get the deployment (create if appropriate)
-    deployment_wrapper = project_wrapper.deployment_wrappers.get(deployment_name, None)
-    if deployment_wrapper is None:
+    # Get the collection (create if appropriate)
+    collection_wrapper = project_wrapper.collection_wrappers.get(collection_name, None)
+    if collection_wrapper is None:
         try:
-            deployment_config = project_wrapper.prompt_deployment_config(parent_deployment_name=parent_deployment_name)
-            deployment_wrapper = project_wrapper.create_deployment(deployment_name, deployment_config)
+            collection_config = project_wrapper.prompt_collection_config(parent_collection_name=parent_collection_name)
+            collection_wrapper = project_wrapper.create_collection(collection_name, collection_config)
         except ProjectWrapper.NameError as e:
-            error_message = f"Invalid deployment name: {e}"
+            error_message = f"Invalid collection name: {e}"
             logger.error(error_message)
             print(error_panel(error_message))
             raise typer.Exit()
     elif not overwrite:
-        error_message = f"Deployment {deployment_name} already exists, and the overwrite flag is not set."
+        error_message = f"Collection {collection_name} already exists, and the overwrite flag is not set."
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()
 
     # Run the import
     try:
-        project_wrapper.run_import(deployment_name, source_paths, extra_args=extra, dry_run=dry_run)
+        project_wrapper.run_import(collection_name, source_paths, extra_args=extra, dry_run=dry_run)
     except Exception as e:
         error_message = f"Error during import: {e}"
         logger.error(error_message)
@@ -133,13 +100,13 @@ def import_command(
         raise typer.Exit()
 
     pretty_source_paths = "\n".join([f"  - {source_path.resolve().absolute()}" for source_path in source_paths])
-    print(success_panel(f"Imported data to deployment {deployment_name} from source paths:\n{pretty_source_paths}"))
+    print(success_panel(f"Imported data to collection {collection_name} from source paths:\n{pretty_source_paths}"))
 
 
 @marimba.command("metadata")
 def metadata_command(
     pipeline_name: str = typer.Argument(None, help="Marimba pipeline name for targeted processing."),
-    deployment_name: str = typer.Argument(None, help="Marimba deployment name for targeted processing."),
+    collection_name: str = typer.Argument(None, help="Marimba collection name for targeted processing."),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
@@ -153,15 +120,15 @@ def metadata_command(
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
-    project_wrapper.run_command("run_metadata", pipeline_name, deployment_name, extra, dry_run=dry_run)
+    project_wrapper.run_command("run_metadata", pipeline_name, collection_name, extra, dry_run=dry_run)
 
 
 @marimba.command("package")
 def package_command(
     dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
     # pipeline_name: str = typer.Argument(..., help="Marimba pipeline name to package."),
-    deployment_names: Optional[List[str]] = typer.Argument(
-        None, help="Marimba deployment names to package. If none are specified, all deployments will be packaged together."
+    collection_names: Optional[List[str]] = typer.Argument(
+        None, help="Marimba collection names to package. If none are specified, all collections will be packaged together."
     ),
     project_dir: Optional[Path] = typer.Option(
         None,
@@ -177,12 +144,12 @@ def package_command(
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
-    if not deployment_names:  # If no deployment names are specified, package all deployments
-        deployment_names = list(project_wrapper.deployment_wrappers.keys())
+    if not collection_names:  # If no collection names are specified, package all collections
+        collection_names = list(project_wrapper.collection_wrappers.keys())
 
     try:
         # Compose the dataset
-        dataset_mapping = project_wrapper.compose(deployment_names, extra, dry_run=dry_run)
+        dataset_mapping = project_wrapper.compose(collection_names, extra, dry_run=dry_run)
 
         # Package it
         dataset_wrapper = project_wrapper.package(dataset_name, dataset_mapping, copy=copy)
@@ -191,8 +158,8 @@ def package_command(
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()
-    except ProjectWrapper.NoSuchDeploymentError as e:
-        error_message = f"No such deployment: {e}"
+    except ProjectWrapper.NoSuchCollectionError as e:
+        error_message = f"No such collection: {e}"
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()
@@ -212,7 +179,7 @@ def package_command(
 @marimba.command("process")
 def process_command(
     pipeline_name: str = typer.Argument(None, help="Marimba pipeline name for targeted processing."),
-    deployment_name: str = typer.Argument(None, help="Marimba deployment name for targeted processing."),
+    collection_name: str = typer.Argument(None, help="Marimba collection name for targeted processing."),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
@@ -226,13 +193,13 @@ def process_command(
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
-    project_wrapper.run_command("run_process", pipeline_name, deployment_name, extra, dry_run=dry_run)
+    project_wrapper.run_command("run_process", pipeline_name, collection_name, extra, dry_run=dry_run)
 
 
 @marimba.command("rename")
 def rename_command(
     pipeline_name: str = typer.Argument(None, help="Marimba pipeline name for targeted processing."),
-    deployment_name: str = typer.Argument(None, help="Marimba deployment name for targeted processing."),
+    collection_name: str = typer.Argument(None, help="Marimba collection name for targeted processing."),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
@@ -246,7 +213,7 @@ def rename_command(
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
-    project_wrapper.run_command("run_rename", pipeline_name, deployment_name, extra, dry_run=dry_run)
+    project_wrapper.run_command("run_rename", pipeline_name, collection_name, extra, dry_run=dry_run)
 
 
 @marimba.command("update")

@@ -7,8 +7,8 @@ from ifdo.models import ImageData
 
 from marimba.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.utils.prompt import prompt_schema
+from marimba.wrappers.collection import CollectionWrapper
 from marimba.wrappers.dataset import DatasetWrapper
-from marimba.wrappers.deployment import DeploymentWrapper
 from marimba.wrappers.pipeline import PipelineWrapper
 
 logger = get_logger(__name__)
@@ -76,9 +76,9 @@ class ProjectWrapper(LogMixin):
 
         pass
 
-    class CreateDeploymentError(Exception):
+    class CreateCollectionError(Exception):
         """
-        Raised when a deployment cannot be created.
+        Raised when a collection cannot be created.
         """
 
         pass
@@ -97,9 +97,9 @@ class ProjectWrapper(LogMixin):
 
         pass
 
-    class NoSuchDeploymentError(Exception):
+    class NoSuchCollectionError(Exception):
         """
-        Raised when a deployment does not exist in the project.
+        Raised when a collection does not exist in the project.
         """
 
         pass
@@ -117,17 +117,17 @@ class ProjectWrapper(LogMixin):
         self._root_dir = Path(root_dir)
 
         self._pipeline_dir = self._root_dir / "pipelines"
-        self._deployments_dir = self._root_dir / "deployments"
+        self._collections_dir = self._root_dir / "collections"
         self._marimba_dir = self._root_dir / ".marimba"
 
         self._pipeline_wrappers = {}  # pipeline name -> PipelineWrapper instance
-        self._deployment_wrappers = {}  # deployment name -> DeploymentWrapper instance
+        self._collection_wrappers = {}  # collection name -> CollectionWrapper instance
 
         self._check_file_structure()
         self._setup_logging()
 
         self._load_pipelines()
-        self._load_deployments()
+        self._load_collections()
 
     @classmethod
     def create(cls, root_dir: Union[str, Path]) -> "ProjectWrapper":
@@ -146,7 +146,7 @@ class ProjectWrapper(LogMixin):
         # Define the folder structure
         root_dir = Path(root_dir)
         pipeline_dir = root_dir / "pipelines"
-        deployments_dir = root_dir / "deployments"
+        collections_dir = root_dir / "collections"
         marimba_dir = root_dir / ".marimba"
 
         # Check that the root directory doesn't already exist
@@ -156,7 +156,7 @@ class ProjectWrapper(LogMixin):
         # Create the folder structure
         root_dir.mkdir(parents=True)
         pipeline_dir.mkdir()
-        deployments_dir.mkdir()
+        collections_dir.mkdir()
         marimba_dir.mkdir()
 
         return cls(root_dir)
@@ -175,7 +175,7 @@ class ProjectWrapper(LogMixin):
 
         check_dir_exists(self._root_dir)
         check_dir_exists(self._pipeline_dir)
-        check_dir_exists(self._deployments_dir)
+        check_dir_exists(self._collections_dir)
         check_dir_exists(self._marimba_dir)
 
     def _setup_logging(self):
@@ -203,21 +203,21 @@ class ProjectWrapper(LogMixin):
         for pipeline_dir in pipeline_dirs:
             self._pipeline_wrappers[pipeline_dir.name] = PipelineWrapper(pipeline_dir)
 
-    def _load_deployments(self):
+    def _load_collections(self):
         """
-        Load deployment instances from the `deployments` directory.
+        Load collection instances from the `collections` directory.
 
-        Populates the `_deployment_wrappers` dictionary with `DeploymentWrapper` instances.
+        Populates the `_collection_wrappers` dictionary with `CollectionWrapper` instances.
 
         Raises:
-            Deployment.InvalidStructureError: If the deployment directory structure is invalid.
+            CollectionWrapper.InvalidStructureError: If the collection directory structure is invalid.
         """
 
-        deployment_dirs = filter(lambda p: p.is_dir(), self._deployments_dir.iterdir())
+        collection_dirs = filter(lambda p: p.is_dir(), self._collections_dir.iterdir())
 
-        self._deployment_wrappers.clear()
-        for deployment_dir in deployment_dirs:
-            self._deployment_wrappers[deployment_dir.name] = DeploymentWrapper(deployment_dir)
+        self._collection_wrappers.clear()
+        for collection_dir in collection_dirs:
+            self._collection_wrappers[collection_dir.name] = CollectionWrapper(collection_dir)
 
     def create_pipeline(self, name: str, url: str) -> PipelineWrapper:
         """
@@ -252,67 +252,67 @@ class ProjectWrapper(LogMixin):
 
         return pipeline_wrapper
 
-    def create_deployment(self, name: str, config: Dict[str, Any]) -> DeploymentWrapper:
+    def create_collection(self, name: str, config: Dict[str, Any]) -> CollectionWrapper:
         """
-        Create a new deployment.
+        Create a new collection.
 
         Args:
-            name: The name of the deployment.
-            config: The deployment configuration.
+            name: The name of the collection.
+            config: The collection configuration.
 
         Returns:
-            The deployment directory wrapper.
+            The collection directory wrapper.
 
         Raises:
-            ProjectWrapper.CreateDeploymentError: If the deployment cannot be created.
+            ProjectWrapper.CreateCollectionError: If the collection cannot be created.
         """
-        self.logger.debug(f'Creating deployment "{name}"')
+        self.logger.debug(f'Creating collection "{name}"')
 
         # Check the name is valid
         ProjectWrapper.check_name(name)
 
-        # Check that a deployment with the same name doesn't already exist
-        deployment_dir = self.deployments_dir / name
-        if deployment_dir.exists():
-            raise ProjectWrapper.CreateDeploymentError(f'A deployment with the name "{name}" already exists.')
+        # Check that a collection with the same name doesn't already exist
+        collection_dir = self.collections_dir / name
+        if collection_dir.exists():
+            raise ProjectWrapper.CreateCollectionError(f'A collection with the name "{name}" already exists.')
 
-        # Create the deployment directory
-        deployment_wrapper = DeploymentWrapper.create(deployment_dir, config)
+        # Create the collection directory
+        collection_wrapper = CollectionWrapper.create(collection_dir, config)
 
         # Create the pipeline data directories
         for pipeline_name in self._pipeline_wrappers:
-            deployment_wrapper.get_pipeline_data_dir(pipeline_name).mkdir()
+            collection_wrapper.get_pipeline_data_dir(pipeline_name).mkdir()
 
-        # Add the deployment to the project
-        self._deployment_wrappers[name] = deployment_wrapper
+        # Add the collection to the project
+        self._collection_wrappers[name] = collection_wrapper
 
-        return deployment_wrapper
+        return collection_wrapper
 
     def run_command(
         self,
         command_name: str,
         pipeline_name: Optional[str] = None,
-        deployment_name: Optional[str] = None,
+        collection_name: Optional[str] = None,
         extra_args: Optional[List[str]] = None,
         **kwargs: dict,
     ) -> Dict[str, Dict[str, Any]]:
         """
         Run a command within the project.
 
-        By default, this will run the command for all pipelines and deployments in the project.
-        If a pipeline name is provided, it will run the command for all deployments of that pipeline.
-        If a deployment name is provided, it will run the command for that deployment only.
-        These can be combined to run the command for a specific deployment of a specific pipeline.
+        By default, this will run the command for all pipelines and collections in the project.
+        If a pipeline name is provided, it will run the command for all collections of that pipeline.
+        If a collection name is provided, it will run the command for that collection only.
+        These can be combined to run the command for a specific collection of a specific pipeline.
 
         Args:
             command_name: The name of the command to run.
             pipeline_name: The name of the pipeline to run the command for.
-            deployment_name: The name of the deployment to run the command for.
+            collection_name: The name of the collection to run the command for.
             extra_args: Any extra arguments to pass to the command.
             kwargs: Any keyword arguments to pass to the command.
 
         Returns:
-            A dictionary containing the results of the command for each deployment: {deployment_name: {pipeline_name: result}}.
+            A dictionary containing the results of the command for each collection: {collection_name: {pipeline_name: result}}.
 
         Raises:
             ProjectWrapper.RunCommandError: If the command cannot be run.
@@ -324,14 +324,14 @@ class ProjectWrapper(LogMixin):
             if pipeline_wrapper is None:
                 raise ProjectWrapper.RunCommandError(f'Pipeline "{pipeline_name}" does not exist within the project.')
 
-        if deployment_name is not None:
-            deployment_wrapper = self._deployment_wrappers.get(deployment_name, None)
-            if deployment_wrapper is None:
-                raise ProjectWrapper.RunCommandError(f'Deployment "{deployment_name}" does not exist within the project.')
+        if collection_name is not None:
+            collection_wrapper = self._collection_wrappers.get(collection_name, None)
+            if collection_wrapper is None:
+                raise ProjectWrapper.RunCommandError(f'Collection "{collection_name}" does not exist within the project.')
 
-        # Select the pipelines and deployments to run the command for
+        # Select the pipelines and collections to run the command for
         pipeline_wrappers_to_run = {pipeline_name: pipeline_wrapper} if pipeline_name is not None else self._pipeline_wrappers
-        deployment_wrappers_to_run = {deployment_name: deployment_wrapper} if deployment_name is not None else self._deployment_wrappers
+        collection_wrappers_to_run = {collection_name: collection_wrapper} if collection_name is not None else self._collection_wrappers
 
         # Load pipeline instances
         pipeline_to_run = {pipeline_name: pipeline_wrapper.get_instance() for pipeline_name, pipeline_wrapper in pipeline_wrappers_to_run.items()}
@@ -341,31 +341,31 @@ class ProjectWrapper(LogMixin):
             if not hasattr(run_pipeline, command_name):
                 raise ProjectWrapper.RunCommandError(f'Command "{command_name}" does not exist for pipeline "{run_pipeline_name}".')
 
-        # Invoke the command for each pipeline and deployment
-        results_by_deployment = {}
-        for run_deployment_name, run_deployment_wrapper in deployment_wrappers_to_run.items():
+        # Invoke the command for each pipeline and collection
+        results_by_collection = {}
+        for run_collection_name, run_collection_wrapper in collection_wrappers_to_run.items():
             results_by_pipeline = {}
             for run_pipeline_name, run_pipeline in pipeline_to_run.items():
                 # Get the pipeline-specific data directory and config
-                pipeline_deployment_data_dir = run_deployment_wrapper.get_pipeline_data_dir(run_pipeline_name)
-                pipeline_deployment_config = run_deployment_wrapper.load_config()
+                pipeline_collection_data_dir = run_collection_wrapper.get_pipeline_data_dir(run_pipeline_name)
+                pipeline_collection_config = run_collection_wrapper.load_config()
 
                 # Call the method
                 method = getattr(run_pipeline, command_name)
-                results_by_pipeline[run_pipeline_name] = method(pipeline_deployment_data_dir, pipeline_deployment_config, **merged_kwargs)
+                results_by_pipeline[run_pipeline_name] = method(pipeline_collection_data_dir, pipeline_collection_config, **merged_kwargs)
 
-            results_by_deployment[run_deployment_name] = results_by_pipeline
+            results_by_collection[run_collection_name] = results_by_pipeline
 
-        return results_by_deployment
+        return results_by_collection
 
     def compose(
-        self, deployment_names: List[str], extra_args: Optional[List[str]] = None, **kwargs: dict
+        self, collection_names: List[str], extra_args: Optional[List[str]] = None, **kwargs: dict
     ) -> Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]]:
         """
-        Compose a dataset for the given deployments across all pipelines.
+        Compose a dataset for the given collections across all pipelines.
 
         Args:
-            deployment_names: The names of the deployments to compose.
+            collection_names: The names of the collections to compose.
             extra_args: Any extra CLI arguments to pass to the command.
             kwargs: Any keyword arguments to pass to the command.
 
@@ -373,31 +373,31 @@ class ProjectWrapper(LogMixin):
             A dict mapping pipeline name -> { output file path -> (input file path, image data) }
 
         Raises:
-            ProjectWrapper.NoSuchDeploymentError: If a deployment does not exist in the project.
+            ProjectWrapper.NoSuchCollectionError: If a collection does not exist in the project.
         """
         merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
 
-        # Get the deployment wrappers
-        deployment_wrappers: List[DeploymentWrapper] = []
-        for deployment_name in deployment_names:
-            deployment_wrapper = self.deployment_wrappers.get(deployment_name, None)
-            if deployment_wrapper is None:
-                raise ProjectWrapper.NoSuchDeploymentError(deployment_name)
-            deployment_wrappers.append(deployment_wrapper)
+        # Get the collection wrappers
+        collection_wrappers: List[CollectionWrapper] = []
+        for collection_name in collection_names:
+            collection_wrapper = self.collection_wrappers.get(collection_name, None)
+            if collection_wrapper is None:
+                raise ProjectWrapper.NoSuchCollectionError(collection_name)
+            collection_wrappers.append(collection_wrapper)
 
-        # Load the deployment configs
-        deployment_configs = [deployment_wrapper.load_config() for deployment_wrapper in deployment_wrappers]
+        # Load the collection configs
+        collection_configs = [collection_wrapper.load_config() for collection_wrapper in collection_wrappers]
 
         dataset_mapping = {}
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
             # Get the pipeline instance
             pipeline = pipeline_wrapper.get_instance()
 
-            # Get the deployment data directories for the pipeline
-            deployment_data_dirs = [deployment_wrapper.get_pipeline_data_dir(pipeline_name) for deployment_wrapper in deployment_wrappers]
+            # Get the collection data directories for the pipeline
+            collection_data_dirs = [collection_wrapper.get_pipeline_data_dir(pipeline_name) for collection_wrapper in collection_wrappers]
 
             # Compose the pipeline data mapping
-            pipeline_data_mapping = pipeline.run_compose(deployment_data_dirs, deployment_configs, **merged_kwargs)
+            pipeline_data_mapping = pipeline.run_compose(collection_data_dirs, collection_configs, **merged_kwargs)
 
             # Add the pipeline data mapping to the dataset mapping
             dataset_mapping[pipeline_name] = pipeline_data_mapping
@@ -434,90 +434,90 @@ class ProjectWrapper(LogMixin):
         return dataset_wrapper
 
     def run_import(
-        self, deployment_name: str, source_paths: Iterable[Union[str, Path]], extra_args: Optional[List[str]] = None, **kwargs: dict
+        self, collection_name: str, source_paths: Iterable[Union[str, Path]], extra_args: Optional[List[str]] = None, **kwargs: dict
     ) -> None:
         """
-        Run the import command to populate a deployment from a source data directory.
+        Run the import command to populate a collection from a source data directory.
 
-        May overwrite existing data in the deployment.
+        May overwrite existing data in the collection.
 
         Args:
-            deployment_name: The name of the deployment to import into.
+            collection_name: The name of the collection to import into.
             source_paths: The source paths to import from.
             extra_args: Any extra CLI arguments to pass to the command.
             kwargs: Any keyword arguments to pass to the command.
 
         Raises:
-            ProjectWrapper.NoSuchDeploymentError: If the deployment does not exist in the project.
+            ProjectWrapper.NoSuchCollectionError: If the collection does not exist in the project.
         """
         source_paths = list(map(lambda p: Path(p), source_paths))
 
         merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
 
-        # Get the deployment wrapper
-        deployment_wrapper = self.deployment_wrappers.get(deployment_name, None)
-        if deployment_wrapper is None:
-            raise ProjectWrapper.NoSuchDeploymentError(deployment_name)
+        # Get the collection wrapper
+        collection_wrapper = self.collection_wrappers.get(collection_name, None)
+        if collection_wrapper is None:
+            raise ProjectWrapper.NoSuchCollectionError(collection_name)
 
         # Import each pipeline
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
             # Get the pipeline instance
             pipeline = pipeline_wrapper.get_instance()
 
-            # Get the deployment data directory
-            deployment_data_dir = deployment_wrapper.get_pipeline_data_dir(pipeline_name)
+            # Get the collection data directory
+            collection_data_dir = collection_wrapper.get_pipeline_data_dir(pipeline_name)
 
-            # Load the deployment config
-            deployment_config = deployment_wrapper.load_config()
+            # Load the collection config
+            collection_config = collection_wrapper.load_config()
 
             # Run the import
-            pipeline.run_import(deployment_data_dir, source_paths, deployment_config, **merged_kwargs)
+            pipeline.run_import(collection_data_dir, source_paths, collection_config, **merged_kwargs)
 
-    def prompt_deployment_config(self, parent_deployment_name: Optional[str] = None) -> Dict[str, Any]:
+    def prompt_collection_config(self, parent_collection_name: Optional[str] = None) -> Dict[str, Any]:
         """
-        Prompt the user for a deployment configuration.
+        Prompt the user for a collection configuration.
 
-        The schema will be generated from the pipeline-specific deployment config schemas of all pipelines in the project, as well as the deployment config of the parent deployment if specified.
+        The schema will be generated from the pipeline-specific collection config schemas of all pipelines in the project, as well as the collection config of the parent collection if specified.
 
         Args:
-            parent_deployment_name: The name of the parent deployment. If unspecified, use the last deployment by modification time.
+            parent_collection_name: The name of the parent collection. If unspecified, use the last collection by modification time.
 
         Returns:
-            The deployment configuration as a dictionary.
+            The collection configuration as a dictionary.
 
         Raises:
-            ProjectWrapper.NoSuchDeploymentError: If the parent deployment does not exist in the project.
+            ProjectWrapper.NoSuchCollectionError: If the parent collection does not exist in the project.
         """
-        # Get the union of all pipeline-specific deployment config schemas
-        resolved_deployment_schema = {}
+        # Get the union of all pipeline-specific collection config schemas
+        resolved_collection_schema = {}
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
             pipeline = pipeline_wrapper.get_instance()
-            deployment_config_schema = pipeline.get_deployment_config_schema()
-            resolved_deployment_schema.update(deployment_config_schema)
+            collection_config_schema = pipeline.get_collection_config_schema()
+            resolved_collection_schema.update(collection_config_schema)
 
-        def get_last_deployment_name() -> Optional[str]:
-            if len(self.deployment_wrappers) == 0:
+        def get_last_collection_name() -> Optional[str]:
+            if len(self.collection_wrappers) == 0:
                 return None
-            return max(self.deployment_wrappers, key=lambda k: self.deployment_wrappers[k].root_dir.stat().st_mtime)
+            return max(self.collection_wrappers, key=lambda k: self.collection_wrappers[k].root_dir.stat().st_mtime)
 
-        # Use the last deployment if no parent is specified
-        if parent_deployment_name is None:
-            parent_deployment_name = get_last_deployment_name()  # may be None
+        # Use the last collection if no parent is specified
+        if parent_collection_name is None:
+            parent_collection_name = get_last_collection_name()  # may be None
 
-        # Update the schema with the parent deployment
-        if parent_deployment_name is not None:
-            parent_deployment_wrapper = self.deployment_wrappers.get(parent_deployment_name, None)
+        # Update the schema with the parent collection
+        if parent_collection_name is not None:
+            parent_collection_wrapper = self.collection_wrappers.get(parent_collection_name, None)
 
-            if parent_deployment_wrapper is None:
-                raise ProjectWrapper.NoSuchDeploymentError(parent_deployment_name)
+            if parent_collection_wrapper is None:
+                raise ProjectWrapper.NoSuchCollectionError(parent_collection_name)
 
-            parent_deployment_config = parent_deployment_wrapper.load_config()
-            resolved_deployment_schema.update(parent_deployment_config)
+            parent_collection_config = parent_collection_wrapper.load_config()
+            resolved_collection_schema.update(parent_collection_config)
 
         # Prompt from the resolved schema
-        deployment_config = prompt_schema(resolved_deployment_schema)
+        collection_config = prompt_schema(resolved_collection_schema)
 
-        return deployment_config
+        return collection_config
 
     def update_pipelines(self):
         """
@@ -551,11 +551,11 @@ class ProjectWrapper(LogMixin):
         return self._pipeline_wrappers
 
     @property
-    def deployment_wrappers(self) -> Dict[str, DeploymentWrapper]:
+    def collection_wrappers(self) -> Dict[str, CollectionWrapper]:
         """
-        The loaded deployment wrappers in the project.
+        The loaded collection wrappers in the project.
         """
-        return self._deployment_wrappers
+        return self._collection_wrappers
 
     @property
     def root_dir(self) -> Path:
@@ -572,11 +572,11 @@ class ProjectWrapper(LogMixin):
         return self._pipeline_dir
 
     @property
-    def deployments_dir(self) -> Path:
+    def collections_dir(self) -> Path:
         """
-        The deployments directory of the project.
+        The collections directory of the project.
         """
-        return self._deployments_dir
+        return self._collections_dir
 
     @property
     def distribution_dir(self) -> Path:
