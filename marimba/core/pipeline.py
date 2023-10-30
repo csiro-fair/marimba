@@ -90,7 +90,7 @@ class BasePipeline(ABC, LogMixin):
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
-            f"Running {format_command('import')} command for pipeline {format_entity('{self.class_name}')} with args: {data_dir=}, {source_paths=}, {config=}, {kwargs=}"
+            f"Running {format_command('import')} command for pipeline {format_entity(self.class_name)} with args: {data_dir=}, {source_paths=}, {config=}, {kwargs=}"
         )
         return self._import(data_dir, source_paths, config, **kwargs)
 
@@ -106,7 +106,7 @@ class BasePipeline(ABC, LogMixin):
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
-            f"Running {format_command('rename')} command for pipeline {format_entity('{self.class_name}')} with args: {data_dir=}, {config=}, {kwargs=}"
+            f"Running {format_command('rename')} command for pipeline {format_entity(self.class_name)} with args: {data_dir=}, {config=}, {kwargs=}"
         )
         return self._rename(data_dir, config, **kwargs)
 
@@ -122,7 +122,7 @@ class BasePipeline(ABC, LogMixin):
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
-            f"Running {format_command('process')} command for pipeline {format_entity('{self.class_name}')} with args: {data_dir=}, {config=}, {kwargs=}"
+            f"Running {format_command('process')} command for pipeline {format_entity(self.class_name)} with args: {data_dir=}, {config=}, {kwargs=}"
         )
         return self._process(data_dir, config, **kwargs)
 
@@ -138,7 +138,7 @@ class BasePipeline(ABC, LogMixin):
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
-            f"Running {format_command('metadata')} command for pipeline {format_entity('{self.class_name}')} with args: {data_dir=}, {config=}, {kwargs=}"
+            f"Running {format_command('metadata')} command for pipeline {format_entity(self.class_name)} with args: {data_dir=}, {config=}, {kwargs=}"
         )
         return self._metadata(data_dir, config, **kwargs)
 
@@ -157,7 +157,7 @@ class BasePipeline(ABC, LogMixin):
             The iFDO and path mapping dict.
         """
         self.logger.debug(
-            f"Running {format_command('compose')} command for pipeline {format_entity('{self.class_name}')} with args: {data_dirs=}, {configs=}, {kwargs=}"
+            f"Running {format_command('compose')} command for pipeline {format_entity(self.class_name)} with args: {data_dirs=}, {configs=}, {kwargs=}"
         )
         return self._compose(data_dirs, configs, **kwargs)
 
@@ -167,7 +167,7 @@ class BasePipeline(ABC, LogMixin):
 
         TODO: Add docs on how to implement this method.
         """
-        self.logger.warning(f"There is no Marimba {format_command('import')} command implemented for pipeline {format_entity('{self.class_name}')}")
+        self.logger.warning(f"There is no Marimba {format_command('import')} command implemented for pipeline {format_entity(self.class_name)}")
 
     def _rename(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
         """
@@ -175,7 +175,7 @@ class BasePipeline(ABC, LogMixin):
 
         TODO: Add docs on how to implement this method.
         """
-        self.logger.warning(f"There is no Marimba {format_command('rename')} command implemented for pipeline {format_entity('{self.class_name}')}")
+        self.logger.warning(f"There is no Marimba {format_command('rename')} command implemented for pipeline {format_entity(self.class_name)}")
 
     def _process(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
         """
@@ -183,7 +183,7 @@ class BasePipeline(ABC, LogMixin):
 
         TODO: Add docs on how to implement this method.
         """
-        self.logger.warning(f"There is no Marimba {format_command('process')} command implemented for pipeline {format_entity('{self.class_name}')}")
+        self.logger.warning(f"There is no Marimba {format_command('process')} command implemented for pipeline {format_entity(self.class_name)}")
 
     def _metadata(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
         """
@@ -191,7 +191,7 @@ class BasePipeline(ABC, LogMixin):
 
         TODO: Add docs on how to implement this method.
         """
-        self.logger.warning(f"There is no Marimba {format_command('init')} command implemented for pipeline {format_entity('{self.class_name}')}")
+        self.logger.warning(f"There is no Marimba {format_command('init')} command implemented for pipeline {format_entity(self.class_name)}")
 
     @abstractmethod
     def _compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Tuple[iFDO, Dict[Path, Path]]:
