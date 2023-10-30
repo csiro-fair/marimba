@@ -50,17 +50,17 @@ class ImagerySummary:
         return self.size_images_bytes + self.size_videos_bytes + self.size_other_bytes
 
     @classmethod
-    def from_package(cls, package_wrapper: "PackageWrapper") -> "ImagerySummary":
+    def from_dataset(cls, dataset_wrapper: "DatasetWrapper") -> "ImagerySummary":
         """
-        Create an imagery summary from a package wrapper.
+        Create an imagery summary from a dataset wrapper.
 
         Args:
-            package_wrapper: The package wrapper.
+            dataset_wrapper: The dataset wrapper.
 
         Returns:
             An imagery summary.
         """
-        return ImagerySummary.from_dir(package_wrapper.data_dir)
+        return ImagerySummary.from_dir(dataset_wrapper.data_dir)
 
     @classmethod
     def from_dir(cls, directory: Path) -> "ImagerySummary":
@@ -99,21 +99,21 @@ class ImagerySummary:
         return cls(num_images, size_images_bytes, num_videos, size_videos_bytes, num_other, size_other_bytes)
 
     def __str__(self) -> str:
-        return f"""Package summary:
+        return f"""Dataset summary:
     {self.num_images} images ({sizeof_fmt(self.size_images_bytes)})
     {self.num_videos} videos ({sizeof_fmt(self.size_videos_bytes)})
     {self.num_other} other files ({sizeof_fmt(self.size_other_bytes)})
     {self.num_files} total files ({sizeof_fmt(self.size_files_bytes)})"""
 
 
-class PackageWrapper(LogMixin):
+class DatasetWrapper(LogMixin):
     """
-    Package directory wrapper.
+    Dataset directory wrapper.
     """
 
     class InvalidStructureError(Exception):
         """
-        Raised when the package directory structure is invalid.
+        Raised when the dataset directory structure is invalid.
         """
 
         pass
@@ -132,20 +132,20 @@ class PackageWrapper(LogMixin):
         self._setup_logging()
 
     @classmethod
-    def create(cls, root_dir: Union[str, Path]) -> "PackageWrapper":
+    def create(cls, root_dir: Union[str, Path]) -> "DatasetWrapper":
         """
-        Create a new package from an iFDO.
+        Create a new dataset from an iFDO.
 
         Args:
-            root_dir: The root directory of the package.
+            root_dir: The root directory of the dataset.
 
         Returns:
-            A package wrapper instance.
+            A dataset wrapper instance.
 
         Raises:
             FileExistsError: If the root directory already exists.
         """
-        # Define the package directory structure
+        # Define the dataset directory structure
         root_dir = Path(root_dir)
         data_dir = root_dir / "data"
 
@@ -164,22 +164,22 @@ class PackageWrapper(LogMixin):
         Check that the file structure of the project directory is valid. If not, raise an InvalidStructureError with details.
 
         Raises:
-            PackageWrapper.InvalidStructureError: If the file structure is invalid.
+            DatasetWrapper.InvalidStructureError: If the file structure is invalid.
         """
 
         def check_dir_exists(path: Path):
             if not path.is_dir():
-                raise PackageWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
+                raise DatasetWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
 
         check_dir_exists(self.root_dir)
         check_dir_exists(self.data_dir)
 
     def _setup_logging(self):
         """
-        Set up logging. Create file handler for this instance that writes to `package.log`.
+        Set up logging. Create file handler for this instance that writes to `dataset.log`.
         """
         # Create a file handler for this instance
-        self._file_handler = get_file_handler(self.root_dir, "package", False, level=logging.DEBUG)
+        self._file_handler = get_file_handler(self.root_dir, "dataset", False, level=logging.DEBUG)
 
         # Add the file handler to the logger
         self.logger.addHandler(self._file_handler)
@@ -206,10 +206,10 @@ class PackageWrapper(LogMixin):
             copy: Whether to copy (True) or move (False) the files.
 
         Raises:
-            PackageWrapper.InvalidPathMappingError: If the path mapping is invalid.
+            DatasetWrapper.InvalidPathMappingError: If the path mapping is invalid.
         """
         # Verify that the path mapping is valid
-        PackageWrapper.check_dataset_mapping(dataset_mapping)
+        DatasetWrapper.check_dataset_mapping(dataset_mapping)
 
         # Copy or move the files and populate the iFDO image set items
         image_set_items = {}
@@ -231,7 +231,7 @@ class PackageWrapper(LogMixin):
                     copy2(src, dst)  # use copy2 to preserve metadata
                 else:
                     src.rename(dst)  # use rename to move the file
-                self.logger.info(f"{src.absolute()} -> {dst} ({copy=})")
+                self.logger.debug(f"{src.absolute()} -> {dst} ({copy=})")
 
         # Generate and write the iFDO
         ifdo = iFDO(
@@ -244,18 +244,18 @@ class PackageWrapper(LogMixin):
         )
         ifdo.save(self.metadata_path)
 
-        # Update the package summary
+        # Update the dataset summary
         summary = self.summarize()
         self.summary_path.write_text(str(summary))
 
     def summarize(self) -> ImagerySummary:
         """
-        Create an imagery summary for this package.
+        Create an imagery summary for this dataset.
 
         Returns:
             An imagery summary.
         """
-        return ImagerySummary.from_package(self)
+        return ImagerySummary.from_dataset(self)
 
     @property
     def root_dir(self) -> Path:
@@ -281,7 +281,7 @@ class PackageWrapper(LogMixin):
     @property
     def summary_path(self) -> Path:
         """
-        The path to the package summary.
+        The path to the dataset summary.
         """
         return self._root_dir / "summary.txt"
 
@@ -294,20 +294,20 @@ class PackageWrapper(LogMixin):
             path_mapping: A mapping from source paths to destination paths.
 
         Raises:
-            PackageWrapper.InvalidPathMappingError: If the path mapping is invalid.
+            DatasetWrapper.InvalidPathMappingError: If the path mapping is invalid.
         """
         for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
             # Verify that all source paths exist
             for src in pipeline_data_mapping:
                 if not src.exists():
-                    raise PackageWrapper.InvalidDatasetMappingError(f"Source path {src} does not exist.")
+                    raise DatasetWrapper.InvalidDatasetMappingError(f"Source path {src} does not exist.")
 
             # Verify that all source paths resolve to unique paths
             reverse_src_resolution = {}
             for src in pipeline_data_mapping:
                 resolved = src.resolve().absolute()
                 if resolved in reverse_src_resolution:
-                    raise PackageWrapper.InvalidDatasetMappingError(
+                    raise DatasetWrapper.InvalidDatasetMappingError(
                         f"Source paths {src} and {reverse_src_resolution[resolved]} both resolve to {resolved}."
                     )
                 reverse_src_resolution[resolved] = src
@@ -315,13 +315,13 @@ class PackageWrapper(LogMixin):
             # Verify that all destination paths are relative
             for dst, _ in pipeline_data_mapping.values():
                 if dst.is_absolute():
-                    raise PackageWrapper.InvalidDatasetMappingError(f"Destination path {dst} must be relative.")
+                    raise DatasetWrapper.InvalidDatasetMappingError(f"Destination path {dst} must be relative.")
 
             # Verify that there are no collisions in destination paths
             reverse_mapping = {dst.resolve(): src for src, (dst, _) in pipeline_data_mapping.items()}
             for src, (dst, _) in pipeline_data_mapping.items():
                 src_other = reverse_mapping.get(dst)
                 if src.resolve() != src_other.resolve():
-                    raise PackageWrapper.InvalidDatasetMappingError(
+                    raise DatasetWrapper.InvalidDatasetMappingError(
                         f"Resolved destination path {dst.resolve()} is the same for source paths {src} and {src_other}."
                     )

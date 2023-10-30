@@ -7,8 +7,8 @@ from ifdo.models import ImageData
 
 from marimba.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.utils.prompt import prompt_schema
+from marimba.wrappers.dataset import DatasetWrapper
 from marimba.wrappers.deployment import DeploymentWrapper
-from marimba.wrappers.package import PackageWrapper
 from marimba.wrappers.pipeline import PipelineWrapper
 
 logger = get_logger(__name__)
@@ -404,34 +404,34 @@ class ProjectWrapper(LogMixin):
 
         return dataset_mapping
 
-    def package(self, name: str, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]], copy: bool = True) -> PackageWrapper:
+    def package(self, name: str, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]], copy: bool = True) -> DatasetWrapper:
         """
-        Create a Marimba package from a dataset mapping.
+        Create a Marimba dataset from a dataset mapping.
 
         Args:
-            name: The name of the package.
+            name: The name of the dataset.
             dataset_mapping: The dataset mapping to package.
             copy: Whether to copy the files (True) or move them (False).
 
         Returns:
-            A package wrapper instance for the created package.
+            A dataset wrapper instance for the created dataset.
 
         Raises:
             ProjectWrapper.NameError: If the name is invalid.
-            FileExistsError: If the package root directory already exists.
-            PackageWrapper.InvalidPathMappingError: If the path mapping is invalid.
+            FileExistsError: If the dataset root directory already exists.
+            DatasetWrapper.InvalidPathMappingError: If the path mapping is invalid.
         """
         # Check the name is valid
         ProjectWrapper.check_name(name)
 
-        # Create the package
-        package_root_dir = self.distribution_dir / name
-        package_wrapper = PackageWrapper.create(package_root_dir)
+        # Create the dataset
+        dataset_root_dir = self.distribution_dir / name
+        dataset_wrapper = DatasetWrapper.create(dataset_root_dir)
 
         # Populate it
-        package_wrapper.populate(name, dataset_mapping, copy=copy)
+        dataset_wrapper.populate(name, dataset_mapping, copy=copy)
 
-        return package_wrapper
+        return dataset_wrapper
 
     def run_import(
         self, deployment_name: str, source_paths: Iterable[Union[str, Path]], extra_args: Optional[List[str]] = None, **kwargs: dict

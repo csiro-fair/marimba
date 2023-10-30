@@ -158,7 +158,7 @@ def metadata_command(
 
 @marimba.command("package")
 def package_command(
-    package_name: str = typer.Argument(..., help="Marimba package name."),
+    dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
     # pipeline_name: str = typer.Argument(..., help="Marimba pipeline name to package."),
     deployment_names: Optional[List[str]] = typer.Argument(
         None, help="Marimba deployment names to package. If none are specified, all deployments will be packaged together."
@@ -167,7 +167,7 @@ def package_command(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
-    copy: bool = typer.Option(True, help="Copy files to package directory. Set to False to move files instead."),
+    copy: bool = typer.Option(True, help="Copy files to dataset directory. Set to False to move files instead."),
     extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
@@ -185,7 +185,7 @@ def package_command(
         dataset_mapping = project_wrapper.compose(deployment_names, extra, dry_run=dry_run)
 
         # Package it
-        package_wrapper = project_wrapper.package(package_name, dataset_mapping, copy=copy)
+        dataset_wrapper = project_wrapper.package(dataset_name, dataset_mapping, copy=copy)
     except ProjectWrapper.NoSuchPipelineError as e:
         error_message = f"No such pipeline: {e}"
         logger.error(error_message)
@@ -197,7 +197,7 @@ def package_command(
         print(error_panel(error_message))
         raise typer.Exit()
     except FileExistsError as e:
-        error_message = f"Package already exists: {e}"
+        error_message = f"Dataset already exists: {e}"
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()
@@ -206,7 +206,7 @@ def package_command(
     #     print(error_panel(f"Could not package collection: {e}"))
     #     raise typer.Exit()
 
-    print(success_panel(f"Created {MARIMBA} package {package_name} in {package_wrapper.root_dir}"))
+    print(success_panel(f"Created {MARIMBA} dataset {dataset_name} in {dataset_wrapper.root_dir}"))
 
 
 @marimba.command("process")
