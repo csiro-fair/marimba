@@ -1,3 +1,4 @@
+import ast
 import logging
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
@@ -31,7 +32,14 @@ def get_merged_keyword_args(kwargs: dict, extra_args: list, logger: logging.Logg
             # Attempt to split the argument into a key and a value
             parts = arg.split("=")
             if len(parts) == 2:
-                key, value = parts
+                key, value_str = parts
+                try:
+                    # Convert the string value to its corresponding data type
+                    value = ast.literal_eval(value_str)
+                except (ValueError, SyntaxError):
+                    # If evaluation fails, keep the original string value
+                    value = value_str
+                    logger.warning(f'Could not evaluate extra argument value: "{value_str}"')
                 extra_dict[key] = value
             else:
                 logger.warning(f'Invalid extra argument provided: "{arg}"')
