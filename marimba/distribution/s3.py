@@ -28,7 +28,7 @@ class S3DistributionTarget(DistributionTargetBase):
             multipart_threshold=100 * 1024 * 1024,
         )
 
-        self._check_bucket()
+        # self._check_bucket()
 
     def _check_bucket(self):
         """

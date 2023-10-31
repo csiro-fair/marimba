@@ -250,6 +250,8 @@ def distribute_command(
     #     print(error_panel(f"Could not distribute dataset: {e}"))
     #     raise typer.Exit()
 
+    print(success_panel(f"Successfully distributed dataset {dataset_name}"))
+
 
 @marimba.command("update")
 def update_command(

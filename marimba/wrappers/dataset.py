@@ -332,7 +332,7 @@ class DatasetWrapper(LogMixin):
             # Verify that there are no collisions in destination paths
             reverse_mapping = {dst.resolve(): src for src, (dst, _) in pipeline_data_mapping.items()}
             for src, (dst, _) in pipeline_data_mapping.items():
-                src_other = reverse_mapping.get(dst)
+                src_other = reverse_mapping.get(dst.resolve())
                 if src.resolve() != src_other.resolve():
                     raise DatasetWrapper.InvalidDatasetMappingError(
                         f"Resolved destination path {dst.resolve()} is the same for source paths {src} and {src_other}."
