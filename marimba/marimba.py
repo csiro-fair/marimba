@@ -17,7 +17,8 @@ __author__ = "Marimba Development Team"
 __copyright__ = "Copyright 2023, CSIRO"
 __credits__ = [
     "Chris Jackett <chris.jackett@csiro.au>",
-    "Kevin Barnard <kbarnard@mbari.org>" "Nick Mortimer <nick.mortimer@csiro.au>",
+    "Kevin Barnard <kbarnard@mbari.org>",
+    "Nick Mortimer <nick.mortimer@csiro.au>",
     "David Webb <david.webb@csiro.au>",
     "Aaron Tyndall <aaron.tyndall@csiro.au>",
     "Franzis Althaus <franzis.althaus@csiro.au>",
@@ -155,7 +156,7 @@ def package_command(
         dataset_mapping = project_wrapper.compose(collection_names, extra)
 
         # Package it
-        dataset_wrapper = project_wrapper.package(dataset_name, dataset_mapping, copy=copy)
+        dataset_wrapper = project_wrapper.create_dataset(dataset_name, dataset_mapping, copy=copy)
     except ProjectWrapper.NoSuchPipelineError as e:
         error_message = f"No such pipeline: {e}"
         logger.error(error_message)
@@ -219,6 +220,35 @@ def rename_command(
     get_rich_handler().set_dry_run(dry_run)
 
     project_wrapper.run_command("run_rename", pipeline_name, collection_name, extra)
+
+
+@marimba.command("distribute")
+def distribute_command(
+    dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
+    endpoint_url: str = typer.Argument(..., help="S3 endpoint URL to distribute to."),
+    base_prefix: str = typer.Argument(..., help="S3 base prefix."),
+    access_key_id: str = typer.Argument(..., help="S3 access key ID."),
+    secret_access_key: str = typer.Argument(..., help="S3 secret access key."),
+    bucket_name: str = typer.Argument(..., help="S3 bucket name to distribute to."),
+    project_dir: Optional[Path] = typer.Option(
+        None,
+        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
+    ),
+    dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+):
+    """
+    Distribute a Marimba dataset.
+    """
+    project_dir = new.find_project_dir_or_exit(project_dir)
+    project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
+    get_rich_handler().set_dry_run(dry_run)
+
+    # try:
+    project_wrapper.distribute(dataset_name, bucket_name, base_prefix, endpoint_url, access_key_id, secret_access_key)
+    # except Exception as e:
+    #     logger.error(e)
+    #     print(error_panel(f"Could not distribute dataset: {e}"))
+    #     raise typer.Exit()
 
 
 @marimba.command("update")

@@ -5,6 +5,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from ifdo.models import ImageData
 
+from marimba.distribution.s3 import S3DistributionTarget
 from marimba.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.utils.prompt import prompt_schema
 from marimba.wrappers.collection import CollectionWrapper
@@ -104,6 +105,13 @@ class ProjectWrapper(LogMixin):
 
         pass
 
+    class NoSuchDatasetError(Exception):
+        """
+        Raised when a dataset does not exist in the project.
+        """
+
+        pass
+
     class NameError(Exception):
         """
         Raised when an invalid name is used.
@@ -123,12 +131,14 @@ class ProjectWrapper(LogMixin):
 
         self._pipeline_wrappers = {}  # pipeline name -> PipelineWrapper instance
         self._collection_wrappers = {}  # collection name -> CollectionWrapper instance
+        self._dataset_wrappers = {}  # dataset name -> DatasetWrapper instance
 
         self._check_file_structure()
         self._setup_logging()
 
         self._load_pipelines()
         self._load_collections()
+        self._load_datasets()
 
     @classmethod
     def create(cls, root_dir: Union[str, Path], dry_run: bool = False) -> "ProjectWrapper":
@@ -205,6 +215,8 @@ class ProjectWrapper(LogMixin):
         for pipeline_dir in pipeline_dirs:
             self._pipeline_wrappers[pipeline_dir.name] = PipelineWrapper(pipeline_dir, dry_run=self.dry_run)
 
+        self.logger.debug(f'Loaded {len(self._pipeline_wrappers)} pipeline(s): {", ".join(self._pipeline_wrappers.keys())}')
+
     def _load_collections(self):
         """
         Load collection instances from the `collections` directory.
@@ -214,12 +226,30 @@ class ProjectWrapper(LogMixin):
         Raises:
             CollectionWrapper.InvalidStructureError: If the collection directory structure is invalid.
         """
-
         collection_dirs = filter(lambda p: p.is_dir(), self._collections_dir.iterdir())
 
         self._collection_wrappers.clear()
         for collection_dir in collection_dirs:
             self._collection_wrappers[collection_dir.name] = CollectionWrapper(collection_dir)
+
+        self.logger.debug(f'Loaded {len(self._collection_wrappers)} collection(s): {", ".join(self._collection_wrappers.keys())}')
+
+    def _load_datasets(self):
+        """
+        Load dataset instances from the `dist` directory.
+
+        Populates the `_dataset_wrappers` dictionary with `DatasetWrapper` instances.
+
+        Raises:
+            DatasetWrapper.InvalidStructureError: If the dataset directory structure is invalid.
+        """
+        dataset_dirs = filter(lambda p: p.is_dir(), self.distribution_dir.iterdir())
+
+        self._dataset_wrappers.clear()
+        for dataset_dir in dataset_dirs:
+            self._dataset_wrappers[dataset_dir.name] = DatasetWrapper(dataset_dir)
+
+        self.logger.debug(f'Loaded {len(self._dataset_wrappers)} dataset(s): {", ".join(self._dataset_wrappers.keys())}')
 
     def create_pipeline(self, name: str, url: str) -> PipelineWrapper:
         """
@@ -246,11 +276,17 @@ class ProjectWrapper(LogMixin):
         if pipeline_dir.exists():
             raise ProjectWrapper.CreatePipelineError(f'A pipeline with the name "{name}" already exists.')
 
+        # Show warning if there are already collections in the project
+        if len(self.collection_wrappers) > 0:
+            self.logger.warning("Creating a new pipeline in a project with existing collections.")
+
         # Create the pipeline directory
         pipeline_wrapper = PipelineWrapper.create(pipeline_dir, url, dry_run=self.dry_run)
 
         # Add the pipeline to the project
         self._pipeline_wrappers[name] = pipeline_wrapper
+
+        self.logger.debug(f'Created pipeline "{name}" successfully')
 
         return pipeline_wrapper
 
@@ -287,6 +323,8 @@ class ProjectWrapper(LogMixin):
 
         # Add the collection to the project
         self._collection_wrappers[name] = collection_wrapper
+
+        self.logger.debug(f'Created collection "{name}" successfully')
 
         return collection_wrapper
 
@@ -344,6 +382,9 @@ class ProjectWrapper(LogMixin):
                 raise ProjectWrapper.RunCommandError(f'Command "{command_name}" does not exist for pipeline "{run_pipeline_name}".')
 
         # Invoke the command for each pipeline and collection
+        self.logger.debug(
+            f'Running command "{command_name}" across pipeline(s) {", ".join(pipeline_to_run.keys())} and collection(s) {" ,".join(collection_wrappers_to_run.keys())} with kwargs {merged_kwargs}'
+        )
         results_by_collection = {}
         for run_collection_name, run_collection_wrapper in collection_wrappers_to_run.items():
             results_by_pipeline = {}
@@ -390,6 +431,7 @@ class ProjectWrapper(LogMixin):
         # Load the collection configs
         collection_configs = [collection_wrapper.load_config() for collection_wrapper in collection_wrappers]
 
+        self.logger.debug(f'Composing dataset for collections {", ".join(collection_names)} with kwargs {merged_kwargs}')
         dataset_mapping = {}
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
             # Get the pipeline instance
@@ -406,12 +448,14 @@ class ProjectWrapper(LogMixin):
 
         return dataset_mapping
 
-    def package(self, name: str, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]], copy: bool = True) -> DatasetWrapper:
+    def create_dataset(
+        self, dataset_name: str, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]], copy: bool = True
+    ) -> DatasetWrapper:
         """
         Create a Marimba dataset from a dataset mapping.
 
         Args:
-            name: The name of the dataset.
+            dataset_name: The name of the dataset.
             dataset_mapping: The dataset mapping to package.
             copy: Whether to copy the files (True) or move them (False).
 
@@ -423,17 +467,43 @@ class ProjectWrapper(LogMixin):
             FileExistsError: If the dataset root directory already exists.
             DatasetWrapper.InvalidPathMappingError: If the path mapping is invalid.
         """
+        self.logger.debug(f'Packaging dataset "{dataset_name}" with {copy=}')
+
         # Check the name is valid
-        ProjectWrapper.check_name(name)
+        ProjectWrapper.check_name(dataset_name)
 
         # Create the dataset
-        dataset_root_dir = self.distribution_dir / name
+        dataset_root_dir = self.distribution_dir / dataset_name
         dataset_wrapper = DatasetWrapper.create(dataset_root_dir, dry_run=self.dry_run)
 
         # Populate it
-        dataset_wrapper.populate(name, dataset_mapping, copy=copy)
+        dataset_wrapper.populate(dataset_name, dataset_mapping, copy=copy)
+
+        self._dataset_wrappers[dataset_name] = dataset_wrapper
 
         return dataset_wrapper
+
+    def distribute(self, dataset_name: str, bucket_name: str, base_prefix: str, endpoint_url: str, access_key: str, secret_access_key: str):
+        """
+        Distribute a dataset to a distribution target.
+
+        Args:
+            dataset_name: The name of the dataset to distribute.
+        """
+        self.logger.debug(f'Distributing dataset "{dataset_name}" to S3')
+
+        # Get the dataset wrapper
+        dataset_wrapper = self.dataset_wrappers.get(dataset_name, None)
+        if dataset_wrapper is None:
+            raise ProjectWrapper.NoSuchDatasetError(dataset_name)
+
+        # Get the distribution target
+        distribution_target = S3DistributionTarget(
+            bucket_name, endpoint_url, access_key, secret_access_key, base_prefix=base_prefix.rstrip("/") + "/" + dataset_name
+        )
+
+        # Distribute the dataset
+        distribution_target.distribute(dataset_wrapper)
 
     def run_import(
         self, collection_name: str, source_paths: Iterable[Union[str, Path]], extra_args: Optional[List[str]] = None, **kwargs: dict
@@ -462,6 +532,8 @@ class ProjectWrapper(LogMixin):
             raise ProjectWrapper.NoSuchCollectionError(collection_name)
 
         # Import each pipeline
+        pretty_paths = ", ".join(list(map(lambda p: str(p.resolve().absolute()), source_paths)))
+        self.logger.debug(f'Running import for collection "{collection_name}" from source paths {pretty_paths} with kwargs {merged_kwargs}')
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
             # Get the pipeline instance
             pipeline = pipeline_wrapper.get_instance()
@@ -505,6 +577,8 @@ class ProjectWrapper(LogMixin):
         # Use the last collection if no parent is specified
         if parent_collection_name is None:
             parent_collection_name = get_last_collection_name()  # may be None
+            if parent_collection_name is not None:
+                self.logger.info(f'Using last collection "{parent_collection_name}" as parent')
 
         # Update the schema with the parent collection
         if parent_collection_name is not None:
@@ -515,9 +589,11 @@ class ProjectWrapper(LogMixin):
 
             parent_collection_config = parent_collection_wrapper.load_config()
             resolved_collection_schema.update(parent_collection_config)
+            self.logger.debug(f'Using parent collection "{parent_collection_name}" with config: {parent_collection_config}')
 
         # Prompt from the resolved schema
         collection_config = prompt_schema(resolved_collection_schema)
+        self.logger.debug(f"Prompted collection config: {collection_config}")
 
         return collection_config
 
@@ -558,6 +634,13 @@ class ProjectWrapper(LogMixin):
         The loaded collection wrappers in the project.
         """
         return self._collection_wrappers
+
+    @property
+    def dataset_wrappers(self) -> Dict[str, DatasetWrapper]:
+        """
+        The loaded dataset wrappers in the project.
+        """
+        return self._dataset_wrappers
 
     @property
     def root_dir(self) -> Path:

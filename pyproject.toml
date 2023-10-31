@@ -25,6 +25,7 @@ pyexiv2 = "^2.8.1"
 psutil = "^5.9.5"
 pydoit = "^0.0.4"
 gitpython = "^3.1.40"
+boto3 = "^1.28.74"
 
 [tool.poetry.scripts]
 marimba = "marimba.marimba:marimba"
