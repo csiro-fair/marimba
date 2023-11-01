@@ -253,6 +253,13 @@ class DatasetWrapper(LogMixin):
 
         pass
 
+    class ManifestError(Exception):
+        """
+        Raised when the dataset is inconsistent with its manifest.
+        """
+
+        pass
+
     def __init__(self, root_dir: Union[str, Path], dry_run: bool = False):
         self._root_dir = Path(root_dir)
         self._dry_run = dry_run
@@ -310,11 +317,17 @@ class DatasetWrapper(LogMixin):
         check_dir_exists(self.logs_dir)
         check_dir_exists(self.pipeline_logs_dir)
 
-        # Check the manifest if present
+    def validate(self):
+        """
+        Validate the dataset. If the dataset is inconsistent with its manifest (if present), raise a ManifestError.
+
+        Raises:
+            DatasetWrapper.ManifestError: If the dataset is inconsistent with its manifest.
+        """
         if self.manifest_path.exists():
             manifest = Manifest.load(self.manifest_path)
             if not manifest.validate(self.root_dir, exclude_paths=[self.manifest_path, self.log_path]):
-                raise DatasetWrapper.InvalidStructureError(f"Dataset is inconsistent with manifest at {self.manifest_path}.")
+                raise DatasetWrapper.ManifestError(self.manifest_path)
             self.logger.debug(f"Dataset is consistent with manifest at {self.manifest_path}.")
 
     def _setup_logging(self):

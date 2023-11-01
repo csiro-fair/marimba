@@ -12,6 +12,7 @@ from marimba.core.commands import new
 from marimba.core.distribution.bases import DistributionTargetBase
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
 from marimba.core.utils.rich import MARIMBA, error_panel, success_panel
+from marimba.core.wrappers.dataset import DatasetWrapper
 from marimba.core.wrappers.project import ProjectWrapper
 
 __author__ = "Marimba Development Team"
@@ -173,6 +174,11 @@ def package_command(
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()
+    except DatasetWrapper.ManifestError as e:
+        error_message = f"Dataset is inconsistent with manifest at {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
     except FileExistsError as e:
         error_message = f"Dataset already exists: {e}"
         logger.error(error_message)
@@ -254,6 +260,11 @@ def distribute_command(
         raise typer.Exit()
     except ProjectWrapper.NoSuchTargetError as e:
         error_message = f"No such target: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+    except DatasetWrapper.ManifestError as e:
+        error_message = f"Dataset is inconsistent with manifest at {e}"
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()

@@ -503,6 +503,7 @@ class ProjectWrapper(LogMixin):
             ProjectWrapper.NameError: If the name is invalid.
             FileExistsError: If the dataset root directory already exists.
             DatasetWrapper.InvalidDatasetMappingError: If the dataset mapping is invalid.
+            DatasetWrapper.ManifestError: If the dataset is inconsistent with its manifest.
         """
         self.logger.debug(f'Packaging dataset "{dataset_name}"')
 
@@ -517,6 +518,9 @@ class ProjectWrapper(LogMixin):
         dataset_wrapper.populate(
             dataset_name, dataset_mapping, self.log_path, map(lambda pw: pw.log_path, self.pipeline_wrappers.values()), copy=copy
         )
+
+        # Validate it
+        dataset_wrapper.validate()
 
         self._dataset_wrappers[dataset_name] = dataset_wrapper
 
@@ -562,6 +566,7 @@ class ProjectWrapper(LogMixin):
         Raises:
             ProjectWrapper.NoSuchDatasetError: If the dataset does not exist in the project.
             ProjectWrapper.NoSuchTargetError: If the distribution target does not exist in the project.
+            DatasetWrapper.ManifestError: If the dataset is inconsistent with its manifest.
             DistributionTargetBase.DistributionError: If the dataset cannot be distributed.
         """
         self.logger.debug(f'Distributing dataset "{dataset_name}" to target "{target_name}"')
@@ -570,6 +575,9 @@ class ProjectWrapper(LogMixin):
         dataset_wrapper = self.dataset_wrappers.get(dataset_name, None)
         if dataset_wrapper is None:
             raise ProjectWrapper.NoSuchDatasetError(dataset_name)
+
+        # Validate the dataset
+        dataset_wrapper.validate()
 
         # Get the distribution target wrapper
         target_wrapper = self.target_wrappers.get(target_name, None)
