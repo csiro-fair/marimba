@@ -9,6 +9,7 @@ from uuid import uuid4
 from ifdo.models import ImageData, ImageSetHeader, iFDO
 
 from marimba.utils.log import LogMixin, get_file_handler
+from marimba.utils.map import make_summary_map
 
 
 def sizeof_fmt(num: int, suffix: str = "B") -> str:
@@ -256,6 +257,18 @@ class DatasetWrapper(LogMixin):
         summary = self.summarize()
         if not self.dry_run:
             self.summary_path.write_text(str(summary))
+
+        # Create a summary map if there are any geolocations
+        geolocations = [
+            (image_data.image_latitude, image_data.image_longitude)
+            for image_data_list in image_set_items.values()
+            for image_data in image_data_list
+            if image_data.image_latitude is not None and image_data.image_longitude
+        ]
+        if geolocations:
+            summary_map = make_summary_map(geolocations)
+            if summary_map is not None:
+                summary_map.save(self.root_dir / "map.png")
 
     def summarize(self) -> ImagerySummary:
         """
