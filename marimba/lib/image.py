@@ -4,6 +4,7 @@ Image utilities. Includes transcoding, resizing, cropping, etc.
 
 
 from pathlib import Path
+from shutil import copy2
 from typing import Tuple, Union
 
 import cv2
@@ -18,18 +19,21 @@ def convert_to_jpeg(path: Union[str, Path], quality: int = 95, destination: Unio
     Args:
         path: The path to the image file.
         quality: The JPEG quality, from 0 to 100.
+        destination: The path to save the converted image to. If not provided, the original file will be overwritten. The path extension will be forced to .jpg.
 
     Returns:
-        The path to the converted image file.
+        The path to the converted image file. If the destination argument is provided, this will be the same as the destination argument with the extension forced to .jpg.
     """
     path = Path(path)
+    destination = Path(destination) if destination is not None else path
+
+    destination = destination.with_suffix(".jpg")
     if path.suffix.lower() in (".jpg", ".jpeg"):
-        return path
+        copy2(path, destination)
     else:
-        new_path = path.with_suffix(".jpg")
         img = Image.open(path)
-        img.convert("RGB").save(new_path, "JPEG", quality=quality)
-        return new_path
+        img.convert("RGB").save(destination, "JPEG", quality=quality)
+    return destination
 
 
 def resize_fit(path: Union[str, Path], max_width: int = 1920, max_height: int = 1080, destination: Union[str, Path] = None):
@@ -43,10 +47,8 @@ def resize_fit(path: Union[str, Path], max_width: int = 1920, max_height: int = 
         destination: The path to save the resized image to. If not provided, the original file will be overwritten.
     """
     path = Path(path)
-    if destination is not None:
-        destination = Path(destination)
-    else:
-        destination = path
+    destination = Path(destination) if destination is not None else path
+
     img = Image.open(path)
     width, height = img.size
     if width > max_width or height > max_height:
@@ -68,10 +70,8 @@ def resize_exact(path: Union[str, Path], width: int = 1920, height: int = 1080, 
         destination: The path to save the resized image to. If not provided, the original file will be overwritten.
     """
     path = Path(path)
-    if destination is not None:
-        destination = Path(destination)
-    else:
-        destination = path
+    destination = Path(destination) if destination is not None else path
+
     img = Image.open(path)
     img = img.resize((width, height), Image.LANCZOS)
     img.save(destination)
@@ -109,10 +109,8 @@ def rotate_clockwise(path: Union[str, Path], degrees: int, expand: bool = False,
         destination: The path to save the rotated image to. If not provided, the original file will be overwritten.
     """
     path = Path(path)
-    if destination is not None:
-        destination = Path(destination)
-    else:
-        destination = path
+    destination = Path(destination) if destination is not None else path
+
     img = Image.open(path)
     img = img.rotate(-degrees, expand=expand)
     img.save(destination)
@@ -127,10 +125,8 @@ def turn_clockwise(path: Union[str, Path], turns: int = 1, destination: Union[st
         destination: The path to save the turned image to. If not provided, the original file will be overwritten.
     """
     path = Path(path)
-    if destination is not None:
-        destination = Path(destination)
-    else:
-        destination = path
+    destination = Path(destination) if destination is not None else path
+
     img = Image.open(path)
     img = img.transpose(Image.ROTATE_90 * turns)
     img.save(destination)
@@ -145,10 +141,8 @@ def flip_vertical(path: Union[str, Path], destination: Union[str, Path] = None):
         destination: The path to save the flipped image to. If not provided, the original file will be overwritten.
     """
     path = Path(path)
-    if destination is not None:
-        destination = Path(destination)
-    else:
-        destination = path
+    destination = Path(destination) if destination is not None else path
+
     img = Image.open(path)
     img = img.transpose(Image.FLIP_TOP_BOTTOM)
     img.save(destination)
@@ -163,10 +157,8 @@ def flip_horizontal(path: Union[str, Path], destination: Union[str, Path] = None
         destination: The path to save the flipped image to. If not provided, the original file will be overwritten.
     """
     path = Path(path)
-    if destination is not None:
-        destination = Path(destination)
-    else:
-        destination = path
+    destination = Path(destination) if destination is not None else path
+
     img = Image.open(path)
     img = img.transpose(Image.FLIP_LEFT_RIGHT)
     img.save(destination)
@@ -202,10 +194,8 @@ def crop(path: Union[str, Path], x: int, y: int, width: int, height: int, destin
         destination: The path to save the cropped image to. If not provided, the original file will be overwritten.
     """
     path = Path(path)
-    if destination is not None:
-        destination = Path(destination)
-    else:
-        destination = path
+    destination = Path(destination) if destination is not None else path
+
     img = Image.open(path)
     img = img.crop((x, y, x + width, y + height))
     img.save(destination)
@@ -222,10 +212,7 @@ def apply_clahe(path: Union[str, Path], clip_limit: float = 2.0, tile_grid_size:
         destination: The path to save the image to. If not provided, the original file will be overwritten.
     """
     path = Path(path)
-    if destination is not None:
-        destination = Path(destination)
-    else:
-        destination = path
+    destination = Path(destination) if destination is not None else path
 
     img = cv2.imread(str(path), 0)
 
@@ -246,10 +233,7 @@ def gaussian_blur(path: Union[str, Path], kernel_size: Tuple[int, int] = (5, 5),
         destination: The path to save the blurred image to. If not provided, the original file will be overwritten.
     """
     path = Path(path)
-    if destination is not None:
-        destination = Path(destination)
-    else:
-        destination = path
+    destination = Path(destination) if destination is not None else path
 
     img = cv2.imread(str(path))
 
@@ -268,10 +252,7 @@ def sharpen(path: Union[str, Path], destination: Union[str, Path] = None):
         destination: The path to save the sharpened image to. If not provided, the original file will be overwritten.
     """
     path = Path(path)
-    if destination is not None:
-        destination = Path(destination)
-    else:
-        destination = path
+    destination = Path(destination) if destination is not None else path
 
     img = cv2.imread(str(path))
 
