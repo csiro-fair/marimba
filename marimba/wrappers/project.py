@@ -514,7 +514,9 @@ class ProjectWrapper(LogMixin):
         dataset_wrapper = DatasetWrapper.create(dataset_root_dir, dry_run=self.dry_run)
 
         # Populate it
-        dataset_wrapper.populate(dataset_name, dataset_mapping, copy=copy)
+        dataset_wrapper.populate(
+            dataset_name, dataset_mapping, self.log_path, map(lambda pw: pw.log_path, self.pipeline_wrappers.values()), copy=copy
+        )
 
         self._dataset_wrappers[dataset_name] = dataset_wrapper
 
@@ -769,6 +771,13 @@ class ProjectWrapper(LogMixin):
         targets_dir = self._marimba_dir / "targets"
         targets_dir.mkdir(exist_ok=True)
         return targets_dir
+
+    @property
+    def log_path(self) -> Path:
+        """
+        The path to the project log file.
+        """
+        return self._root_dir / f"{self.name}.log"
 
     @property
     def name(self) -> str:

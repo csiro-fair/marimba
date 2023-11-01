@@ -1,13 +1,16 @@
+import hashlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy2
-from typing import Dict, List, Tuple, Union
+from textwrap import dedent
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 from uuid import uuid4
 
 from ifdo.models import ImageData, ImageSetHeader, iFDO
 
 from marimba.utils.log import LogMixin, get_file_handler
+from marimba.utils.map import make_summary_map
 
 
 def sizeof_fmt(num: int, suffix: str = "B") -> str:
@@ -99,11 +102,134 @@ class ImagerySummary:
         return cls(num_images, size_images_bytes, num_videos, size_videos_bytes, num_other, size_other_bytes)
 
     def __str__(self) -> str:
-        return f"""Dataset summary:
-    {self.num_images} images ({sizeof_fmt(self.size_images_bytes)})
-    {self.num_videos} videos ({sizeof_fmt(self.size_videos_bytes)})
-    {self.num_other} other files ({sizeof_fmt(self.size_other_bytes)})
-    {self.num_files} total files ({sizeof_fmt(self.size_files_bytes)})"""
+        return dedent(
+            f"""\
+            Dataset summary:
+            {self.num_images} images ({sizeof_fmt(self.size_images_bytes)})
+            {self.num_videos} videos ({sizeof_fmt(self.size_videos_bytes)})
+            {self.num_other} other files ({sizeof_fmt(self.size_other_bytes)})
+            {self.num_files} total files ({sizeof_fmt(self.size_files_bytes)})"""
+        )
+
+
+@dataclass
+class Manifest:
+    """
+    Dataset manifest. Used to validate datasets to check if the underlying data has been corrupted or modified.
+    """
+
+    hashes: Dict[Path, bytes]
+
+    @staticmethod
+    def compute_hash(path: Path) -> bytes:
+        """
+        Compute the hash of a path.
+
+        Args:
+            path: The path.
+
+        Returns:
+            The hash of the path contents.
+        """
+        # SHA-256 hash
+        hash = hashlib.sha256()
+
+        if path.is_file():
+            # Hash the file contents
+            with path.open("rb") as f:
+                for chunk in iter(lambda: f.read(4096), b""):
+                    hash.update(chunk)
+
+        # Hash the path
+        hash.update(str(path.as_posix()).encode("utf-8"))
+
+        return hash.digest()
+
+    @classmethod
+    def from_dir(cls, directory: Path, exclude_paths: Optional[Iterable[Path]] = None) -> "Manifest":
+        """
+        Create a manifest from a directory.
+
+        Args:
+            directory: The directory.
+            exclude_paths: Paths to exclude from the manifest.
+
+        Returns:
+            A manifest.
+        """
+        hashes = {}
+        exclude_paths = set(exclude_paths) if exclude_paths is not None else set()
+        for path in directory.glob("**/*"):
+            if path in exclude_paths:
+                continue
+            rel_path = path.resolve().relative_to(directory)
+            hashes[rel_path] = Manifest.compute_hash(path)
+        return cls(hashes)
+
+    def validate(self, directory: Path, exclude_paths: Optional[Iterable[Path]] = None) -> bool:
+        """
+        Validate a directory against the manifest.
+
+        Args:
+            directory: The directory.
+            exclude_paths: Paths to exclude from the manifest.
+
+        Returns:
+            True if the directory is valid, False otherwise.
+        """
+        # Create a manifest from the directory
+        manifest = Manifest.from_dir(directory, exclude_paths=exclude_paths)
+
+        return self == manifest
+
+    def __eq__(self, other: "Manifest") -> bool:
+        """
+        Check if two manifests are equal.
+
+        Args:
+            other: The other manifest.
+
+        Returns:
+            True if the manifests are equal, False otherwise.
+        """
+        if len(self.hashes) != len(other.hashes):
+            return False
+
+        for path, hash in self.hashes.items():
+            if hash != other.hashes.get(path):
+                return False
+
+        return True
+
+    def save(self, path: Path):
+        """
+        Save the manifest to a file.
+
+        Args:
+            path: The path to the file.
+        """
+        with path.open("w") as f:
+            for path, hash in self.hashes.items():
+                f.write(f"{path.as_posix()}:{hash.hex()}\n")
+
+    @classmethod
+    def load(cls, path: Path) -> "Manifest":
+        """
+        Load a manifest from a file.
+
+        Args:
+            path: The path to the file.
+
+        Returns:
+            A manifest.
+        """
+        hashes = {}
+        with path.open("r") as f:
+            for line in f:
+                if line:
+                    path_str, hash_str = line.split(":")
+                    hashes[Path(path_str)] = bytes.fromhex(hash_str)
+        return cls(hashes)
 
 
 class DatasetWrapper(LogMixin):
@@ -150,6 +276,8 @@ class DatasetWrapper(LogMixin):
         # Define the dataset directory structure
         root_dir = Path(root_dir)
         data_dir = root_dir / "data"
+        logs_dir = root_dir / "logs"
+        pipeline_logs_dir = logs_dir / "pipelines"
 
         # Check that the root directory doesn't already exist
         if root_dir.is_dir():
@@ -158,6 +286,8 @@ class DatasetWrapper(LogMixin):
         # Create the file structure
         root_dir.mkdir(parents=True)
         data_dir.mkdir()
+        logs_dir.mkdir()
+        pipeline_logs_dir.mkdir()
 
         return cls(root_dir, dry_run=dry_run)
 
@@ -175,13 +305,22 @@ class DatasetWrapper(LogMixin):
 
         check_dir_exists(self.root_dir)
         check_dir_exists(self.data_dir)
+        check_dir_exists(self.logs_dir)
+        check_dir_exists(self.pipeline_logs_dir)
+
+        # Check the manifest if present
+        if self.manifest_path.exists():
+            manifest = Manifest.load(self.manifest_path)
+            if not manifest.validate(self.root_dir, exclude_paths=[self.manifest_path, self.log_path]):
+                raise DatasetWrapper.InvalidStructureError(f"Dataset is inconsistent with manifest at {self.manifest_path}.")
+            self.logger.debug(f"Dataset is consistent with manifest at {self.manifest_path}.")
 
     def _setup_logging(self):
         """
         Set up logging. Create file handler for this instance that writes to `dataset.log`.
         """
         # Create a file handler for this instance
-        self._file_handler = get_file_handler(self.root_dir, "dataset", False, level=logging.DEBUG)
+        self._file_handler = get_file_handler(self.root_dir, self.name, False, level=logging.DEBUG)
 
         # Add the file handler to the logger
         self.logger.addHandler(self._file_handler)
@@ -198,13 +337,22 @@ class DatasetWrapper(LogMixin):
         """
         return self.data_dir / pipeline_name
 
-    def populate(self, dataset_name: str, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]], copy: bool = True):
+    def populate(
+        self,
+        dataset_name: str,
+        dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]],
+        project_log_path: Path,
+        pipeline_log_paths: Iterable[Path],
+        copy: bool = True,
+    ):
         """
         Populate the dataset with files from the given dataset mapping.
 
         Args:
             dataset_name: The name of the dataset.
             dataset_mapping: A dict mapping pipeline name -> { output file path -> (input file path, image data) }
+            project_log_path: The path to the project log file.
+            pipeline_log_paths: The paths to the pipeline log files.
             copy: Whether to copy (True) or move (False) the files.
 
         Raises:
@@ -253,6 +401,29 @@ class DatasetWrapper(LogMixin):
         if not self.dry_run:
             self.summary_path.write_text(str(summary))
 
+        # Create a summary map if there are any geolocations
+        geolocations = [
+            (image_data.image_latitude, image_data.image_longitude)
+            for image_data_list in image_set_items.values()
+            for image_data in image_data_list
+            if image_data.image_latitude is not None and image_data.image_longitude
+        ]
+        if geolocations:
+            summary_map = make_summary_map(geolocations)
+            if summary_map is not None:
+                if not self.dry_run:
+                    summary_map.save(self.root_dir / "map.png")
+
+        # Copy in the project and pipeline logs
+        copy2(project_log_path, self.logs_dir)
+        for pipeline_log_path in pipeline_log_paths:
+            copy2(pipeline_log_path, self.pipeline_logs_dir)
+
+        # Generate and save the manifest
+        manifest = Manifest.from_dir(self.root_dir, exclude_paths=[self.manifest_path, self.log_path])
+        if not self.dry_run:
+            manifest.save(self.manifest_path)
+
     def summarize(self) -> ImagerySummary:
         """
         Create an imagery summary for this dataset.
@@ -289,6 +460,41 @@ class DatasetWrapper(LogMixin):
         The path to the dataset summary.
         """
         return self._root_dir / "summary.txt"
+
+    @property
+    def manifest_path(self) -> Path:
+        """
+        The path to the dataset manifest.
+        """
+        return self._root_dir / "manifest.txt"
+
+    @property
+    def name(self) -> str:
+        """
+        The name of the dataset.
+        """
+        return self._root_dir.name
+
+    @property
+    def log_path(self) -> Path:
+        """
+        The path to the dataset log file.
+        """
+        return self._root_dir / f"{self.name}.log"
+
+    @property
+    def logs_dir(self) -> Path:
+        """
+        The path to the logs directory.
+        """
+        return self._root_dir / "logs"
+
+    @property
+    def pipeline_logs_dir(self) -> Path:
+        """
+        The path to the pipeline logs directory.
+        """
+        return self.logs_dir / "pipelines"
 
     @property
     def dry_run(self) -> bool:
