@@ -249,15 +249,17 @@ class DatasetWrapper(LogMixin):
         summary = self.summarize()
         self.summary_path.write_text(str(summary))
 
-        # Create a summary map
+        # Create a summary map if there are any geolocations
         geolocations = [
             (image_data.image_latitude, image_data.image_longitude)
             for image_data_list in image_set_items.values()
             for image_data in image_data_list
             if image_data.image_latitude is not None and image_data.image_longitude
         ]
-        summary_map = make_summary_map(geolocations)
-        summary_map.save(self.root_dir / "map.png")
+        if geolocations:
+            summary_map = make_summary_map(geolocations)
+            if summary_map is not None:
+                summary_map.save(self.root_dir / "map.png")
 
     def summarize(self) -> ImagerySummary:
         """
