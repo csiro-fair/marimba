@@ -68,6 +68,7 @@ The Marimba framework offers a number of advanced features designed for various 
 ## Contents
 
 - [Installation](#installation)
+- [Usage](#usage)
 - [Design](#design)
 - [Contributing](#contributing)
 - [License](#license)
@@ -108,10 +109,26 @@ To set up a Marimba development environment, additional instructions and guideli
 
 ---
 
+<a name="usage"></a>
+## Usage
+
+* Quick CLI demo of the necessary command needed to process a Marimba Pipeline
+* More detailed version at [CLI.md](docs/CLI.md)
+
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
 <a name="design"></a>
 ## Design
 
-
+* Overview paragraph about how core Marimba interacts with Pipelines
+* Note that a Marimba Pipeline is the only thing needed to be implemented to process FAIR image datasets in Marimba
+  * Link to more detailed documentation on how to implement a Marimba [Pipeline](docs/PIPELINE.md)
+* Mention that Marimba also exposes an API
+  * Super brief usage of API
+  * Link to more detailed documentation on how to use the Marimba [API](docs/API.md)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
