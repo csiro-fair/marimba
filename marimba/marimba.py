@@ -158,6 +158,10 @@ def package_command(
 
         # Package it
         dataset_wrapper = project_wrapper.create_dataset(dataset_name, dataset_mapping, copy=copy)
+    except ProjectWrapper.CompositionError as e:
+        logger.error(e)
+        print(error_panel(str(e)))
+        raise typer.Exit()
     except ProjectWrapper.NoSuchPipelineError as e:
         error_message = f"No such pipeline: {e}"
         logger.error(error_message)

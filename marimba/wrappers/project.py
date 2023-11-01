@@ -91,6 +91,13 @@ class ProjectWrapper(LogMixin):
 
         pass
 
+    class CompositionError(Exception):
+        """
+        Raised when a pipeline cannot compose its data.
+        """
+
+        pass
+
     class NoSuchPipelineError(Exception):
         """
         Raised when a pipeline does not exist in the project.
@@ -443,6 +450,7 @@ class ProjectWrapper(LogMixin):
 
         Raises:
             ProjectWrapper.NoSuchCollectionError: If a collection does not exist in the project.
+            ProjectWrapper.CompositionError: If a pipeline cannot compose its data.
         """
         merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
 
@@ -467,7 +475,10 @@ class ProjectWrapper(LogMixin):
             collection_data_dirs = [collection_wrapper.get_pipeline_data_dir(pipeline_name) for collection_wrapper in collection_wrappers]
 
             # Compose the pipeline data mapping
-            pipeline_data_mapping = pipeline.run_compose(collection_data_dirs, collection_configs, **merged_kwargs)
+            try:
+                pipeline_data_mapping = pipeline.run_compose(collection_data_dirs, collection_configs, **merged_kwargs)
+            except Exception as e:
+                raise ProjectWrapper.CompositionError(f'Pipeline "{pipeline_name}" failed to compose its data:\n{e}') from e
 
             # Add the pipeline data mapping to the dataset mapping
             dataset_mapping[pipeline_name] = pipeline_data_mapping
@@ -491,9 +502,9 @@ class ProjectWrapper(LogMixin):
         Raises:
             ProjectWrapper.NameError: If the name is invalid.
             FileExistsError: If the dataset root directory already exists.
-            DatasetWrapper.InvalidPathMappingError: If the path mapping is invalid.
+            DatasetWrapper.InvalidDatasetMappingError: If the dataset mapping is invalid.
         """
-        self.logger.debug(f'Packaging dataset "{dataset_name}" with {copy=}')
+        self.logger.debug(f'Packaging dataset "{dataset_name}"')
 
         # Check the name is valid
         ProjectWrapper.check_name(dataset_name)
