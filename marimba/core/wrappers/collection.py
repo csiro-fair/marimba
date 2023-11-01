@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Union
 
-from marimba.utils.config import load_config, save_config
+from marimba.core.utils.config import load_config, save_config
 
 
 class CollectionWrapper:

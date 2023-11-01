@@ -7,7 +7,7 @@ from typing import Union
 
 import psutil
 
-from marimba.utils.log import get_logger
+from marimba.core.utils.log import get_logger
 
 logger = get_logger(__name__)
 

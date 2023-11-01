@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
-from marimba.utils.log import LogMixin
-from marimba.wrappers.dataset import DatasetWrapper
+from marimba.core.utils.log import LogMixin
+from marimba.core.wrappers.dataset import DatasetWrapper
 
 
 class DistributionTargetBase(ABC, LogMixin):

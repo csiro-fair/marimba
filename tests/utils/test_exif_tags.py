@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from marimba.utils.exif_tags import TAGS, get_key
+from marimba.core.utils.exif_tags import TAGS, get_key
 
 
 class TestGetKey(TestCase):

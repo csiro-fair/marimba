@@ -9,8 +9,8 @@ from uuid import uuid4
 
 from ifdo.models import ImageData, ImageSetHeader, iFDO
 
-from marimba.utils.log import LogMixin, get_file_handler
-from marimba.utils.map import make_summary_map
+from marimba.core.utils.log import LogMixin, get_file_handler
+from marimba.core.utils.map import make_summary_map
 
 
 def sizeof_fmt(num: int, suffix: str = "B") -> str:

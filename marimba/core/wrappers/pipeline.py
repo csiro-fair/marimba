@@ -8,8 +8,8 @@ from typing import Union
 from git import Repo
 
 from marimba.core.pipeline import BasePipeline
-from marimba.utils.config import load_config, save_config
-from marimba.utils.log import LogMixin, get_file_handler
+from marimba.core.utils.config import load_config, save_config
+from marimba.core.utils.log import LogMixin, get_file_handler
 
 
 class PipelineWrapper(LogMixin):

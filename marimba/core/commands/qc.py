@@ -4,7 +4,7 @@ import typer
 from rich import print
 from rich.panel import Panel
 
-from marimba.utils.log import get_logger
+from marimba.core.utils.log import get_logger
 
 logger = get_logger(__name__)
 

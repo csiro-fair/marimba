@@ -8,11 +8,11 @@ from typing import List, Optional
 import typer
 from rich import print
 
-from marimba.commands import new
-from marimba.distribution.bases import DistributionTargetBase
-from marimba.utils.log import LogLevel, get_logger, get_rich_handler
-from marimba.utils.rich import MARIMBA, error_panel, success_panel
-from marimba.wrappers.project import ProjectWrapper
+from marimba.core.commands import new
+from marimba.core.distribution.bases import DistributionTargetBase
+from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
+from marimba.core.utils.rich import MARIMBA, error_panel, success_panel
+from marimba.core.wrappers.project import ProjectWrapper
 
 __author__ = "Marimba Development Team"
 __copyright__ = "Copyright 2023, CSIRO"

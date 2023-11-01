@@ -5,7 +5,7 @@ from uuid import uuid4
 from ifdo import iFDO
 from ifdo.models import ImageSetHeader
 
-from marimba.utils.ifdo import load_ifdo, save_ifdo
+from marimba.core.utils.ifdo import load_ifdo, save_ifdo
 
 
 class TestIfdo(TestCase):

@@ -4,9 +4,9 @@ from typing import Tuple, Union
 
 from rich.prompt import Prompt
 
-from marimba.distribution.bases import DistributionTargetBase
-from marimba.distribution.s3 import S3DistributionTarget
-from marimba.utils.config import load_config, save_config
+from marimba.core.distribution.bases import DistributionTargetBase
+from marimba.core.distribution.s3 import S3DistributionTarget
+from marimba.core.utils.config import load_config, save_config
 
 
 class DistributionTargetWrapper:

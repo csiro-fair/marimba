@@ -3,7 +3,7 @@ from unittest import TestCase
 
 import yaml
 
-from marimba.utils.config import load_config
+from marimba.core.utils.config import load_config
 
 
 class TestLoadConfig(TestCase):

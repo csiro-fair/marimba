@@ -6,8 +6,8 @@ from boto3.exceptions import S3UploadFailedError
 from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import ClientError
 
-from marimba.distribution.bases import DistributionTargetBase
-from marimba.wrappers.dataset import DatasetWrapper
+from marimba.core.distribution.bases import DistributionTargetBase
+from marimba.core.wrappers.dataset import DatasetWrapper
 
 
 class S3DistributionTarget(DistributionTargetBase):

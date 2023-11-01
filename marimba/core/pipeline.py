@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ifdo import iFDO
 
-from marimba.utils.log import LogMixin
-from marimba.utils.rich import format_command, format_entity
+from marimba.core.utils.log import LogMixin
+from marimba.core.utils.rich import format_command, format_entity
 
 
 class BasePipeline(ABC, LogMixin):

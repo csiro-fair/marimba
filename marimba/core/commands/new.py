@@ -5,17 +5,17 @@ from typing import Optional, Union
 import typer
 from rich import print
 
-from marimba.utils.log import get_logger
-from marimba.utils.prompt import prompt_schema
-from marimba.utils.rich import (
+from marimba.core.utils.log import get_logger
+from marimba.core.utils.prompt import prompt_schema
+from marimba.core.utils.rich import (
     MARIMBA,
     error_panel,
     format_command,
     format_entity,
     success_panel,
 )
-from marimba.wrappers.project import ProjectWrapper
-from marimba.wrappers.target import DistributionTargetWrapper
+from marimba.core.wrappers.project import ProjectWrapper
+from marimba.core.wrappers.target import DistributionTargetWrapper
 
 logger = get_logger(__name__)
 

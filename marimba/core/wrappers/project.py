@@ -5,12 +5,12 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from ifdo.models import ImageData
 
-from marimba.utils.log import LogMixin, get_file_handler, get_logger
-from marimba.utils.prompt import prompt_schema
-from marimba.wrappers.collection import CollectionWrapper
-from marimba.wrappers.dataset import DatasetWrapper
-from marimba.wrappers.pipeline import PipelineWrapper
-from marimba.wrappers.target import DistributionTargetWrapper
+from marimba.core.utils.log import LogMixin, get_file_handler, get_logger
+from marimba.core.utils.prompt import prompt_schema
+from marimba.core.wrappers.collection import CollectionWrapper
+from marimba.core.wrappers.dataset import DatasetWrapper
+from marimba.core.wrappers.pipeline import PipelineWrapper
+from marimba.core.wrappers.target import DistributionTargetWrapper
 
 logger = get_logger(__name__)
 
