@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy2
+from textwrap import dedent
 from typing import Dict, List, Tuple, Union
 from uuid import uuid4
 
@@ -99,11 +100,14 @@ class ImagerySummary:
         return cls(num_images, size_images_bytes, num_videos, size_videos_bytes, num_other, size_other_bytes)
 
     def __str__(self) -> str:
-        return f"""Dataset summary:
-    {self.num_images} images ({sizeof_fmt(self.size_images_bytes)})
-    {self.num_videos} videos ({sizeof_fmt(self.size_videos_bytes)})
-    {self.num_other} other files ({sizeof_fmt(self.size_other_bytes)})
-    {self.num_files} total files ({sizeof_fmt(self.size_files_bytes)})"""
+        return dedent(
+            f"""\
+            Dataset summary:
+            {self.num_images} images ({sizeof_fmt(self.size_images_bytes)})
+            {self.num_videos} videos ({sizeof_fmt(self.size_videos_bytes)})
+            {self.num_other} other files ({sizeof_fmt(self.size_other_bytes)})
+            {self.num_files} total files ({sizeof_fmt(self.size_files_bytes)})"""
+        )
 
 
 class DatasetWrapper(LogMixin):
@@ -181,7 +185,7 @@ class DatasetWrapper(LogMixin):
         Set up logging. Create file handler for this instance that writes to `dataset.log`.
         """
         # Create a file handler for this instance
-        self._file_handler = get_file_handler(self.root_dir, "dataset", False, level=logging.DEBUG)
+        self._file_handler = get_file_handler(self.root_dir, self.name, False, level=logging.DEBUG)
 
         # Add the file handler to the logger
         self.logger.addHandler(self._file_handler)
@@ -289,6 +293,20 @@ class DatasetWrapper(LogMixin):
         The path to the dataset summary.
         """
         return self._root_dir / "summary.txt"
+
+    @property
+    def name(self) -> str:
+        """
+        The name of the dataset.
+        """
+        return self._root_dir.name
+
+    @property
+    def log_path(self) -> Path:
+        """
+        The path to the dataset log file.
+        """
+        return self._root_dir / f"{self.name}.log"
 
     @property
     def dry_run(self) -> bool:
