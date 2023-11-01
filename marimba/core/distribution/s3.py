@@ -5,6 +5,7 @@ from boto3 import resource
 from boto3.exceptions import S3UploadFailedError
 from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import ClientError
+from rich.progress import DownloadColumn, Progress, SpinnerColumn
 
 from marimba.core.distribution.bases import DistributionTargetBase
 from marimba.core.wrappers.dataset import DatasetWrapper
@@ -86,15 +87,26 @@ class S3DistributionTarget(DistributionTargetBase):
         self._bucket.upload_file(str(path.absolute()), key, Config=self._config)
 
     def _distribute(self, dataset_wrapper: DatasetWrapper):
-        for path, key in self._iterate_dataset_wrapper(dataset_wrapper):
-            try:
-                self._upload(path, key)
-            except S3UploadFailedError as e:
-                raise DistributionTargetBase.DistributionError(f"S3 upload failed while uploading {path} to {key}:\n{e}") from e
-            except ClientError as e:
-                raise DistributionTargetBase.DistributionError(f"AWS client error while uploading {path} to {key}:\n{e}") from e
-            except Exception as e:
-                raise DistributionTargetBase.DistributionError(f"Failed to upload {path} to {key}:\n{e}") from e
+        path_key_tups = list(self._iterate_dataset_wrapper(dataset_wrapper))
+
+        total_bytes = sum(path.stat().st_size for path, _ in path_key_tups)
+
+        with Progress(SpinnerColumn(), *Progress.get_default_columns(), DownloadColumn(binary_units=True)) as progress:
+            task = progress.add_task("[green]Uploading", total=total_bytes)
+
+            for path, key in path_key_tups:
+                file_bytes = path.stat().st_size
+
+                try:
+                    self._upload(path, key)
+                except S3UploadFailedError as e:
+                    raise DistributionTargetBase.DistributionError(f"S3 upload failed while uploading {path} to {key}:\n{e}") from e
+                except ClientError as e:
+                    raise DistributionTargetBase.DistributionError(f"AWS client error while uploading {path} to {key}:\n{e}") from e
+                except Exception as e:
+                    raise DistributionTargetBase.DistributionError(f"Failed to upload {path} to {key}:\n{e}") from e
+
+                progress.update(task, advance=file_bytes)
 
     def distribute(self, dataset_wrapper: DatasetWrapper):
         try:
