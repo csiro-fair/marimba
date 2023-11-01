@@ -280,3 +280,18 @@ def sharpen(path: Union[str, Path], destination: Union[str, Path] = None):
     img_sharpen = cv2.filter2D(img, -1, kernel)
 
     cv2.imwrite(str(destination), img_sharpen)
+
+
+def get_width_height(path: Union[str, Path]) -> Tuple[int, int]:
+    """
+    Get the width and height of an image.
+
+    Args:
+        path: The path to the image file.
+
+    Returns:
+        A tuple containing the width and height of the image.
+    """
+    path = Path(path)
+    img = Image.open(path)
+    return img.size
