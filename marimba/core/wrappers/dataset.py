@@ -1,12 +1,14 @@
 import hashlib
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from shutil import copy2
 from textwrap import dedent
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 from uuid import uuid4
 
+import piexif
 from ifdo.models import ImageData, ImageSetHeader, iFDO
 
 from marimba.core.utils.log import LogMixin, get_file_handler
@@ -344,7 +346,59 @@ class DatasetWrapper(LogMixin):
         Args:
             metadata_mapping: A dict mapping file paths to image data.
         """
-        # TODO: Implement this
+        for path, image_data in metadata_mapping.items():
+            try:
+                # Load the existing EXIF metadata
+                exif_dict = piexif.load(str(path))
+            except piexif.InvalidImageDataError as e:
+                self.logger.warning(f"Failed to load EXIF metadata from {path}: {e}")
+                continue
+
+            # Overwrite the EXIF metadata with iFDO metadata
+            ifd_0th = exif_dict["0th"]
+            ifd_exif = exif_dict["Exif"]
+            ifd_gps = exif_dict["GPS"]
+            # ifd_interop = exif_dict["Interop"]
+            # ifd_1st = exif_dict["1st"]
+            # ifd_thumbnail = exif_dict["thumbnail"]
+
+            if image_data.image_datetime is not None:
+                dt = image_data.image_datetime
+
+                # Convert to UTC if dt is timezone-aware
+                offset_str = None
+                if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
+                    dt = dt.astimezone(timezone.utc)
+                    offset_str = "+00:00"
+
+                # Format the datetime and subsec strings
+                datetime_str = datetime.strftime(image_data.image_datetime, "%Y:%m:%d %H:%M:%S")
+                subsec_str = str(image_data.image_datetime.microsecond)
+
+                # Inject them into the EXIF metadata
+                ifd_0th[piexif.ImageIFD.DateTime] = datetime_str
+                ifd_exif[piexif.ExifIFD.DateTimeOriginal] = datetime_str
+                ifd_exif[piexif.ExifIFD.SubSecTime] = subsec_str
+                ifd_exif[piexif.ExifIFD.SubSecTimeOriginal] = subsec_str
+                if offset_str is not None:
+                    ifd_exif[piexif.ExifIFD.OffsetTime] = offset_str
+                    ifd_exif[piexif.ExifIFD.OffsetTimeOriginal] = offset_str
+
+            # Inject the GPS coordinates into the EXIF metadata
+            if image_data.image_latitude is not None:
+                ifd_gps[piexif.GPSIFD.GPSLatitude] = image_data.image_latitude
+                ifd_gps[piexif.GPSIFD.GPSLatitudeRef] = "N" if image_data.image_latitude > 0 else "S"
+            if image_data.image_longitude is not None:
+                ifd_gps[piexif.GPSIFD.GPSLongitude] = image_data.image_longitude
+                ifd_gps[piexif.GPSIFD.GPSLongitudeRef] = "E" if image_data.image_longitude > 0 else "W"
+
+            # Write the EXIF metadata back to the file
+            try:
+                exif_bytes = piexif.dump(exif_dict)
+                piexif.insert(exif_bytes, str(path))
+                self.logger.debug(f"Applied iFDO EXIF tags to {path}.")
+            except piexif.InvalidImageDataError:
+                self.logger.warning(f"Failed to write EXIF metadata to {path}")
 
     def populate(
         self,
@@ -407,11 +461,12 @@ class DatasetWrapper(LogMixin):
 
         # Apply iFDO EXIF metadata
         metadata_mapping = {}
-        for _, (relative_dst, image_data_list) in dataset_mapping.items():
-            dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
-            if not image_data_list:  # Skip if no ImageData items
-                continue
-            metadata_mapping[dst] = image_data_list[0]  # Use the first ImageData item
+        for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
+            for _, (relative_dst, image_data_list) in pipeline_data_mapping.items():
+                dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
+                if not image_data_list:  # Skip if no ImageData items
+                    continue
+                metadata_mapping[dst] = image_data_list[0]  # Use the first ImageData item
         self._apply_ifdo_exif_tags(metadata_mapping)
 
         # Update the dataset summary
