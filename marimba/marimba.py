@@ -17,7 +17,8 @@ __author__ = "Marimba Development Team"
 __copyright__ = "Copyright 2023, CSIRO"
 __credits__ = [
     "Chris Jackett <chris.jackett@csiro.au>",
-    "Kevin Barnard <kbarnard@mbari.org>" "Nick Mortimer <nick.mortimer@csiro.au>",
+    "Kevin Barnard <kbarnard@mbari.org>",
+    "Nick Mortimer <nick.mortimer@csiro.au>",
     "David Webb <david.webb@csiro.au>",
     "Aaron Tyndall <aaron.tyndall@csiro.au>",
     "Franzis Althaus <franzis.althaus@csiro.au>",
@@ -31,10 +32,10 @@ __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
 
 marimba = typer.Typer(
-    name="Marimba - Marine Imagery Batch Actions",
-    help="""Marimba - Marine Imagery Batch Actions\n
-        A Python CLI for batch processing, transforming and FAIR-ising large volumes of marine imagery.""",
-    short_help="Marimba - Marine Imagery Batch Actions",
+    name="Marimba",
+    help="""Marimba\n
+        A Python framework for structuring, managing, processing and FAIR-ising scientific marine image datasets.""",
+    short_help="Marimba",
     no_args_is_help=True,
 )
 

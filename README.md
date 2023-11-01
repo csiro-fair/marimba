@@ -10,8 +10,6 @@
 
 <div style="text-align: center">
 
-<h1 style="color: #00A9CE">Marimba</h1>
-<h3><span style="color: #00A9CE">Mar</span>ine <span style="color: #00A9CE">Im</span>agery <span style="color: #00A9CE">B</span>atch <span style="color: #00A9CE">A</span>ctions</h3>
 <p><i>A Python framework for structuring, managing, processing and FAIR-ising scientific marine image datasets.</i></p>
 <div>
   <a href="https://github.com/elangosundar/awesome-README-templates/stargazers"><img src="https://img.shields.io/github/stars/elangosundar/awesome-README-templates" alt="Stars Badge"/></a>
@@ -25,58 +23,52 @@
 <br>
 </div>
 
-The Marimba Python framework is a specialised library designed for scientific marine image processing. Developed collaboratively by [CSIRO](https://www.csiro.au/) and [MBARI](https://www.mbari.org/), Marimba includes a diverse set of functionality aimed to facilitate the structuring, processing and FAIR-ising of marine imaging data. The framework is integrated with a [Typer](https://typer.tiangolo.com/) CLI (Command Line Interface), and makes use of the [Rich](https://pypi.org/project/rich/) Python package for enhanced the CLI user experience. Marimba also contains a well-structured API (Application Programming Interface) which enables programmatic interaction with Marimba, allowing for automated scripting from external scripts or Graphical User Interfaces (GUIs).
+Marimba is a Python framework designed for efficient processing of FAIR (Findable, Accessible, Interoperable, and Reusable) scientific marine image datasets. Developed collaboratively by [CSIRO](https://www.csiro.au/) and [MBARI](https://www.mbari.org/), Marimba offers a core set of functionality aimed to facilitate the structuring, processing and FAIR-ising of marine imaging data. The framework implements a [Typer](https://typer.tiangolo.com/) CLI (Command Line Interface), and makes use of the [Rich](https://pypi.org/project/rich/) Python package to deliver an enhanced CLI user experience. Marimba also provides a well-structured API (Application Programming Interface) that enables programmatic interaction from external scripts or Graphical User Interfaces (GUIs).
 
-The Marimba framework offers a comprehensive suite of advanced features that are designed for various aspects of scientific marine imaging:
+Marimba defines three core concepts:
 
-#### Data Project Structuring and Management
+- **Project**: A Marimba Project is a standardised high-level structure designed to manage the complete processing workflow when producing FAIR marine image datasets. It functions as the primary context for importing, processing, packaging and distributing FAIR image datasets, and is entirely managed by the core Marimba system.
 
-- **Image Dataset Structuring**: Marimba facilitates a systematic approach to structuring and managing scientific image data projects throughout the entire image processing workflow.
 
-- **Batch Processing**: The features within the Marimba framework are engineered to facilitate batch processing of extensive image datasets. Users have the flexibility to tailor the data processing scope, targeting it at the deployment, instrument, or project level.
-  
-#### File and Metadata Management
+- **Pipeline**: A Marimba Pipeline contains the implementation for all image data processing stages from individual or ensembles of instruments. The execution of a Pipeline is managed by core Marimba, and each Marimba Pipelines operates in isolation, which requires that it contains all the necessary logic to completely process the image data. This can include multiple image or video sources, associated navigational data and any other ancillary information. Developing a custom Marimba Pipeline is the only requirement for processing new FAIR marine image datasets using Marimba.
 
-- **Automated File Renaming**: Marimba allows for user-defined and instrument-specific naming conventions to automatically rename files, maintaining dataset consistency and enhancing data discoverability.
 
-- **Advanced Image Metadata Management**: Marimba offers extensive capabilities for managing image metadata including:
-  - Integration of image datasets with corresponding navigation and sensor data.
-  - Writing metadata directly into image EXIF tags for greater accessibility.
-  - Compliance with [iFDO](https://marine-imaging.com/fair/ifdos/iFDO-overview/) (image FAIR Digital Object) standards to ensure interoperability and reusability of data.
-  
-#### Modular Image and Video Processing
+- **Collection**: A Marimba Collection is a set of data that is imported into a Marimba project in a single session. It can be a diverse aggregation of data from a single instrument or multi-instrument system, and is isolated within the context of Marimba's core processing mechanisms. During execution, Marimba Pipelines operate sequentially on each Collection, applying the Pipeline's specialised processing to the sandboxed image data contained within each Collection.
 
-- **Automatic Thumbnail Generation**: Marimba can automatically generate thumbnails for both images and videos, including the creation of composite overview thumbnail images for rapid assessment of the contents of image datasets.
-  
-- **Image Manipulation**: Marimba utilises the Python [Pillow](https://pypi.org/project/Pillow/) library for image conversion, compression, and resizing.
 
-- **Video Processing**: Marimba integrates features from [Ffmpeg](https://ffmpeg.org/) for tasks such as video transcoding, chunking, and frame extraction.
-  
-- **Quality Control**: Marimba implements quality control measures using [CleanVision](https://github.com/cleanlab/cleanvision) to detect issues like duplicate, blurry, or improperly exposed images.
+The Marimba framework offers a number of advanced features designed for various aspects of scientific marine imaging:
 
-#### FAIR Data Standards Compliance
+- **Project Structuring and Management:**
+  - Marimba facilitates a systematic approach to structuring and managing scientific image data projects through the entire image processing workflow.
+  - The core Marimba features are designed to manage the processing of isolated Pipelines on sandboxed Collections, which allows for the entire processing workflow to be automated.
+  - Marimba provides a unified interface...
+- **File and Metadata Management:**
+  - Custom Marimba Pipelines allow for the implementation of specific naming conventions to automatically rename image files.
+  - Marimba offers extensive capabilities for managing image metadata including:
+    - Compliance with [iFDO](https://marine-imaging.com/fair/ifdos/iFDO-overview/) (image FAIR Digital Object) standards to ensure interoperability and reusability.
+    - Integration of image datasets with corresponding navigation and sensor data, if available.
+    - Writing metadata directly into image EXIF tags for greater accessibility.
+- **Image and Video Processing: (to be implemented)**
+  - Marimba offers a standard library of image and video processing modules that can:
+    - Convert, compress and resize imagery using the Python [Pillow](https://pypi.org/project/Pillow/) library.
+    - Transcode, chunk and extract frames from videos using [Ffmpeg](https://ffmpeg.org/).
+    - Automatically generate thumbnails for images and videos and create composite overview thumbnail images for rapid contents assessment of image datasets.
+    - Detect duplicate, blurry, or improperly exposed images using [CleanVision](https://github.com/cleanlab/cleanvision) library.
+- **Dataset Packaging and Distribution:**
+  - Marimba provides a standardised method for packaging processed FAIR image datasets, including:
+    - Collation of all processing logs to archive the entire dataset provenance and provide transparency and traceability.
+    - Generation of file manifests for dataset validation.
+    - Automated summarisation of image dataset statistics.
+  - Marimba also provides mechanisms for distributing packaged FAIR image datasets including:
+    - Uploading FAIR image datasets to S3 buckets.
 
-- **FAIR Image Dataset Packaging**: Marimba aligns with FAIR (Findable, Accessible, Interoperable, and Reusable) data principles and offers functionalities including:
-  - Generation of file manifests for dataset validation.
-  - Automated enumeration and summarisation of image dataset statistics.
-  
-#### Data Distribution
-
-- **FAIR Image Dataset Distribution**: Provides methods for distributing image datasets compliant with FAIR principles, such as:
-  - Storage to S3 buckets.
-  - FathomNet for annotated ML datasets (to be implemented)
-
-#### Provenance and Transparency
-
-- **Automated Processing Logs**: Marimba captures logs to archive all processing operations, ensuring data transparency and provenance.
 
 ---
 
 ## Contents
 
-- [Getting started](#getting-started)
-  - [Installation](#installation)
-- [Usage](#usage)
+- [Installation](#installation)
+- [Design](#design)
 - [Contributing](#contributing)
 - [License](#license)
 - [Contact](#contact)
@@ -84,27 +76,26 @@ The Marimba framework offers a comprehensive suite of advanced features that are
 
 ---
 
-<a name="getting-started"></a>
-## Getting started
-
 <a name="installation"></a>
 ### Installation
 
-The Marimba framework can be installed using Python's package manager, pip. Ensure you have a compatible version of Python installed (3.10 or greater) on your system before proceeding.
+The Marimba framework can be installed using Python pip package manager. Ensure you have a compatible version of Python installed (3.10 or greater) on your system before proceeding.
 
-To install Marimba, open your terminal or command prompt and execute the following command:
+To install Marimba, open your terminal or command prompt and run the following command:
 
 ```bash
 pip install marimba
 ```
 
-This will download and install the latest version of Marimba along with any required dependencies. After successful installation, you can confirm that Marimba has been correctly installed by running:
+This will download and install the latest version of Marimba along with any required dependencies. After successful installation, you can run Marimba to see the default help menu and confirm has been correctly installed:
 
 ```bash
-marimba --version
+marimba
 ```
 
-Marimba also has a few system level dependencies such as `ffmpeg` and `ffprobe` (which is installed with `ffmpeg`) (it would be very nice to move away from this, especially if we can find a cross-platform pip ffmpeg library!). On Ubuntu you can install `ffmpeg` with:
+![](docs/img/marimba_default-help.png "marimba_default-help")
+
+Marimba has minimal system level dependencies, such as `ffmpeg`, that are required to make full use of the Marimba standard library. On Ubuntu you can install `ffmpeg` with:
 
 ```bash
 sudo apt install ffmpeg
@@ -113,56 +104,13 @@ sudo apt install ffmpeg
 To set up a Marimba development environment, additional instructions and guidelines can be found in the documentation located in the [ENVIRONMENT.md](docs/ENVIRONMENT.md). Please refer to the relevant section for detailed information on how to properly configure your development setup.
 
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ---
 
-<a name="usage"></a>
-## Usage
+<a name="design"></a>
+## Design
 
-Marimba is based on the [Typer](https://typer.tiangolo.com/) Python package which is self-documenting by default. Try running Marimba to see the default help menu:
-
-```bash
-marimba
-```
-
-![](docs/img/marimba_default-help.png "marimba_default-help")
-
-The default entry point to start using Marimba is the `new` command. This allows you to create a new Marimba collection, pipeline or collection that adheres to the following standard Marimba structure:
-
-```
-{collection}
-│
-└───distribution                    - 
-│
-└───pipelines                     - 
-│   │
-│   └───{pipeline}                - 
-│       │
-│       └───lib                     - 
-│       │   │   pipeline.py       - 
-│       │   │   requirement.txt     - 
-│       │
-│       └───work                    - 
-│       │   │
-│       │   └───{collection}        - 
-│       │
-│       │   {pipeline}.log        - 
-│       │   pipeline.yml          - 
-│       │   metadata.yml            - 
-│
-└───collection.yml                  - 
-└───{collection}.log                - 
-```
-
-The usual order you might use the Marimba commands might be:
-* `marimba new {collection}`
-* `marimba new {pipeline}`
-* `marimba new {collection}`
-* `marimba qc` - it applicable
-* `marimba rename`
-* `marimba metadata`
-* `marimba convert`
-* `marimba distribute`
-* ...
 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -193,7 +141,7 @@ There was recently an interesting thread on the MS Teams linux channel [here](ht
 <a name="contact"></a>
 ## Contact
 
-The primary points-of-contact for this repository are: 
+The primary contacts for this repository are: 
 * Chris Jackett - CSIRO
 * Kevin Barnard - MBARI
 
@@ -204,7 +152,7 @@ The primary points-of-contact for this repository are:
 <a name="acknowledgments"></a>
 ## Acknowledgments
 
-This project has been developed in collaboration between CSIRO and MBARI, two leading institutions in marine science and technology. The conceptual foundation of Marimba was formulated at CSIRO in late 2022. Substantial elements of its initial design and implementation were created during the CSIRO Image Data Collection and Delivery Hackathon in Feb/March 2023, along with further collaborative development between CSIRO and MBARI in Oct/Nov 2023.
+This project has been developed as a collaboration between CSIRO and MBARI, two leading institutions in marine science and technology. The conceptual foundation of Marimba was formulated at CSIRO in late 2022. Substantial elements of its initial design and implementation were created during the CSIRO Image Data Collection and Delivery Hackathon in Feb/March 2023, along with further collaborative development between CSIRO and MBARI in Oct/Nov 2023.
 
 The development of this project has benefited from the contributions of many people including:
 
