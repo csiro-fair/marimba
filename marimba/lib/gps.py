@@ -36,9 +36,10 @@ def read_exif_location(path: Union[str, Path]):
     Returns:
         A tuple containing the latitude and longitude, or (None, None) if the location could not be found.
     """
+    path = Path(path)
     try:
         # Load the EXIF metadata
-        exif_data = piexif.load(path)
+        exif_data = piexif.load(str(path.absolute()))
 
         # Extract the GPS information
         gps_data = exif_data["GPS"]
