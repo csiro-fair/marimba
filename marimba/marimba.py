@@ -38,6 +38,7 @@ marimba = typer.Typer(
         A Python CLI for batch processing, transforming and FAIR-ising large volumes of marine imagery.""",
     short_help="Marimba - Marine Imagery Batch Actions",
     no_args_is_help=True,
+    pretty_exceptions_show_locals=False,
 )
 
 marimba.add_typer(new.app, name="new")
