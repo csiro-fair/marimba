@@ -337,6 +337,15 @@ class DatasetWrapper(LogMixin):
         """
         return self.data_dir / pipeline_name
 
+    def _apply_ifdo_exif_tags(self, metadata_mapping: Dict[Path, ImageData]):
+        """
+        Apply EXIF tags from iFDO metadata to the provided paths.
+
+        Args:
+            metadata_mapping: A dict mapping file paths to image data.
+        """
+        # TODO: Implement this
+
     def populate(
         self,
         dataset_name: str,
@@ -395,6 +404,15 @@ class DatasetWrapper(LogMixin):
         )
         if not self.dry_run:
             ifdo.save(self.metadata_path)
+
+        # Apply iFDO EXIF metadata
+        metadata_mapping = {}
+        for _, (relative_dst, image_data_list) in dataset_mapping.items():
+            dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
+            if not image_data_list:  # Skip if no ImageData items
+                continue
+            metadata_mapping[dst] = image_data_list[0]  # Use the first ImageData item
+        self._apply_ifdo_exif_tags(metadata_mapping)
 
         # Update the dataset summary
         summary = self.summarize()
