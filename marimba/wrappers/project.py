@@ -1,7 +1,6 @@
 import ast
 import logging
 from pathlib import Path
-from shutil import copy2
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from ifdo.models import ImageData
@@ -515,16 +514,9 @@ class ProjectWrapper(LogMixin):
         dataset_wrapper = DatasetWrapper.create(dataset_root_dir, dry_run=self.dry_run)
 
         # Populate it
-        dataset_wrapper.populate(dataset_name, dataset_mapping, copy=copy)
-
-        # Copy in the project and pipeline logs
-        logs_dir = dataset_root_dir / "logs"
-        logs_dir.mkdir()
-        copy2(self.log_path, logs_dir)
-        pipeline_logs_dir = logs_dir / "pipelines"
-        pipeline_logs_dir.mkdir()
-        for pipeline_wrapper in self.pipeline_wrappers.values():
-            copy2(pipeline_wrapper.log_path, pipeline_logs_dir)
+        dataset_wrapper.populate(
+            dataset_name, dataset_mapping, self.log_path, map(lambda pw: pw.log_path, self.pipeline_wrappers.values()), copy=copy
+        )
 
         self._dataset_wrappers[dataset_name] = dataset_wrapper
 
