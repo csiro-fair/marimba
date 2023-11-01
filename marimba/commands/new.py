@@ -15,6 +15,7 @@ from marimba.utils.rich import (
     success_panel,
 )
 from marimba.wrappers.project import ProjectWrapper
+from marimba.wrappers.target import DistributionTargetWrapper
 
 logger = get_logger(__name__)
 
@@ -103,7 +104,7 @@ def pipeline(
     ),
 ):
     """
-    Create a new Marimba pipeline in a project.
+    Create and configure a new Marimba pipeline in a project.
     """
     project_dir = find_project_dir_or_exit(project_dir)
 
@@ -145,7 +146,7 @@ def collection(
     ),
 ):
     """
-    Create a new Marimba collection in a project.
+    Create and configure a new Marimba collection in a project.
     """
     project_dir = find_project_dir_or_exit(project_dir)
 
@@ -179,3 +180,41 @@ def collection(
         raise typer.Exit()
 
     print(success_panel(f'Created new {MARIMBA} {format_entity("collection")} "{collection_name}" at: "{collection_wrapper.root_dir}"'))
+
+
+@app.command()
+def target(
+    target_name: str = typer.Argument(..., help="Name of the distribution target."),
+    project_dir: Optional[Path] = typer.Option(
+        None,
+        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
+    ),
+):
+    """
+    Create and configure a new distribution target in a project.
+    """
+    project_dir = find_project_dir_or_exit(project_dir)
+
+    logger.info(f"Executing the {MARIMBA} {format_command('new target')} command.")
+
+    try:
+        # Create project wrapper instance
+        project_wrapper = ProjectWrapper(project_dir)
+
+        # Prompt for the target config
+        target_type, target_config = DistributionTargetWrapper.prompt_target()
+
+        # Create the distribution target
+        distribution_target_wrapper = project_wrapper.create_target(target_name, target_type, target_config)
+    except ProjectWrapper.NameError as e:
+        error_message = f"Invalid target name: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+    except FileExistsError:
+        error_message = f'A {MARIMBA} {format_entity("target")} already exists at: "{distribution_target_wrapper.config_path}"'
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+
+    print(success_panel(f'Created new {MARIMBA} {format_entity("target")} "{target_name}" at: "{distribution_target_wrapper.config_path}"'))

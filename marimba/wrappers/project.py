@@ -5,12 +5,12 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from ifdo.models import ImageData
 
-from marimba.distribution.s3 import S3DistributionTarget
 from marimba.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.utils.prompt import prompt_schema
 from marimba.wrappers.collection import CollectionWrapper
 from marimba.wrappers.dataset import DatasetWrapper
 from marimba.wrappers.pipeline import PipelineWrapper
+from marimba.wrappers.target import DistributionTargetWrapper
 
 logger = get_logger(__name__)
 
@@ -112,6 +112,13 @@ class ProjectWrapper(LogMixin):
 
         pass
 
+    class NoSuchTargetError(Exception):
+        """
+        Raised when a distribution target does not exist in the project.
+        """
+
+        pass
+
     class NameError(Exception):
         """
         Raised when an invalid name is used.
@@ -132,6 +139,7 @@ class ProjectWrapper(LogMixin):
         self._pipeline_wrappers = {}  # pipeline name -> PipelineWrapper instance
         self._collection_wrappers = {}  # collection name -> CollectionWrapper instance
         self._dataset_wrappers = {}  # dataset name -> DatasetWrapper instance
+        self._target_wrappers = {}  # target name -> DistributionTargetWrapper instance
 
         self._check_file_structure()
         self._setup_logging()
@@ -139,6 +147,7 @@ class ProjectWrapper(LogMixin):
         self._load_pipelines()
         self._load_collections()
         self._load_datasets()
+        self._load_targets()
 
     @classmethod
     def create(cls, root_dir: Union[str, Path], dry_run: bool = False) -> "ProjectWrapper":
@@ -250,6 +259,23 @@ class ProjectWrapper(LogMixin):
             self._dataset_wrappers[dataset_dir.name] = DatasetWrapper(dataset_dir)
 
         self.logger.debug(f'Loaded {len(self._dataset_wrappers)} dataset(s): {", ".join(self._dataset_wrappers.keys())}')
+
+    def _load_targets(self):
+        """
+        Load distribution target wrappers from the `.marimba/targets` directory.
+
+        Populates the `_load_targets` dictionary with `DistributionTargetWrapper` instances.
+
+        Raises:
+            DistributionTargetWrapper.InvalidConfigError: If the distribution target configuration file is invalid.
+        """
+        target_config_paths = filter(lambda p: p.is_file(), self.targets_dir.iterdir())
+
+        self._target_wrappers.clear()
+        for target_config_path in target_config_paths:
+            self._target_wrappers[target_config_path.stem] = DistributionTargetWrapper(target_config_path)
+
+        self.logger.debug(f'Loaded {len(self._target_wrappers)} distribution target(s): {", ".join(self._target_wrappers.keys())}')
 
     def create_pipeline(self, name: str, url: str) -> PipelineWrapper:
         """
@@ -483,24 +509,62 @@ class ProjectWrapper(LogMixin):
 
         return dataset_wrapper
 
-    def distribute(self, dataset_name: str, bucket_name: str, base_prefix: str, endpoint_url: str, access_key: str, secret_access_key: str):
+    def create_target(self, target_name: str, target_type: str, target_config: dict) -> DistributionTargetWrapper:
+        """
+        Create a Marimba distribution target.
+
+        Args:
+            target_name: The name of the distribution target.
+            target_type: The type of distribution target to create. See `DistributionTargetWrapper.CLASS_MAP` for valid types.
+            target_config: The configuration for the distribution target.
+
+        Returns:
+            A distribution target wrapper instance for the created target.
+
+        Raises:
+            ProjectWrapper.NameError: If the name is invalid.
+            FileExistsError: If the target already exists.
+        """
+        self.logger.debug(f'Creating distribution target "{target_name}"')
+
+        # Check the name is valid
+        ProjectWrapper.check_name(target_name)
+
+        # Create the target
+        target_config_path = self.targets_dir / f"{target_name}.yml"
+        target_wrapper = DistributionTargetWrapper.create(target_config_path, target_type, target_config)
+
+        self._target_wrappers[target_name] = target_wrapper
+
+        return target_wrapper
+
+    def distribute(self, dataset_name: str, target_name: str):
         """
         Distribute a dataset to a distribution target.
 
         Args:
             dataset_name: The name of the dataset to distribute.
+            target_name: The name of the distribution target to distribute to.
+
+        Raises:
+            ProjectWrapper.NoSuchDatasetError: If the dataset does not exist in the project.
+            ProjectWrapper.NoSuchTargetError: If the distribution target does not exist in the project.
+            DistributionTargetBase.DistributionError: If the dataset cannot be distributed.
         """
-        self.logger.debug(f'Distributing dataset "{dataset_name}" to S3')
+        self.logger.debug(f'Distributing dataset "{dataset_name}" to target "{target_name}"')
 
         # Get the dataset wrapper
         dataset_wrapper = self.dataset_wrappers.get(dataset_name, None)
         if dataset_wrapper is None:
             raise ProjectWrapper.NoSuchDatasetError(dataset_name)
 
-        # Get the distribution target
-        distribution_target = S3DistributionTarget(
-            bucket_name, endpoint_url, access_key, secret_access_key, base_prefix=base_prefix.rstrip("/") + "/" + dataset_name
-        )
+        # Get the distribution target wrapper
+        target_wrapper = self.target_wrappers.get(target_name, None)
+        if target_wrapper is None:
+            raise ProjectWrapper.NoSuchTargetError(target_name)
+
+        # Get the distribution target instance
+        distribution_target = target_wrapper.get_instance()
 
         # Distribute the dataset
         distribution_target.distribute(dataset_wrapper)
@@ -643,6 +707,13 @@ class ProjectWrapper(LogMixin):
         return self._dataset_wrappers
 
     @property
+    def target_wrappers(self) -> Dict[str, DistributionTargetWrapper]:
+        """
+        The loaded distribution target wrappers in the project.
+        """
+        return self._target_wrappers
+
+    @property
     def root_dir(self) -> Path:
         """
         The root directory of the project.
@@ -678,6 +749,15 @@ class ProjectWrapper(LogMixin):
         The Marimba directory of the project.
         """
         return self._marimba_dir
+
+    @property
+    def targets_dir(self) -> Path:
+        """
+        The distribution targets directory of the project.
+        """
+        targets_dir = self._marimba_dir / "targets"
+        targets_dir.mkdir(exist_ok=True)
+        return targets_dir
 
     @property
     def name(self) -> str:

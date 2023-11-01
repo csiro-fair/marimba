@@ -9,6 +9,7 @@ import typer
 from rich import print
 
 from marimba.commands import new
+from marimba.distribution.bases import DistributionTargetBase
 from marimba.utils.log import LogLevel, get_logger, get_rich_handler
 from marimba.utils.rich import MARIMBA, error_panel, success_panel
 from marimba.wrappers.project import ProjectWrapper
@@ -225,11 +226,7 @@ def rename_command(
 @marimba.command("distribute")
 def distribute_command(
     dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
-    endpoint_url: str = typer.Argument(..., help="S3 endpoint URL to distribute to."),
-    base_prefix: str = typer.Argument(..., help="S3 base prefix."),
-    access_key_id: str = typer.Argument(..., help="S3 access key ID."),
-    secret_access_key: str = typer.Argument(..., help="S3 secret access key."),
-    bucket_name: str = typer.Argument(..., help="S3 bucket name to distribute to."),
+    target_name: str = typer.Argument(..., help="Marimba distribution target name."),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
@@ -243,12 +240,23 @@ def distribute_command(
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
     get_rich_handler().set_dry_run(dry_run)
 
-    # try:
-    project_wrapper.distribute(dataset_name, bucket_name, base_prefix, endpoint_url, access_key_id, secret_access_key)
-    # except Exception as e:
-    #     logger.error(e)
-    #     print(error_panel(f"Could not distribute dataset: {e}"))
-    #     raise typer.Exit()
+    try:
+        project_wrapper.distribute(dataset_name, target_name)
+    except ProjectWrapper.NoSuchDatasetError as e:
+        error_message = f"No such dataset: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+    except ProjectWrapper.NoSuchTargetError as e:
+        error_message = f"No such target: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+    except DistributionTargetBase.DistributionError as e:
+        error_message = f"Could not distribute dataset: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
 
     print(success_panel(f"Successfully distributed dataset {dataset_name}"))
 
