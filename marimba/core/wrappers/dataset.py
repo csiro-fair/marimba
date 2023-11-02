@@ -451,7 +451,7 @@ class DatasetWrapper(LogMixin):
                 if image_data_list:  # Only consider items that have ImageData
                     # Compute the data directory-relative destination path for the iFDO
                     dst_relative = dst.relative_to(self.data_dir)
-                    image_set_items[str(dst_relative)] = image_data_list
+                    image_set_items[str(dst_relative.as_posix())] = image_data_list
 
                 # Create the parent directory if it doesn't exist
                 dst.parent.mkdir(parents=True, exist_ok=True)
