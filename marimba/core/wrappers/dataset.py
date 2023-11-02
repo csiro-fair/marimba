@@ -484,7 +484,8 @@ class DatasetWrapper(LogMixin):
                 if not image_data_list:  # Skip if no ImageData items
                     continue
                 metadata_mapping[dst] = image_data_list[0]  # Use the first ImageData item
-        self._apply_ifdo_exif_tags(metadata_mapping)
+        if not self.dry_run:
+            self._apply_ifdo_exif_tags(metadata_mapping)
 
         # Update the dataset summary
         summary = self.summarize()
