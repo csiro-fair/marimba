@@ -108,27 +108,6 @@ def import_command(
     print(success_panel(f"Imported data to collection {collection_name} from source paths:\n{pretty_source_paths}"))
 
 
-@marimba.command("metadata")
-def metadata_command(
-    pipeline_name: str = typer.Argument(None, help="Marimba pipeline name for targeted processing."),
-    collection_name: str = typer.Argument(None, help="Marimba collection name for targeted processing."),
-    project_dir: Optional[Path] = typer.Option(
-        None,
-        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
-    ),
-    extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
-    dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-):
-    """
-    Process metadata including merging nav data files, writing metadata into image EXIF tags, and writing iFDO files.
-    """
-    project_dir = new.find_project_dir_or_exit(project_dir)
-    project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
-    get_rich_handler().set_dry_run(dry_run)
-
-    project_wrapper.run_command("run_metadata", pipeline_name, collection_name, extra)
-
-
 @marimba.command("package")
 def package_command(
     dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
@@ -211,27 +190,6 @@ def process_command(
     get_rich_handler().set_dry_run(dry_run)
 
     project_wrapper.run_command("run_process", pipeline_name, collection_name, extra)
-
-
-@marimba.command("rename")
-def rename_command(
-    pipeline_name: str = typer.Argument(None, help="Marimba pipeline name for targeted processing."),
-    collection_name: str = typer.Argument(None, help="Marimba collection name for targeted processing."),
-    project_dir: Optional[Path] = typer.Option(
-        None,
-        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
-    ),
-    extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
-    dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-):
-    """
-    Rename files based on the pipeline specification.
-    """
-    project_dir = new.find_project_dir_or_exit(project_dir)
-    project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
-    get_rich_handler().set_dry_run(dry_run)
-
-    project_wrapper.run_command("run_rename", pipeline_name, collection_name, extra)
 
 
 @marimba.command("distribute")
