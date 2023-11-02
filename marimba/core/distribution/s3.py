@@ -16,12 +16,12 @@ class S3DistributionTarget(DistributionTargetBase):
     S3 bucket distribution target.
     """
 
-    def __init__(self, bucket_name: str, endpoint_url: str, access_key: str, secret_access_key: str, base_prefix: str = ""):
+    def __init__(self, bucket_name: str, endpoint_url: str, access_key_id: str, secret_access_key: str, base_prefix: str = ""):
         self._bucket_name = bucket_name
         self._base_prefix = base_prefix.rstrip("/")
 
         # Create S3 resource and Bucket
-        self._s3 = resource("s3", endpoint_url=endpoint_url, aws_access_key_id=access_key, aws_secret_access_key=secret_access_key)
+        self._s3 = resource("s3", endpoint_url=endpoint_url, aws_access_key_id=access_key_id, aws_secret_access_key=secret_access_key)
         self._bucket = self._s3.Bucket(self._bucket_name)
 
         # Define the transfer config
