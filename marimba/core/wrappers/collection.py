@@ -87,7 +87,7 @@ class CollectionWrapper:
             if not path.is_file():
                 raise CollectionWrapper.InvalidStructureError(f'"{path}" does not exist or is not a file.')
 
-        check_dir_exists(self._root_dir)
+        check_dir_exists(self.root_dir)
         check_file_exists(self.config_path)
 
     def load_config(self) -> dict:
@@ -102,6 +102,35 @@ class CollectionWrapper:
         """
         save_config(self.config_path, config)
 
+    def create_pipeline_data_dir(self, pipeline_name: str) -> Path:
+        """
+        Create a new data directory for a pipeline.
+
+        Args:
+            pipeline_name: The name of the pipeline.
+
+        Returns:
+            The path to the pipeline data directory.
+        """
+        pipeline_data_dir = self._get_pipeline_data_dir(pipeline_name)
+        if pipeline_data_dir.is_dir():
+            raise FileExistsError(f'Pipeline data directory "{pipeline_data_dir}" already exists.')
+
+        pipeline_data_dir.mkdir(parents=True)
+        return pipeline_data_dir
+
+    def _get_pipeline_data_dir(self, pipeline_name: str) -> Path:
+        """
+        Get the path to the pipeline directory.
+
+        Args:
+            pipeline_name: The name of the pipeline.
+
+        Returns:
+            The path to the pipeline directory.
+        """
+        return self.root_dir / pipeline_name
+
     def get_pipeline_data_dir(self, pipeline_name: str) -> Path:
         """
         Get the path to the pipeline data directory.
@@ -111,5 +140,11 @@ class CollectionWrapper:
 
         Returns:
             The path to the pipeline data directory.
+
+        Raises:
+            CollectionWrapper.NoSuchPipelineError: If the pipeline does not exist.
         """
-        return self.root_dir / pipeline_name
+        pipeline_data_dir = self._get_pipeline_data_dir(pipeline_name)
+        if not pipeline_data_dir.is_dir():
+            raise CollectionWrapper.NoSuchPipelineError(f'Pipeline "{pipeline_name}" does not exist.')
+        return pipeline_data_dir

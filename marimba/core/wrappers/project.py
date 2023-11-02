@@ -336,7 +336,7 @@ class ProjectWrapper(LogMixin):
 
         # Create the pipeline data directories
         for pipeline_name in self._pipeline_wrappers:
-            collection_wrapper.get_pipeline_data_dir(pipeline_name).mkdir()
+            collection_wrapper.create_pipeline_data_dir(pipeline_name)
 
         # Add the collection to the project
         self._collection_wrappers[name] = collection_wrapper
