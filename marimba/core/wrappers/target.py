@@ -5,12 +5,16 @@ from typing import Tuple, Union
 from rich.prompt import Prompt
 
 from marimba.core.distribution.bases import DistributionTargetBase
+from marimba.core.distribution.dap import CSIRODapDistributionTarget
 from marimba.core.distribution.s3 import S3DistributionTarget
 from marimba.core.utils.config import load_config, save_config
 
 
 class DistributionTargetWrapper:
-    CLASS_MAP = {"s3": S3DistributionTarget}
+    CLASS_MAP = {
+        "s3": S3DistributionTarget,
+        "dap": CSIRODapDistributionTarget,
+    }
 
     class InvalidConfigError(Exception):
         """
