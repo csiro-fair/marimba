@@ -68,7 +68,7 @@ def import_command(
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
     overwrite: bool = typer.Option(False, help="Overwrite an existing collection with the same name."),
-    extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+    extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
@@ -179,7 +179,7 @@ def process_command(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
-    extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+    extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
