@@ -5,7 +5,7 @@ Image utilities. Includes transcoding, resizing, cropping, etc.
 
 from pathlib import Path
 from shutil import copy2
-from typing import Tuple, Union
+from typing import Iterable, Tuple, Union
 
 import cv2
 import numpy as np
@@ -36,6 +36,16 @@ def convert_to_jpeg(path: Union[str, Path], quality: int = 95, destination: Unio
     return destination
 
 
+def _resize_fit(img: Image.Image, max_width: int, max_height: int) -> Image.Image:
+    width, height = img.size
+    if width > max_width or height > max_height:
+        ratio = min(max_width / width, max_height / height)
+        new_width = int(width * ratio)
+        new_height = int(height * ratio)
+        img = img.resize((new_width, new_height), Image.LANCZOS)
+    return img
+
+
 def resize_fit(path: Union[str, Path], max_width: int = 1920, max_height: int = 1080, destination: Union[str, Path] = None):
     """
     Resize an image to fit within a maximum width and height.
@@ -50,12 +60,7 @@ def resize_fit(path: Union[str, Path], max_width: int = 1920, max_height: int = 
     destination = Path(destination) if destination is not None else path
 
     img = Image.open(path)
-    width, height = img.size
-    if width > max_width or height > max_height:
-        ratio = min(max_width / width, max_height / height)
-        new_width = int(width * ratio)
-        new_height = int(height * ratio)
-        img = img.resize((new_width, new_height), Image.LANCZOS)
+    img = _resize_fit(img, max_width, max_height)
     img.save(destination)
 
 
@@ -276,3 +281,52 @@ def get_width_height(path: Union[str, Path]) -> Tuple[int, int]:
     path = Path(path)
     img = Image.open(path)
     return img.size
+
+
+def create_grid_image(paths: Iterable[Union[str, Path]], destination: Union[str, Path], columns: int = 5, column_width: int = 300):
+    """
+    Create an image that represents a grid of images.
+
+    Args:
+        paths: The paths to the images to include in the grid.
+        destination: The path to save the grid image to.
+        columns: The number of columns in the grid.
+        column_width: The width in pixels of each column in the grid.
+    """
+    paths = [Path(p) for p in paths]
+    destination = Path(destination)
+
+    # Calculate the number of rows in the grid
+    rows = len(paths) // columns
+    if len(paths) % columns > 0:
+        rows += 1
+
+    # Compute the optimal row height to remove whitespace
+    row_height = column_width
+    for path in paths:
+        img = Image.open(path)
+        img_width, img_height = img.size
+        ratio = img_width / img_height
+        row_height = min(row_height, int(column_width / ratio))
+
+    # Create the grid image
+    grid_image = Image.new("RGB", (column_width * columns, row_height * rows))
+    for i, path in enumerate(paths):
+        # Calculate the coordinates of the image in the grid
+        x = (i % columns) * column_width
+        y = (i // columns) * row_height
+
+        # Resize the image to fit in the grid
+        img = Image.open(path)
+        img = _resize_fit(img, column_width, row_height)
+
+        # Center the image in the grid tile
+        img_width, img_height = img.size
+        x += (column_width - img_width) // 2
+        y += (row_height - img_height) // 2
+
+        # Paste the image into the grid
+        grid_image.paste(img, (x, y))
+
+    # Save the grid image
+    grid_image.save(destination)
