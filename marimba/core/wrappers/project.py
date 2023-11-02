@@ -139,10 +139,6 @@ class ProjectWrapper(LogMixin):
         self._root_dir = Path(root_dir)
         self._dry_run = dry_run
 
-        self._pipeline_dir = self._root_dir / "pipelines"
-        self._collections_dir = self._root_dir / "collections"
-        self._marimba_dir = self._root_dir / ".marimba"
-
         self._pipeline_wrappers = {}  # pipeline name -> PipelineWrapper instance
         self._collection_wrappers = {}  # collection name -> CollectionWrapper instance
         self._dataset_wrappers = {}  # dataset name -> DatasetWrapper instance
@@ -155,6 +151,9 @@ class ProjectWrapper(LogMixin):
         self._load_collections()
         self._load_datasets()
         self._load_targets()
+        self.logger.debug(
+            f"Loaded {len(self.pipeline_wrappers)} pipeline(s), {len(self.collection_wrappers)} collection(s), {len(self.dataset_wrappers)} dataset(s) and {len(self.target_wrappers)} distribution target(s)"
+        )
 
     @classmethod
     def create(cls, root_dir: Union[str, Path], dry_run: bool = False) -> "ProjectWrapper":
@@ -173,8 +172,6 @@ class ProjectWrapper(LogMixin):
         """
         # Define the folder structure
         root_dir = Path(root_dir)
-        pipeline_dir = root_dir / "pipelines"
-        collections_dir = root_dir / "collections"
         marimba_dir = root_dir / ".marimba"
 
         # Check that the root directory doesn't already exist
@@ -183,8 +180,6 @@ class ProjectWrapper(LogMixin):
 
         # Create the folder structure
         root_dir.mkdir(parents=True)
-        pipeline_dir.mkdir()
-        collections_dir.mkdir()
         marimba_dir.mkdir()
 
         return cls(root_dir, dry_run=dry_run)
@@ -201,10 +196,7 @@ class ProjectWrapper(LogMixin):
             if not path.is_dir():
                 raise ProjectWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
 
-        check_dir_exists(self._root_dir)
-        check_dir_exists(self._pipeline_dir)
-        check_dir_exists(self._collections_dir)
-        check_dir_exists(self._marimba_dir)
+        check_dir_exists(self.root_dir)
 
     def _setup_logging(self):
         """
@@ -225,13 +217,11 @@ class ProjectWrapper(LogMixin):
         Raises:
             PipelineWrapper.InvalidStructureError: If the pipeline directory structure is invalid.
         """
-        pipeline_dirs = filter(lambda p: p.is_dir(), self.pipeline_dir.iterdir())
+        pipeline_dirs = filter(lambda p: p.is_dir(), self.pipelines_dir.iterdir())
 
         self._pipeline_wrappers.clear()
         for pipeline_dir in pipeline_dirs:
             self._pipeline_wrappers[pipeline_dir.name] = PipelineWrapper(pipeline_dir, dry_run=self.dry_run)
-
-        self.logger.debug(f'Loaded {len(self._pipeline_wrappers)} pipeline(s): {", ".join(self._pipeline_wrappers.keys())}')
 
     def _load_collections(self):
         """
@@ -242,13 +232,11 @@ class ProjectWrapper(LogMixin):
         Raises:
             CollectionWrapper.InvalidStructureError: If the collection directory structure is invalid.
         """
-        collection_dirs = filter(lambda p: p.is_dir(), self._collections_dir.iterdir())
+        collection_dirs = filter(lambda p: p.is_dir(), self.collections_dir.iterdir())
 
         self._collection_wrappers.clear()
         for collection_dir in collection_dirs:
             self._collection_wrappers[collection_dir.name] = CollectionWrapper(collection_dir)
-
-        self.logger.debug(f'Loaded {len(self._collection_wrappers)} collection(s): {", ".join(self._collection_wrappers.keys())}')
 
     def _load_datasets(self):
         """
@@ -259,17 +247,15 @@ class ProjectWrapper(LogMixin):
         Raises:
             DatasetWrapper.InvalidStructureError: If the dataset directory structure is invalid.
         """
-        dataset_dirs = filter(lambda p: p.is_dir(), self.distribution_dir.iterdir())
+        dataset_dirs = filter(lambda p: p.is_dir(), self.distributions_dir.iterdir())
 
         self._dataset_wrappers.clear()
         for dataset_dir in dataset_dirs:
             self._dataset_wrappers[dataset_dir.name] = DatasetWrapper(dataset_dir)
 
-        self.logger.debug(f'Loaded {len(self._dataset_wrappers)} dataset(s): {", ".join(self._dataset_wrappers.keys())}')
-
     def _load_targets(self):
         """
-        Load distribution target wrappers from the `.marimba/targets` directory.
+        Load distribution target wrappers from the `targets` directory.
 
         Populates the `_load_targets` dictionary with `DistributionTargetWrapper` instances.
 
@@ -281,8 +267,6 @@ class ProjectWrapper(LogMixin):
         self._target_wrappers.clear()
         for target_config_path in target_config_paths:
             self._target_wrappers[target_config_path.stem] = DistributionTargetWrapper(target_config_path)
-
-        self.logger.debug(f'Loaded {len(self._target_wrappers)} distribution target(s): {", ".join(self._target_wrappers.keys())}')
 
     def create_pipeline(self, name: str, url: str) -> PipelineWrapper:
         """
@@ -305,7 +289,7 @@ class ProjectWrapper(LogMixin):
         ProjectWrapper.check_name(name)
 
         # Check that a pipeline with the same name doesn't already exist
-        pipeline_dir = self._pipeline_dir / name
+        pipeline_dir = self.pipelines_dir / name
         if pipeline_dir.exists():
             raise ProjectWrapper.CreatePipelineError(f'A pipeline with the name "{name}" already exists.')
 
@@ -416,7 +400,7 @@ class ProjectWrapper(LogMixin):
 
         # Invoke the command for each pipeline and collection
         self.logger.debug(
-            f'Running command "{command_name}" across pipeline(s) {", ".join(pipeline_to_run.keys())} and collection(s) {" ,".join(collection_wrappers_to_run.keys())} with kwargs {merged_kwargs}'
+            f'Running command "{command_name}" across pipeline(s) {", ".join(pipeline_to_run.keys())} and collection(s) {", ".join(collection_wrappers_to_run.keys())} with kwargs {merged_kwargs}'
         )
         results_by_collection = {}
         for run_collection_name, run_collection_wrapper in collection_wrappers_to_run.items():
@@ -511,7 +495,7 @@ class ProjectWrapper(LogMixin):
         ProjectWrapper.check_name(dataset_name)
 
         # Create the dataset
-        dataset_root_dir = self.distribution_dir / dataset_name
+        dataset_root_dir = self.distributions_dir / dataset_name
         dataset_wrapper = DatasetWrapper.create(dataset_root_dir, dry_run=self.dry_run)
 
         # Populate it
@@ -618,7 +602,7 @@ class ProjectWrapper(LogMixin):
 
         # Import each pipeline
         pretty_paths = ", ".join(list(map(lambda p: str(p.resolve().absolute()), source_paths)))
-        self.logger.debug(f'Running import for collection "{collection_name}" from source paths {pretty_paths} with kwargs {merged_kwargs}')
+        self.logger.debug(f'Running import for collection "{collection_name}" from source path(s) {pretty_paths} with kwargs {merged_kwargs}')
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
             # Get the pipeline instance
             pipeline = pipeline_wrapper.get_instance()
@@ -742,41 +726,47 @@ class ProjectWrapper(LogMixin):
         return self._root_dir
 
     @property
-    def pipeline_dir(self) -> Path:
+    def pipelines_dir(self) -> Path:
         """
         The pipelines directory of the project.
         """
-        return self._pipeline_dir
+        pipelines_dir = self.root_dir / "pipelines"
+        pipelines_dir.mkdir(exist_ok=True)
+        return pipelines_dir
 
     @property
     def collections_dir(self) -> Path:
         """
         The collections directory of the project.
         """
-        return self._collections_dir
+        collections_dir = self.root_dir / "collections"
+        collections_dir.mkdir(exist_ok=True)
+        return collections_dir
 
     @property
-    def distribution_dir(self) -> Path:
+    def distributions_dir(self) -> Path:
         """
         The path to the distribution directory. Lazy-created on first access.
         """
-        distribution_dir = self._root_dir / "dist"
-        distribution_dir.mkdir(exist_ok=True)
-        return distribution_dir
+        distributions_dir = self.root_dir / "dist"
+        distributions_dir.mkdir(exist_ok=True)
+        return distributions_dir
 
     @property
     def marimba_dir(self) -> Path:
         """
         The Marimba directory of the project.
         """
-        return self._marimba_dir
+        marimba_dir = self.root_dir / ".marimba"
+        marimba_dir.mkdir(exist_ok=True)
+        return marimba_dir
 
     @property
     def targets_dir(self) -> Path:
         """
         The distribution targets directory of the project.
         """
-        targets_dir = self._marimba_dir / "targets"
+        targets_dir = self.root_dir / "targets"
         targets_dir.mkdir(exist_ok=True)
         return targets_dir
 
@@ -785,14 +775,14 @@ class ProjectWrapper(LogMixin):
         """
         The path to the project log file.
         """
-        return self._root_dir / f"{self.name}.log"
+        return self.root_dir / f"{self.name}.log"
 
     @property
     def name(self) -> str:
         """
         The name of the project.
         """
-        return self._root_dir.name
+        return self.root_dir.name
 
     @property
     def dry_run(self) -> bool:
