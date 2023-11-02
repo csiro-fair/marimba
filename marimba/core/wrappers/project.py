@@ -247,7 +247,7 @@ class ProjectWrapper(LogMixin):
         Raises:
             DatasetWrapper.InvalidStructureError: If the dataset directory structure is invalid.
         """
-        dataset_dirs = filter(lambda p: p.is_dir(), self.distributions_dir.iterdir())
+        dataset_dirs = filter(lambda p: p.is_dir(), self.datasets_dir.iterdir())
 
         self._dataset_wrappers.clear()
         for dataset_dir in dataset_dirs:
@@ -495,7 +495,7 @@ class ProjectWrapper(LogMixin):
         ProjectWrapper.check_name(dataset_name)
 
         # Create the dataset
-        dataset_root_dir = self.distributions_dir / dataset_name
+        dataset_root_dir = self.datasets_dir / dataset_name
         dataset_wrapper = DatasetWrapper.create(dataset_root_dir, dry_run=self.dry_run)
 
         # Populate it
@@ -744,11 +744,11 @@ class ProjectWrapper(LogMixin):
         return collections_dir
 
     @property
-    def distributions_dir(self) -> Path:
+    def datasets_dir(self) -> Path:
         """
-        The path to the distribution directory. Lazy-created on first access.
+        The datasets directory of the project.
         """
-        distributions_dir = self.root_dir / "dist"
+        distributions_dir = self.root_dir / "datasets"
         distributions_dir.mkdir(exist_ok=True)
         return distributions_dir
 
