@@ -8,6 +8,7 @@ from botocore.exceptions import ClientError
 from rich.progress import DownloadColumn, Progress, SpinnerColumn
 
 from marimba.core.distribution.bases import DistributionTargetBase
+from marimba.core.utils.rich import get_default_columns
 from marimba.core.wrappers.dataset import DatasetWrapper
 
 
@@ -91,7 +92,7 @@ class S3DistributionTarget(DistributionTargetBase):
 
         total_bytes = sum(path.stat().st_size for path, _ in path_key_tups)
 
-        with Progress(SpinnerColumn(), *Progress.get_default_columns(), DownloadColumn(binary_units=True)) as progress:
+        with Progress(SpinnerColumn(), *get_default_columns(), DownloadColumn(binary_units=True)) as progress:
             task = progress.add_task("[green]Uploading", total=total_bytes)
 
             for path, key in path_key_tups:

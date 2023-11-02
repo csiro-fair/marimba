@@ -2,7 +2,16 @@
 Rich console output utilities.
 """
 
+from typing import Tuple
+
 from rich.panel import Panel
+from rich.progress import (
+    BarColumn,
+    ProgressColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeRemainingColumn,
+)
 
 MARIMBA = "[bold][aquamarine3]Marimba[/aquamarine3][/bold]"
 
@@ -59,3 +68,18 @@ def format_entity(entity_name: str) -> str:
         The formatted entity.
     """
     return f"[light_pink3]{entity_name}[/light_pink3]"
+
+
+def get_default_columns() -> Tuple[ProgressColumn, ...]:
+    """
+    Get the default progress columns.
+
+    Returns:
+        The default progress columns.
+    """
+    return (
+        TextColumn("[bold]{task.description}", justify="left"),
+        BarColumn(bar_width=None),
+        TaskProgressColumn(),
+        TimeRemainingColumn(),
+    )

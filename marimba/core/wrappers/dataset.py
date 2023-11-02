@@ -10,9 +10,11 @@ from uuid import uuid4
 
 import piexif
 from ifdo.models import ImageData, ImageSetHeader, iFDO
+from rich.progress import Progress, SpinnerColumn
 
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.map import make_summary_map
+from marimba.core.utils.rich import get_default_columns
 from marimba.lib.gps import convert_degrees_to_gps_coordinate
 
 
@@ -445,86 +447,104 @@ class DatasetWrapper(LogMixin):
 
         # Copy or move the files and populate the iFDO image set items
         image_set_items = {}
-        for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-            pipeline_data_dir = self.get_pipeline_data_dir(pipeline_name)
-            for src, (relative_dst, image_data_list) in pipeline_data_mapping.items():
-                # Compute the absolute destination path
-                dst = pipeline_data_dir / relative_dst
+        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
+            tasks_by_pipeline_name = {
+                pipeline_name: progress.add_task(f"[green]Populating {pipeline_name} data", total=len(pipeline_data_mapping))
+                for pipeline_name, pipeline_data_mapping in dataset_mapping.items()
+            }
 
-                if image_data_list:  # Only consider items that have ImageData
-                    # Compute the data directory-relative destination path for the iFDO
-                    dst_relative = dst.relative_to(self.data_dir)
-                    image_set_items[str(dst_relative.as_posix())] = image_data_list
+            for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
+                pipeline_data_dir = self.get_pipeline_data_dir(pipeline_name)
+                for src, (relative_dst, image_data_list) in pipeline_data_mapping.items():
+                    # Compute the absolute destination path
+                    dst = pipeline_data_dir / relative_dst
 
-                if not self.dry_run:
-                    # Create the parent directory if it doesn't exist
-                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    if image_data_list:  # Only consider items that have ImageData
+                        # Compute the data directory-relative destination path for the iFDO
+                        dst_relative = dst.relative_to(self.data_dir)
+                        image_set_items[str(dst_relative.as_posix())] = image_data_list
 
-                    # Copy or move the file
-                    if copy:
-                        copy2(src, dst)  # use copy2 to preserve metadata
-                    else:
-                        src.rename(dst)  # use rename to move the file
-                self.logger.debug(f"{src.absolute()} -> {dst} ({copy=})")
+                    if not self.dry_run:
+                        # Create the parent directory if it doesn't exist
+                        dst.parent.mkdir(parents=True, exist_ok=True)
 
-        # Generate and write the iFDO
-        ifdo = iFDO(
-            image_set_header=ImageSetHeader(
-                image_set_name=dataset_name,
-                image_set_uuid=str(uuid4()),
-                image_set_handle="",  # TODO: Populate this from the distribution target URL
-            ),
-            image_set_items=image_set_items,
-        )
-        if not self.dry_run:
-            ifdo.save(self.metadata_path)
-        self.logger.debug(f"Generated iFDO at {self.metadata_path} with {len(ifdo.image_set_items)} image set items")
+                        # Copy or move the file
+                        if copy:
+                            copy2(src, dst)  # use copy2 to preserve metadata
+                        else:
+                            src.rename(dst)  # use rename to move the file
+                    self.logger.debug(f"{src.absolute()} -> {dst} ({copy=})")
 
-        # Apply iFDO EXIF metadata
-        metadata_mapping = {}
-        for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-            for _, (relative_dst, image_data_list) in pipeline_data_mapping.items():
-                dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
-                if not image_data_list:  # Skip if no ImageData items
-                    continue
-                metadata_mapping[dst] = image_data_list[0]  # Use the first ImageData item
-        if not self.dry_run:
-            self._apply_ifdo_exif_tags(metadata_mapping)
-        self.logger.debug(f"Applied iFDO EXIF tags to {len(metadata_mapping)} files")
+                    # Update the task
+                    progress.advance(tasks_by_pipeline_name[pipeline_name])
 
-        # Update the dataset summary
-        summary = self.summarize()
-        if not self.dry_run:
-            self.summary_path.write_text(str(summary))
-        self.logger.debug(f"Updated dataset summary at {self.summary_path}")
+        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
+            task = progress.add_task("[green]", total=None)
 
-        # Create a summary map if there are any geolocations
-        geolocations = [
-            (image_data.image_latitude, image_data.image_longitude)
-            for image_data_list in image_set_items.values()
-            for image_data in image_data_list
-            if image_data.image_latitude is not None and image_data.image_longitude
-        ]
-        if geolocations:
-            summary_map = make_summary_map(geolocations)
-            if summary_map is not None:
-                map_path = self.root_dir / "map.png"
-                if not self.dry_run:
-                    summary_map.save(map_path)
-                self.logger.debug(f"Generated summary map at {map_path}")
+            # Generate and write the iFDO
+            progress.update(task, description="[green]Generating iFDO")
+            ifdo = iFDO(
+                image_set_header=ImageSetHeader(
+                    image_set_name=dataset_name,
+                    image_set_uuid=str(uuid4()),
+                    image_set_handle="",  # TODO: Populate this from the distribution target URL
+                ),
+                image_set_items=image_set_items,
+            )
+            if not self.dry_run:
+                ifdo.save(self.metadata_path)
+            self.logger.debug(f"Generated iFDO at {self.metadata_path} with {len(ifdo.image_set_items)} image set items")
 
-        # Copy in the project and pipeline logs
-        if not self.dry_run:
-            copy2(project_log_path, self.logs_dir)
-            for pipeline_log_path in pipeline_log_paths:
-                copy2(pipeline_log_path, self.pipeline_logs_dir)
-        self.logger.debug(f"Copied project logs to {self.logs_dir}")
+            # Apply iFDO EXIF metadata
+            progress.update(task, description="[green]Applying iFDO EXIF tags")
+            metadata_mapping = {}
+            for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
+                for _, (relative_dst, image_data_list) in pipeline_data_mapping.items():
+                    dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
+                    if not image_data_list:  # Skip if no ImageData items
+                        continue
+                    metadata_mapping[dst] = image_data_list[0]  # Use the first ImageData item
+            if not self.dry_run:
+                self._apply_ifdo_exif_tags(metadata_mapping)
+            self.logger.debug(f"Applied iFDO EXIF tags to {len(metadata_mapping)} files")
 
-        # Generate and save the manifest
-        manifest = Manifest.from_dir(self.root_dir, exclude_paths=[self.manifest_path, self.log_path])
-        if not self.dry_run:
-            manifest.save(self.manifest_path)
-        self.logger.debug(f"Generated manifest at {self.manifest_path}")
+            # Update the dataset summary
+            progress.update(task, description="[green]Generating dataset summary")
+            summary = self.summarize()
+            if not self.dry_run:
+                self.summary_path.write_text(str(summary))
+            self.logger.debug(f"Updated dataset summary at {self.summary_path}")
+
+            # Create a summary map if there are any geolocations
+            geolocations = [
+                (image_data.image_latitude, image_data.image_longitude)
+                for image_data_list in image_set_items.values()
+                for image_data in image_data_list
+                if image_data.image_latitude is not None and image_data.image_longitude
+            ]
+            if geolocations:
+                progress.update(task, description="[green]Generating summary map")
+                summary_map = make_summary_map(geolocations)
+                if summary_map is not None:
+                    map_path = self.root_dir / "map.png"
+                    if not self.dry_run:
+                        summary_map.save(map_path)
+                    self.logger.debug(f"Generated summary map at {map_path}")
+
+            # Copy in the project and pipeline logs
+            progress.update(task, description="[green]Copying logs")
+            if not self.dry_run:
+                copy2(project_log_path, self.logs_dir)
+                for pipeline_log_path in pipeline_log_paths:
+                    copy2(pipeline_log_path, self.pipeline_logs_dir)
+            self.logger.debug(f"Copied project logs to {self.logs_dir}")
+
+            # Generate and save the manifest
+            progress.update(task, description="[green]Generating manifest")
+            manifest = Manifest.from_dir(self.root_dir, exclude_paths=[self.manifest_path, self.log_path])
+            if not self.dry_run:
+                manifest.save(self.manifest_path)
+            self.logger.debug(f"Generated manifest at {self.manifest_path}")
 
     def summarize(self) -> ImagerySummary:
         """

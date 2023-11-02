@@ -4,15 +4,15 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from ifdo.models import ImageData
+from rich.progress import Progress, SpinnerColumn
 
-from marimba.core.utils.log import LogMixin, get_file_handler, get_logger
+from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.prompt import prompt_schema
+from marimba.core.utils.rich import get_default_columns
 from marimba.core.wrappers.collection import CollectionWrapper
 from marimba.core.wrappers.dataset import DatasetWrapper
 from marimba.core.wrappers.pipeline import PipelineWrapper
 from marimba.core.wrappers.target import DistributionTargetWrapper
-
-logger = get_logger(__name__)
 
 
 def get_merged_keyword_args(kwargs: dict, extra_args: list, logger: logging.Logger) -> dict:
@@ -391,30 +391,40 @@ class ProjectWrapper(LogMixin):
         collection_wrappers_to_run = {collection_name: collection_wrapper} if collection_name is not None else self._collection_wrappers
 
         # Load pipeline instances
-        pipeline_to_run = {pipeline_name: pipeline_wrapper.get_instance() for pipeline_name, pipeline_wrapper in pipeline_wrappers_to_run.items()}
+        pipelines_to_run = {pipeline_name: pipeline_wrapper.get_instance() for pipeline_name, pipeline_wrapper in pipeline_wrappers_to_run.items()}
 
         # Check that the command exists for all pipelines
-        for run_pipeline_name, run_pipeline in pipeline_to_run.items():
+        for run_pipeline_name, run_pipeline in pipelines_to_run.items():
             if not hasattr(run_pipeline, command_name):
                 raise ProjectWrapper.RunCommandError(f'Command "{command_name}" does not exist for pipeline "{run_pipeline_name}".')
 
         # Invoke the command for each pipeline and collection
         self.logger.debug(
-            f'Running command "{command_name}" across pipeline(s) {", ".join(pipeline_to_run.keys())} and collection(s) {", ".join(collection_wrappers_to_run.keys())} with kwargs {merged_kwargs}'
+            f'Running command "{command_name}" across pipeline(s) {", ".join(pipelines_to_run.keys())} and collection(s) {", ".join(collection_wrappers_to_run.keys())} with kwargs {merged_kwargs}'
         )
         results_by_collection = {}
-        for run_collection_name, run_collection_wrapper in collection_wrappers_to_run.items():
-            results_by_pipeline = {}
-            for run_pipeline_name, run_pipeline in pipeline_to_run.items():
-                # Get the pipeline-specific data directory and config
-                pipeline_collection_data_dir = run_collection_wrapper.get_pipeline_data_dir(run_pipeline_name)
-                pipeline_collection_config = run_collection_wrapper.load_config()
+        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
+            tasks_by_pipeline_name = {}
+            for run_pipeline_name in pipelines_to_run:
+                tasks_by_pipeline_name[run_pipeline_name] = progress.add_task(
+                    f"[green]Running {run_pipeline_name}", total=len(collection_wrappers_to_run)
+                )
 
-                # Call the method
-                method = getattr(run_pipeline, command_name)
-                results_by_pipeline[run_pipeline_name] = method(pipeline_collection_data_dir, pipeline_collection_config, **merged_kwargs)
+            for run_collection_name, run_collection_wrapper in collection_wrappers_to_run.items():
+                results_by_pipeline = {}
+                for run_pipeline_name, run_pipeline in pipelines_to_run.items():
+                    # Get the pipeline-specific data directory and config
+                    pipeline_collection_data_dir = run_collection_wrapper.get_pipeline_data_dir(run_pipeline_name)
+                    pipeline_collection_config = run_collection_wrapper.load_config()
 
-            results_by_collection[run_collection_name] = results_by_pipeline
+                    # Call the method
+                    method = getattr(run_pipeline, command_name)
+                    results_by_pipeline[run_pipeline_name] = method(pipeline_collection_data_dir, pipeline_collection_config, **merged_kwargs)
+
+                    # Update the task
+                    progress.advance(tasks_by_pipeline_name[run_pipeline_name])
+
+                results_by_collection[run_collection_name] = results_by_pipeline
 
         return results_by_collection
 
@@ -451,21 +461,26 @@ class ProjectWrapper(LogMixin):
 
         self.logger.debug(f'Composing dataset for collections {", ".join(collection_names)} with kwargs {merged_kwargs}')
         dataset_mapping = {}
-        for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
-            # Get the pipeline instance
-            pipeline = pipeline_wrapper.get_instance()
+        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
+            task = progress.add_task("[green]Composing data", total=len(self.pipeline_wrappers))
+            for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
+                # Get the pipeline instance
+                pipeline = pipeline_wrapper.get_instance()
 
-            # Get the collection data directories for the pipeline
-            collection_data_dirs = [collection_wrapper.get_pipeline_data_dir(pipeline_name) for collection_wrapper in collection_wrappers]
+                # Get the collection data directories for the pipeline
+                collection_data_dirs = [collection_wrapper.get_pipeline_data_dir(pipeline_name) for collection_wrapper in collection_wrappers]
 
-            # Compose the pipeline data mapping
-            try:
-                pipeline_data_mapping = pipeline.run_compose(collection_data_dirs, collection_configs, **merged_kwargs)
-            except Exception as e:
-                raise ProjectWrapper.CompositionError(f'Pipeline "{pipeline_name}" failed to compose its data:\n{e}') from e
+                # Compose the pipeline data mapping
+                try:
+                    pipeline_data_mapping = pipeline.run_compose(collection_data_dirs, collection_configs, **merged_kwargs)
+                except Exception as e:
+                    raise ProjectWrapper.CompositionError(f'Pipeline "{pipeline_name}" failed to compose its data:\n{e}') from e
 
-            # Add the pipeline data mapping to the dataset mapping
-            dataset_mapping[pipeline_name] = pipeline_data_mapping
+                # Add the pipeline data mapping to the dataset mapping
+                dataset_mapping[pipeline_name] = pipeline_data_mapping
+
+                # Update the task
+                progress.advance(task)
 
         return dataset_mapping
 
