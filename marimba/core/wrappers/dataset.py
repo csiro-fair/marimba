@@ -265,8 +265,9 @@ class DatasetWrapper(LogMixin):
         self._root_dir = Path(root_dir)
         self._dry_run = dry_run
 
-        self._check_file_structure()
-        self._setup_logging()
+        if not dry_run:
+            self._check_file_structure()
+            self._setup_logging()
 
     @classmethod
     def create(cls, root_dir: Union[str, Path], dry_run: bool = False) -> "DatasetWrapper":
@@ -294,10 +295,11 @@ class DatasetWrapper(LogMixin):
             raise FileExistsError(root_dir)
 
         # Create the file structure
-        root_dir.mkdir(parents=True)
-        data_dir.mkdir()
-        logs_dir.mkdir()
-        pipeline_logs_dir.mkdir()
+        if not dry_run:
+            root_dir.mkdir(parents=True)
+            data_dir.mkdir()
+            logs_dir.mkdir()
+            pipeline_logs_dir.mkdir()
 
         return cls(root_dir, dry_run=dry_run)
 
@@ -439,6 +441,7 @@ class DatasetWrapper(LogMixin):
         """
         # Verify that the path mapping is valid
         DatasetWrapper.check_dataset_mapping(dataset_mapping)
+        self.logger.debug("Dataset mapping is valid.")
 
         # Copy or move the files and populate the iFDO image set items
         image_set_items = {}
@@ -453,11 +456,11 @@ class DatasetWrapper(LogMixin):
                     dst_relative = dst.relative_to(self.data_dir)
                     image_set_items[str(dst_relative.as_posix())] = image_data_list
 
-                # Create the parent directory if it doesn't exist
-                dst.parent.mkdir(parents=True, exist_ok=True)
-
-                # Copy or move the file if not in dry-run mode
                 if not self.dry_run:
+                    # Create the parent directory if it doesn't exist
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+
+                    # Copy or move the file
                     if copy:
                         copy2(src, dst)  # use copy2 to preserve metadata
                     else:
@@ -475,6 +478,7 @@ class DatasetWrapper(LogMixin):
         )
         if not self.dry_run:
             ifdo.save(self.metadata_path)
+        self.logger.debug(f"Generated iFDO at {self.metadata_path} with {len(ifdo.image_set_items)} image set items")
 
         # Apply iFDO EXIF metadata
         metadata_mapping = {}
@@ -486,11 +490,13 @@ class DatasetWrapper(LogMixin):
                 metadata_mapping[dst] = image_data_list[0]  # Use the first ImageData item
         if not self.dry_run:
             self._apply_ifdo_exif_tags(metadata_mapping)
+        self.logger.debug(f"Applied iFDO EXIF tags to {len(metadata_mapping)} files")
 
         # Update the dataset summary
         summary = self.summarize()
         if not self.dry_run:
             self.summary_path.write_text(str(summary))
+        self.logger.debug(f"Updated dataset summary at {self.summary_path}")
 
         # Create a summary map if there are any geolocations
         geolocations = [
@@ -502,18 +508,23 @@ class DatasetWrapper(LogMixin):
         if geolocations:
             summary_map = make_summary_map(geolocations)
             if summary_map is not None:
+                map_path = self.root_dir / "map.png"
                 if not self.dry_run:
-                    summary_map.save(self.root_dir / "map.png")
+                    summary_map.save(map_path)
+                self.logger.debug(f"Generated summary map at {map_path}")
 
         # Copy in the project and pipeline logs
-        copy2(project_log_path, self.logs_dir)
-        for pipeline_log_path in pipeline_log_paths:
-            copy2(pipeline_log_path, self.pipeline_logs_dir)
+        if not self.dry_run:
+            copy2(project_log_path, self.logs_dir)
+            for pipeline_log_path in pipeline_log_paths:
+                copy2(pipeline_log_path, self.pipeline_logs_dir)
+        self.logger.debug(f"Copied project logs to {self.logs_dir}")
 
         # Generate and save the manifest
         manifest = Manifest.from_dir(self.root_dir, exclude_paths=[self.manifest_path, self.log_path])
         if not self.dry_run:
             manifest.save(self.manifest_path)
+        self.logger.debug(f"Generated manifest at {self.manifest_path}")
 
     def summarize(self) -> ImagerySummary:
         """
