@@ -338,7 +338,7 @@ class DatasetWrapper(LogMixin):
         Set up logging. Create file handler for this instance that writes to `dataset.log`.
         """
         # Create a file handler for this instance
-        self._file_handler = get_file_handler(self.root_dir, self.name, False, level=logging.DEBUG)
+        self._file_handler = get_file_handler(self.root_dir, "dataset", False, level=logging.DEBUG)
 
         # Add the file handler to the logger
         self.logger.addHandler(self._file_handler)
@@ -582,7 +582,7 @@ class DatasetWrapper(LogMixin):
         """
         The path to the dataset log file.
         """
-        return self._root_dir / f"{self.name}.log"
+        return self._root_dir / "dataset.log"
 
     @property
     def logs_dir(self) -> Path:

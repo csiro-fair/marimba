@@ -203,7 +203,7 @@ class ProjectWrapper(LogMixin):
         Set up logging. Create file handler for this instance that writes to `project.log`.
         """
         # Create a file handler for this instance
-        file_handler = get_file_handler(self.root_dir, self.name, False, level=logging.DEBUG)
+        file_handler = get_file_handler(self.root_dir, "project", False, level=logging.DEBUG)
 
         # Add the file handler to the logger
         self.logger.addHandler(file_handler)
@@ -775,7 +775,7 @@ class ProjectWrapper(LogMixin):
         """
         The path to the project log file.
         """
-        return self.root_dir / f"{self.name}.log"
+        return self.root_dir / "project.log"
 
     @property
     def name(self) -> str:
