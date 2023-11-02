@@ -806,11 +806,14 @@ class ProjectWrapper(LogMixin):
         """
         Check that a name is valid.
 
+        Valid names include only alphanumeric, underscore and dash characters.
+
         Args:
             name: The name to check.
 
         Raises:
             ProjectWrapper.NameError: If the name is invalid.
         """
-        if not name.isidentifier():
-            raise ProjectWrapper.NameError(name)
+        for char in name:
+            if not (char.isalnum() or char in ("_", "-")):
+                raise ProjectWrapper.NameError(name)
