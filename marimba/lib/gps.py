@@ -24,6 +24,25 @@ def convert_gps_coordinate_to_degrees(value):
     return degrees + minutes + seconds
 
 
+def convert_degrees_to_gps_coordinate(degrees: float) -> tuple:
+    """
+    Convert GPS coordinates from decimal degrees format to degrees, minutes, and seconds (DMS) format.
+
+    Note: Negative values will result in positive degrees, minutes, and seconds. Use the appropriate hemisphere letter to indicate N/S or E/W when writing EXIF.
+
+    Args:
+        degrees: The GPS coordinate in decimal degrees format.
+
+    Returns:
+        A tuple containing the degrees, minutes, and seconds.
+    """
+    degrees = abs(degrees)
+    d = int(degrees)
+    m = int((degrees - d) * 60)
+    s = int((degrees - d - m / 60) * 3600 * 1000)
+    return d, m, s
+
+
 def read_exif_location(path: Union[str, Path]):
     """
     Read the latitude and longitude from a file EXIF metadata.

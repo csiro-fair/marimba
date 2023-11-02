@@ -13,6 +13,7 @@ from ifdo.models import ImageData, ImageSetHeader, iFDO
 
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.map import make_summary_map
+from marimba.lib.gps import convert_degrees_to_gps_coordinate
 
 
 def sizeof_fmt(num: int, suffix: str = "B") -> str:
@@ -399,10 +400,12 @@ class DatasetWrapper(LogMixin):
 
             # Inject the GPS coordinates into the EXIF metadata
             if image_data.image_latitude is not None:
-                ifd_gps[piexif.GPSIFD.GPSLatitude] = image_data.image_latitude
+                d_lat, m_lat, s_lat = convert_degrees_to_gps_coordinate(image_data.image_latitude)
+                ifd_gps[piexif.GPSIFD.GPSLatitude] = ((d_lat, 1), (m_lat, 1), (s_lat, 1))
                 ifd_gps[piexif.GPSIFD.GPSLatitudeRef] = "N" if image_data.image_latitude > 0 else "S"
             if image_data.image_longitude is not None:
-                ifd_gps[piexif.GPSIFD.GPSLongitude] = image_data.image_longitude
+                d_lon, m_lon, s_lon = convert_degrees_to_gps_coordinate(image_data.image_longitude)
+                ifd_gps[piexif.GPSIFD.GPSLongitude] = ((d_lon, 1), (m_lon, 1), (s_lon, 1))
                 ifd_gps[piexif.GPSIFD.GPSLongitudeRef] = "E" if image_data.image_longitude > 0 else "W"
 
             # Write the EXIF metadata back to the file
