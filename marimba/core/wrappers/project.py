@@ -5,11 +5,12 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from ifdo.models import ImageData
 
-from marimba.utils.log import LogMixin, get_file_handler, get_logger
-from marimba.utils.prompt import prompt_schema
-from marimba.wrappers.collection import CollectionWrapper
-from marimba.wrappers.dataset import DatasetWrapper
-from marimba.wrappers.pipeline import PipelineWrapper
+from marimba.core.utils.log import LogMixin, get_file_handler, get_logger
+from marimba.core.utils.prompt import prompt_schema
+from marimba.core.wrappers.collection import CollectionWrapper
+from marimba.core.wrappers.dataset import DatasetWrapper
+from marimba.core.wrappers.pipeline import PipelineWrapper
+from marimba.core.wrappers.target import DistributionTargetWrapper
 
 logger = get_logger(__name__)
 
@@ -90,6 +91,13 @@ class ProjectWrapper(LogMixin):
 
         pass
 
+    class CompositionError(Exception):
+        """
+        Raised when a pipeline cannot compose its data.
+        """
+
+        pass
+
     class NoSuchPipelineError(Exception):
         """
         Raised when a pipeline does not exist in the project.
@@ -100,6 +108,20 @@ class ProjectWrapper(LogMixin):
     class NoSuchCollectionError(Exception):
         """
         Raised when a collection does not exist in the project.
+        """
+
+        pass
+
+    class NoSuchDatasetError(Exception):
+        """
+        Raised when a dataset does not exist in the project.
+        """
+
+        pass
+
+    class NoSuchTargetError(Exception):
+        """
+        Raised when a distribution target does not exist in the project.
         """
 
         pass
@@ -117,18 +139,21 @@ class ProjectWrapper(LogMixin):
         self._root_dir = Path(root_dir)
         self._dry_run = dry_run
 
-        self._pipeline_dir = self._root_dir / "pipelines"
-        self._collections_dir = self._root_dir / "collections"
-        self._marimba_dir = self._root_dir / ".marimba"
-
         self._pipeline_wrappers = {}  # pipeline name -> PipelineWrapper instance
         self._collection_wrappers = {}  # collection name -> CollectionWrapper instance
+        self._dataset_wrappers = {}  # dataset name -> DatasetWrapper instance
+        self._target_wrappers = {}  # target name -> DistributionTargetWrapper instance
 
         self._check_file_structure()
         self._setup_logging()
 
         self._load_pipelines()
         self._load_collections()
+        self._load_datasets()
+        self._load_targets()
+        self.logger.debug(
+            f"Loaded {len(self.pipeline_wrappers)} pipeline(s), {len(self.collection_wrappers)} collection(s), {len(self.dataset_wrappers)} dataset(s) and {len(self.target_wrappers)} distribution target(s)"
+        )
 
     @classmethod
     def create(cls, root_dir: Union[str, Path], dry_run: bool = False) -> "ProjectWrapper":
@@ -147,8 +172,6 @@ class ProjectWrapper(LogMixin):
         """
         # Define the folder structure
         root_dir = Path(root_dir)
-        pipeline_dir = root_dir / "pipelines"
-        collections_dir = root_dir / "collections"
         marimba_dir = root_dir / ".marimba"
 
         # Check that the root directory doesn't already exist
@@ -157,8 +180,6 @@ class ProjectWrapper(LogMixin):
 
         # Create the folder structure
         root_dir.mkdir(parents=True)
-        pipeline_dir.mkdir()
-        collections_dir.mkdir()
         marimba_dir.mkdir()
 
         return cls(root_dir, dry_run=dry_run)
@@ -175,10 +196,7 @@ class ProjectWrapper(LogMixin):
             if not path.is_dir():
                 raise ProjectWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
 
-        check_dir_exists(self._root_dir)
-        check_dir_exists(self._pipeline_dir)
-        check_dir_exists(self._collections_dir)
-        check_dir_exists(self._marimba_dir)
+        check_dir_exists(self.root_dir)
 
     def _setup_logging(self):
         """
@@ -199,7 +217,7 @@ class ProjectWrapper(LogMixin):
         Raises:
             PipelineWrapper.InvalidStructureError: If the pipeline directory structure is invalid.
         """
-        pipeline_dirs = filter(lambda p: p.is_dir(), self.pipeline_dir.iterdir())
+        pipeline_dirs = filter(lambda p: p.is_dir(), self.pipelines_dir.iterdir())
 
         self._pipeline_wrappers.clear()
         for pipeline_dir in pipeline_dirs:
@@ -214,12 +232,41 @@ class ProjectWrapper(LogMixin):
         Raises:
             CollectionWrapper.InvalidStructureError: If the collection directory structure is invalid.
         """
-
-        collection_dirs = filter(lambda p: p.is_dir(), self._collections_dir.iterdir())
+        collection_dirs = filter(lambda p: p.is_dir(), self.collections_dir.iterdir())
 
         self._collection_wrappers.clear()
         for collection_dir in collection_dirs:
             self._collection_wrappers[collection_dir.name] = CollectionWrapper(collection_dir)
+
+    def _load_datasets(self):
+        """
+        Load dataset instances from the `dist` directory.
+
+        Populates the `_dataset_wrappers` dictionary with `DatasetWrapper` instances.
+
+        Raises:
+            DatasetWrapper.InvalidStructureError: If the dataset directory structure is invalid.
+        """
+        dataset_dirs = filter(lambda p: p.is_dir(), self.distributions_dir.iterdir())
+
+        self._dataset_wrappers.clear()
+        for dataset_dir in dataset_dirs:
+            self._dataset_wrappers[dataset_dir.name] = DatasetWrapper(dataset_dir)
+
+    def _load_targets(self):
+        """
+        Load distribution target wrappers from the `targets` directory.
+
+        Populates the `_load_targets` dictionary with `DistributionTargetWrapper` instances.
+
+        Raises:
+            DistributionTargetWrapper.InvalidConfigError: If the distribution target configuration file is invalid.
+        """
+        target_config_paths = filter(lambda p: p.is_file(), self.targets_dir.iterdir())
+
+        self._target_wrappers.clear()
+        for target_config_path in target_config_paths:
+            self._target_wrappers[target_config_path.stem] = DistributionTargetWrapper(target_config_path)
 
     def create_pipeline(self, name: str, url: str) -> PipelineWrapper:
         """
@@ -242,15 +289,21 @@ class ProjectWrapper(LogMixin):
         ProjectWrapper.check_name(name)
 
         # Check that a pipeline with the same name doesn't already exist
-        pipeline_dir = self._pipeline_dir / name
+        pipeline_dir = self.pipelines_dir / name
         if pipeline_dir.exists():
             raise ProjectWrapper.CreatePipelineError(f'A pipeline with the name "{name}" already exists.')
+
+        # Show warning if there are already collections in the project
+        if len(self.collection_wrappers) > 0:
+            self.logger.warning("Creating a new pipeline in a project with existing collections.")
 
         # Create the pipeline directory
         pipeline_wrapper = PipelineWrapper.create(pipeline_dir, url, dry_run=self.dry_run)
 
         # Add the pipeline to the project
         self._pipeline_wrappers[name] = pipeline_wrapper
+
+        self.logger.debug(f'Created pipeline "{name}" successfully')
 
         return pipeline_wrapper
 
@@ -283,10 +336,12 @@ class ProjectWrapper(LogMixin):
 
         # Create the pipeline data directories
         for pipeline_name in self._pipeline_wrappers:
-            collection_wrapper.get_pipeline_data_dir(pipeline_name).mkdir()
+            collection_wrapper.create_pipeline_data_dir(pipeline_name)
 
         # Add the collection to the project
         self._collection_wrappers[name] = collection_wrapper
+
+        self.logger.debug(f'Created collection "{name}" successfully')
 
         return collection_wrapper
 
@@ -344,6 +399,9 @@ class ProjectWrapper(LogMixin):
                 raise ProjectWrapper.RunCommandError(f'Command "{command_name}" does not exist for pipeline "{run_pipeline_name}".')
 
         # Invoke the command for each pipeline and collection
+        self.logger.debug(
+            f'Running command "{command_name}" across pipeline(s) {", ".join(pipeline_to_run.keys())} and collection(s) {", ".join(collection_wrappers_to_run.keys())} with kwargs {merged_kwargs}'
+        )
         results_by_collection = {}
         for run_collection_name, run_collection_wrapper in collection_wrappers_to_run.items():
             results_by_pipeline = {}
@@ -376,6 +434,7 @@ class ProjectWrapper(LogMixin):
 
         Raises:
             ProjectWrapper.NoSuchCollectionError: If a collection does not exist in the project.
+            ProjectWrapper.CompositionError: If a pipeline cannot compose its data.
         """
         merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
 
@@ -390,6 +449,7 @@ class ProjectWrapper(LogMixin):
         # Load the collection configs
         collection_configs = [collection_wrapper.load_config() for collection_wrapper in collection_wrappers]
 
+        self.logger.debug(f'Composing dataset for collections {", ".join(collection_names)} with kwargs {merged_kwargs}')
         dataset_mapping = {}
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
             # Get the pipeline instance
@@ -399,19 +459,24 @@ class ProjectWrapper(LogMixin):
             collection_data_dirs = [collection_wrapper.get_pipeline_data_dir(pipeline_name) for collection_wrapper in collection_wrappers]
 
             # Compose the pipeline data mapping
-            pipeline_data_mapping = pipeline.run_compose(collection_data_dirs, collection_configs, **merged_kwargs)
+            try:
+                pipeline_data_mapping = pipeline.run_compose(collection_data_dirs, collection_configs, **merged_kwargs)
+            except Exception as e:
+                raise ProjectWrapper.CompositionError(f'Pipeline "{pipeline_name}" failed to compose its data:\n{e}') from e
 
             # Add the pipeline data mapping to the dataset mapping
             dataset_mapping[pipeline_name] = pipeline_data_mapping
 
         return dataset_mapping
 
-    def package(self, name: str, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]], copy: bool = True) -> DatasetWrapper:
+    def create_dataset(
+        self, dataset_name: str, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]], copy: bool = True
+    ) -> DatasetWrapper:
         """
         Create a Marimba dataset from a dataset mapping.
 
         Args:
-            name: The name of the dataset.
+            dataset_name: The name of the dataset.
             dataset_mapping: The dataset mapping to package.
             copy: Whether to copy the files (True) or move them (False).
 
@@ -421,19 +486,93 @@ class ProjectWrapper(LogMixin):
         Raises:
             ProjectWrapper.NameError: If the name is invalid.
             FileExistsError: If the dataset root directory already exists.
-            DatasetWrapper.InvalidPathMappingError: If the path mapping is invalid.
+            DatasetWrapper.InvalidDatasetMappingError: If the dataset mapping is invalid.
+            DatasetWrapper.ManifestError: If the dataset is inconsistent with its manifest.
         """
+        self.logger.debug(f'Packaging dataset "{dataset_name}"')
+
         # Check the name is valid
-        ProjectWrapper.check_name(name)
+        ProjectWrapper.check_name(dataset_name)
 
         # Create the dataset
-        dataset_root_dir = self.distribution_dir / name
+        dataset_root_dir = self.distributions_dir / dataset_name
         dataset_wrapper = DatasetWrapper.create(dataset_root_dir, dry_run=self.dry_run)
 
         # Populate it
-        dataset_wrapper.populate(name, dataset_mapping, copy=copy)
+        dataset_wrapper.populate(
+            dataset_name, dataset_mapping, self.log_path, map(lambda pw: pw.log_path, self.pipeline_wrappers.values()), copy=copy
+        )
+
+        # Validate it
+        dataset_wrapper.validate()
+
+        self._dataset_wrappers[dataset_name] = dataset_wrapper
 
         return dataset_wrapper
+
+    def create_target(self, target_name: str, target_type: str, target_config: dict) -> DistributionTargetWrapper:
+        """
+        Create a Marimba distribution target.
+
+        Args:
+            target_name: The name of the distribution target.
+            target_type: The type of distribution target to create. See `DistributionTargetWrapper.CLASS_MAP` for valid types.
+            target_config: The configuration for the distribution target.
+
+        Returns:
+            A distribution target wrapper instance for the created target.
+
+        Raises:
+            ProjectWrapper.NameError: If the name is invalid.
+            FileExistsError: If the target already exists.
+        """
+        self.logger.debug(f'Creating distribution target "{target_name}"')
+
+        # Check the name is valid
+        ProjectWrapper.check_name(target_name)
+
+        # Create the target
+        target_config_path = self.targets_dir / f"{target_name}.yml"
+        target_wrapper = DistributionTargetWrapper.create(target_config_path, target_type, target_config)
+
+        self._target_wrappers[target_name] = target_wrapper
+
+        return target_wrapper
+
+    def distribute(self, dataset_name: str, target_name: str):
+        """
+        Distribute a dataset to a distribution target.
+
+        Args:
+            dataset_name: The name of the dataset to distribute.
+            target_name: The name of the distribution target to distribute to.
+
+        Raises:
+            ProjectWrapper.NoSuchDatasetError: If the dataset does not exist in the project.
+            ProjectWrapper.NoSuchTargetError: If the distribution target does not exist in the project.
+            DatasetWrapper.ManifestError: If the dataset is inconsistent with its manifest.
+            DistributionTargetBase.DistributionError: If the dataset cannot be distributed.
+        """
+        self.logger.debug(f'Distributing dataset "{dataset_name}" to target "{target_name}"')
+
+        # Get the dataset wrapper
+        dataset_wrapper = self.dataset_wrappers.get(dataset_name, None)
+        if dataset_wrapper is None:
+            raise ProjectWrapper.NoSuchDatasetError(dataset_name)
+
+        # Validate the dataset
+        dataset_wrapper.validate()
+
+        # Get the distribution target wrapper
+        target_wrapper = self.target_wrappers.get(target_name, None)
+        if target_wrapper is None:
+            raise ProjectWrapper.NoSuchTargetError(target_name)
+
+        # Get the distribution target instance
+        distribution_target = target_wrapper.get_instance()
+
+        # Distribute the dataset
+        distribution_target.distribute(dataset_wrapper)
 
     def run_import(
         self, collection_name: str, source_paths: Iterable[Union[str, Path]], extra_args: Optional[List[str]] = None, **kwargs: dict
@@ -462,6 +601,8 @@ class ProjectWrapper(LogMixin):
             raise ProjectWrapper.NoSuchCollectionError(collection_name)
 
         # Import each pipeline
+        pretty_paths = ", ".join(list(map(lambda p: str(p.resolve().absolute()), source_paths)))
+        self.logger.debug(f'Running import for collection "{collection_name}" from source path(s) {pretty_paths} with kwargs {merged_kwargs}')
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
             # Get the pipeline instance
             pipeline = pipeline_wrapper.get_instance()
@@ -505,6 +646,8 @@ class ProjectWrapper(LogMixin):
         # Use the last collection if no parent is specified
         if parent_collection_name is None:
             parent_collection_name = get_last_collection_name()  # may be None
+            if parent_collection_name is not None:
+                self.logger.info(f'Using last collection "{parent_collection_name}" as parent')
 
         # Update the schema with the parent collection
         if parent_collection_name is not None:
@@ -515,9 +658,11 @@ class ProjectWrapper(LogMixin):
 
             parent_collection_config = parent_collection_wrapper.load_config()
             resolved_collection_schema.update(parent_collection_config)
+            self.logger.debug(f'Using parent collection "{parent_collection_name}" with config: {parent_collection_config}')
 
         # Prompt from the resolved schema
         collection_config = prompt_schema(resolved_collection_schema)
+        self.logger.debug(f"Prompted collection config: {collection_config}")
 
         return collection_config
 
@@ -560,6 +705,20 @@ class ProjectWrapper(LogMixin):
         return self._collection_wrappers
 
     @property
+    def dataset_wrappers(self) -> Dict[str, DatasetWrapper]:
+        """
+        The loaded dataset wrappers in the project.
+        """
+        return self._dataset_wrappers
+
+    @property
+    def target_wrappers(self) -> Dict[str, DistributionTargetWrapper]:
+        """
+        The loaded distribution target wrappers in the project.
+        """
+        return self._target_wrappers
+
+    @property
     def root_dir(self) -> Path:
         """
         The root directory of the project.
@@ -567,41 +726,63 @@ class ProjectWrapper(LogMixin):
         return self._root_dir
 
     @property
-    def pipeline_dir(self) -> Path:
+    def pipelines_dir(self) -> Path:
         """
         The pipelines directory of the project.
         """
-        return self._pipeline_dir
+        pipelines_dir = self.root_dir / "pipelines"
+        pipelines_dir.mkdir(exist_ok=True)
+        return pipelines_dir
 
     @property
     def collections_dir(self) -> Path:
         """
         The collections directory of the project.
         """
-        return self._collections_dir
+        collections_dir = self.root_dir / "collections"
+        collections_dir.mkdir(exist_ok=True)
+        return collections_dir
 
     @property
-    def distribution_dir(self) -> Path:
+    def distributions_dir(self) -> Path:
         """
         The path to the distribution directory. Lazy-created on first access.
         """
-        distribution_dir = self._root_dir / "dist"
-        distribution_dir.mkdir(exist_ok=True)
-        return distribution_dir
+        distributions_dir = self.root_dir / "dist"
+        distributions_dir.mkdir(exist_ok=True)
+        return distributions_dir
 
     @property
     def marimba_dir(self) -> Path:
         """
         The Marimba directory of the project.
         """
-        return self._marimba_dir
+        marimba_dir = self.root_dir / ".marimba"
+        marimba_dir.mkdir(exist_ok=True)
+        return marimba_dir
+
+    @property
+    def targets_dir(self) -> Path:
+        """
+        The distribution targets directory of the project.
+        """
+        targets_dir = self.root_dir / "targets"
+        targets_dir.mkdir(exist_ok=True)
+        return targets_dir
+
+    @property
+    def log_path(self) -> Path:
+        """
+        The path to the project log file.
+        """
+        return self.root_dir / f"{self.name}.log"
 
     @property
     def name(self) -> str:
         """
         The name of the project.
         """
-        return self._root_dir.name
+        return self.root_dir.name
 
     @property
     def dry_run(self) -> bool:
@@ -615,11 +796,14 @@ class ProjectWrapper(LogMixin):
         """
         Check that a name is valid.
 
+        Valid names include only alphanumeric, underscore and dash characters.
+
         Args:
             name: The name to check.
 
         Raises:
             ProjectWrapper.NameError: If the name is invalid.
         """
-        if not name.isidentifier():
-            raise ProjectWrapper.NameError(name)
+        for char in name:
+            if not (char.isalnum() or char in ("_", "-")):
+                raise ProjectWrapper.NameError(name)

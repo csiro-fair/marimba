@@ -8,8 +8,8 @@ from typing import Union
 from git import Repo
 
 from marimba.core.pipeline import BasePipeline
-from marimba.utils.config import load_config, save_config
-from marimba.utils.log import LogMixin, get_file_handler
+from marimba.core.utils.config import load_config, save_config
+from marimba.core.utils.log import LogMixin, get_file_handler
 
 
 class PipelineWrapper(LogMixin):
@@ -70,6 +70,20 @@ class PipelineWrapper(LogMixin):
         return self.repo_dir / "requirements.txt"
 
     @property
+    def log_path(self) -> Path:
+        """
+        The path to the project log file.
+        """
+        return self._root_dir / f"{self.name}.log"
+
+    @property
+    def name(self) -> str:
+        """
+        The name of the pipeline.
+        """
+        return self.root_dir.name
+
+    @property
     def dry_run(self) -> bool:
         """
         Whether the pipeline should run in dry-run mode.
@@ -101,7 +115,7 @@ class PipelineWrapper(LogMixin):
         Set up logging. Create file handler for this instance that writes to `pipeline.log`.
         """
         # Create a file handler for this instance
-        self._file_handler = get_file_handler(self.root_dir, "pipeline", False, level=logging.DEBUG)
+        self._file_handler = get_file_handler(self.root_dir, self.name, False, level=logging.DEBUG)
 
         # Add the file handler to the logger
         self.logger.addHandler(self._file_handler)

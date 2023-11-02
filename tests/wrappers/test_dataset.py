@@ -2,7 +2,7 @@ from pathlib import Path
 from shutil import rmtree
 from unittest import TestCase, mock
 
-from marimba.wrappers.dataset import DatasetWrapper
+from marimba.core.wrappers.dataset import DatasetWrapper
 
 
 class TestDatasetWrapper(TestCase):

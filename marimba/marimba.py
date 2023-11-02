@@ -8,10 +8,12 @@ from typing import List, Optional
 import typer
 from rich import print
 
-from marimba.commands import new
-from marimba.utils.log import LogLevel, get_logger, get_rich_handler
-from marimba.utils.rich import MARIMBA, error_panel, success_panel
-from marimba.wrappers.project import ProjectWrapper
+from marimba.core.commands import new
+from marimba.core.distribution.bases import DistributionTargetBase
+from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
+from marimba.core.utils.rich import MARIMBA, error_panel, success_panel
+from marimba.core.wrappers.dataset import DatasetWrapper
+from marimba.core.wrappers.project import ProjectWrapper
 
 __author__ = "Marimba Development Team"
 __copyright__ = "Copyright 2023, CSIRO"
@@ -37,6 +39,7 @@ marimba = typer.Typer(
         A Python framework for structuring, managing, processing and FAIR-ising scientific marine image datasets.""",
     short_help="Marimba",
     no_args_is_help=True,
+    pretty_exceptions_show_locals=False,
 )
 
 marimba.add_typer(new.app, name="new")
@@ -65,7 +68,7 @@ def import_command(
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
     overwrite: bool = typer.Option(False, help="Overwrite an existing collection with the same name."),
-    extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+    extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
@@ -105,27 +108,6 @@ def import_command(
     print(success_panel(f"Imported data to collection {collection_name} from source paths:\n{pretty_source_paths}"))
 
 
-@marimba.command("metadata")
-def metadata_command(
-    pipeline_name: str = typer.Argument(None, help="Marimba pipeline name for targeted processing."),
-    collection_name: str = typer.Argument(None, help="Marimba collection name for targeted processing."),
-    project_dir: Optional[Path] = typer.Option(
-        None,
-        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
-    ),
-    extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
-    dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-):
-    """
-    Process metadata including merging nav data files, writing metadata into image EXIF tags, and writing iFDO files.
-    """
-    project_dir = new.find_project_dir_or_exit(project_dir)
-    project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
-    get_rich_handler().set_dry_run(dry_run)
-
-    project_wrapper.run_command("run_metadata", pipeline_name, collection_name, extra)
-
-
 @marimba.command("package")
 def package_command(
     dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
@@ -156,7 +138,11 @@ def package_command(
         dataset_mapping = project_wrapper.compose(collection_names, extra)
 
         # Package it
-        dataset_wrapper = project_wrapper.package(dataset_name, dataset_mapping, copy=copy)
+        dataset_wrapper = project_wrapper.create_dataset(dataset_name, dataset_mapping, copy=copy)
+    except ProjectWrapper.CompositionError as e:
+        logger.error(e)
+        print(error_panel(str(e)))
+        raise typer.Exit()
     except ProjectWrapper.NoSuchPipelineError as e:
         error_message = f"No such pipeline: {e}"
         logger.error(error_message)
@@ -164,6 +150,11 @@ def package_command(
         raise typer.Exit()
     except ProjectWrapper.NoSuchCollectionError as e:
         error_message = f"No such collection: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+    except DatasetWrapper.ManifestError as e:
+        error_message = f"Dataset is inconsistent with manifest at {e}"
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()
@@ -182,13 +173,13 @@ def package_command(
 
 @marimba.command("process")
 def process_command(
-    pipeline_name: str = typer.Argument(None, help="Marimba pipeline name for targeted processing."),
-    collection_name: str = typer.Argument(None, help="Marimba collection name for targeted processing."),
+    pipeline_name: Optional[str] = typer.Option(None, help="Marimba pipeline name for targeted processing."),
+    collection_name: Optional[str] = typer.Option(None, help="Marimba collection name for targeted processing."),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
-    extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+    extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
@@ -201,25 +192,47 @@ def process_command(
     project_wrapper.run_command("run_process", pipeline_name, collection_name, extra)
 
 
-@marimba.command("rename")
-def rename_command(
-    pipeline_name: str = typer.Argument(None, help="Marimba pipeline name for targeted processing."),
-    collection_name: str = typer.Argument(None, help="Marimba collection name for targeted processing."),
+@marimba.command("distribute")
+def distribute_command(
+    dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
+    target_name: str = typer.Argument(..., help="Marimba distribution target name."),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
-    extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
 ):
     """
-    Rename files based on the pipeline specification.
+    Distribute a Marimba dataset.
     """
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
     get_rich_handler().set_dry_run(dry_run)
 
-    project_wrapper.run_command("run_rename", pipeline_name, collection_name, extra)
+    try:
+        project_wrapper.distribute(dataset_name, target_name)
+    except ProjectWrapper.NoSuchDatasetError as e:
+        error_message = f"No such dataset: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+    except ProjectWrapper.NoSuchTargetError as e:
+        error_message = f"No such target: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+    except DatasetWrapper.ManifestError as e:
+        error_message = f"Dataset is inconsistent with manifest at {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+    except DistributionTargetBase.DistributionError as e:
+        error_message = f"Could not distribute dataset: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+
+    print(success_panel(f"Successfully distributed dataset {dataset_name}"))
 
 
 @marimba.command("update")

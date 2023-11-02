@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ifdo import iFDO
 
-from marimba.utils.log import LogMixin
-from marimba.utils.rich import format_command, format_entity
+from marimba.core.utils.log import LogMixin
+from marimba.core.utils.rich import format_command, format_entity
 
 
 class BasePipeline(ABC, LogMixin):
@@ -95,22 +95,6 @@ class BasePipeline(ABC, LogMixin):
         )
         return self._import(data_dir, source_paths, config, **kwargs)
 
-    def run_rename(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
-        """
-        Public interface for the rename command. Delegate to the private implementation method `_rename`.
-
-        Do not override this method. Override `_rename` instead.
-
-        Args:
-            data_dir: The data directory.
-            config: The collection configuration.
-            kwargs: Additional keyword arguments.
-        """
-        self.logger.debug(
-            f"Running {format_command('rename')} command for pipeline {format_entity(self.class_name)} with args: {data_dir=}, {config=}, {kwargs=}"
-        )
-        return self._rename(data_dir, config, **kwargs)
-
     def run_process(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
         """
         Public interface for the process command. Delegate to the private implementation method `_process`.
@@ -126,22 +110,6 @@ class BasePipeline(ABC, LogMixin):
             f"Running {format_command('process')} command for pipeline {format_entity(self.class_name)} with args: {data_dir=}, {config=}, {kwargs=}"
         )
         return self._process(data_dir, config, **kwargs)
-
-    def run_metadata(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
-        """
-        Public interface for the metadata command. Delegate to the private implementation method `_metadata`.
-
-        Do not override this method. Override `_metadata` instead.
-
-        Args:
-            data_dir: The data directory.
-            config: The collection configuration.
-            kwargs: Additional keyword arguments.
-        """
-        self.logger.debug(
-            f"Running {format_command('metadata')} command for pipeline {format_entity(self.class_name)} with args: {data_dir=}, {config=}, {kwargs=}"
-        )
-        return self._metadata(data_dir, config, **kwargs)
 
     def run_compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Tuple[iFDO, Dict[Path, Path]]:
         """
@@ -170,14 +138,6 @@ class BasePipeline(ABC, LogMixin):
         """
         self.logger.warning(f"There is no Marimba {format_command('import')} command implemented for pipeline {format_entity(self.class_name)}")
 
-    def _rename(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
-        """
-        `run_rename` implementation; override this.
-
-        TODO: Add docs on how to implement this method.
-        """
-        self.logger.warning(f"There is no Marimba {format_command('rename')} command implemented for pipeline {format_entity(self.class_name)}")
-
     def _process(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
         """
         `run_process` implementation; override this to implement the process command.
@@ -185,14 +145,6 @@ class BasePipeline(ABC, LogMixin):
         TODO: Add docs on how to implement this method.
         """
         self.logger.warning(f"There is no Marimba {format_command('process')} command implemented for pipeline {format_entity(self.class_name)}")
-
-    def _metadata(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
-        """
-        `run_metadata` implementation; override this to implement the metadata command.
-
-        TODO: Add docs on how to implement this method.
-        """
-        self.logger.warning(f"There is no Marimba {format_command('init')} command implemented for pipeline {format_entity(self.class_name)}")
 
     @abstractmethod
     def _compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Tuple[iFDO, Dict[Path, Path]]:
