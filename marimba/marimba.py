@@ -173,8 +173,8 @@ def package_command(
 
 @marimba.command("process")
 def process_command(
-    pipeline_name: str = typer.Argument(None, help="Marimba pipeline name for targeted processing."),
-    collection_name: str = typer.Argument(None, help="Marimba collection name for targeted processing."),
+    pipeline_name: Optional[str] = typer.Option(None, help="Marimba pipeline name for targeted processing."),
+    collection_name: Optional[str] = typer.Option(None, help="Marimba collection name for targeted processing."),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
