@@ -34,10 +34,10 @@ __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
 
 marimba = typer.Typer(
-    name="Marimba - Marine Imagery Batch Actions",
-    help="""Marimba - Marine Imagery Batch Actions\n
-        A Python CLI for batch processing, transforming and FAIR-ising large volumes of marine imagery.""",
-    short_help="Marimba - Marine Imagery Batch Actions",
+    name="Marimba",
+    help="""Marimba\n
+        A Python framework for structuring, managing, processing and FAIR-ising scientific marine image datasets.""",
+    short_help="Marimba",
     no_args_is_help=True,
     pretty_exceptions_show_locals=False,
 )
