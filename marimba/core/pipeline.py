@@ -2,8 +2,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from ifdo import iFDO
-
+from marimba.core.metadata import BaseMetadata
 from marimba.core.utils.log import LogMixin
 from marimba.core.utils.rich import format_command, format_entity
 
@@ -111,11 +110,9 @@ class BasePipeline(ABC, LogMixin):
         )
         return self._process(data_dir, config, **kwargs)
 
-    def run_compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Tuple[iFDO, Dict[Path, Path]]:
+    def run_compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Dict[Path, Tuple[Path, List[BaseMetadata]]]:
         """
         Compose a dataset from the given data directories and their corresponding collection configurations.
-
-        Return an [iFDO](https://marine-imaging.com/fair/ifdos/iFDO-overview/) instance that represents the composed dataset and a dictionary that maps files within the provided data directories to relative paths for the resulting distributable dataset.
 
         Args:
             data_dirs: The data directories to compose.
@@ -123,7 +120,7 @@ class BasePipeline(ABC, LogMixin):
             kwargs: Additional keyword arguments.
 
         Returns:
-            The iFDO and path mapping dict.
+            The pipeline data mapping.
         """
         self.logger.debug(
             f"Running {format_command('compose')} command for pipeline {format_entity(self.class_name)} with args: {data_dirs=}, {configs=}, {kwargs=}"
@@ -147,7 +144,7 @@ class BasePipeline(ABC, LogMixin):
         self.logger.warning(f"There is no Marimba {format_command('process')} command implemented for pipeline {format_entity(self.class_name)}")
 
     @abstractmethod
-    def _compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Tuple[iFDO, Dict[Path, Path]]:
+    def _compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Dict[Path, Tuple[Path, List[BaseMetadata]]]:
         """
         `run_compose` implementation; override this.
 

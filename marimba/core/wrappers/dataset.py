@@ -12,6 +12,7 @@ import piexif
 from ifdo.models import ImageData, ImageSetHeader, iFDO
 from rich.progress import Progress, SpinnerColumn
 
+from marimba.core.metadata import BaseMetadata
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.map import make_summary_map
 from marimba.core.utils.rich import get_default_columns
@@ -423,7 +424,7 @@ class DatasetWrapper(LogMixin):
     def populate(
         self,
         dataset_name: str,
-        dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]],
+        dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[BaseMetadata]]]],
         project_log_path: Path,
         pipeline_log_paths: Iterable[Path],
         copy: bool = True,
@@ -433,7 +434,7 @@ class DatasetWrapper(LogMixin):
 
         Args:
             dataset_name: The name of the dataset.
-            dataset_mapping: A dict mapping pipeline name -> { output file path -> (input file path, image data) }
+            dataset_mapping: A dict mapping pipeline name -> { output file path -> (input file path, image metadata) }
             project_log_path: The path to the project log file.
             pipeline_log_paths: The paths to the pipeline log files.
             copy: Whether to copy (True) or move (False) the files.
@@ -441,6 +442,8 @@ class DatasetWrapper(LogMixin):
         Raises:
             DatasetWrapper.InvalidPathMappingError: If the path mapping is invalid.
         """
+        # TODO: Fix this function to work with BaseMetadata instead of assuming iFDO ImageData
+
         # Verify that the path mapping is valid
         DatasetWrapper.check_dataset_mapping(dataset_mapping)
         self.logger.debug("Dataset mapping is valid.")
@@ -626,7 +629,7 @@ class DatasetWrapper(LogMixin):
         return self._dry_run
 
     @staticmethod
-    def check_dataset_mapping(dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]]):
+    def check_dataset_mapping(dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[BaseMetadata]]]]):
         """
         Verify that the given path mapping is valid.
 

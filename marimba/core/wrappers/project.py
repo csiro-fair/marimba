@@ -3,9 +3,9 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
-from ifdo.models import ImageData
 from rich.progress import Progress, SpinnerColumn
 
+from marimba.core.metadata import BaseMetadata
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.prompt import prompt_schema
 from marimba.core.utils.rich import get_default_columns
@@ -430,7 +430,7 @@ class ProjectWrapper(LogMixin):
 
     def compose(
         self, collection_names: List[str], extra_args: Optional[List[str]] = None, **kwargs: dict
-    ) -> Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]]:
+    ) -> Dict[str, Dict[Path, Tuple[Path, List[BaseMetadata]]]]:
         """
         Compose a dataset for the given collections across all pipelines.
 
@@ -440,7 +440,7 @@ class ProjectWrapper(LogMixin):
             kwargs: Any keyword arguments to pass to the command.
 
         Returns:
-            A dict mapping pipeline name -> { output file path -> (input file path, image data) }
+            A dict mapping pipeline name -> { output file path -> (input file path, image metadata) }
 
         Raises:
             ProjectWrapper.NoSuchCollectionError: If a collection does not exist in the project.
@@ -485,7 +485,7 @@ class ProjectWrapper(LogMixin):
         return dataset_mapping
 
     def create_dataset(
-        self, dataset_name: str, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]], copy: bool = True
+        self, dataset_name: str, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[BaseMetadata]]]], copy: bool = True
     ) -> DatasetWrapper:
         """
         Create a Marimba dataset from a dataset mapping.
