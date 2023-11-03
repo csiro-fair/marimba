@@ -8,7 +8,7 @@ from typing import List, Optional
 import typer
 from rich import print
 
-from marimba.core.commands import new
+from marimba.core.cli import new
 from marimba.core.distribution.bases import DistributionTargetBase
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
 from marimba.core.utils.rich import MARIMBA, error_panel, success_panel
