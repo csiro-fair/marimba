@@ -1,0 +1,54 @@
+site_name: "Marimba: Marine Imagery Batch Actions"
+repo_url: https://bitbucket.csiro.au/projects/BIAA/repos/marimba
+site_description: A Python CLI for batch processing, transforming and FAIR-ising large volumes of marine imagery.
+site_author: Chris Jackett
+nav:
+  - 'Intro': 'index.md'
+  - 'Hackathon': 'hackathon.md'
+  - 'Workflows':
+    - 'BRUVS SD Cards': 'sdcardworkflow.md'
+  - 'API Reference':
+    - 'Core': 'api/core.md'
+    - 'Utilities': 'api/utils.md'
+markdown_extensions:
+  - meta
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.emoji
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.snippets
+  - footnotes
+  - attr_list
+  - md_in_html
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            heading_level: 2
+            show_root_toc_entry: false
+            show_submodules: true
+            merge_init_into_class: true
+            show_signature_annotations: false
+theme:
+  name: material
+  logo: img/logo.png
+  palette:
+    - scheme: slate
+      media: "(prefers-color-scheme: dark)"
+      primary: black
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+    - scheme: light
+      media: "(prefers-color-scheme: light)"
+      primary: blue grey
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+watch:
+  - marimba/
+  - 'README.md'
