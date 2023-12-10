@@ -110,6 +110,22 @@ class BasePipeline(ABC, LogMixin):
             f"Running {format_command('process')} command for pipeline {format_entity(self.class_name)} with args: {data_dir=}, {config=}, {kwargs=}"
         )
         return self._process(data_dir, config, **kwargs)
+    
+    def run_prepare(self, source_dir: Path,destination_dir: Path, config: Dict[str, Any], task,**kwargs: dict):
+        """
+        Public interface for the prepare command. Delegate to the private implementation method `_prepare`.
+
+        Do not override this method. Override `_prepare` instead.
+
+        Args:
+            data_dir: The data directory.
+            config: The collection configuration.
+            kwargs: Additional keyword arguments.
+        """
+        self.logger.debug(
+            f"Running {format_command('preporcess')} task:{task} command for pipeline {format_entity(self.class_name)} with args: {source_dir=}, {destination_dir=},{config=}, {kwargs=}"
+        )
+        return self._prepare(source_dir,destination_dir,config,task, **kwargs)
 
     def run_compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Tuple[iFDO, Dict[Path, Path]]:
         """
@@ -145,7 +161,13 @@ class BasePipeline(ABC, LogMixin):
         TODO: Add docs on how to implement this method.
         """
         self.logger.warning(f"There is no Marimba {format_command('process')} command implemented for pipeline {format_entity(self.class_name)}")
+    def _prepare(self, source_dir: Path,destination_dir: Path, config: Dict[str, Any], task,**kwargs: dict):
+        """
+        `run_process` implementation; override this to implement the process command.
 
+        TODO: Add docs on how to implement this method.
+        """
+        self.logger.warning(f"There is no Marimba {format_command('process')} command implemented for pipeline {format_entity(self.class_name)}")
     @abstractmethod
     def _compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Tuple[iFDO, Dict[Path, Path]]:
         """

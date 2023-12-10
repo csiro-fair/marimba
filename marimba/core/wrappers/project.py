@@ -141,6 +141,7 @@ class ProjectWrapper(LogMixin):
 
         self._pipeline_wrappers = {}  # pipeline name -> PipelineWrapper instance
         self._collection_wrappers = {}  # collection name -> CollectionWrapper instance
+        self._raw_wrappers = {}  # collection name -> CollectionWrapper instance
         self._dataset_wrappers = {}  # dataset name -> DatasetWrapper instance
         self._target_wrappers = {}  # target name -> DistributionTargetWrapper instance
 
@@ -151,6 +152,7 @@ class ProjectWrapper(LogMixin):
         self._load_collections()
         self._load_datasets()
         self._load_targets()
+        self._load_raw()
         self.logger.debug(
             f"Loaded {len(self.pipeline_wrappers)} pipeline(s), {len(self.collection_wrappers)} collection(s), {len(self.dataset_wrappers)} dataset(s) and {len(self.target_wrappers)} distribution target(s)"
         )
@@ -165,7 +167,7 @@ class ProjectWrapper(LogMixin):
             dry_run: Whether to run in dry-run mode.
 
         Returns:
-            A project.
+            A project. 
 
         Raises:
             FileExistsError: If the root directory already exists.
@@ -222,6 +224,22 @@ class ProjectWrapper(LogMixin):
         self._pipeline_wrappers.clear()
         for pipeline_dir in pipeline_dirs:
             self._pipeline_wrappers[pipeline_dir.name] = PipelineWrapper(pipeline_dir, dry_run=self.dry_run)
+
+    def _load_raw(self):
+        """
+        Load raw collections instances from the `raw` directory.
+
+        Populates the `_raw_wrappers` dictionary with `CollectionWrapper` instances.
+
+        Raises:
+            CollectionWrapper.InvalidStructureError: If the collection directory structure is invalid.
+        """
+        collection_dirs = filter(lambda p: p.is_dir(), self.raw_dir.iterdir())
+
+        # self._collection_wrappers.clear()
+        # for collection_dir in collection_dirs:
+        #     self._collection_wrappers[collection_dir.name] = CollectionWrapper(collection_dir)
+
 
     def _load_collections(self):
         """
@@ -344,7 +362,45 @@ class ProjectWrapper(LogMixin):
         self.logger.debug(f'Created collection "{name}" successfully')
 
         return collection_wrapper
+    def prepare(
+        self,
+        pipeline_name: str,
+        task_name :str,
+        extra_args: Optional[List[str]] = None,
+        **kwargs: dict,  
+    )-> Dict[str, Dict[str, Any]]:
+        """
+        .
 
+        By default, this will run the command for all pipelines and collections in the project.
+        If a pipeline name is provided, it will run the command for all collections of that pipeline.
+        If a collection name is provided, it will run the command for that collection only.
+        These can be combined to run the command for a specific collection of a specific pipeline.
+
+        Args:
+            pipeline_name: The name of the pipeline to run the command for.
+            task_name: The name of the preperation task to be executed
+            extra_args: Any extra arguments to pass to the command.
+            kwargs: Any keyword arguments to pass to the command.
+
+        Returns:
+            A dictionary containing the results of the command for each collection: {collection_name: {pipeline_name: result}}.
+
+        Raises:
+            ProjectWrapper.RunCommandError: If the command cannot be run.
+        """
+        if pipeline_name is not None:
+            pipeline_wrapper = self._pipeline_wrappers.get(pipeline_name, None)
+            if pipeline_wrapper is None:
+                raise ProjectWrapper.RunCommandError(f'Pipeline "{pipeline_name}" does not exist within the project.')
+        # Call the method
+        merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
+        pipeline = pipeline_wrapper.get_instance()
+        pipeline_raw_dir = self.raw_dir / pipeline_name 
+        pipeline_collection_dir = self.collections_dir
+        config = {'Project_Name':self.name}
+        pipeline.run_prepare(pipeline_raw_dir,pipeline_collection_dir,config,task_name,**merged_kwargs)            
+        
     def run_command(
         self,
         command_name: str,
@@ -739,7 +795,8 @@ class ProjectWrapper(LogMixin):
         The root directory of the project.
         """
         return self._root_dir
-
+    
+    
     @property
     def pipelines_dir(self) -> Path:
         """
@@ -748,7 +805,14 @@ class ProjectWrapper(LogMixin):
         pipelines_dir = self.root_dir / "pipelines"
         pipelines_dir.mkdir(exist_ok=True)
         return pipelines_dir
-
+    @property
+    def import_dir(self) -> Path:
+        """
+        The collections directory of the project.
+        """
+        imports_dir = self.root_dir / "raw"
+        imports_dir.mkdir(exist_ok=True)
+        return imports_dir
     @property
     def collections_dir(self) -> Path:
         """
@@ -757,6 +821,14 @@ class ProjectWrapper(LogMixin):
         collections_dir = self.root_dir / "collections"
         collections_dir.mkdir(exist_ok=True)
         return collections_dir
+    @property
+    def raw_dir(self) -> Path:
+        """
+        The raw data directory of the project.
+        """
+        raw_dir = self.root_dir / "raw"
+        raw_dir.mkdir(exist_ok=True)
+        return raw_dir
 
     @property
     def datasets_dir(self) -> Path:

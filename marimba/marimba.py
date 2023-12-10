@@ -12,8 +12,13 @@ from marimba.core.cli import new
 from marimba.core.distribution.bases import DistributionTargetBase
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
 from marimba.core.utils.rich import MARIMBA, error_panel, success_panel
+from marimba.core.utils.file_system import list_sd_cards
 from marimba.core.wrappers.dataset import DatasetWrapper
 from marimba.core.wrappers.project import ProjectWrapper
+from marimba.core.wrappers.card import CardWrapper
+from marimba.core.wrappers.raw import RawWrapper
+from datetime import datetime, timezone, timedelta
+
 
 __author__ = "Marimba Development Team"
 __copyright__ = "Copyright 2023, CSIRO"
@@ -60,16 +65,22 @@ def global_options(
 
 @marimba.command("import")
 def import_command(
-    collection_name: str = typer.Argument(..., help="Marimba collection name for targeted processing."),
-    source_paths: List[Path] = typer.Argument(..., help="Paths to source files/directories to provide for import."),
+    pipe_line: str = typer.Argument(..., help="Marimba pipe line to be used to import the data"),
+    collection_name: str = typer.Argument(None, help="Marimba collection name for targeted processing."),
+    source_paths: List[Path] = typer.Argument(None, help="Paths to source files/directories to provide for import."),
     parent_collection_name: Optional[str] = typer.Option(None, help="Name of the parent collection. If unspecified, use the last collection."),
     project_dir: Optional[Path] = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
-    overwrite: bool = typer.Option(False, help="Overwrite an existing collection with the same name."),
-    extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+    scan_cards: bool = typer.Option(False, help="scan for SD cards with format type :exfat and less than 512Gb "),
+    copy: bool = typer.Option(True, help="copy source files"),
+    move: bool = typer.Option(False, help="move source (clean)"),
+    over_write: bool = typer.Option(False, help="Overwrite an existing collection with the same name."),
+    max_card_size:int = typer.Option(512, help="maximum card size"),
+    format_type:str = typer.Option('exfat', help="Card format type"),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+    extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
 ):
     """
     Import data in a source directory into a new or existing Marimba collection.
@@ -79,35 +90,67 @@ def import_command(
     get_rich_handler().set_dry_run(dry_run)
 
     # Get the collection (create if appropriate)
-    collection_wrapper = project_wrapper.collection_wrappers.get(collection_name, None)
-    if collection_wrapper is None:
-        try:
-            collection_config = project_wrapper.prompt_collection_config(parent_collection_name=parent_collection_name)
-            collection_wrapper = project_wrapper.create_collection(collection_name, collection_config)
-        except ProjectWrapper.NameError as e:
-            error_message = f"Invalid collection name: {e}"
+    if scan_cards and len(source_paths)==0:
+        source_paths = list_sd_cards(format_type=format_type,max_card_size=max_card_size)
+    if collection_name is None:
+        if pipe_line in project_wrapper.pipeline_wrappers.keys():
+            rawdir =project_wrapper.raw_dir / pipe_line
+            rawdir.mkdir(exist_ok=True)
+            importdate=f"{datetime.now():%Y-%m-%d}"
+            cards = map(lambda x:CardWrapper.create(x,project_wrapper.name,pipe_line,importdate,over_write),source_paths)
+            for card in cards:
+                card.import_data(project_wrapper.raw_dir / pipe_line  / 'sdcards',copy,move)
+
+    else:
+        collection_wrapper = project_wrapper.collection_wrappers.get(collection_name, None)
+        if collection_wrapper is None:
+            try:
+                collection_config = project_wrapper.prompt_collection_config(parent_collection_name=parent_collection_name)
+                collection_wrapper = project_wrapper.create_collection(collection_name, collection_config)
+            except ProjectWrapper.NameError as e:
+                error_message = f"Invalid collection name: {e}"
+                logger.error(error_message)
+                print(error_panel(error_message))
+                raise typer.Exit()
+        elif not overwrite:
+            error_message = f"Collection {collection_name} already exists, and the overwrite flag is not set."
             logger.error(error_message)
             print(error_panel(error_message))
             raise typer.Exit()
-    elif not overwrite:
-        error_message = f"Collection {collection_name} already exists, and the overwrite flag is not set."
-        logger.error(error_message)
-        print(error_panel(error_message))
-        raise typer.Exit()
 
-    # Run the import
-    try:
-        project_wrapper.run_import(collection_name, source_paths, extra_args=extra)
-    except Exception as e:
-        error_message = f"Error during import: {e}"
-        logger.error(error_message)
-        print(error_panel(error_message))
-        raise typer.Exit()
+        # Run the import
+        try:
+            project_wrapper.run_import(collection_name, source_paths, extra_args=extra)
+        except Exception as e:
+            error_message = f"Error during import: {e}"
+            logger.error(error_message)
+            print(error_panel(error_message))
+            raise typer.Exit()
 
     pretty_source_paths = "\n".join([f"  - {source_path.resolve().absolute()}" for source_path in source_paths])
     print(success_panel(f"Imported data to collection {collection_name} from source paths:\n{pretty_source_paths}"))
 
+@marimba.command('initialise')
+def initialise(
+        project_name: str = typer.Argument(..., help="Project name for meta data"),
+        pipe_line: str = typer.Argument(..., help="Marimba pipe line to be used to import the data"),
+        source_paths: List[Path] = typer.Argument(None, help="Paths to source files/directories to provide for import."),
+        scan_cards: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+        days: int = typer.Option(0, help="Add an offset to the import date e.g. +1 = to set the date to tomorrow "),
+        dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+        over_write:bool = typer.Option(False, help="Overwrite import.yaml"),
+        max_card_size:int = typer.Option(512, help="maximum card size"),
+        format_type:str = typer.Option('exfat', help="Card format type"),
+        extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+        ):
+    """
+    initialise sd cards
+    """
 
+    if scan_cards and len(source_paths)==0:
+        source_paths = list_sd_cards(format_type=format_type,max_card_size=max_card_size)
+    importdate=f"{datetime.now()+timedelta(days=days):%Y-%m-%d}"
+    cards = list(map(lambda x:CardWrapper.create(x,project_name,pipe_line,importdate,over_write),source_paths))
 @marimba.command("package")
 def package_command(
     dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
@@ -170,6 +213,27 @@ def package_command(
 
     print(success_panel(f"Created {MARIMBA} dataset {dataset_name} in {dataset_wrapper.root_dir}"))
 
+    
+
+@marimba.command("prepare")
+def prepare_command(
+    pipeline_name: Optional[str] = typer.Argument(..., help="Marimba pipeline name for targeted processing."),
+    task : Optional[str] = typer.Option('All', help="Preparation task to be executed"),
+    project_dir: Optional[Path] = typer.Option(
+        None,
+        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
+    ),
+    extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+    dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+):
+    """
+    prepare the Marimba collection based on the pipeline specification.
+    """
+    project_dir = new.find_project_dir_or_exit(project_dir)
+    project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
+    get_rich_handler().set_dry_run(dry_run)
+    project_wrapper.prepare(pipeline_name,task,extra)
+
 
 @marimba.command("process")
 def process_command(
@@ -187,9 +251,10 @@ def process_command(
     """
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
+    pipeline_raw_dir = project_wrapper.raw_dir 
     get_rich_handler().set_dry_run(dry_run)
 
-    project_wrapper.run_command("run_process", pipeline_name, collection_name, extra)
+    project_wrapper.run_command("run_process", pipeline_name,collection_name, extra)
 
 
 @marimba.command("distribute")

@@ -28,7 +28,7 @@ def create_directory_if_necessary(path: Union[str, Path]):
             logger.error(error)
 
 
-def list_sd_cards(format_type, max_card_size=512):
+def list_sd_cards(format_type='exfat', max_card_size=512):
     """
     Scan for SD cards.
 
@@ -36,10 +36,11 @@ def list_sd_cards(format_type, max_card_size=512):
         format_type : type of format on the sdcard (exfat preferred)
         max_card_size : select drives with less than the max in Gb
     """
-    result = []
+    source_paths = []
     for i in psutil.disk_partitions():
         if i.fstype.lower() == format_type:
             p = psutil.disk_usage(i.mountpoint)
             if ceil(p.total / 1000000000) <= max_card_size:
-                result.append(i.mountpmountpointoint)
-    return result
+                source_paths.append(i.mountpoint)
+    source_paths = list(map(lambda p: Path(p), source_paths))
+    return source_paths

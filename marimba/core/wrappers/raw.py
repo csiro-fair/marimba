@@ -1,12 +1,12 @@
 from pathlib import Path
 from typing import Union
-
+import doit
 from marimba.core.utils.config import load_config, save_config
 
 
-class CollectionWrapper:
+class RawWrapper:
     """
-    Collection directory wrapper.
+    Raw data directory wrapper.
     """
 
     class InvalidStructureError(Exception):
@@ -29,16 +29,16 @@ class CollectionWrapper:
         self._check_file_structure()
 
     @classmethod
-    def create(cls, root_dir: Union[str, Path], config: dict) -> "CollectionWrapper":
+    def create(cls, root_dir: Union[str, Path], config: dict) -> "RawWrapper":
         """
-        Create a new collection directory.
+        Create a new Raw directory.
 
         Args:
             root_dir: The collection root directory.
             config: The collection configuration.
 
         Returns:
-            A collection.
+            A Raw collection.
 
         Raises:
             FileExistsError: If the root directory already exists.
@@ -81,15 +81,14 @@ class CollectionWrapper:
 
         def check_dir_exists(path: Path):
             if not path.is_dir():
-                raise CollectionWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
+                raise RawWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
 
         def check_file_exists(path: Path):
             if not path.is_file():
-                raise CollectionWrapper.InvalidStructureError(f'"{path}" does not exist or is not a file.')
+                raise RawWrapper.InvalidStructureError(f'"{path}" does not exist or is not a file.')
 
         check_dir_exists(self.root_dir)
-        # ToDo needs to keep going!
-        #check_file_exists(self.config_path)
+        check_file_exists(self.config_path)
 
     def load_config(self) -> dict:
         """
@@ -102,6 +101,7 @@ class CollectionWrapper:
         Save a new collection configuration to `collection.yml` in the collection root directory.
         """
         save_config(self.config_path, config)
+
 
     def create_pipeline_data_dir(self, pipeline_name: str) -> Path:
         """
@@ -147,5 +147,5 @@ class CollectionWrapper:
         """
         pipeline_data_dir = self._get_pipeline_data_dir(pipeline_name)
         if not pipeline_data_dir.is_dir():
-            raise CollectionWrapper.NoSuchPipelineError(f'Pipeline "{pipeline_name}" does not exist.')
+            raise RawWrapper.NoSuchPipelineError(f'Pipeline "{pipeline_name}" does not exist.')
         return pipeline_data_dir
