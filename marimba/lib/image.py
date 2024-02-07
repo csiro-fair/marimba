@@ -2,7 +2,6 @@
 Image utilities. Includes transcoding, resizing, cropping, etc.
 """
 
-
 from pathlib import Path
 from shutil import copy2
 from typing import Iterable, Tuple, Union
@@ -330,3 +329,67 @@ def create_grid_image(paths: Iterable[Union[str, Path]], destination: Union[str,
 
     # Save the grid image
     grid_image.save(destination)
+
+
+def get_shannon_entropy(path: Union[str, Path]) -> float:
+    """
+    Calculates the Shannon entropy of an image file.
+
+    Args:
+        path: The path to the image file.
+
+    Returns:
+        The Shannon entropy of the image as a float value.
+    """
+    if path is None:
+        return None
+
+    # Load the image
+    path = Path(path)
+    image = Image.open(path)
+
+    # Convert to grayscale
+    grayscale_image = image.convert("L")
+
+    # Calculate the histogram
+    histogram = np.array(grayscale_image.histogram(), dtype=np.float32)
+
+    # Normalize the histogram to get probabilities
+    probabilities = histogram / histogram.sum()
+
+    # Filter out zero probabilities
+    probabilities = probabilities[probabilities > 0]
+
+    # Calculate Shannon entropy
+    entropy = -np.sum(probabilities * np.log2(probabilities))
+
+    return entropy
+
+
+def calculate_average_image_color(path: Union[str, Path]) -> list:
+    """
+    Calculates the average color of an image.
+
+    Args:
+        path: The path to the image file.
+
+    Returns:
+        A list of integers representing the average color of the image in RGB format.
+        Each element in the list corresponds to the average intensity of the Red, Green, and Blue channels, respectively.
+
+        Note: If the input image is None, None will be returned.
+    """
+    if path is None:
+        return None
+
+    # Load the image
+    path = Path(path)
+    image = Image.open(path)
+
+    # Convert the image to numpy array
+    np_image = np.array(image)
+
+    # Calculate the average color for each channel
+    average_color = np.mean(np_image, axis=(0, 1))
+
+    return list(map(int, average_color))

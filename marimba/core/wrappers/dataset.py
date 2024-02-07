@@ -372,6 +372,8 @@ class DatasetWrapper(LogMixin):
                 self.logger.warning(f"Failed to load EXIF metadata from {path}: {e}")
                 continue
 
+            # TODO: Add altitude (could be our depth)...
+
             # Overwrite the EXIF metadata with iFDO metadata
             ifd_0th = exif_dict["0th"]
             ifd_exif = exif_dict["Exif"]
