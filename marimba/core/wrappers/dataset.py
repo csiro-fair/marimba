@@ -1,7 +1,9 @@
 import hashlib
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from fractions import Fraction
 from pathlib import Path
 from shutil import copy2, copytree
 from textwrap import dedent
@@ -382,8 +384,6 @@ class DatasetWrapper(LogMixin):
                 self.logger.warning(f"Failed to load EXIF metadata from {path}: {e}")
                 continue
 
-            # TODO: Add altitude (could be our depth)...
-
             # Overwrite the EXIF metadata with iFDO metadata
             ifd_0th = exif_dict["0th"]
             ifd_exif = exif_dict["Exif"]
@@ -423,6 +423,20 @@ class DatasetWrapper(LogMixin):
                 d_lon, m_lon, s_lon = convert_degrees_to_gps_coordinate(image_data.image_longitude)
                 ifd_gps[piexif.GPSIFD.GPSLongitude] = ((d_lon, 1), (m_lon, 1), (s_lon, 1))
                 ifd_gps[piexif.GPSIFD.GPSLongitudeRef] = "E" if image_data.image_longitude > 0 else "W"
+            if image_data.image_altitude is not None:
+                # Convert the altitude to a rational number (numerator, denominator)
+                altitude_fraction = Fraction(abs(float(image_data.image_altitude))).limit_denominator()
+                altitude_rational = (altitude_fraction.numerator, altitude_fraction.denominator)
+                # Assign the rational number to GPSAltitude
+                ifd_gps[piexif.GPSIFD.GPSAltitude] = altitude_rational
+                # Set GPSAltitudeRef based on the sign of the altitude
+                ifd_gps[piexif.GPSIFD.GPSAltitudeRef] = 0 if image_data.image_altitude >= 0 else 1
+
+            # Add the iFDO to the EXIF UserComment field
+            image_data_dict = image_data.to_dict()
+            image_data_json = json.dumps(image_data_dict)
+            image_data_bytes = image_data_json.encode("utf-8")
+            ifd_exif[piexif.ExifIFD.UserComment] = image_data_bytes
 
             # Write the EXIF metadata back to the file
             try:
@@ -492,27 +506,8 @@ class DatasetWrapper(LogMixin):
                     # Update the task
                     progress.advance(tasks_by_pipeline_name[pipeline_name])
 
+        # Apply iFDO EXIF metadata
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Generating iFDO", total=1)
-
-            # Generate and write the iFDO
-            ifdo = iFDO(
-                image_set_header=ImageSetHeader(
-                    image_set_name=dataset_name,
-                    image_set_uuid=str(uuid4()),
-                    image_set_handle="",  # TODO: Populate this from the distribution target URL
-                ),
-                image_set_items=image_set_items,
-            )
-            if not self.dry_run:
-                ifdo.save(self.metadata_path)
-            self.logger.debug(f"Generated iFDO at {self.metadata_path} with {len(ifdo.image_set_items)} image set items")
-
-            # Update the task
-            progress.advance(task)
-
-        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            # Apply iFDO EXIF metadata
             task = progress.add_task("[green]Applying iFDO EXIF tags", total=len(dataset_mapping))
             metadata_mapping = {}
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
@@ -528,8 +523,26 @@ class DatasetWrapper(LogMixin):
                 self._apply_ifdo_exif_tags(metadata_mapping)
             self.logger.debug(f"Applied iFDO EXIF tags to {len(metadata_mapping)} files")
 
+        # Generate and write the iFDO
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            # Update the dataset summary
+            task = progress.add_task("[green]Generating iFDO", total=1)
+            ifdo = iFDO(
+                image_set_header=ImageSetHeader(
+                    image_set_name=dataset_name,
+                    image_set_uuid=str(uuid4()),
+                    image_set_handle="",  # TODO: Populate this from the distribution target URL
+                ),
+                image_set_items=image_set_items,
+            )
+            if not self.dry_run:
+                ifdo.save(self.metadata_path)
+            self.logger.debug(f"Generated iFDO at {self.metadata_path} with {len(ifdo.image_set_items)} image set items")
+
+            # Update the task
+            progress.advance(task)
+
+        # Update the dataset summary
+        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             task = progress.add_task("[green]Generating dataset summary", total=1)
             summary = self.summarize()
             if not self.dry_run:
@@ -555,8 +568,8 @@ class DatasetWrapper(LogMixin):
             # Update the task
             progress.advance(task)
 
+        # Copy in the project and pipeline logs
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            # Copy in the project and pipeline logs
             task = progress.add_task("[green]Copying logs", total=1)
             if not self.dry_run:
                 copy2(project_log_path, self.logs_dir)
@@ -567,8 +580,8 @@ class DatasetWrapper(LogMixin):
             # Update the task
             progress.advance(task)
 
+        # Copy in the pipelines
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            # Copy in the pipelines
             task = progress.add_task("[green]Copying pipelines", total=1)
             if not self.dry_run:
                 copytree(project_pipelines_dir, self.pipelines_dir, dirs_exist_ok=True)
@@ -577,8 +590,8 @@ class DatasetWrapper(LogMixin):
             # Update the task
             progress.advance(task)
 
+        # Generate and save the manifest
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            # Generate and save the manifest
             manifest = Manifest.from_dir(self.root_dir, exclude_paths=[self.manifest_path, self.log_path], progress=progress)
             if not self.dry_run:
                 manifest.save(self.manifest_path)
