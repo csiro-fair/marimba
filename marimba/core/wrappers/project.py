@@ -515,7 +515,7 @@ class ProjectWrapper(LogMixin):
 
         # Populate it
         dataset_wrapper.populate(
-            dataset_name, dataset_mapping, self.log_path, map(lambda pw: pw.log_path, self.pipeline_wrappers.values()), copy=copy
+            dataset_name, dataset_mapping, self.pipelines_dir, self.log_path, map(lambda pw: pw.log_path, self.pipeline_wrappers.values()), copy=copy
         )
 
         # Validate it

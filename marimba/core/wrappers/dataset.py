@@ -3,7 +3,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from shutil import copy2
+from shutil import copy2, copytree
 from textwrap import dedent
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 from uuid import uuid4
@@ -426,6 +426,7 @@ class DatasetWrapper(LogMixin):
         self,
         dataset_name: str,
         dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]],
+        project_pipelines_dir: Path,
         project_log_path: Path,
         pipeline_log_paths: Iterable[Path],
         copy: bool = True,
@@ -436,6 +437,7 @@ class DatasetWrapper(LogMixin):
         Args:
             dataset_name: The name of the dataset.
             dataset_mapping: A dict mapping pipeline name -> { output file path -> (input file path, image data) }
+            project_pipelines_dir: The path to the project pipelines directory.
             project_log_path: The path to the project log file.
             pipeline_log_paths: The paths to the pipeline log files.
             copy: Whether to copy (True) or move (False) the files.
@@ -541,6 +543,12 @@ class DatasetWrapper(LogMixin):
                     copy2(pipeline_log_path, self.pipeline_logs_dir)
             self.logger.debug(f"Copied project logs to {self.logs_dir}")
 
+            # Copy in the pipelines
+            progress.update(task, description="[green]Copying pipelines")
+            if not self.dry_run:
+                copytree(project_pipelines_dir, self.pipelines_dir, dirs_exist_ok=True)
+            self.logger.debug(f"Copied project pipelines to {self.pipelines_dir}")
+
             # Generate and save the manifest
             progress.update(task, description="[green]Generating manifest")
             manifest = Manifest.from_dir(self.root_dir, exclude_paths=[self.manifest_path, self.log_path])
@@ -612,6 +620,13 @@ class DatasetWrapper(LogMixin):
         The path to the logs directory.
         """
         return self._root_dir / "logs"
+
+    @property
+    def pipelines_dir(self) -> Path:
+        """
+        The path to the pipelines directory.
+        """
+        return self._root_dir / "pipelines"
 
     @property
     def pipeline_logs_dir(self) -> Path:
