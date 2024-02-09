@@ -151,24 +151,34 @@ class Manifest:
         return hash.digest()
 
     @classmethod
-    def from_dir(cls, directory: Path, exclude_paths: Optional[Iterable[Path]] = None) -> "Manifest":
+    def from_dir(cls, directory: Path, exclude_paths: Optional[Iterable[Path]] = None, progress: Progress = None) -> "Manifest":
         """
         Create a manifest from a directory.
 
         Args:
             directory: The directory.
             exclude_paths: Paths to exclude from the manifest.
+            progress: A progress bar to monitor the manifest generation
 
         Returns:
             A manifest.
         """
         hashes = {}
         exclude_paths = set(exclude_paths) if exclude_paths is not None else set()
-        for path in directory.glob("**/*"):
+
+        globbed_files = list(directory.glob("**/*"))
+        if progress:
+            task = progress.add_task("[green]Generating manifest", total=len(globbed_files))
+
+        for path in globbed_files:
+            # Update the task
+            if progress:
+                progress.advance(task)
             if path in exclude_paths:
                 continue
             rel_path = path.resolve().relative_to(directory)
             hashes[rel_path] = Manifest.compute_hash(path)
+
         return cls(hashes)
 
     def validate(self, directory: Path, exclude_paths: Optional[Iterable[Path]] = None) -> bool:
@@ -483,10 +493,9 @@ class DatasetWrapper(LogMixin):
                     progress.advance(tasks_by_pipeline_name[pipeline_name])
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]", total=None)
+            task = progress.add_task("[green]Generating iFDO", total=1)
 
             # Generate and write the iFDO
-            progress.update(task, description="[green]Generating iFDO")
             ifdo = iFDO(
                 image_set_header=ImageSetHeader(
                     image_set_name=dataset_name,
@@ -499,8 +508,12 @@ class DatasetWrapper(LogMixin):
                 ifdo.save(self.metadata_path)
             self.logger.debug(f"Generated iFDO at {self.metadata_path} with {len(ifdo.image_set_items)} image set items")
 
+            # Update the task
+            progress.advance(task)
+
+        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             # Apply iFDO EXIF metadata
-            progress.update(task, description="[green]Applying iFDO EXIF tags")
+            task = progress.add_task("[green]Applying iFDO EXIF tags", total=len(dataset_mapping))
             metadata_mapping = {}
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
                 for _, (relative_dst, image_data_list) in pipeline_data_mapping.items():
@@ -508,12 +521,16 @@ class DatasetWrapper(LogMixin):
                     if not image_data_list:  # Skip if no ImageData items
                         continue
                     metadata_mapping[dst] = image_data_list[0]  # Use the first ImageData item
+
+                # Update the task
+                progress.advance(task)
             if not self.dry_run:
                 self._apply_ifdo_exif_tags(metadata_mapping)
             self.logger.debug(f"Applied iFDO EXIF tags to {len(metadata_mapping)} files")
 
+        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             # Update the dataset summary
-            progress.update(task, description="[green]Generating dataset summary")
+            task = progress.add_task("[green]Generating dataset summary", total=1)
             summary = self.summarize()
             if not self.dry_run:
                 self.summary_path.write_text(str(summary))
@@ -535,26 +552,39 @@ class DatasetWrapper(LogMixin):
                         summary_map.save(map_path)
                     self.logger.debug(f"Generated summary map at {map_path}")
 
+            # Update the task
+            progress.advance(task)
+
+        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             # Copy in the project and pipeline logs
-            progress.update(task, description="[green]Copying logs")
+            task = progress.add_task("[green]Copying logs", total=1)
             if not self.dry_run:
                 copy2(project_log_path, self.logs_dir)
                 for pipeline_log_path in pipeline_log_paths:
                     copy2(pipeline_log_path, self.pipeline_logs_dir)
             self.logger.debug(f"Copied project logs to {self.logs_dir}")
 
+            # Update the task
+            progress.advance(task)
+
+        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             # Copy in the pipelines
-            progress.update(task, description="[green]Copying pipelines")
+            task = progress.add_task("[green]Copying pipelines", total=1)
             if not self.dry_run:
                 copytree(project_pipelines_dir, self.pipelines_dir, dirs_exist_ok=True)
             self.logger.debug(f"Copied project pipelines to {self.pipelines_dir}")
 
+            # Update the task
+            progress.advance(task)
+
+        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             # Generate and save the manifest
-            progress.update(task, description="[green]Generating manifest")
-            manifest = Manifest.from_dir(self.root_dir, exclude_paths=[self.manifest_path, self.log_path])
+            manifest = Manifest.from_dir(self.root_dir, exclude_paths=[self.manifest_path, self.log_path], progress=progress)
             if not self.dry_run:
                 manifest.save(self.manifest_path)
             self.logger.debug(f"Generated manifest at {self.manifest_path}")
+            # Update the task
+            progress.advance(task)
 
     def summarize(self) -> ImagerySummary:
         """
