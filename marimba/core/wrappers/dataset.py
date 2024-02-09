@@ -525,7 +525,22 @@ class DatasetWrapper(LogMixin):
 
         # Generate and write the iFDO
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Generating iFDO", total=1)
+            task = progress.add_task("[green]Generating iFDO", total=len(image_set_items) + 1)
+
+            # Update image_set_items with SHA256 hashes
+            for image_path, image_data in image_set_items.items():
+                image_path = Path(self.data_dir) / image_path
+                hash = hashlib.sha256()
+                if image_path.is_file():
+                    with image_path.open("rb") as f:
+                        for chunk in iter(lambda: f.read(4096), b""):
+                            hash.update(chunk)
+                    for image_data_item in image_data:
+                        image_data_item.image_hash_sha256 = hash.hexdigest()
+
+                # Update the task
+                progress.advance(task)
+
             ifdo = iFDO(
                 image_set_header=ImageSetHeader(
                     image_set_name=dataset_name,
@@ -591,6 +606,7 @@ class DatasetWrapper(LogMixin):
             progress.advance(task)
 
         # Generate and save the manifest
+        # TODO: Possible speed improvement - pass through image_set_items to avoid duplicate computation of SHA256 hashes for images
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             manifest = Manifest.from_dir(self.root_dir, exclude_paths=[self.manifest_path, self.log_path], progress=progress)
             if not self.dry_run:
