@@ -477,8 +477,9 @@ class DatasetWrapper(LogMixin):
         image_set_items = {}
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             tasks_by_pipeline_name = {
-                pipeline_name: progress.add_task(f"[green]Populating {pipeline_name} data", total=len(pipeline_data_mapping))
+                pipeline_name: progress.add_task(f"[green]Populating data for {pipeline_name} pipeline", total=len(pipeline_data_mapping))
                 for pipeline_name, pipeline_data_mapping in dataset_mapping.items()
+                if len(pipeline_data_mapping) > 0
             }
 
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
@@ -508,17 +509,21 @@ class DatasetWrapper(LogMixin):
 
         # Apply iFDO EXIF metadata
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Applying iFDO EXIF tags", total=len(dataset_mapping))
+            tasks_by_pipeline_name = {
+                pipeline_name: progress.add_task(f"[green]Applying iFDO EXIF tags for {pipeline_name} pipeline", total=len(pipeline_data_mapping))
+                for pipeline_name, pipeline_data_mapping in dataset_mapping.items()
+                if len(pipeline_data_mapping) > 0
+            }
+
             metadata_mapping = {}
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
                 for _, (relative_dst, image_data_list) in pipeline_data_mapping.items():
+                    progress.advance(tasks_by_pipeline_name[pipeline_name])
                     dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
                     if not image_data_list:  # Skip if no ImageData items
                         continue
                     metadata_mapping[dst] = image_data_list[0]  # Use the first ImageData item
 
-                # Update the task
-                progress.advance(task)
             if not self.dry_run:
                 self._apply_ifdo_exif_tags(metadata_mapping)
             self.logger.debug(f"Applied iFDO EXIF tags to {len(metadata_mapping)} files")
@@ -537,8 +542,6 @@ class DatasetWrapper(LogMixin):
                             hash.update(chunk)
                     for image_data_item in image_data:
                         image_data_item.image_hash_sha256 = hash.hexdigest()
-
-                # Update the task
                 progress.advance(task)
 
             ifdo = iFDO(
@@ -612,6 +615,7 @@ class DatasetWrapper(LogMixin):
             if not self.dry_run:
                 manifest.save(self.manifest_path)
             self.logger.debug(f"Generated manifest at {self.manifest_path}")
+
             # Update the task
             progress.advance(task)
 
