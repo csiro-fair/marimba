@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from fractions import Fraction
@@ -543,6 +544,9 @@ class DatasetWrapper(LogMixin):
                     for image_data_item in image_data:
                         image_data_item.image_hash_sha256 = hash.hexdigest()
                 progress.advance(task)
+
+            # Sort image_set_items based on the image_path
+            image_set_items = OrderedDict(sorted(image_set_items.items(), key=lambda item: item[0]))
 
             ifdo = iFDO(
                 image_set_header=ImageSetHeader(
