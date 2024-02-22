@@ -1,4 +1,5 @@
 import hashlib
+import io
 import json
 import logging
 from collections import OrderedDict
@@ -12,12 +13,14 @@ from typing import Dict, Iterable, List, Optional, Tuple, Union
 from uuid import uuid4
 
 import piexif
+from PIL import Image
 from ifdo.models import ImageData, ImageSetHeader, iFDO
 from rich.progress import Progress, SpinnerColumn
 
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.map import make_summary_map
 from marimba.core.utils.rich import get_default_columns
+from marimba.lib import image
 from marimba.lib.gps import convert_degrees_to_gps_coordinate
 
 
@@ -433,7 +436,22 @@ class DatasetWrapper(LogMixin):
                 # Set GPSAltitudeRef based on the sign of the altitude
                 ifd_gps[piexif.GPSIFD.GPSAltitudeRef] = 0 if image_data.image_altitude >= 0 else 1
 
+            # Add/replace EXIF thumbnail with standardised thumbnail that preserves the aspect ratio
+            # TODO: This can be slow for large image sets and is outside of the displayed progress bar.
+            image_file = Image.open(path)
+            thumbnail_size = (320, 240)
+            image_file.thumbnail(thumbnail_size, Image.ANTIALIAS)
+            thumbnail_io = io.BytesIO()
+            image_file.save(thumbnail_io, format="JPEG", quality=90)  # Save the thumbnail to a bytes buffer.
+            thumbnail_bytes = thumbnail_io.getvalue()
+            exif_dict["thumbnail"] = thumbnail_bytes
+
+            # Inject the image entropy and average image colour into the iFDO
+            image_data.image_entropy = image.get_shannon_entropy(image_file)
+            image_data.image_average_color = image.get_average_image_color(image_file)
+
             # Add the iFDO to the EXIF UserComment field
+            # TODO: Currently exiftool reports "Warning: Invalid EXIF text encoding for UserComment" when accessing packaged images files
             image_data_dict = image_data.to_dict()
             image_data_json = json.dumps(image_data_dict)
             image_data_bytes = image_data_json.encode("utf-8")

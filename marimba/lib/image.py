@@ -331,25 +331,19 @@ def create_grid_image(paths: Iterable[Union[str, Path]], destination: Union[str,
     grid_image.save(destination)
 
 
-def get_shannon_entropy(path: Union[str, Path]) -> float:
+def get_shannon_entropy(image_data) -> float:
     """
     Calculates the Shannon entropy of an image file.
 
     Args:
-        path: The path to the image file.
+        image_data: The loaded image data.
 
     Returns:
         The Shannon entropy of the image as a float value.
     """
-    if path is None:
-        return None
-
-    # Load the image
-    path = Path(path)
-    image = Image.open(path)
 
     # Convert to grayscale
-    grayscale_image = image.convert("L")
+    grayscale_image = image_data.convert("L")
 
     # Calculate the histogram
     histogram = np.array(grayscale_image.histogram(), dtype=np.float32)
@@ -363,15 +357,15 @@ def get_shannon_entropy(path: Union[str, Path]) -> float:
     # Calculate Shannon entropy
     entropy = -np.sum(probabilities * np.log2(probabilities))
 
-    return entropy
+    return float(entropy)
 
 
-def calculate_average_image_color(path: Union[str, Path]) -> list:
+def get_average_image_color(image_data) -> list:
     """
     Calculates the average color of an image.
 
     Args:
-        path: The path to the image file.
+        image_data: The loaded image data.
 
     Returns:
         A list of integers representing the average color of the image in RGB format.
@@ -379,15 +373,8 @@ def calculate_average_image_color(path: Union[str, Path]) -> list:
 
         Note: If the input image is None, None will be returned.
     """
-    if path is None:
-        return None
-
-    # Load the image
-    path = Path(path)
-    image = Image.open(path)
-
     # Convert the image to numpy array
-    np_image = np.array(image)
+    np_image = np.array(image_data)
 
     # Calculate the average color for each channel
     average_color = np.mean(np_image, axis=(0, 1))
