@@ -373,14 +373,14 @@ class DatasetWrapper(LogMixin):
         """
         return self.data_dir / pipeline_name
 
-    def _apply_ifdo_exif_tags(self, metadata_mapping: Dict[Path, ImageData]):
+    def _apply_ifdo_exif_tags(self, metadata_mapping: Dict[Path, Tuple[ImageData, Dict]]):
         """
         Apply EXIF tags from iFDO metadata to the provided paths.
 
         Args:
             metadata_mapping: A dict mapping file paths to image data.
         """
-        for path, image_data in metadata_mapping.items():
+        for path, (image_data, opt_metadata) in metadata_mapping.items():
             try:
                 # Load the existing EXIF metadata
                 exif_dict = piexif.load(str(path))
@@ -453,9 +453,10 @@ class DatasetWrapper(LogMixin):
             # Add the iFDO to the EXIF UserComment field
             # TODO: Currently exiftool reports "Warning: Invalid EXIF text encoding for UserComment" when accessing packaged images files
             image_data_dict = image_data.to_dict()
-            image_data_json = json.dumps(image_data_dict)
-            image_data_bytes = image_data_json.encode("utf-8")
-            ifd_exif[piexif.ExifIFD.UserComment] = image_data_bytes
+            user_comment_data = {"ifdo": image_data_dict, "metadata": opt_metadata}
+            user_comment_json = json.dumps(user_comment_data)
+            user_comment_bytes = user_comment_json.encode("utf-8")
+            ifd_exif[piexif.ExifIFD.UserComment] = user_comment_bytes
 
             # Write the EXIF metadata back to the file
             try:
@@ -503,7 +504,7 @@ class DatasetWrapper(LogMixin):
 
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
                 pipeline_data_dir = self.get_pipeline_data_dir(pipeline_name)
-                for src, (relative_dst, image_data_list) in pipeline_data_mapping.items():
+                for src, (relative_dst, image_data_list, opt_metadata) in pipeline_data_mapping.items():
                     # Compute the absolute destination path
                     dst = pipeline_data_dir / relative_dst
 
@@ -536,12 +537,12 @@ class DatasetWrapper(LogMixin):
 
             metadata_mapping = {}
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-                for _, (relative_dst, image_data_list) in pipeline_data_mapping.items():
+                for _, (relative_dst, image_data_list, opt_metadata) in pipeline_data_mapping.items():
                     progress.advance(tasks_by_pipeline_name[pipeline_name])
                     dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
                     if not image_data_list:  # Skip if no ImageData items
                         continue
-                    metadata_mapping[dst] = image_data_list[0]  # Use the first ImageData item
+                    metadata_mapping[dst] = (image_data_list[0], opt_metadata)  # Use the first ImageData item
 
             if not self.dry_run:
                 self._apply_ifdo_exif_tags(metadata_mapping)
@@ -755,13 +756,13 @@ class DatasetWrapper(LogMixin):
                 reverse_src_resolution[resolved] = src
 
             # Verify that all destination paths are relative
-            for dst, _ in pipeline_data_mapping.values():
+            for dst, _, _ in pipeline_data_mapping.values():
                 if dst.is_absolute():
                     raise DatasetWrapper.InvalidDatasetMappingError(f"Destination path {dst} must be relative.")
 
             # Verify that there are no collisions in destination paths
-            reverse_mapping = {dst.resolve(): src for src, (dst, _) in pipeline_data_mapping.items()}
-            for src, (dst, _) in pipeline_data_mapping.items():
+            reverse_mapping = {dst.resolve(): src for src, (dst, _, _) in pipeline_data_mapping.items()}
+            for src, (dst, _, _) in pipeline_data_mapping.items():
                 src_other = reverse_mapping.get(dst.resolve())
                 if src.resolve() != src_other.resolve():
                     raise DatasetWrapper.InvalidDatasetMappingError(

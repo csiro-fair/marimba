@@ -519,7 +519,10 @@ class ProjectWrapper(LogMixin):
         )
 
         # Validate it
-        dataset_wrapper.validate()
+        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
+            task = progress.add_task("[green]Validating", total=1)
+            dataset_wrapper.validate()
+            progress.advance(task)
 
         self._dataset_wrappers[dataset_name] = dataset_wrapper
 
