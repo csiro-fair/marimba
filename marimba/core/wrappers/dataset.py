@@ -380,7 +380,7 @@ class DatasetWrapper(LogMixin):
         Args:
             metadata_mapping: A dict mapping file paths to image data.
         """
-        for path, (image_data, opt_metadata) in metadata_mapping.items():
+        for path, (image_data, ancillary) in metadata_mapping.items():
             try:
                 # Load the existing EXIF metadata
                 exif_dict = piexif.load(str(path))
@@ -453,7 +453,7 @@ class DatasetWrapper(LogMixin):
             # Add the iFDO to the EXIF UserComment field
             # TODO: Currently exiftool reports "Warning: Invalid EXIF text encoding for UserComment" when accessing packaged images files
             image_data_dict = image_data.to_dict()
-            user_comment_data = {"ifdo": image_data_dict, "metadata": opt_metadata}
+            user_comment_data = {"metadata": {"ifdo": image_data_dict, "ancillary": ancillary}}
             user_comment_json = json.dumps(user_comment_data)
             user_comment_bytes = user_comment_json.encode("utf-8")
             ifd_exif[piexif.ExifIFD.UserComment] = user_comment_bytes
@@ -504,7 +504,7 @@ class DatasetWrapper(LogMixin):
 
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
                 pipeline_data_dir = self.get_pipeline_data_dir(pipeline_name)
-                for src, (relative_dst, image_data_list, opt_metadata) in pipeline_data_mapping.items():
+                for src, (relative_dst, image_data_list, ancillary) in pipeline_data_mapping.items():
                     # Compute the absolute destination path
                     dst = pipeline_data_dir / relative_dst
 
@@ -537,12 +537,12 @@ class DatasetWrapper(LogMixin):
 
             metadata_mapping = {}
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-                for _, (relative_dst, image_data_list, opt_metadata) in pipeline_data_mapping.items():
+                for _, (relative_dst, image_data_list, ancillary) in pipeline_data_mapping.items():
                     progress.advance(tasks_by_pipeline_name[pipeline_name])
                     dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
                     if not image_data_list:  # Skip if no ImageData items
                         continue
-                    metadata_mapping[dst] = (image_data_list[0], opt_metadata)  # Use the first ImageData item
+                    metadata_mapping[dst] = (image_data_list[0], ancillary)  # Use the first ImageData item
 
             if not self.dry_run:
                 self._apply_ifdo_exif_tags(metadata_mapping)
