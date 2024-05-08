@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from fractions import Fraction
 from pathlib import Path
-from shutil import copy2, copytree
+from shutil import copy2, copytree, ignore_patterns
 from textwrap import dedent
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 from uuid import uuid4
@@ -625,7 +625,17 @@ class DatasetWrapper(LogMixin):
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             task = progress.add_task("[green]Copying pipelines", total=1)
             if not self.dry_run:
-                copytree(project_pipelines_dir, self.pipelines_dir, dirs_exist_ok=True)
+                ignore = ignore_patterns(
+                    ".git",
+                    ".gitignore",
+                    ".gitattributes",
+                    "__pycache__",
+                    "*.pyc",
+                    ".DS_Store",
+                    "*.log",
+                )
+                copytree(project_pipelines_dir, self.pipelines_dir, dirs_exist_ok=True, ignore=ignore)
+
             self.logger.debug(f"Copied project pipelines to {self.pipelines_dir}")
 
             # Update the task
