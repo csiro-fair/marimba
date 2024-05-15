@@ -14,14 +14,10 @@ class CollectionWrapper:
         Raised when the collection directory structure is invalid.
         """
 
-        pass
-
     class NoSuchPipelineError(Exception):
         """
         Raised when a pipeline is not found.
         """
-
-        pass
 
     def __init__(self, root_dir: Union[str, Path]):
         self._root_dir = Path(root_dir)

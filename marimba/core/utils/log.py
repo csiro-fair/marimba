@@ -11,6 +11,23 @@ file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(m
 
 
 class DryRunRichHandler(RichHandler):
+    """
+    A class that extends the RichHandler class and adds a dry run functionality to log messages.
+
+    Attributes:
+        dry_run (bool): Flag indicating whether the dry run mode is enabled.
+
+    Methods:
+        __init__(self, dry_run: bool, *args: Any, **kwargs: Any) -> None:
+            Initializes the DryRunRichHandler object.
+
+        emit(self, record: logging.LogRecord) -> None:
+            Overrides the emit method of RichHandler to prepend "DRY_RUN" to log messages when dry run mode is enabled.
+
+        set_dry_run(self, dry_run: bool) -> None:
+            Sets the dry_run attribute to the specified boolean value.
+    """
+
     def __init__(self, dry_run: bool, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.dry_run = dry_run

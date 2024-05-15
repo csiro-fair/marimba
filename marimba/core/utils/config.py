@@ -23,7 +23,7 @@ def load_config(config_path: Union[str, Path]) -> Dict[str, Any]:
     """
     config_path = Path(config_path)
 
-    with open(config_path, "r") as file:
+    with open(config_path, "r", encoding="utf-8") as file:
         data = yaml.safe_load(file)
         # Assert that the loaded data is a dictionary
         assert isinstance(data, dict), "Configuration data must be a dictionary"
@@ -40,5 +40,5 @@ def save_config(config_path: Union[str, Path], config_data: Dict[Any, Any]) -> N
     """
     config_path = Path(config_path)
 
-    with config_path.open("w") as f:
+    with config_path.open("w", encoding="utf-8") as f:
         yaml.safe_dump(config_data, f)

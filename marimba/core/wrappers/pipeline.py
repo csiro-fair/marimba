@@ -22,14 +22,10 @@ class PipelineWrapper(LogMixin):
         Raised when the project file structure is invalid.
         """
 
-        pass
-
     class InstallError(Exception):
         """
         Raised when there is an error installing pipeline dependencies.
         """
-
-        pass
 
     def __init__(self, root_dir: Union[str, Path], dry_run: bool = False):
         self._root_dir = Path(root_dir)
@@ -222,7 +218,8 @@ class PipelineWrapper(LogMixin):
             # Ensure there is one result
             if len(pipeline_module_paths) == 0:
                 raise FileNotFoundError(f'No pipeline implementation found in "{self.repo_dir}".')
-            elif len(pipeline_module_paths) > 1:
+
+            if len(pipeline_module_paths) > 1:
                 raise FileNotFoundError(
                     f'Multiple pipeline implementations found in "{self.repo_dir}": {pipeline_module_paths}.'
                 )
@@ -278,19 +275,19 @@ class PipelineWrapper(LogMixin):
         if self.requirements_path.is_file():
             self.logger.info(f"Installing pipeline dependencies from {self.requirements_path}...")
             try:
-                process = subprocess.Popen(
+                with subprocess.Popen(
                     ["pip", "install", "--no-input", "-r", str(self.requirements_path.absolute())],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
-                )
-                output, error = process.communicate()
-                if output:
-                    self.logger.debug(output.decode("utf-8"))
-                if error:
-                    self.logger.warning(error.decode("utf-8"))
+                ) as process:
+                    output, error = process.communicate()
+                    if output:
+                        self.logger.debug(output.decode("utf-8"))
+                    if error:
+                        self.logger.warning(error.decode("utf-8"))
 
-                if process.returncode != 0:
-                    raise Exception(f"pip install had a non-zero return code: {process.returncode}")
+                    if process.returncode != 0:
+                        raise Exception(f"pip install had a non-zero return code: {process.returncode}")
 
                 self.logger.info("Pipeline dependencies installed successfully.")
             except Exception as e:

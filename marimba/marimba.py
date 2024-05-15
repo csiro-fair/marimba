@@ -10,7 +10,7 @@ from rich import print
 
 from marimba.core.cli import new
 from marimba.core.distribution.bases import DistributionTargetBase
-from marimba.core.utils.help import project_dir_help
+from marimba.core.utils.constants import PROJECT_DIR_HELP
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
 from marimba.core.utils.rich import MARIMBA, error_panel, success_panel
 from marimba.core.wrappers.dataset import DatasetWrapper
@@ -66,7 +66,7 @@ def import_command(
     parent_collection_name: Optional[str] = typer.Option(
         None, help="Name of the parent collection. If unspecified, use the last collection."
     ),
-    project_dir: Optional[Path] = typer.Option(None, help=project_dir_help),
+    project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
     overwrite: bool = typer.Option(False, help="Overwrite an existing collection with the same name."),
     extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(
@@ -119,7 +119,7 @@ def package_command(
         help="Marimba collection names to package. If none are specified, "
         "all collections will be packaged together.",
     ),
-    project_dir: Optional[Path] = typer.Option(None, help=project_dir_help),
+    project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
     copy: bool = typer.Option(True, help="Copy files to dataset directory. Set to False to move files instead."),
     extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(
@@ -178,7 +178,7 @@ def package_command(
 def process_command(
     pipeline_name: Optional[str] = typer.Option(None, help="Marimba pipeline name for targeted processing."),
     collection_name: Optional[str] = typer.Option(None, help="Marimba collection name for targeted processing."),
-    project_dir: Optional[Path] = typer.Option(None, help=project_dir_help),
+    project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
     extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(
         False, help="Execute the command and print logging to the terminal, but do not change any files."
@@ -198,7 +198,7 @@ def process_command(
 def distribute_command(
     dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
     target_name: str = typer.Argument(..., help="Marimba distribution target name."),
-    project_dir: Optional[Path] = typer.Option(None, help=project_dir_help),
+    project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
     dry_run: bool = typer.Option(
         False, help="Execute the command and print logging to the terminal, but do not change any files."
     ),
@@ -237,7 +237,7 @@ def distribute_command(
 
 
 @marimba.command("update")
-def update_command(project_dir: Optional[Path] = typer.Option(None, help=project_dir_help)) -> None:
+def update_command(project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP)) -> None:
     """
     Update (pull) all Marimba pipelines.
     """
@@ -253,7 +253,7 @@ def update_command(project_dir: Optional[Path] = typer.Option(None, help=project
 
 
 @marimba.command("install")
-def install_command(project_dir: Optional[Path] = typer.Option(None, help=project_dir_help)) -> None:
+def install_command(project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP)) -> None:
     """
     Install Python dependencies from requirements.txt files defined by a project's pipelines.
     """

@@ -7,6 +7,19 @@ from marimba.core.wrappers.dataset import DatasetWrapper
 
 
 class TestDatasetWrapper(TestCase):
+    """
+    Class representing a unit test case for the TestDatasetWrapper class.
+
+    Attributes:
+        dataset_wrapper (DatasetWrapper): An instance of the DatasetWrapper class.
+
+    Methods:
+        setUp: Set up the test case by creating a DatasetWrapper object.
+        tearDown: Clean up the test case by deleting the DatasetWrapper object.
+        test_check_dataset_mapping: Test the validity of the dataset mapping.
+
+    """
+
     def setUp(self) -> None:
         self.dataset_wrapper = DatasetWrapper.create(Path(__file__).parent / "test_dataset")
 
@@ -16,6 +29,22 @@ class TestDatasetWrapper(TestCase):
         rmtree(root_dir)
 
     def test_check_dataset_mapping(self) -> None:
+        """
+        Test that checks the validity of the dataset mapping.
+
+        This method tests different scenarios for the dataset mapping and ensures that they either raise an error or
+        pass without any errors.
+
+        Parameters:
+            self (object): The current object instance.
+
+        Returns:
+            None
+
+        Raises:
+            DatasetWrapper.InvalidDatasetMappingError: If the dataset mapping is invalid.
+
+        """
         # Test that an invalid dataset mapping raises an error
         dataset_mapping: Dict[Any, Any] = {
             "test": {Path("nonexistent_file.txt"): (Path("destination.txt"), None, None)}

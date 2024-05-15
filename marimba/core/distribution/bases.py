@@ -14,8 +14,6 @@ class DistributionTargetBase(ABC, LogMixin):
         Base class for all distribution errors.
         """
 
-        pass
-
     @abstractmethod
     def distribute(self, dataset_wrapper: DatasetWrapper) -> None:
         """

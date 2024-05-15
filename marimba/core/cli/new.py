@@ -5,7 +5,7 @@ from typing import Optional, Union
 import typer
 from rich import print
 
-from marimba.core.utils.help import project_dir_help
+from marimba.core.utils.constants import PROJECT_DIR_HELP
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.prompt import prompt_schema
 from marimba.core.utils.rich import (MARIMBA, error_panel, format_command,
@@ -96,7 +96,7 @@ def pipeline(
     url: str = typer.Argument(..., help="URL of the pipeline git repository."),
     project_dir: Path = typer.Option(
         None,
-        help=project_dir_help,
+        help=PROJECT_DIR_HELP,
     ),
 ) -> None:
     """
@@ -142,7 +142,7 @@ def collection(
     parent_collection_name: Optional[str] = typer.Argument(
         None, help="Name of the parent collection. If unspecified, use the last collection."
     ),
-    project_dir: Path = typer.Option(None, help=project_dir_help),
+    project_dir: Path = typer.Option(None, help=PROJECT_DIR_HELP),
 ) -> None:
     """
     Create and configure a new Marimba collection in a project.
@@ -180,7 +180,8 @@ def collection(
 
     print(
         success_panel(
-            f'Created new {MARIMBA} {format_entity("collection")} "{collection_name}" at: "{collection_wrapper.root_dir}"'
+            f'Created new {MARIMBA} {format_entity("collection")} "{collection_name}" at: '
+            f'"{collection_wrapper.root_dir}"'
         )
     )
 
@@ -188,7 +189,7 @@ def collection(
 @app.command()
 def target(
     target_name: str = typer.Argument(..., help="Name of the distribution target."),
-    project_dir: Path = typer.Option(None, help=project_dir_help),
+    project_dir: Path = typer.Option(None, help=PROJECT_DIR_HELP),
 ) -> None:
     """
     Create and configure a new distribution target in a project.

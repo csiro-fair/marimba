@@ -70,70 +70,50 @@ class ProjectWrapper(LogMixin):
         Raised when the project file structure is invalid.
         """
 
-        pass
-
     class CreatePipelineError(Exception):
         """
         Raised when a pipeline cannot be created.
         """
-
-        pass
 
     class CreateCollectionError(Exception):
         """
         Raised when a collection cannot be created.
         """
 
-        pass
-
     class RunCommandError(Exception):
         """
         Raised when a command cannot be run.
         """
-
-        pass
 
     class CompositionError(Exception):
         """
         Raised when a pipeline cannot compose its data.
         """
 
-        pass
-
     class NoSuchPipelineError(Exception):
         """
         Raised when a pipeline does not exist in the project.
         """
-
-        pass
 
     class NoSuchCollectionError(Exception):
         """
         Raised when a collection does not exist in the project.
         """
 
-        pass
-
     class NoSuchDatasetError(Exception):
         """
         Raised when a dataset does not exist in the project.
         """
-
-        pass
 
     class NoSuchTargetError(Exception):
         """
         Raised when a distribution target does not exist in the project.
         """
 
-        pass
-
     class NameError(Exception):
         """
         Raised when an invalid name is used.
         """
-
-        pass
 
     def __init__(self, root_dir: Union[str, Path], dry_run: bool = False):
         super().__init__()
@@ -668,7 +648,7 @@ class ProjectWrapper(LogMixin):
         Raises:
             ProjectWrapper.NoSuchCollectionError: If the collection does not exist in the project.
         """
-        source_paths = list(map(lambda p: Path(p), source_paths))
+        source_paths = [Path(p) for p in source_paths]
 
         merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
 
@@ -716,7 +696,7 @@ class ProjectWrapper(LogMixin):
         """
         # Get the union of all pipeline-specific collection config schemas
         resolved_collection_schema = {}
-        for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
+        for _, pipeline_wrapper in self.pipeline_wrappers.items():
             pipeline = pipeline_wrapper.get_instance()
             collection_config_schema = pipeline.get_collection_config_schema()
             resolved_collection_schema.update(collection_config_schema)
@@ -763,8 +743,10 @@ class ProjectWrapper(LogMixin):
             try:
                 pipeline_wrapper.update()
                 self.logger.info(f'Successfully updated pipeline "{pipeline_name}"')
+            except (IOError, ValueError) as e:
+                self.logger.error(f'Failed to update pipeline "{pipeline_name}" due to an I/O or value error: {e}')
             except Exception as e:
-                self.logger.error(f'Failed to update pipeline "{pipeline_name}": {e}')
+                self.logger.error(f'Failed to update pipeline "{pipeline_name}" due to an unexpected error: {e}')
 
     def install_pipelines(self) -> None:
         """

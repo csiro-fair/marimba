@@ -80,7 +80,7 @@ def read_exif_location(path: Union[str, Path]) -> Tuple[Optional[float], Optiona
             if gps_longitude_ref == b"W":
                 longitude = 0 - longitude
             return latitude, longitude  # success!
-        else:  # no GPS data
-            return None, None
+        # no GPS data
+        return None, None
     except Exception:  # no/bad EXIF data
         return None, None

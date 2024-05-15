@@ -1,4 +1,15 @@
 [flake8]
+
+# Maximum number of characters on a single line.
 max-line-length = 120
+
+# Ignored error codes
+# E203: whitespace before ':'
+# W503: line break before binary operator
 ignore = E203, W503
+
+# Maximum complexity allowed for a function/method.
 max-complexity = 10
+
+# Exclude directories and files
+exclude = temp

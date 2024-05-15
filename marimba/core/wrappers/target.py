@@ -12,6 +12,22 @@ from marimba.core.utils.config import load_config, save_config
 
 
 class DistributionTargetWrapper:
+    """
+    A wrapper class for creating and managing distribution targets.
+
+    The DistributionTargetWrapper class provides methods for creating and managing distribution targets. It allows
+    for the creation of distribution target instances based on a given configuration file, as well as interactive
+    prompting for creating a new distribution target configuration.
+
+    Attributes:
+        CLASS_MAP (Dict[str, Type[DistributionTargetBase]]): A mapping of distribution target types to their
+        respective classes.
+
+    Raises:
+        InvalidConfigError: Raised when the configuration file is invalid.
+
+    """
+
     CLASS_MAP = {
         "s3": S3DistributionTarget,
         "dap": CSIRODapDistributionTarget,
@@ -21,8 +37,6 @@ class DistributionTargetWrapper:
         """
         Raised when the configuration file is invalid.
         """
-
-        pass
 
     def __init__(self, config_path: Union[str, Path]):
         self._config_path = Path(config_path)
@@ -141,7 +155,7 @@ class DistributionTargetWrapper:
                 "The distribution target configuration must specify a 'type'."
             )
 
-        if target_type not in DistributionTargetWrapper.CLASS_MAP.keys():
+        if target_type not in DistributionTargetWrapper.CLASS_MAP:
             raise DistributionTargetWrapper.InvalidConfigError(
                 f"Invalid distribution target type: {target_type}. Must be one of: "
                 f"{', '.join(DistributionTargetWrapper.CLASS_MAP.keys())}"

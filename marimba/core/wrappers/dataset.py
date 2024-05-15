@@ -235,8 +235,8 @@ class Manifest:
             path: The path to the file.
         """
         with path.open("w") as f:
-            for path, hash in self.hashes.items():
-                f.write(f"{path.as_posix()}:{hash.hex()}\n")
+            for file_path, file_hash in self.hashes.items():
+                f.write(f"{file_path.as_posix()}:{file_hash.hex()}\n")
 
     @classmethod
     def load(cls, path: Path) -> "Manifest":
@@ -268,21 +268,15 @@ class DatasetWrapper(LogMixin):
         Raised when the dataset directory structure is invalid.
         """
 
-        pass
-
     class InvalidDatasetMappingError(Exception):
         """
         Raised when a path mapping dictionary is invalid.
         """
 
-        pass
-
     class ManifestError(Exception):
         """
         Raised when the dataset is inconsistent with its manifest.
         """
-
-        pass
 
     def __init__(self, root_dir: Union[str, Path], dry_run: bool = False):
         self._root_dir = Path(root_dir)
@@ -537,7 +531,7 @@ class DatasetWrapper(LogMixin):
 
         image_set_items = self._populate_files(dataset_mapping, copy)
 
-        self._apply_exif_metadata(dataset_mapping, image_set_items)
+        self._apply_exif_metadata(dataset_mapping)
         self._generate_ifdo(dataset_name, image_set_items)
         self._generate_dataset_summary(image_set_items)
         self._copy_logs(project_log_path, pipeline_log_paths)
@@ -571,7 +565,7 @@ class DatasetWrapper(LogMixin):
 
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
                 pipeline_data_dir = self.get_pipeline_data_dir(pipeline_name)
-                for src, (relative_dst, image_data_list, ancillary_data) in pipeline_data_mapping.items():
+                for src, (relative_dst, image_data_list, _) in pipeline_data_mapping.items():
                     dst = pipeline_data_dir / relative_dst
                     if image_data_list:
                         dst_relative = dst.relative_to(self.data_dir)
@@ -590,14 +584,12 @@ class DatasetWrapper(LogMixin):
     def _apply_exif_metadata(
         self,
         dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]]],
-        image_set_items: Dict[str, ImageData],
     ) -> None:
         """
         Apply EXIF metadata to the images in the dataset.
 
         Args:
             dataset_mapping: The dataset mapping containing source and destination paths.
-            image_set_items: The dictionary of image set items for further processing.
         """
         metadata_mapping = {}
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
@@ -637,7 +629,10 @@ class DatasetWrapper(LogMixin):
                 hash = hashlib.sha256()
                 if image_data_path.is_file():
                     with image_data_path.open("rb") as f:
-                        for chunk in iter(lambda: f.read(4096), b""):
+                        while True:
+                            chunk = f.read(4096)
+                            if not chunk:
+                                break
                             hash.update(chunk)
                     for image_data_item in image_data:
                         image_data_item.image_hash_sha256 = hash.hexdigest()
@@ -730,8 +725,8 @@ class DatasetWrapper(LogMixin):
             self.logger.debug(f"Copied project pipelines to {self.pipelines_dir}")
             progress.advance(task)
 
-    # TODO: Possible speed improvement
-    #  Pass through image_set_items to avoid duplicate computation of SHA256 hashes for images
+    # TODO: Possible speed improvement - pass through image_set_items to avoid duplicate computation of SHA256 hashes
+    #  for images
     def _generate_manifest(self) -> None:
         """
         Generate and save the manifest for the dataset, excluding certain paths.
@@ -845,7 +840,7 @@ class DatasetWrapper(LogMixin):
         Raises:
             DatasetWrapper.InvalidDatasetMappingError: If the path mapping is invalid.
         """
-        for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
+        for _, pipeline_data_mapping in dataset_mapping.items():
             DatasetWrapper._verify_source_paths_exist(pipeline_data_mapping)
             DatasetWrapper._verify_unique_source_resolutions(pipeline_data_mapping)
             DatasetWrapper._verify_relative_destination_paths(pipeline_data_mapping)

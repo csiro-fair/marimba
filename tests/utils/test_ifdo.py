@@ -9,6 +9,16 @@ from marimba.core.utils.ifdo import load_ifdo, save_ifdo
 
 
 class TestIfdo(TestCase):
+    """
+    Class to test the functionality of the iFDO class.
+
+    Methods:
+    - setUp(): Sets up the initial state before each test case.
+    - tearDown(): Cleans up the state after each test case.
+    - test_load_ifdo(): Tests the load_ifdo() function.
+    - test_save_ifdo(): Tests the save_ifdo() function.
+    """
+
     def setUp(self) -> None:
         self.ifdo_path = Path("test_ifdo.yaml")
         self.ifdo = iFDO(
