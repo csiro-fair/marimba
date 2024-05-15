@@ -9,7 +9,7 @@ from fractions import Fraction
 from pathlib import Path
 from shutil import copy2, copytree, ignore_patterns
 from textwrap import dedent
-from typing import Dict, Iterable, Optional, Tuple, Union, Any
+from typing import Dict, Iterable, Optional, Tuple, Union, Any, List
 from uuid import uuid4
 
 import piexif
@@ -472,7 +472,7 @@ class DatasetWrapper(LogMixin):
     def populate(
             self,
             dataset_name: str,
-            dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]],
+            dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]]],
             project_pipelines_dir: Path,
             project_log_path: Path,
             pipeline_log_paths: Iterable[Path],
@@ -507,14 +507,14 @@ class DatasetWrapper(LogMixin):
 
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
                 pipeline_data_dir = self.get_pipeline_data_dir(pipeline_name)
-                for src, (relative_dst, image_data, ancillary_data) in pipeline_data_mapping.items():
+                for src, (relative_dst, image_data_list, ancillary_data) in pipeline_data_mapping.items():
                     # Compute the absolute destination path
                     dst = pipeline_data_dir / relative_dst
 
-                    if image_data:  # Only consider items that have ImageData
+                    if image_data_list:  # Only consider items that have ImageData
                         # Compute the data directory-relative destination path for the iFDO
                         dst_relative = dst.relative_to(self.data_dir)
-                        image_set_items[dst_relative.as_posix()] = image_data
+                        image_set_items[dst_relative.as_posix()] = image_data_list
 
                     if not self.dry_run:
                         # Create the parent directory if it doesn't exist
@@ -540,12 +540,12 @@ class DatasetWrapper(LogMixin):
 
             metadata_mapping: Dict[Path, Tuple[ImageData, Optional[Dict[str, Any]]]] = {}
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-                for _, (relative_dst, image_data, ancillary_data) in pipeline_data_mapping.items():
+                for _, (relative_dst, image_data_list, ancillary_data) in pipeline_data_mapping.items():
                     progress.advance(tasks_by_pipeline_name[pipeline_name])
                     dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
-                    if not image_data:  # Skip if no ImageData items
+                    if not image_data_list:  # Skip if no ImageData items
                         continue
-                    metadata_mapping[dst] = (image_data, ancillary_data)
+                    metadata_mapping[dst] = (image_data_list[0], ancillary_data)
 
             if not self.dry_run:
                 self._apply_ifdo_exif_tags(metadata_mapping)
@@ -596,8 +596,8 @@ class DatasetWrapper(LogMixin):
             # Create a summary map if there are any geolocations
             geolocations = [
                 (image_data.image_latitude, image_data.image_longitude)
-                for image_data in image_set_items.values()
-                for image_data in image_data
+                for image_data_list in image_set_items.values()
+                for image_data in image_data_list
                 if image_data.image_latitude is not None and image_data.image_longitude
             ]
             if geolocations:
@@ -742,7 +742,7 @@ class DatasetWrapper(LogMixin):
         return self._dry_run
 
     @staticmethod
-    def check_dataset_mapping(dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]]) -> None:
+    def check_dataset_mapping(dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]]]) -> None:
         """
         Verify that the given path mapping is valid.
 

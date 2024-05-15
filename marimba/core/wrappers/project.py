@@ -460,7 +460,7 @@ class ProjectWrapper(LogMixin):
         collection_configs = [collection_wrapper.load_config() for collection_wrapper in collection_wrappers]
 
         self.logger.debug(f'Composing dataset for collections {", ".join(collection_names)} with kwargs {merged_kwargs}')
-        dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]] = {}
+        dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]]] = {}
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             task = progress.add_task("[green]Composing data", total=len(self.pipeline_wrappers))
             for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
@@ -485,7 +485,7 @@ class ProjectWrapper(LogMixin):
         return dataset_mapping
 
     def create_dataset(
-        self, dataset_name: str, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]], copy: bool = True
+        self, dataset_name: str, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]]], copy: bool = True
     ) -> DatasetWrapper:
         """
         Create a Marimba dataset from a dataset mapping.
