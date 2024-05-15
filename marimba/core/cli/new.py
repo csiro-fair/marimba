@@ -5,6 +5,7 @@ from typing import Optional, Union
 import typer
 from rich import print
 
+from marimba.core.utils.help import project_dir_help
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.prompt import prompt_schema
 from marimba.core.utils.rich import (
@@ -75,7 +76,7 @@ def find_project_dir_or_exit(project_dir: Optional[Union[str, Path]] = None) -> 
 
 @app.command()
 def project(
-    project_dir: Path = typer.Argument(..., help="Root path to create new Marimba project."),
+        project_dir: Path = typer.Argument(..., help="Root path to create new Marimba project."),
 ) -> None:
     """
     Create a new Marimba project.
@@ -96,12 +97,12 @@ def project(
 
 @app.command()
 def pipeline(
-    pipeline_name: str = typer.Argument(..., help="Name of the pipeline."),
-    url: str = typer.Argument(..., help="URL of the pipeline git repository."),
-    project_dir: Path = typer.Option(
-        None,
-        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
-    ),
+        pipeline_name: str = typer.Argument(..., help="Name of the pipeline."),
+        url: str = typer.Argument(..., help="URL of the pipeline git repository."),
+        project_dir: Path = typer.Option(
+            None,
+            help=project_dir_help,
+        ),
 ) -> None:
     """
     Create and configure a new Marimba pipeline in a project.
@@ -133,17 +134,22 @@ def pipeline(
     pipeline_config = prompt_schema(pipeline_config_schema)
     pipeline_wrapper.save_config(pipeline_config)
 
-    print(success_panel(f'Created new {MARIMBA} {format_entity("pipeline")} "{pipeline_name}" at: "{pipeline_wrapper.root_dir}"'))
+    print(success_panel(
+        f'Created new {MARIMBA} {format_entity("pipeline")} "{pipeline_name}" at: "{pipeline_wrapper.root_dir}"'
+    ))
 
 
 @app.command()
 def collection(
-    collection_name: str = typer.Argument(..., help="Name of the collection."),
-    parent_collection_name: Optional[str] = typer.Argument(None, help="Name of the parent collection. If unspecified, use the last collection."),
-    project_dir: Path = typer.Option(
-        None,
-        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
-    ),
+        collection_name: str = typer.Argument(..., help="Name of the collection."),
+        parent_collection_name: Optional[str] = typer.Argument(
+            None,
+            help="Name of the parent collection. If unspecified, use the last collection."
+        ),
+        project_dir: Path = typer.Option(
+            None,
+            help=project_dir_help
+        ),
 ) -> None:
     """
     Create and configure a new Marimba collection in a project.
@@ -179,16 +185,17 @@ def collection(
         print(error_panel(error_message))
         raise typer.Exit()
 
-    print(success_panel(f'Created new {MARIMBA} {format_entity("collection")} "{collection_name}" at: "{collection_wrapper.root_dir}"'))
+    print(success_panel(
+        f'Created new {MARIMBA} {format_entity("collection")} "{collection_name}" at: "{collection_wrapper.root_dir}"'))
 
 
 @app.command()
 def target(
-    target_name: str = typer.Argument(..., help="Name of the distribution target."),
-    project_dir: Path = typer.Option(
-        None,
-        help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
-    ),
+        target_name: str = typer.Argument(..., help="Name of the distribution target."),
+        project_dir: Path = typer.Option(
+            None,
+            help=project_dir_help
+        ),
 ) -> None:
     """
     Create and configure a new distribution target in a project.
@@ -212,9 +219,13 @@ def target(
         print(error_panel(error_message))
         raise typer.Exit()
     except FileExistsError:
-        error_message = f'A {MARIMBA} {format_entity("target")} already exists at: "{distribution_target_wrapper.config_path}"'
+        error_message = (f'A {MARIMBA} {format_entity("target")} already exists at: '
+                         f'"{distribution_target_wrapper.config_path}"')
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()
 
-    print(success_panel(f'Created new {MARIMBA} {format_entity("target")} "{target_name}" at: "{distribution_target_wrapper.config_path}"'))
+    print(success_panel(
+        f'Created new {MARIMBA} {format_entity("target")} "{target_name}" at: '
+        f'"{distribution_target_wrapper.config_path}"'
+    ))

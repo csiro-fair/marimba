@@ -181,7 +181,9 @@ class PipelineWrapper(LogMixin):
             The pipeline instance.
 
         Raises:
-            FileNotFoundError: If the pipeline implementation file cannot be found, or if there are multiple pipeline implementation files.
+            FileNotFoundError:
+                If the pipeline implementation file cannot be found, or if there are multiple pipeline implementation
+                files.
             ImportError: If the pipeline implementation file cannot be imported.
         """
         # Get the pipeline class
@@ -201,13 +203,16 @@ class PipelineWrapper(LogMixin):
 
     def get_pipeline_class(self) -> Optional[Type[BasePipeline]]:
         """
-        Get the pipeline class. Lazy-loaded and cached. Automatically scans the repository for a pipeline implementation.
+        Get the pipeline class. Lazy-loaded and cached. Automatically scans the repository for a pipeline
+        implementation.
 
         Returns:
             The pipeline class.
 
         Raises:
-            FileNotFoundError: If the pipeline implementation file cannot be found, or if there are multiple pipeline implementation files.
+            FileNotFoundError:
+                If the pipeline implementation file cannot be found, or if there are multiple pipeline implementation
+                files.
             ImportError: If the pipeline implementation file cannot be imported.
         """
         if self._pipeline_class is None:
@@ -218,7 +223,9 @@ class PipelineWrapper(LogMixin):
             if len(pipeline_module_paths) == 0:
                 raise FileNotFoundError(f'No pipeline implementation found in "{self.repo_dir}".')
             elif len(pipeline_module_paths) > 1:
-                raise FileNotFoundError(f'Multiple pipeline implementations found in "{self.repo_dir}": {pipeline_module_paths}.')
+                raise FileNotFoundError(
+                    f'Multiple pipeline implementations found in "{self.repo_dir}": {pipeline_module_paths}.'
+                )
             pipeline_module_path = pipeline_module_paths[0]
 
             pipeline_module_name = pipeline_module_path.stem
@@ -272,7 +279,9 @@ class PipelineWrapper(LogMixin):
             self.logger.info(f"Installing pipeline dependencies from {self.requirements_path}...")
             try:
                 process = subprocess.Popen(
-                    ["pip", "install", "--no-input", "-r", str(self.requirements_path.absolute())], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                    ["pip", "install", "--no-input", "-r", str(self.requirements_path.absolute())],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
                 )
                 output, error = process.communicate()
                 if output:

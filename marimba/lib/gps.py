@@ -8,7 +8,12 @@ from typing import Union, Tuple, List, Optional
 import piexif
 
 
-def convert_gps_coordinate_to_degrees(value: Union[Tuple[Tuple[int, int], Tuple[int, int], Tuple[int, int]], List[Tuple[int, int]]]) -> float:
+def convert_gps_coordinate_to_degrees(
+    value: Union[
+        Tuple[Tuple[int, int], Tuple[int, int], Tuple[int, int]],
+        List[Tuple[int, int]]
+    ]
+) -> float:
     """
     Convert a GPS coordinate value to decimal degrees.
 
@@ -28,7 +33,9 @@ def convert_degrees_to_gps_coordinate(degrees: float) -> tuple[int, int, int]:
     """
     Convert GPS coordinates from decimal degrees format to degrees, minutes, and seconds (DMS) format.
 
-    Note: Negative values will result in positive degrees, minutes, and seconds. Use the appropriate hemisphere letter to indicate N/S or E/W when writing EXIF.
+    Note:
+        Negative values will result in positive degrees, minutes, and seconds.
+        Use the appropriate hemisphere letter to indicate N/S or E/W when writing EXIF.
 
     Args:
         degrees: The GPS coordinate in decimal degrees format.

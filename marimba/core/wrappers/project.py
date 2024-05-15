@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
-from ifdo.models import ImageData, iFDO
+from ifdo.models import ImageData
 from rich.progress import Progress, SpinnerColumn
 
 from marimba.core.utils.log import LogMixin, get_file_handler
@@ -15,7 +15,9 @@ from marimba.core.wrappers.pipeline import PipelineWrapper
 from marimba.core.wrappers.target import DistributionTargetWrapper
 
 
-def get_merged_keyword_args(kwargs: Dict[str, Any], extra_args: Optional[List[str]], logger: logging.Logger) -> Dict[str, Any]:
+def get_merged_keyword_args(
+    kwargs: Dict[str, Any], extra_args: Optional[List[str]], logger: logging.Logger
+) -> Dict[str, Any]:
     """
     Merge any extra key-value arguments with other keyword arguments.
 
@@ -142,7 +144,9 @@ class ProjectWrapper(LogMixin):
         self._pipeline_wrappers: Dict[str, PipelineWrapper] = {}  # pipeline name -> PipelineWrapper instance
         self._collection_wrappers: Dict[str, CollectionWrapper] = {}  # collection name -> CollectionWrapper instance
         self._dataset_wrappers: Dict[str, DatasetWrapper] = {}  # dataset name -> DatasetWrapper instance
-        self._target_wrappers: Dict[str, DistributionTargetWrapper] = {}  # target name -> DistributionTargetWrapper instance
+        self._target_wrappers: Dict[
+            str, DistributionTargetWrapper
+        ] = {}  # target name -> DistributionTargetWrapper instance
 
         self._check_file_structure()
         self._setup_logging()
@@ -152,7 +156,10 @@ class ProjectWrapper(LogMixin):
         self._load_datasets()
         self._load_targets()
         self.logger.debug(
-            f"Loaded {len(self.pipeline_wrappers)} pipeline(s), {len(self.collection_wrappers)} collection(s), {len(self.dataset_wrappers)} dataset(s) and {len(self.target_wrappers)} distribution target(s)"
+            f"Loaded {len(self.pipeline_wrappers)} pipeline(s), "
+            f"{len(self.collection_wrappers)} collection(s), "
+            f"{len(self.dataset_wrappers)} dataset(s) and "
+            f"{len(self.target_wrappers)} distribution target(s)"
         )
 
     @classmethod
@@ -369,7 +376,8 @@ class ProjectWrapper(LogMixin):
             kwargs: Any keyword arguments to pass to the command.
 
         Returns:
-            A dictionary containing the results of the command for each collection: {collection_name: {pipeline_name: result}}.
+            A dictionary containing the results of the command for each collection:
+                {collection_name: {pipeline_name: result}}.
 
         Raises:
             ProjectWrapper.RunCommandError: If the command cannot be run.
@@ -384,23 +392,39 @@ class ProjectWrapper(LogMixin):
         if collection_name is not None:
             collection_wrapper = self._collection_wrappers.get(collection_name, None)
             if collection_wrapper is None:
-                raise ProjectWrapper.RunCommandError(f'Collection "{collection_name}" does not exist within the project.')
+                raise ProjectWrapper.RunCommandError(
+                    f'Collection "{collection_name}" does not exist within the project.'
+                )
 
         # Select the pipelines and collections to run the command for
-        pipeline_wrappers_to_run = {pipeline_name: self._pipeline_wrappers[pipeline_name]} if pipeline_name is not None else self._pipeline_wrappers
-        collection_wrappers_to_run = {collection_name: self._collection_wrappers[collection_name]} if collection_name is not None else self._collection_wrappers
+        pipeline_wrappers_to_run = (
+            {pipeline_name: self._pipeline_wrappers[pipeline_name]}
+            if pipeline_name is not None
+            else self._pipeline_wrappers
+        )
+        collection_wrappers_to_run = (
+            {collection_name: self._collection_wrappers[collection_name]}
+            if collection_name is not None
+            else self._collection_wrappers
+        )
 
         # Load pipeline instances
-        pipelines_to_run = {pipeline_name: pipeline_wrapper.get_instance() for pipeline_name, pipeline_wrapper in pipeline_wrappers_to_run.items()}
+        pipelines_to_run = {
+            pipeline_name: pipeline_wrapper.get_instance()
+            for pipeline_name, pipeline_wrapper in pipeline_wrappers_to_run.items()
+        }
 
         # Check that the command exists for all pipelines
         for run_pipeline_name, run_pipeline in pipelines_to_run.items():
             if not hasattr(run_pipeline, command_name):
-                raise ProjectWrapper.RunCommandError(f'Command "{command_name}" does not exist for pipeline "{run_pipeline_name}".')
+                raise ProjectWrapper.RunCommandError(
+                    f'Command "{command_name}" does not exist for pipeline "{run_pipeline_name}".'
+                )
 
         # Invoke the command for each pipeline and collection
         self.logger.debug(
-            f'Running command "{command_name}" across pipeline(s) {", ".join(pipelines_to_run.keys())} and collection(s) {", ".join(collection_wrappers_to_run.keys())} with kwargs {merged_kwargs}'
+            f'Running command "{command_name}" across pipeline(s) {", ".join(pipelines_to_run.keys())} and '
+            f'collection(s) {", ".join(collection_wrappers_to_run.keys())} with kwargs {merged_kwargs}'
         )
         results_by_collection = {}
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
@@ -419,7 +443,9 @@ class ProjectWrapper(LogMixin):
 
                     # Call the method
                     method = getattr(run_pipeline, command_name)
-                    results_by_pipeline[run_pipeline_name] = method(pipeline_collection_data_dir, pipeline_collection_config, **merged_kwargs)
+                    results_by_pipeline[run_pipeline_name] = method(
+                        pipeline_collection_data_dir, pipeline_collection_config, **merged_kwargs
+                    )
 
                     # Update the task
                     progress.advance(tasks_by_pipeline_name[run_pipeline_name])
@@ -459,7 +485,9 @@ class ProjectWrapper(LogMixin):
         # Load the collection configs
         collection_configs = [collection_wrapper.load_config() for collection_wrapper in collection_wrappers]
 
-        self.logger.debug(f'Composing dataset for collections {", ".join(collection_names)} with kwargs {merged_kwargs}')
+        self.logger.debug(
+            f'Composing dataset for collections {", ".join(collection_names)} with kwargs {merged_kwargs}'
+        )
         dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]]] = {}
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             task = progress.add_task("[green]Composing data", total=len(self.pipeline_wrappers))
@@ -468,13 +496,20 @@ class ProjectWrapper(LogMixin):
                 pipeline = pipeline_wrapper.get_instance()
 
                 # Get the collection data directories for the pipeline
-                collection_data_dirs = [collection_wrapper.get_pipeline_data_dir(pipeline_name) for collection_wrapper in collection_wrappers]
+                collection_data_dirs = [
+                    collection_wrapper.get_pipeline_data_dir(pipeline_name)
+                    for collection_wrapper in collection_wrappers
+                ]
 
                 # Compose the pipeline data mapping
                 try:
-                    pipeline_data_mapping = pipeline.run_compose(collection_data_dirs, collection_configs, **merged_kwargs)
+                    pipeline_data_mapping = pipeline.run_compose(
+                        collection_data_dirs, collection_configs, **merged_kwargs
+                    )
                 except Exception as e:
-                    raise ProjectWrapper.CompositionError(f'Pipeline "{pipeline_name}" failed to compose its data:\n{e}') from e
+                    raise ProjectWrapper.CompositionError(
+                        f'Pipeline "{pipeline_name}" failed to compose its data:\n{e}'
+                    ) from e
 
                 # Add the pipeline data mapping to the dataset mapping
                 dataset_mapping[pipeline_name] = pipeline_data_mapping
@@ -485,7 +520,10 @@ class ProjectWrapper(LogMixin):
         return dataset_mapping
 
     def create_dataset(
-        self, dataset_name: str, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]]], copy: bool = True
+        self,
+        dataset_name: str,
+        dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]]],
+        copy: bool = True,
     ) -> DatasetWrapper:
         """
         Create a Marimba dataset from a dataset mapping.
@@ -515,7 +553,12 @@ class ProjectWrapper(LogMixin):
 
         # Populate it
         dataset_wrapper.populate(
-            dataset_name, dataset_mapping, self.pipelines_dir, self.log_path, map(lambda pw: pw.log_path, self.pipeline_wrappers.values()), copy=copy
+            dataset_name,
+            dataset_mapping,
+            self.pipelines_dir,
+            self.log_path,
+            map(lambda pw: pw.log_path, self.pipeline_wrappers.values()),
+            copy=copy,
         )
 
         # Validate it
@@ -528,13 +571,16 @@ class ProjectWrapper(LogMixin):
 
         return dataset_wrapper
 
-    def create_target(self, target_name: str, target_type: str, target_config: Dict[str, Any]) -> DistributionTargetWrapper:
+    def create_target(
+        self, target_name: str, target_type: str, target_config: Dict[str, Any]
+    ) -> DistributionTargetWrapper:
         """
         Create a Marimba distribution target.
 
         Args:
             target_name: The name of the distribution target.
-            target_type: The type of distribution target to create. See `DistributionTargetWrapper.CLASS_MAP` for valid types.
+            target_type:
+                The type of distribution target to create. See `DistributionTargetWrapper.CLASS_MAP` for valid types.
             target_config: The configuration for the distribution target.
 
         Returns:
@@ -602,7 +648,11 @@ class ProjectWrapper(LogMixin):
         distribution_target.distribute(dataset_wrapper)
 
     def run_import(
-        self, collection_name: str, source_paths: Iterable[Union[str, Path]], extra_args: Optional[List[str]] = None, **kwargs: Dict[str, Any]
+        self,
+        collection_name: str,
+        source_paths: Iterable[Union[str, Path]],
+        extra_args: Optional[List[str]] = None,
+        **kwargs: Dict[str, Any],
     ) -> None:
         """
         Run the import command to populate a collection from a source data directory.
@@ -629,7 +679,10 @@ class ProjectWrapper(LogMixin):
 
         # Import each pipeline
         pretty_paths = ", ".join(str(Path(p).resolve().absolute()) for p in source_paths)
-        self.logger.debug(f'Running import for collection "{collection_name}" from source path(s) {pretty_paths} with kwargs {merged_kwargs}')
+        self.logger.debug(
+            f'Running import for collection "{collection_name}" from source path(s) '
+            f"{pretty_paths} with kwargs {merged_kwargs}"
+        )
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
             # Get the pipeline instance
             pipeline = pipeline_wrapper.get_instance()
@@ -648,10 +701,12 @@ class ProjectWrapper(LogMixin):
         """
         Prompt the user for a collection configuration.
 
-        The schema will be generated from the pipeline-specific collection config schemas of all pipelines in the project, as well as the collection config of the parent collection if specified.
+        The schema will be generated from the pipeline-specific collection config schemas of all pipelines in the
+        project, as well as the collection config of the parent collection if specified.
 
         Args:
-            parent_collection_name: The name of the parent collection. If unspecified, use the last collection by modification time.
+            parent_collection_name:
+                The name of the parent collection. If unspecified, use the last collection by modification time.
 
         Returns:
             The collection configuration as a dictionary.
@@ -686,7 +741,9 @@ class ProjectWrapper(LogMixin):
 
             parent_collection_config = parent_collection_wrapper.load_config()
             resolved_collection_schema.update(parent_collection_config)
-            self.logger.debug(f'Using parent collection "{parent_collection_name}" with config: {parent_collection_config}')
+            self.logger.debug(
+                f'Using parent collection "{parent_collection_name}" with config: {parent_collection_config}'
+            )
 
         # Prompt from the resolved schema
         collection_config = prompt_schema(resolved_collection_schema)

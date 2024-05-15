@@ -4,7 +4,7 @@ Image utilities. Includes transcoding, resizing, cropping, etc.
 
 from pathlib import Path
 from shutil import copy2
-from typing import Iterable, Tuple, Union, Optional, List
+from typing import Iterable, Tuple, Union, Optional
 
 import cv2
 import numpy as np
@@ -18,10 +18,13 @@ def convert_to_jpeg(path: Union[str, Path], quality: int = 95, destination: Opti
     Args:
         path: The path to the image file.
         quality: The JPEG quality, from 0 to 100.
-        destination: The path to save the converted image to. If not provided, the original file will be overwritten. The path extension will be forced to .jpg.
+        destination:
+            The path to save the converted image to. If not provided, the original file will be overwritten. The path
+            extension will be forced to .jpg.
 
     Returns:
-        The path to the converted image file. If the destination argument is provided, this will be the same as the destination argument with the extension forced to .jpg.
+        The path to the converted image file. If the destination argument is provided, this will be the same as the
+        destination argument with the extension forced to .jpg.
     """
     path = Path(path)
     destination = Path(destination) if destination is not None else path
@@ -45,7 +48,8 @@ def _resize_fit(img: Image.Image, max_width: int, max_height: int) -> Image.Imag
     return img
 
 
-def resize_fit(path: Union[str, Path], max_width: int = 1920, max_height: int = 1080, destination: Optional[Union[str, Path]] = None) -> None:
+def resize_fit(path: Union[str, Path], max_width: int = 1920, max_height: int = 1080,
+               destination: Optional[Union[str, Path]] = None) -> None:
     """
     Resize an image to fit within a maximum width and height.
 
@@ -63,7 +67,8 @@ def resize_fit(path: Union[str, Path], max_width: int = 1920, max_height: int = 
     img.save(destination)
 
 
-def resize_exact(path: Union[str, Path], width: int = 1920, height: int = 1080, destination: Optional[Union[str, Path]] = None) -> None:
+def resize_exact(path: Union[str, Path], width: int = 1920, height: int = 1080,
+                 destination: Optional[Union[str, Path]] = None) -> None:
     """
     Resize an image to exact dimensions.
 
@@ -81,13 +86,13 @@ def resize_exact(path: Union[str, Path], width: int = 1920, height: int = 1080, 
     img.save(destination)
 
 
-def scale(path: Union[str, Path], scale: float, destination: Optional[Union[str, Path]] = None) -> None:
+def scale(path: Union[str, Path], scale_factor: float, destination: Optional[Union[str, Path]] = None) -> None:
     """
     Scale an image by a given factor.
 
     Args:
         path: The path to the image file.
-        scale: The scale factor to apply to the image, 0-1.
+        scale_factor: The scale factor to apply to the image, 0-1.
         destination: The path to save the scaled image to. If not provided, the original file will be overwritten.
     """
     path = Path(path)
@@ -97,19 +102,25 @@ def scale(path: Union[str, Path], scale: float, destination: Optional[Union[str,
         destination = path
     img = Image.open(path)
     width, height = img.size
-    new_width = int(width * scale)
-    new_height = int(height * scale)
+    new_width = int(width * scale_factor)
+    new_height = int(height * scale_factor)
     img = img.resize((new_width, new_height), Image.LANCZOS)
     img.save(destination)
 
 
-def rotate_clockwise(path: Union[str, Path], degrees: int, expand: bool = False, destination: Optional[Union[str, Path]] = None) -> None:
+def rotate_clockwise(
+        path: Union[str, Path],
+        degrees: int,
+        expand: bool = False,
+        destination: Optional[Union[str, Path]] = None
+) -> None:
     """
     Rotate an image clockwise by a given number of degrees.
 
     Args:
         path: The path to the image file.
         degrees: The number of degrees to rotate the image.
+        expand:
         destination: The path to save the rotated image to. If not provided, the original file will be overwritten.
     """
     path = Path(path)
@@ -126,13 +137,25 @@ def turn_clockwise(path: Union[str, Path], turns: int = 1, destination: Optional
 
     Args:
         path: The path to the image file.
+        turns: The number of 90-degree turns to make. Must be between 1 and 3 inclusive.
         destination: The path to save the turned image to. If not provided, the original file will be overwritten.
     """
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
+    # Validate the turns value
+    if turns not in [1, 2, 3]:
+        raise ValueError("Turns must be an integer between 1 and 3 inclusive.")
+
+    # Map turns to the corresponding rotation constants
+    rotation_constants = {
+        1: Image.ROTATE_90,
+        2: Image.ROTATE_180,
+        3: Image.ROTATE_270,
+    }
+
     img = Image.open(path)
-    img = img.transpose(Image.ROTATE_90 * turns)
+    img = img.transpose(rotation_constants[turns])
     img.save(destination)
 
 
@@ -174,7 +197,9 @@ def is_blurry(path: Union[str, Path], threshold: float = 100.0) -> bool:
 
     Args:
         path: The path to the image file.
-        threshold: The threshold for the variance of the Laplacian. If the variance is below this threshold, the image is considered blurry.
+        threshold:
+            The threshold for the variance of the Laplacian. If the variance is below this threshold, the image is
+            considered blurry.
 
     Returns:
         True if the image is blurry, False otherwise.
@@ -194,7 +219,8 @@ def is_blurry(path: Union[str, Path], threshold: float = 100.0) -> bool:
     return image_is_blurry
 
 
-def crop(path: Union[str, Path], x: int, y: int, width: int, height: int, destination: Optional[Union[str, Path]] = None) -> None:
+def crop(path: Union[str, Path], x: int, y: int, width: int, height: int,
+         destination: Optional[Union[str, Path]] = None) -> None:
     """
     Crop an image to a given size and position.
 
@@ -214,14 +240,21 @@ def crop(path: Union[str, Path], x: int, y: int, width: int, height: int, destin
     img.save(destination)
 
 
-def apply_clahe(path: Union[str, Path], clip_limit: float = 2.0, tile_grid_size: Tuple[int, int] = (8, 8), destination: Optional[Union[str, Path]] = None) -> None:
+def apply_clahe(
+        path: Union[str, Path],
+        clip_limit: float = 2.0,
+        tile_grid_size: Tuple[int, int] = (8, 8),
+        destination: Optional[Union[str, Path]] = None
+) -> None:
     """
     Apply Contrast Limited Adaptive Histogram Equalization (CLAHE) to an image.
 
     Args:
         path: The path to the image file.
         clip_limit: The threshold for contrast limiting.
-        tile_grid_size: The size of the grid for the histogram equalization. The image will be divided into equally sized rectangular tiles.
+        tile_grid_size:
+            The size of the grid for the histogram equalization. The image will be divided into equally sized
+            rectangular tiles.
         destination: The path to save the image to. If not provided, the original file will be overwritten.
     """
     path = Path(path)
@@ -236,7 +269,8 @@ def apply_clahe(path: Union[str, Path], clip_limit: float = 2.0, tile_grid_size:
     cv2.imwrite(str(destination), img_clahe)
 
 
-def gaussian_blur(path: Union[str, Path], kernel_size: Tuple[int, int] = (5, 5), destination: Optional[Union[str, Path]] = None) -> None:
+def gaussian_blur(path: Union[str, Path], kernel_size: Tuple[int, int] = (5, 5),
+                  destination: Optional[Union[str, Path]] = None) -> None:
     """
     Blur an image.
 
@@ -289,11 +323,13 @@ def get_width_height(path: Union[str, Path]) -> Tuple[int, int]:
     path = Path(path)
     img = Image.open(path)
     size = img.size
-    assert isinstance(size, tuple) and len(size) == 2 and all(isinstance(x, int) for x in size), "Size must be a tuple of two integers"
+    assert isinstance(size, tuple) and len(size) == 2 and all(
+        isinstance(x, int) for x in size), "Size must be a tuple of two integers"
     return size
 
 
-def create_grid_image(paths: Iterable[Union[str, Path]], destination: Union[str, Path], columns: int = 5, column_width: int = 300) -> None:
+def create_grid_image(paths: Iterable[Union[str, Path]], destination: Union[str, Path], columns: int = 5,
+                      column_width: int = 300) -> None:
     """
     Create an image that represents a grid of images.
 
@@ -379,8 +415,8 @@ def get_average_image_color(image_data: Image) -> Tuple[int, ...]:
         image_data: The loaded image data.
 
     Returns:
-        A list of integers representing the average color of the image in RGB format.
-        Each element in the list corresponds to the average intensity of the Red, Green, and Blue channels, respectively.
+        A list of integers representing the average color of the image in RGB format. Each element in the list
+        corresponds to the average intensity of the Red, Green, and Blue channels, respectively.
 
         Note: If the input image is None, None will be returned.
     """

@@ -63,7 +63,12 @@ def get_rich_handler() -> DryRunRichHandler:
     return rich_handler
 
 
-def get_file_handler(output_dir: Union[str, Path], name: str, dry_run: bool, level: int = logging.INFO) -> logging.FileHandler:
+def get_file_handler(
+        output_dir: Union[str, Path],
+        name: str,
+        dry_run: bool,
+        level: int = logging.INFO
+) -> logging.FileHandler:
     """
     Get a file handler for a given output directory and name.
 
@@ -105,7 +110,14 @@ class NoRichFileHandler(logging.FileHandler):
     Custom FileHandler to remove Rich styling from log entries.
     """
 
-    def __init__(self, filename: str, mode: str = "a", encoding: Optional[str] = None, delay: bool = False, dry_run: bool = False) -> None:
+    def __init__(
+            self,
+            filename: str,
+            mode: str = "a",
+            encoding: Optional[str] = None,
+            delay: bool = False,
+            dry_run: bool = False
+    ) -> None:
         """
         Initialize the NoRichFileHandler.
 

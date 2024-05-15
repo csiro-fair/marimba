@@ -50,8 +50,8 @@ class BasePipeline(ABC, LogMixin):
         """
         Returns the collection configuration schema.
 
-        The collection configuration schema represents the values that the pipeline requires that are specific to a collection.
-        Use `get_pipeline_config_schema` for values that are static for the pipeline across all collections.
+        The collection configuration schema represents the values that the pipeline requires that are specific to a
+        collection. Use `get_pipeline_config_schema` for values that are static for the pipeline across all collections.
 
         See `get_pipeline_config_schema` for more details.
         """
@@ -78,7 +78,13 @@ class BasePipeline(ABC, LogMixin):
         """
         return self.__class__.__name__
 
-    def run_import(self, data_dir: Path, source_paths: List[Path], config: Dict[str, Any], **kwargs: Dict[str, Any]) -> None:
+    def run_import(
+            self,
+            data_dir: Path,
+            source_paths: List[Path],
+            config: Dict[str, Any],
+            **kwargs: Dict[str, Any]
+    ) -> None:
         """
         Public interface for the import command. Delegate to the private implementation method `_import`.
 
@@ -91,7 +97,8 @@ class BasePipeline(ABC, LogMixin):
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
-            f"Running {format_command('import')} command for pipeline {format_entity(self.class_name)} with args: {data_dir=}, {source_paths=}, {config=}, {kwargs=}"
+            f"Running {format_command('import')} command for pipeline {format_entity(self.class_name)} with args: "
+            f"{data_dir=}, {source_paths=}, {config=}, {kwargs=}"
         )
         return self._import(data_dir, source_paths, config, **kwargs)
 
@@ -107,15 +114,23 @@ class BasePipeline(ABC, LogMixin):
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
-            f"Running {format_command('process')} command for pipeline {format_entity(self.class_name)} with args: {data_dir=}, {config=}, {kwargs=}"
+            f"Running {format_command('process')} command for pipeline {format_entity(self.class_name)} with args: "
+            f"{data_dir=}, {config=}, {kwargs=}"
         )
         return self._process(data_dir, config, **kwargs)
 
-    def run_compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: Dict[str, Any]) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
+    def run_compose(
+            self,
+            data_dirs: List[Path],
+            configs: List[Dict[str, Any]],
+            **kwargs: Dict[str, Any]
+    ) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
         """
         Compose a dataset from the given data directories and their corresponding collection configurations.
 
-        Return an [iFDO](https://marine-imaging.com/fair/ifdos/iFDO-overview/) instance that represents the composed dataset and a dictionary that maps files within the provided data directories to relative paths for the resulting distributable dataset.
+        Return an [iFDO](https://marine-imaging.com/fair/ifdos/iFDO-overview/) instance that represents the composed
+        dataset and a dictionary that maps files within the provided data directories to relative paths for the
+        resulting distributable dataset.
 
         Args:
             data_dirs: The data directories to compose.
@@ -126,17 +141,27 @@ class BasePipeline(ABC, LogMixin):
             The iFDO and path mapping dict.
         """
         self.logger.debug(
-            f"Running {format_command('compose')} command for pipeline {format_entity(self.class_name)} with args: {data_dirs=}, {configs=}, {kwargs=}"
+            f"Running {format_command('compose')} command for pipeline {format_entity(self.class_name)} with args: "
+            f"{data_dirs=}, {configs=}, {kwargs=}"
         )
         return self._compose(data_dirs, configs, **kwargs)
 
-    def _import(self, data_dir: Path, source_paths: List[Path], config: Dict[str, Any], **kwargs: Dict[str, Any]) -> None:
+    def _import(
+            self,
+            data_dir: Path,
+            source_paths: List[Path],
+            config: Dict[str, Any],
+            **kwargs: Dict[str, Any]
+    ) -> None:
         """
         `run_import` implementation; override this to implement the import command.
 
         TODO: Add docs on how to implement this method.
         """
-        self.logger.warning(f"There is no Marimba {format_command('import')} command implemented for pipeline {format_entity(self.class_name)}")
+        self.logger.warning(
+            f"There is no Marimba {format_command('import')} command implemented for pipeline "
+            f"{format_entity(self.class_name)}"
+        )
 
     def _process(self, data_dir: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]) -> None:
         """
@@ -144,10 +169,18 @@ class BasePipeline(ABC, LogMixin):
 
         TODO: Add docs on how to implement this method.
         """
-        self.logger.warning(f"There is no Marimba {format_command('process')} command implemented for pipeline {format_entity(self.class_name)}")
+        self.logger.warning(
+            f"There is no Marimba {format_command('process')} command implemented for pipeline "
+            f"{format_entity(self.class_name)}"
+        )
 
     @abstractmethod
-    def _compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: Dict[str, Any]) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
+    def _compose(
+            self,
+            data_dirs: List[Path],
+            configs: List[Dict[str, Any]],
+            **kwargs: Dict[str, Any]
+    ) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
         """
         `run_compose` implementation; override this.
 

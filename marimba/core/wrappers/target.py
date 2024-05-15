@@ -1,4 +1,4 @@
-from inspect import getfullargspec, FullArgSpec, isclass
+from inspect import getfullargspec, isclass
 from pathlib import Path
 from types import FunctionType
 from typing import Tuple, Union, Any, Dict, Optional, cast
@@ -32,7 +32,13 @@ class DistributionTargetWrapper:
         self._check_config()
 
     @classmethod
-    def create(cls, config_path: Union[str, Path], target_type: str, target_args: Dict[str, Any]) -> Optional[DistributionTargetBase]:
+    def create(
+            cls,
+            config_path:
+            Union[str, Path],
+            target_type: str,
+            target_args: Dict[str, Any]
+    ) -> Optional[DistributionTargetBase]:
         """
         Create a distribution target at the specified path with the specified type and arguments.
 
@@ -135,16 +141,21 @@ class DistributionTargetWrapper:
         """
         target_type = self.config.get("type", None)
         if target_type is None:
-            raise DistributionTargetWrapper.InvalidConfigError("The distribution target configuration must specify a 'type'.")
+            raise DistributionTargetWrapper.InvalidConfigError(
+                "The distribution target configuration must specify a 'type'."
+            )
 
         if target_type not in DistributionTargetWrapper.CLASS_MAP.keys():
             raise DistributionTargetWrapper.InvalidConfigError(
-                f"Invalid distribution target type: {target_type}. Must be one of: {', '.join(DistributionTargetWrapper.CLASS_MAP.keys())}"
+                f"Invalid distribution target type: {target_type}. Must be one of: "
+                f"{', '.join(DistributionTargetWrapper.CLASS_MAP.keys())}"
             )
 
         target_args = self.config.get("config", None)
         if target_args is None:
-            raise DistributionTargetWrapper.InvalidConfigError("The distribution target configuration must specify a 'config'.")
+            raise DistributionTargetWrapper.InvalidConfigError(
+                "The distribution target configuration must specify a 'config'."
+            )
 
     def _load_config(self) -> None:
         """
@@ -182,4 +193,3 @@ class DistributionTargetWrapper:
                 # Use cast to assure Mypy of the return type
                 return cast(DistributionTargetBase, target_class(**target_args))
         return None
-
