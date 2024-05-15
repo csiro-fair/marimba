@@ -3,7 +3,7 @@ import subprocess
 import sys
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
-from typing import Union
+from typing import Union, Dict, Any, Optional, Type
 
 from git import Repo
 
@@ -35,8 +35,8 @@ class PipelineWrapper(LogMixin):
         self._root_dir = Path(root_dir)
         self._dry_run = dry_run
 
-        self._file_handler = None
-        self._pipeline_class = None
+        self._file_handler: Optional[logging.FileHandler] = None
+        self._pipeline_class: Optional[Type[BasePipeline]] = None
 
         self._check_file_structure()
         self._setup_logging()
@@ -90,7 +90,7 @@ class PipelineWrapper(LogMixin):
         """
         return self._dry_run
 
-    def _check_file_structure(self):
+    def _check_file_structure(self) -> None:
         """
         Check that the pipeline file structure is valid. If not, raise an InvalidStructureError with details.
 
@@ -98,11 +98,11 @@ class PipelineWrapper(LogMixin):
             PipelineDirectory.InvalidStructureError: If the pipeline file structure is invalid.
         """
 
-        def check_dir_exists(path: Path):
+        def check_dir_exists(path: Path) -> None:
             if not path.is_dir():
                 raise PipelineWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
 
-        def check_file_exists(path: Path):
+        def check_file_exists(path: Path) -> None:
             if not path.is_file():
                 raise PipelineWrapper.InvalidStructureError(f'"{path}" does not exist or is not a file.')
 
@@ -110,7 +110,7 @@ class PipelineWrapper(LogMixin):
         check_dir_exists(self.repo_dir)
         check_file_exists(self.config_path)
 
-    def _setup_logging(self):
+    def _setup_logging(self) -> None:
         """
         Set up logging. Create file handler for this instance that writes to `pipeline.log`.
         """
@@ -121,7 +121,7 @@ class PipelineWrapper(LogMixin):
         self.logger.addHandler(self._file_handler)
 
     @classmethod
-    def create(cls, root_dir: Union[str, Path], url: str, dry_run: bool = False):
+    def create(cls, root_dir: Union[str, Path], url: str, dry_run: bool = False) -> "PipelineWrapper":
         """
         Create a new pipeline directory from a remote git repository.
 
@@ -152,7 +152,7 @@ class PipelineWrapper(LogMixin):
 
         return cls(root_dir, dry_run=dry_run)
 
-    def load_config(self) -> dict:
+    def load_config(self) -> Dict[str, Any]:
         """
         Load the pipeline configuration.
 
@@ -161,14 +161,15 @@ class PipelineWrapper(LogMixin):
         """
         return load_config(self.config_path)
 
-    def save_config(self, config: dict):
+    def save_config(self, config: Optional[Dict[Any, Any]]) -> None:
         """
         Save the pipeline configuration.
 
         Args:
             config: The pipeline configuration.
         """
-        save_config(self.config_path, config)
+        if config:
+            save_config(self.config_path, config)
 
     def get_instance(self) -> BasePipeline:
         """
@@ -186,15 +187,19 @@ class PipelineWrapper(LogMixin):
         # Get the pipeline class
         pipeline_class = self.get_pipeline_class()
 
+        if pipeline_class is None:
+            raise ImportError("Pipeline class has not been set or could not be found.")
+
         # Create an instance of the pipeline
         pipeline_instance = pipeline_class(self.repo_dir, config=self.load_config(), dry_run=self.dry_run)
 
-        # Set up pipeline file logging
-        pipeline_instance.logger.addHandler(self._file_handler)
+        # Set up pipeline file logging if _file_handler is initialized
+        if self._file_handler is not None:
+            pipeline_instance.logger.addHandler(self._file_handler)
 
         return pipeline_instance
 
-    def get_pipeline_class(self) -> BasePipeline:
+    def get_pipeline_class(self) -> Optional[Type[BasePipeline]]:
         """
         Get the pipeline class. Lazy-loaded and cached. Automatically scans the repository for a pipeline implementation.
 
@@ -222,11 +227,18 @@ class PipelineWrapper(LogMixin):
                 str(pipeline_module_path.absolute()),
             )
 
+            if pipeline_module_spec is None:
+                raise ImportError(f"Could not load spec for {pipeline_module_name} from {pipeline_module_path}")
+
             # Create the pipeline module
             pipeline_module = module_from_spec(pipeline_module_spec)
 
             # Enable repo-relative imports by temporarily adding the repository directory to the module search path
             sys.path.insert(0, str(self.repo_dir.absolute()))
+
+            # Ensure that loader is not None before executing the module
+            if pipeline_module_spec.loader is None:
+                raise ImportError(f"Could not find loader for {pipeline_module_name} from {pipeline_module_path}")
 
             # Execute it
             pipeline_module_spec.loader.exec_module(pipeline_module)
@@ -239,16 +251,17 @@ class PipelineWrapper(LogMixin):
                 if isinstance(obj, type) and issubclass(obj, BasePipeline) and obj is not BasePipeline:
                     self._pipeline_class = obj
                     break
+
         return self._pipeline_class
 
-    def update(self):
+    def update(self) -> None:
         """
         Update the pipeline repository by issuing a git pull.
         """
         repo = Repo(self.repo_dir)
         repo.remotes.origin.pull()
 
-    def install(self):
+    def install(self) -> None:
         """
         Install the pipeline dependencies as provided in a requirements.txt file, if present.
 

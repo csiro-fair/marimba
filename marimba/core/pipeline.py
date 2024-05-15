@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from ifdo import iFDO
+from ifdo.models import ImageData
 
 from marimba.core.utils.log import LogMixin
 from marimba.core.utils.rich import format_command, format_entity
@@ -111,7 +111,7 @@ class BasePipeline(ABC, LogMixin):
         )
         return self._process(data_dir, config, **kwargs)
 
-    def run_compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Tuple[iFDO, Dict[Path, Path]]:
+    def run_compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
         """
         Compose a dataset from the given data directories and their corresponding collection configurations.
 
@@ -147,7 +147,7 @@ class BasePipeline(ABC, LogMixin):
         self.logger.warning(f"There is no Marimba {format_command('process')} command implemented for pipeline {format_entity(self.class_name)}")
 
     @abstractmethod
-    def _compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Tuple[iFDO, Dict[Path, Path]]:
+    def _compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
         """
         `run_compose` implementation; override this.
 

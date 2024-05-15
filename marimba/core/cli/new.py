@@ -56,27 +56,27 @@ def find_project_dir_or_exit(project_dir: Optional[Union[str, Path]] = None) -> 
     Raises:
         typer.Exit: If no project root directory was found.
     """
-    # If the project directory is specified, check it and use it
-    if project_dir is not None:
-        return find_project_dir(project_dir)
 
-    # Otherwise, search for a project directory in the current working directory and its parents
-    project_dir = find_project_dir(Path.cwd())
+    # Convert project_dir to Path if it is not None, otherwise use current working directory
+    project_dir = Path(project_dir) if project_dir else Path.cwd()
 
-    # If no project directory was found, exit with an error
-    if project_dir is None:
+    # Attempt to find the project directory
+    found_project_dir = find_project_dir(project_dir)
+
+    # Check if a project directory was found
+    if found_project_dir is None:
         error_message = f"Could not find a {MARIMBA} project."
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()
 
-    return project_dir
+    return found_project_dir
 
 
 @app.command()
 def project(
     project_dir: Path = typer.Argument(..., help="Root path to create new Marimba project."),
-):
+) -> None:
     """
     Create a new Marimba project.
     """
@@ -98,11 +98,11 @@ def project(
 def pipeline(
     pipeline_name: str = typer.Argument(..., help="Name of the pipeline."),
     url: str = typer.Argument(..., help="URL of the pipeline git repository."),
-    project_dir: Optional[Path] = typer.Option(
+    project_dir: Path = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
-):
+) -> None:
     """
     Create and configure a new Marimba pipeline in a project.
     """
@@ -127,24 +127,24 @@ def pipeline(
         print(error_panel(error_message))
         raise typer.Exit()
 
-    print(success_panel(f'Created new {MARIMBA} {format_entity("pipeline")} "{pipeline_name}" at: "{pipeline_wrapper.root_dir}"'))
-
     # Configure the pipeline from the command line
     pipeline = pipeline_wrapper.get_instance()
     pipeline_config_schema = pipeline.get_pipeline_config_schema()
     pipeline_config = prompt_schema(pipeline_config_schema)
     pipeline_wrapper.save_config(pipeline_config)
 
+    print(success_panel(f'Created new {MARIMBA} {format_entity("pipeline")} "{pipeline_name}" at: "{pipeline_wrapper.root_dir}"'))
+
 
 @app.command()
 def collection(
     collection_name: str = typer.Argument(..., help="Name of the collection."),
     parent_collection_name: Optional[str] = typer.Argument(None, help="Name of the parent collection. If unspecified, use the last collection."),
-    project_dir: Optional[Path] = typer.Option(
+    project_dir: Path = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
-):
+) -> None:
     """
     Create and configure a new Marimba collection in a project.
     """
@@ -185,11 +185,11 @@ def collection(
 @app.command()
 def target(
     target_name: str = typer.Argument(..., help="Name of the distribution target."),
-    project_dir: Optional[Path] = typer.Option(
+    project_dir: Path = typer.Option(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
-):
+) -> None:
     """
     Create and configure a new distribution target in a project.
     """

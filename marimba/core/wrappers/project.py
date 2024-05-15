@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
-from ifdo.models import ImageData
+from ifdo.models import ImageData, iFDO
 from rich.progress import Progress, SpinnerColumn
 
 from marimba.core.utils.log import LogMixin, get_file_handler
@@ -15,7 +15,7 @@ from marimba.core.wrappers.pipeline import PipelineWrapper
 from marimba.core.wrappers.target import DistributionTargetWrapper
 
 
-def get_merged_keyword_args(kwargs: dict, extra_args: list, logger: logging.Logger) -> dict:
+def get_merged_keyword_args(kwargs: Dict[str, Any], extra_args: Optional[List[str]], logger: logging.Logger) -> Dict[str, Any]:
     """
     Merge any extra key-value arguments with other keyword arguments.
 
@@ -139,10 +139,10 @@ class ProjectWrapper(LogMixin):
         self._root_dir = Path(root_dir)
         self._dry_run = dry_run
 
-        self._pipeline_wrappers = {}  # pipeline name -> PipelineWrapper instance
-        self._collection_wrappers = {}  # collection name -> CollectionWrapper instance
-        self._dataset_wrappers = {}  # dataset name -> DatasetWrapper instance
-        self._target_wrappers = {}  # target name -> DistributionTargetWrapper instance
+        self._pipeline_wrappers: Dict[str, PipelineWrapper] = {}  # pipeline name -> PipelineWrapper instance
+        self._collection_wrappers: Dict[str, CollectionWrapper] = {}  # collection name -> CollectionWrapper instance
+        self._dataset_wrappers: Dict[str, DatasetWrapper] = {}  # dataset name -> DatasetWrapper instance
+        self._target_wrappers: Dict[str, DistributionTargetWrapper] = {}  # target name -> DistributionTargetWrapper instance
 
         self._check_file_structure()
         self._setup_logging()
@@ -184,7 +184,7 @@ class ProjectWrapper(LogMixin):
 
         return cls(root_dir, dry_run=dry_run)
 
-    def _check_file_structure(self):
+    def _check_file_structure(self) -> None:
         """
         Check that the project file structure is valid. If not, raise an InvalidStructureError with details.
 
@@ -192,13 +192,13 @@ class ProjectWrapper(LogMixin):
             ProjectWrapper.InvalidStructureError: If the project file structure is invalid.
         """
 
-        def check_dir_exists(path: Path):
+        def check_dir_exists(path: Path) -> None:
             if not path.is_dir():
                 raise ProjectWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
 
         check_dir_exists(self.root_dir)
 
-    def _setup_logging(self):
+    def _setup_logging(self) -> None:
         """
         Set up logging. Create file handler for this instance that writes to `project.log`.
         """
@@ -208,7 +208,7 @@ class ProjectWrapper(LogMixin):
         # Add the file handler to the logger
         self.logger.addHandler(file_handler)
 
-    def _load_pipelines(self):
+    def _load_pipelines(self) -> None:
         """
         Load pipeline wrappers from the `pipelines` directory.
 
@@ -223,7 +223,7 @@ class ProjectWrapper(LogMixin):
         for pipeline_dir in pipeline_dirs:
             self._pipeline_wrappers[pipeline_dir.name] = PipelineWrapper(pipeline_dir, dry_run=self.dry_run)
 
-    def _load_collections(self):
+    def _load_collections(self) -> None:
         """
         Load collection instances from the `collections` directory.
 
@@ -238,7 +238,7 @@ class ProjectWrapper(LogMixin):
         for collection_dir in collection_dirs:
             self._collection_wrappers[collection_dir.name] = CollectionWrapper(collection_dir)
 
-    def _load_datasets(self):
+    def _load_datasets(self) -> None:
         """
         Load dataset instances from the `dist` directory.
 
@@ -253,7 +253,7 @@ class ProjectWrapper(LogMixin):
         for dataset_dir in dataset_dirs:
             self._dataset_wrappers[dataset_dir.name] = DatasetWrapper(dataset_dir)
 
-    def _load_targets(self):
+    def _load_targets(self) -> None:
         """
         Load distribution target wrappers from the `targets` directory.
 
@@ -351,7 +351,7 @@ class ProjectWrapper(LogMixin):
         pipeline_name: Optional[str] = None,
         collection_name: Optional[str] = None,
         extra_args: Optional[List[str]] = None,
-        **kwargs: dict,
+        **kwargs: Dict[str, Any],
     ) -> Dict[str, Dict[str, Any]]:
         """
         Run a command within the project.
@@ -387,8 +387,8 @@ class ProjectWrapper(LogMixin):
                 raise ProjectWrapper.RunCommandError(f'Collection "{collection_name}" does not exist within the project.')
 
         # Select the pipelines and collections to run the command for
-        pipeline_wrappers_to_run = {pipeline_name: pipeline_wrapper} if pipeline_name is not None else self._pipeline_wrappers
-        collection_wrappers_to_run = {collection_name: collection_wrapper} if collection_name is not None else self._collection_wrappers
+        pipeline_wrappers_to_run = {pipeline_name: self._pipeline_wrappers[pipeline_name]} if pipeline_name is not None else self._pipeline_wrappers
+        collection_wrappers_to_run = {collection_name: self._collection_wrappers[collection_name]} if collection_name is not None else self._collection_wrappers
 
         # Load pipeline instances
         pipelines_to_run = {pipeline_name: pipeline_wrapper.get_instance() for pipeline_name, pipeline_wrapper in pipeline_wrappers_to_run.items()}
@@ -429,8 +429,8 @@ class ProjectWrapper(LogMixin):
         return results_by_collection
 
     def compose(
-        self, collection_names: List[str], extra_args: Optional[List[str]] = None, **kwargs: dict
-    ) -> Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]]:
+        self, collection_names: List[str], extra_args: Optional[List[str]] = None, **kwargs: Dict[str, Any]
+    ) -> Dict[str, Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]]:
         """
         Compose a dataset for the given collections across all pipelines.
 
@@ -460,7 +460,7 @@ class ProjectWrapper(LogMixin):
         collection_configs = [collection_wrapper.load_config() for collection_wrapper in collection_wrappers]
 
         self.logger.debug(f'Composing dataset for collections {", ".join(collection_names)} with kwargs {merged_kwargs}')
-        dataset_mapping = {}
+        dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]] = {}
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             task = progress.add_task("[green]Composing data", total=len(self.pipeline_wrappers))
             for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
@@ -485,7 +485,7 @@ class ProjectWrapper(LogMixin):
         return dataset_mapping
 
     def create_dataset(
-        self, dataset_name: str, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]], copy: bool = True
+        self, dataset_name: str, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]], copy: bool = True
     ) -> DatasetWrapper:
         """
         Create a Marimba dataset from a dataset mapping.
@@ -528,7 +528,7 @@ class ProjectWrapper(LogMixin):
 
         return dataset_wrapper
 
-    def create_target(self, target_name: str, target_type: str, target_config: dict) -> DistributionTargetWrapper:
+    def create_target(self, target_name: str, target_type: str, target_config: Dict[str, Any]) -> DistributionTargetWrapper:
         """
         Create a Marimba distribution target.
 
@@ -553,11 +553,15 @@ class ProjectWrapper(LogMixin):
         target_config_path = self.targets_dir / f"{target_name}.yml"
         target_wrapper = DistributionTargetWrapper.create(target_config_path, target_type, target_config)
 
+        # Ensure that instance is of type DistributionTargetWrapper
+        if target_wrapper is None or not isinstance(target_wrapper, DistributionTargetWrapper):
+            raise ValueError("Expected a DistributionTargetWrapper instance")
+
         self._target_wrappers[target_name] = target_wrapper
 
         return target_wrapper
 
-    def distribute(self, dataset_name: str, target_name: str):
+    def distribute(self, dataset_name: str, target_name: str) -> None:
         """
         Distribute a dataset to a distribution target.
 
@@ -589,11 +593,16 @@ class ProjectWrapper(LogMixin):
         # Get the distribution target instance
         distribution_target = target_wrapper.get_instance()
 
+        # Check if distribution_target is not None
+        if distribution_target is None:
+            self.logger.error("Failed to get a valid distribution target instance.")
+            return
+
         # Distribute the dataset
         distribution_target.distribute(dataset_wrapper)
 
     def run_import(
-        self, collection_name: str, source_paths: Iterable[Union[str, Path]], extra_args: Optional[List[str]] = None, **kwargs: dict
+        self, collection_name: str, source_paths: Iterable[Union[str, Path]], extra_args: Optional[List[str]] = None, **kwargs: Dict[str, Any]
     ) -> None:
         """
         Run the import command to populate a collection from a source data directory.
@@ -619,7 +628,7 @@ class ProjectWrapper(LogMixin):
             raise ProjectWrapper.NoSuchCollectionError(collection_name)
 
         # Import each pipeline
-        pretty_paths = ", ".join(list(map(lambda p: str(p.resolve().absolute()), source_paths)))
+        pretty_paths = ", ".join(str(Path(p).resolve().absolute()) for p in source_paths)
         self.logger.debug(f'Running import for collection "{collection_name}" from source path(s) {pretty_paths} with kwargs {merged_kwargs}')
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
             # Get the pipeline instance
@@ -632,9 +641,10 @@ class ProjectWrapper(LogMixin):
             collection_config = collection_wrapper.load_config()
 
             # Run the import
-            pipeline.run_import(collection_data_dir, source_paths, collection_config, **merged_kwargs)
+            source_paths_as_paths = [Path(p) for p in source_paths]
+            pipeline.run_import(collection_data_dir, source_paths_as_paths, collection_config, **merged_kwargs)
 
-    def prompt_collection_config(self, parent_collection_name: Optional[str] = None) -> Dict[str, Any]:
+    def prompt_collection_config(self, parent_collection_name: Optional[str] = None) -> Dict[Any, Any]:
         """
         Prompt the user for a collection configuration.
 
@@ -680,11 +690,14 @@ class ProjectWrapper(LogMixin):
 
         # Prompt from the resolved schema
         collection_config = prompt_schema(resolved_collection_schema)
+        if collection_config is None:
+            collection_config = {}
+
         self.logger.debug(f"Prompted collection config: {collection_config}")
 
         return collection_config
 
-    def update_pipelines(self):
+    def update_pipelines(self) -> None:
         """
         Update all pipelines in the project.
         """
@@ -696,7 +709,7 @@ class ProjectWrapper(LogMixin):
             except Exception as e:
                 self.logger.error(f'Failed to update pipeline "{pipeline_name}": {e}')
 
-    def install_pipelines(self):
+    def install_pipelines(self) -> None:
         """
         Install all pipelines dependencies in the project into the current environment.
         """
@@ -810,7 +823,7 @@ class ProjectWrapper(LogMixin):
         return self._dry_run
 
     @staticmethod
-    def check_name(name: str):
+    def check_name(name: str) -> None:
         """
         Check that a name is valid.
 

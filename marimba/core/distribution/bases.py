@@ -17,7 +17,7 @@ class DistributionTargetBase(ABC, LogMixin):
         pass
 
     @abstractmethod
-    def distribute(self, dataset_wrapper: DatasetWrapper):
+    def distribute(self, dataset_wrapper: DatasetWrapper) -> None:
         """
         Distribute the given dataset to this target.
 

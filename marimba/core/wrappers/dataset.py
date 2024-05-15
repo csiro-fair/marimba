@@ -9,7 +9,7 @@ from fractions import Fraction
 from pathlib import Path
 from shutil import copy2, copytree, ignore_patterns
 from textwrap import dedent
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, Optional, Tuple, Union, Any
 from uuid import uuid4
 
 import piexif
@@ -24,7 +24,7 @@ from marimba.lib import image
 from marimba.lib.gps import convert_degrees_to_gps_coordinate
 
 
-def sizeof_fmt(num: int, suffix: str = "B") -> str:
+def sizeof_fmt(num: float, suffix: str = "B") -> str:
     """
     Convert a number of bytes to a human-readable format.
 
@@ -157,7 +157,7 @@ class Manifest:
         return hash.digest()
 
     @classmethod
-    def from_dir(cls, directory: Path, exclude_paths: Optional[Iterable[Path]] = None, progress: Progress = None) -> "Manifest":
+    def from_dir(cls, directory: Path, exclude_paths: Optional[Iterable[Path]] = None, progress: Optional[Progress] = None) -> "Manifest":
         """
         Create a manifest from a directory.
 
@@ -203,7 +203,7 @@ class Manifest:
 
         return self == manifest
 
-    def __eq__(self, other: "Manifest") -> bool:
+    def __eq__(self, other: object) -> bool:
         """
         Check if two manifests are equal.
 
@@ -213,6 +213,9 @@ class Manifest:
         Returns:
             True if the manifests are equal, False otherwise.
         """
+        if not isinstance(other, Manifest):
+            return NotImplemented
+
         if len(self.hashes) != len(other.hashes):
             return False
 
@@ -222,7 +225,7 @@ class Manifest:
 
         return True
 
-    def save(self, path: Path):
+    def save(self, path: Path) -> None:
         """
         Save the manifest to a file.
 
@@ -321,7 +324,7 @@ class DatasetWrapper(LogMixin):
 
         return cls(root_dir, dry_run=dry_run)
 
-    def _check_file_structure(self):
+    def _check_file_structure(self) -> None:
         """
         Check that the file structure of the project directory is valid. If not, raise an InvalidStructureError with details.
 
@@ -329,7 +332,7 @@ class DatasetWrapper(LogMixin):
             DatasetWrapper.InvalidStructureError: If the file structure is invalid.
         """
 
-        def check_dir_exists(path: Path):
+        def check_dir_exists(path: Path) -> None:
             if not path.is_dir():
                 raise DatasetWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
 
@@ -338,7 +341,7 @@ class DatasetWrapper(LogMixin):
         check_dir_exists(self.logs_dir)
         check_dir_exists(self.pipeline_logs_dir)
 
-    def validate(self):
+    def validate(self) -> None:
         """
         Validate the dataset. If the dataset is inconsistent with its manifest (if present), raise a ManifestError.
 
@@ -351,7 +354,7 @@ class DatasetWrapper(LogMixin):
                 raise DatasetWrapper.ManifestError(self.manifest_path)
             self.logger.debug(f"Dataset is consistent with manifest at {self.manifest_path}.")
 
-    def _setup_logging(self):
+    def _setup_logging(self) -> None:
         """
         Set up logging. Create file handler for this instance that writes to `dataset.log`.
         """
@@ -373,14 +376,14 @@ class DatasetWrapper(LogMixin):
         """
         return self.data_dir / pipeline_name
 
-    def _apply_ifdo_exif_tags(self, metadata_mapping: Dict[Path, Tuple[ImageData, Dict]]):
+    def _apply_ifdo_exif_tags(self, metadata_mapping: Dict[Path, Tuple[ImageData, Optional[Dict[str, Any]]]]) -> None:
         """
         Apply EXIF tags from iFDO metadata to the provided paths.
 
         Args:
             metadata_mapping: A dict mapping file paths to image data.
         """
-        for path, (image_data, ancillary) in metadata_mapping.items():
+        for path, (image_data, ancillary_data) in metadata_mapping.items():
             try:
                 # Load the existing EXIF metadata
                 exif_dict = piexif.load(str(path))
@@ -453,7 +456,7 @@ class DatasetWrapper(LogMixin):
             # Add the iFDO to the EXIF UserComment field
             # TODO: Currently exiftool reports "Warning: Invalid EXIF text encoding for UserComment" when accessing packaged images files
             image_data_dict = image_data.to_dict()
-            user_comment_data = {"metadata": {"ifdo": image_data_dict, "ancillary": ancillary}}
+            user_comment_data = {"metadata": {"ifdo": image_data_dict, "ancillary": ancillary_data}}
             user_comment_json = json.dumps(user_comment_data)
             user_comment_bytes = user_comment_json.encode("utf-8")
             ifd_exif[piexif.ExifIFD.UserComment] = user_comment_bytes
@@ -467,14 +470,14 @@ class DatasetWrapper(LogMixin):
                 self.logger.warning(f"Failed to write EXIF metadata to {path}")
 
     def populate(
-        self,
-        dataset_name: str,
-        dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]],
-        project_pipelines_dir: Path,
-        project_log_path: Path,
-        pipeline_log_paths: Iterable[Path],
-        copy: bool = True,
-    ):
+            self,
+            dataset_name: str,
+            dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]],
+            project_pipelines_dir: Path,
+            project_log_path: Path,
+            pipeline_log_paths: Iterable[Path],
+            copy: bool = True,
+    ) -> None:
         """
         Populate the dataset with files from the given dataset mapping.
 
@@ -494,7 +497,7 @@ class DatasetWrapper(LogMixin):
         self.logger.debug("Dataset mapping is valid.")
 
         # Copy or move the files and populate the iFDO image set items
-        image_set_items = {}
+        image_set_items: Dict[str, ImageData] = {}
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             tasks_by_pipeline_name = {
                 pipeline_name: progress.add_task(f"[green]Populating data for {pipeline_name} pipeline", total=len(pipeline_data_mapping))
@@ -504,14 +507,14 @@ class DatasetWrapper(LogMixin):
 
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
                 pipeline_data_dir = self.get_pipeline_data_dir(pipeline_name)
-                for src, (relative_dst, image_data_list, ancillary) in pipeline_data_mapping.items():
+                for src, (relative_dst, image_data, ancillary_data) in pipeline_data_mapping.items():
                     # Compute the absolute destination path
                     dst = pipeline_data_dir / relative_dst
 
-                    if image_data_list:  # Only consider items that have ImageData
+                    if image_data:  # Only consider items that have ImageData
                         # Compute the data directory-relative destination path for the iFDO
                         dst_relative = dst.relative_to(self.data_dir)
-                        image_set_items[str(dst_relative.as_posix())] = image_data_list
+                        image_set_items[dst_relative.as_posix()] = image_data
 
                     if not self.dry_run:
                         # Create the parent directory if it doesn't exist
@@ -535,14 +538,14 @@ class DatasetWrapper(LogMixin):
                 if len(pipeline_data_mapping) > 0
             }
 
-            metadata_mapping = {}
+            metadata_mapping: Dict[Path, Tuple[ImageData, Optional[Dict[str, Any]]]] = {}
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-                for _, (relative_dst, image_data_list, ancillary) in pipeline_data_mapping.items():
+                for _, (relative_dst, image_data, ancillary_data) in pipeline_data_mapping.items():
                     progress.advance(tasks_by_pipeline_name[pipeline_name])
                     dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
-                    if not image_data_list:  # Skip if no ImageData items
+                    if not image_data:  # Skip if no ImageData items
                         continue
-                    metadata_mapping[dst] = (image_data_list[0], ancillary)  # Use the first ImageData item
+                    metadata_mapping[dst] = (image_data, ancillary_data)
 
             if not self.dry_run:
                 self._apply_ifdo_exif_tags(metadata_mapping)
@@ -554,10 +557,10 @@ class DatasetWrapper(LogMixin):
 
             # Update image_set_items with SHA256 hashes
             for image_path, image_data in image_set_items.items():
-                image_path = Path(self.data_dir) / image_path
+                image_data_path = Path(self.data_dir) / image_path
                 hash = hashlib.sha256()
-                if image_path.is_file():
-                    with image_path.open("rb") as f:
+                if image_data_path.is_file():
+                    with image_data_path.open("rb") as f:
                         for chunk in iter(lambda: f.read(4096), b""):
                             hash.update(chunk)
                     for image_data_item in image_data:
@@ -593,8 +596,8 @@ class DatasetWrapper(LogMixin):
             # Create a summary map if there are any geolocations
             geolocations = [
                 (image_data.image_latitude, image_data.image_longitude)
-                for image_data_list in image_set_items.values()
-                for image_data in image_data_list
+                for image_data in image_set_items.values()
+                for image_data in image_data
                 if image_data.image_latitude is not None and image_data.image_longitude
             ]
             if geolocations:
@@ -739,7 +742,7 @@ class DatasetWrapper(LogMixin):
         return self._dry_run
 
     @staticmethod
-    def check_dataset_mapping(dataset_mapping: Dict[str, Dict[Path, Tuple[Path, List[ImageData]]]]):
+    def check_dataset_mapping(dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]]) -> None:
         """
         Verify that the given path mapping is valid.
 
@@ -756,7 +759,7 @@ class DatasetWrapper(LogMixin):
                     raise DatasetWrapper.InvalidDatasetMappingError(f"Source path {src} does not exist.")
 
             # Verify that all source paths resolve to unique paths
-            reverse_src_resolution = {}
+            reverse_src_resolution: Dict[Path, Path] = {}
             for src in pipeline_data_mapping:
                 resolved = src.resolve().absolute()
                 if resolved in reverse_src_resolution:
@@ -771,10 +774,11 @@ class DatasetWrapper(LogMixin):
                     raise DatasetWrapper.InvalidDatasetMappingError(f"Destination path {dst} must be relative.")
 
             # Verify that there are no collisions in destination paths
-            reverse_mapping = {dst.resolve(): src for src, (dst, _, _) in pipeline_data_mapping.items()}
+            reverse_mapping: Dict[Path, Path] = {dst.resolve(): src for src, (dst, _, _) in pipeline_data_mapping.items() if dst is not None}
             for src, (dst, _, _) in pipeline_data_mapping.items():
-                src_other = reverse_mapping.get(dst.resolve())
-                if src.resolve() != src_other.resolve():
-                    raise DatasetWrapper.InvalidDatasetMappingError(
-                        f"Resolved destination path {dst.resolve()} is the same for source paths {src} and {src_other}."
-                    )
+                if dst is not None:
+                    src_other = reverse_mapping.get(dst.resolve())
+                    if src_other is not None and src.resolve() != src_other.resolve():
+                        raise DatasetWrapper.InvalidDatasetMappingError(
+                            f"Resolved destination path {dst.resolve()} is the same for source paths {src} and {src_other}."
+                        )

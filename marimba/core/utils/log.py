@@ -1,7 +1,7 @@
 import logging
 from enum import Enum
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional, Any
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -11,16 +11,16 @@ file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(m
 
 
 class DryRunRichHandler(RichHandler):
-    def __init__(self, dry_run, *args, **kwargs):
+    def __init__(self, dry_run: bool, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.dry_run = dry_run
 
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         if self.dry_run:
             record.msg = f"DRY_RUN - {record.msg}"
-        return super().emit(record)
+        super().emit(record)
 
-    def set_dry_run(self, dry_run: bool):
+    def set_dry_run(self, dry_run: bool) -> None:
         self.dry_run = dry_run
 
 
@@ -70,6 +70,7 @@ def get_file_handler(output_dir: Union[str, Path], name: str, dry_run: bool, lev
     Args:
         output_dir: The output directory.
         name: The name (stem) of the file. The file extension will be added automatically.
+        dry_run (bool): If true, no log entries will be written to the file.
         level: The logging level.
 
     Returns:
@@ -88,7 +89,7 @@ def get_file_handler(output_dir: Union[str, Path], name: str, dry_run: bool, lev
     path = output_dir / f"{name}.log"
 
     # Create the handler and set the level & formatter
-    handler = NoRichFileHandler(path.absolute(), dry_run=dry_run)
+    handler = NoRichFileHandler(str(path.absolute()), dry_run=dry_run)
     handler.setLevel(level)
     handler.setFormatter(file_formatter)
 
@@ -104,7 +105,7 @@ class NoRichFileHandler(logging.FileHandler):
     Custom FileHandler to remove Rich styling from log entries.
     """
 
-    def __init__(self, filename, mode="a", encoding=None, delay=False, dry_run=False):
+    def __init__(self, filename: str, mode: str = "a", encoding: Optional[str] = None, delay: bool = False, dry_run: bool = False) -> None:
         """
         Initialize the NoRichFileHandler.
 
@@ -119,7 +120,7 @@ class NoRichFileHandler(logging.FileHandler):
         super().__init__(filename, mode, encoding, delay)
         self.dry_run = dry_run
 
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         """
         Over-ride the emit method to conditionally remove styling and write log.
 

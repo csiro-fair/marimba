@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Union
+from typing import Union, Dict, Any
 
 from marimba.core.utils.config import load_config, save_config
 
@@ -90,13 +90,13 @@ class CollectionWrapper:
         check_dir_exists(self.root_dir)
         check_file_exists(self.config_path)
 
-    def load_config(self) -> dict:
+    def load_config(self) -> Dict[str, Any]:
         """
         Load the collection configuration. Reads `collection.yml` from the collection root directory.
         """
         return load_config(self.config_path)
 
-    def save_config(self, config: dict):
+    def save_config(self, config: dict) -> None:
         """
         Save a new collection configuration to `collection.yml` in the collection root directory.
         """

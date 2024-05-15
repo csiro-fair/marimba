@@ -2,12 +2,12 @@
 Marimba configuration utilities.
 """
 from pathlib import Path
-from typing import Union
+from typing import Union, Any, Dict
 
 import yaml
 
 
-def load_config(config_path: Union[str, Path]) -> dict:
+def load_config(config_path: Union[str, Path]) -> Dict[str, Any]:
     """
     Load a YAML config file.
 
@@ -23,13 +23,14 @@ def load_config(config_path: Union[str, Path]) -> dict:
     """
     config_path = Path(config_path)
 
-    with config_path.open() as f:
-        config_data = yaml.safe_load(f)
+    with open(config_path, 'r') as file:
+        data = yaml.safe_load(file)
+        # Assert that the loaded data is a dictionary
+        assert isinstance(data, dict), "Configuration data must be a dictionary"
+    return data
 
-    return config_data
 
-
-def save_config(config_path: Union[str, Path], config_data: dict):
+def save_config(config_path: Union[str, Path], config_data: Dict[Any, Any]) -> None:
     """
     Save a YAML config file.
 
