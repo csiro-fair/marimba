@@ -1,22 +1,23 @@
 from pathlib import Path
 from shutil import rmtree
+from typing import Dict, Any
 from unittest import TestCase, mock
 
 from marimba.core.wrappers.dataset import DatasetWrapper
 
 
 class TestDatasetWrapper(TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.dataset_wrapper = DatasetWrapper.create(Path(__file__).parent / "test_dataset")
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         root_dir = self.dataset_wrapper.root_dir
         del self.dataset_wrapper
         rmtree(root_dir)
 
-    def test_check_dataset_mapping(self):
+    def test_check_dataset_mapping(self) -> None:
         # Test that an invalid dataset mapping raises an error
-        dataset_mapping = {"test": {Path("nonexistent_file.txt"): (Path("destination.txt"), [])}}
+        dataset_mapping: Dict[Any, Any] = {"test": {Path("nonexistent_file.txt"): (Path("destination.txt"), [])}}
         with self.assertRaises(DatasetWrapper.InvalidDatasetMappingError):
             self.dataset_wrapper.check_dataset_mapping(dataset_mapping)
 

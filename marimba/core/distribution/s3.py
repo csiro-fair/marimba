@@ -32,7 +32,7 @@ class S3DistributionTarget(DistributionTargetBase):
 
         # self._check_bucket()
 
-    def _check_bucket(self):
+    def _check_bucket(self) -> None:
         """
         Check that the bucket exists and that we have access to it.
 
@@ -77,7 +77,7 @@ class S3DistributionTarget(DistributionTargetBase):
             if path.is_file():
                 yield path, path_to_key(path)
 
-    def _upload(self, path: Path, key: str):
+    def _upload(self, path: Path, key: str) -> None:
         """
         Upload a file to S3.
 
@@ -87,7 +87,7 @@ class S3DistributionTarget(DistributionTargetBase):
         """
         self._bucket.upload_file(str(path.absolute()), key, Config=self._config)
 
-    def _distribute(self, dataset_wrapper: DatasetWrapper):
+    def _distribute(self, dataset_wrapper: DatasetWrapper) -> None:
         path_key_tups = list(self._iterate_dataset_wrapper(dataset_wrapper))
 
         total_bytes = sum(path.stat().st_size for path, _ in path_key_tups)
@@ -109,7 +109,7 @@ class S3DistributionTarget(DistributionTargetBase):
 
                 progress.update(task, advance=file_bytes)
 
-    def distribute(self, dataset_wrapper: DatasetWrapper):
+    def distribute(self, dataset_wrapper: DatasetWrapper) -> None:
         try:
             return self._distribute(dataset_wrapper)
         except Exception as e:

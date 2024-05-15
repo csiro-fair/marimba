@@ -20,7 +20,7 @@ def load_ifdo(path: Union[str, Path]) -> iFDO:
     return iFDO.load(path)
 
 
-def save_ifdo(ifdo: iFDO, path: Union[str, Path]):
+def save_ifdo(ifdo: iFDO, path: Union[str, Path]) -> None:
     """
     Save an iFDO file to a path.
 

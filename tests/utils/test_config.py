@@ -7,28 +7,28 @@ from marimba.core.utils.config import load_config
 
 
 class TestLoadConfig(TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.config_path = Path("test_config.yaml")
         self.config_data = {"key": "value"}
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         if self.config_path.exists():
             self.config_path.unlink()
 
-    def test_load_config_with_valid_yaml(self):
+    def test_load_config_with_valid_yaml(self) -> None:
         with self.config_path.open("w") as f:
             f.write("key: value")
 
         config_data = load_config(self.config_path)
         self.assertEqual(config_data, self.config_data)
 
-    def test_load_config_with_invalid_yaml(self):
+    def test_load_config_with_invalid_yaml(self) -> None:
         with self.config_path.open("w") as f:
             f.write("key: value\ninvalid")
 
         with self.assertRaises(yaml.scanner.ScannerError):
             load_config(self.config_path)
 
-    def test_load_config_with_nonexistent_file(self):
+    def test_load_config_with_nonexistent_file(self) -> None:
         with self.assertRaises(FileNotFoundError):
             load_config(self.config_path)

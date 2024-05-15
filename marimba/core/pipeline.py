@@ -13,13 +13,13 @@ class BasePipeline(ABC, LogMixin):
     Marimba pipeline abstract base class. All pipelines should inherit from this class.
     """
 
-    def __init__(self, root_path: Union[str, Path], config: Optional[dict] = None, dry_run: bool = False):
+    def __init__(self, root_path: Union[str, Path], config: Optional[Dict[str, Any]] = None, dry_run: bool = False):
         self._root_path = root_path
         self._config = config
         self._dry_run = dry_run
 
     @staticmethod
-    def get_pipeline_config_schema() -> dict:
+    def get_pipeline_config_schema() -> Dict[str, Any]:
         """
         Returns the pipeline configuration schema.
 
@@ -46,7 +46,7 @@ class BasePipeline(ABC, LogMixin):
         return {}
 
     @staticmethod
-    def get_collection_config_schema() -> dict:
+    def get_collection_config_schema() -> Dict[str, Any]:
         """
         Returns the collection configuration schema.
 
@@ -58,7 +58,7 @@ class BasePipeline(ABC, LogMixin):
         return {}
 
     @property
-    def config(self) -> Optional[dict]:
+    def config(self) -> Optional[Dict[str, Any]]:
         """
         The pipeline static configuration.
         """
@@ -78,7 +78,7 @@ class BasePipeline(ABC, LogMixin):
         """
         return self.__class__.__name__
 
-    def run_import(self, data_dir: Path, source_paths: List[Path], config: Dict[str, Any], **kwargs: dict):
+    def run_import(self, data_dir: Path, source_paths: List[Path], config: Dict[str, Any], **kwargs: Dict[str, Any]) -> None:
         """
         Public interface for the import command. Delegate to the private implementation method `_import`.
 
@@ -95,7 +95,7 @@ class BasePipeline(ABC, LogMixin):
         )
         return self._import(data_dir, source_paths, config, **kwargs)
 
-    def run_process(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
+    def run_process(self, data_dir: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]) -> None:
         """
         Public interface for the process command. Delegate to the private implementation method `_process`.
 
@@ -111,7 +111,7 @@ class BasePipeline(ABC, LogMixin):
         )
         return self._process(data_dir, config, **kwargs)
 
-    def run_compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
+    def run_compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: Dict[str, Any]) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
         """
         Compose a dataset from the given data directories and their corresponding collection configurations.
 
@@ -130,7 +130,7 @@ class BasePipeline(ABC, LogMixin):
         )
         return self._compose(data_dirs, configs, **kwargs)
 
-    def _import(self, data_dir: Path, source_paths: List[Path], config: Dict[str, Any], **kwargs: dict):
+    def _import(self, data_dir: Path, source_paths: List[Path], config: Dict[str, Any], **kwargs: Dict[str, Any]) -> None:
         """
         `run_import` implementation; override this to implement the import command.
 
@@ -138,7 +138,7 @@ class BasePipeline(ABC, LogMixin):
         """
         self.logger.warning(f"There is no Marimba {format_command('import')} command implemented for pipeline {format_entity(self.class_name)}")
 
-    def _process(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
+    def _process(self, data_dir: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]) -> None:
         """
         `run_process` implementation; override this to implement the process command.
 
@@ -147,7 +147,7 @@ class BasePipeline(ABC, LogMixin):
         self.logger.warning(f"There is no Marimba {format_command('process')} command implemented for pipeline {format_entity(self.class_name)}")
 
     @abstractmethod
-    def _compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: dict) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
+    def _compose(self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: Dict[str, Any]) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
         """
         `run_compose` implementation; override this.
 

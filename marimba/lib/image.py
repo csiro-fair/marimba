@@ -4,7 +4,7 @@ Image utilities. Includes transcoding, resizing, cropping, etc.
 
 from pathlib import Path
 from shutil import copy2
-from typing import Iterable, Tuple, Union, Optional
+from typing import Iterable, Tuple, Union, Optional, List
 
 import cv2
 import numpy as np
@@ -371,7 +371,7 @@ def get_shannon_entropy(image_data: Image) -> float:
     return float(entropy)
 
 
-def get_average_image_color(image_data) -> list:
+def get_average_image_color(image_data: Image) -> Tuple[int, ...]:
     """
     Calculates the average color of an image.
 
@@ -390,4 +390,4 @@ def get_average_image_color(image_data) -> list:
     # Calculate the average color for each channel
     average_color = np.mean(np_image, axis=(0, 1))
 
-    return list(map(int, average_color))
+    return tuple(map(int, average_color))

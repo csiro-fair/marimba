@@ -29,7 +29,7 @@ class CollectionWrapper:
         self._check_file_structure()
 
     @classmethod
-    def create(cls, root_dir: Union[str, Path], config: dict) -> "CollectionWrapper":
+    def create(cls, root_dir: Union[str, Path], config: Dict[str, Any]) -> "CollectionWrapper":
         """
         Create a new collection directory.
 
@@ -71,7 +71,7 @@ class CollectionWrapper:
         """
         return self.root_dir / "collection.yml"
 
-    def _check_file_structure(self):
+    def _check_file_structure(self) -> None:
         """
         Check that the collection directory structure is valid. If not, raise an InvalidStructureError with details.
 
@@ -79,11 +79,11 @@ class CollectionWrapper:
             CollectionDirectory.InvalidStructureError: If the collection directory structure is invalid.
         """
 
-        def check_dir_exists(path: Path):
+        def check_dir_exists(path: Path) -> None:
             if not path.is_dir():
                 raise CollectionWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
 
-        def check_file_exists(path: Path):
+        def check_file_exists(path: Path) -> None:
             if not path.is_file():
                 raise CollectionWrapper.InvalidStructureError(f'"{path}" does not exist or is not a file.')
 
@@ -96,7 +96,7 @@ class CollectionWrapper:
         """
         return load_config(self.config_path)
 
-    def save_config(self, config: dict) -> None:
+    def save_config(self, config: Dict[str, Any]) -> None:
         """
         Save a new collection configuration to `collection.yml` in the collection root directory.
         """

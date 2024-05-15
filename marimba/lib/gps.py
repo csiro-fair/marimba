@@ -3,12 +3,12 @@ GPS functions.
 """
 
 from pathlib import Path
-from typing import Union
+from typing import Union, Tuple, List, Optional
 
 import piexif
 
 
-def convert_gps_coordinate_to_degrees(value):
+def convert_gps_coordinate_to_degrees(value: Union[Tuple[Tuple[int, int], Tuple[int, int], Tuple[int, int]], List[Tuple[int, int]]]) -> float:
     """
     Convert a GPS coordinate value to decimal degrees.
 
@@ -24,7 +24,7 @@ def convert_gps_coordinate_to_degrees(value):
     return degrees + minutes + seconds
 
 
-def convert_degrees_to_gps_coordinate(degrees: float) -> tuple:
+def convert_degrees_to_gps_coordinate(degrees: float) -> tuple[int, int, int]:
     """
     Convert GPS coordinates from decimal degrees format to degrees, minutes, and seconds (DMS) format.
 
@@ -43,7 +43,7 @@ def convert_degrees_to_gps_coordinate(degrees: float) -> tuple:
     return d, m, s
 
 
-def read_exif_location(path: Union[str, Path]):
+def read_exif_location(path: Union[str, Path]) -> Tuple[Optional[float], Optional[float]]:
     """
     Read the latitude and longitude from a file EXIF metadata.
 
@@ -75,8 +75,8 @@ def read_exif_location(path: Union[str, Path]):
             longitude = convert_gps_coordinate_to_degrees(gps_longitude)
             if gps_longitude_ref == b"W":
                 longitude = 0 - longitude
-            return (latitude, longitude)  # success!
+            return latitude, longitude  # success!
         else:  # no GPS data
-            return (None, None)
+            return None, None
     except Exception:  # no/bad EXIF data
-        return (None, None)
+        return None, None

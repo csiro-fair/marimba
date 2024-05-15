@@ -50,7 +50,7 @@ logger = get_logger(__name__)
 @marimba.callback()
 def global_options(
     level: LogLevel = typer.Option(LogLevel.INFO, help="Logging level."),
-):
+) -> None:
     """
     Global options for Marimba CLI.
     """
@@ -70,7 +70,7 @@ def import_command(
     overwrite: bool = typer.Option(False, help="Overwrite an existing collection with the same name."),
     extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-):
+) -> None:
     """
     Import data in a source directory into a new or existing Marimba collection.
     """
@@ -122,7 +122,7 @@ def package_command(
     copy: bool = typer.Option(True, help="Copy files to dataset directory. Set to False to move files instead."),
     extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-):
+) -> None:
     """
     Package up a Marimba collection ready for distribution.
     """
@@ -181,7 +181,7 @@ def process_command(
     ),
     extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-):
+) -> None:
     """
     Process the Marimba collection based on the pipeline specification.
     """
@@ -201,7 +201,7 @@ def distribute_command(
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
     dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-):
+) -> None:
     """
     Distribute a Marimba dataset.
     """
@@ -241,7 +241,7 @@ def update_command(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
-):
+) -> None:
     """
     Update (pull) all Marimba pipelines.
     """
@@ -262,7 +262,7 @@ def install_command(
         None,
         help="Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current working directory and its parents.",
     ),
-):
+) -> None:
     """
     Install Python dependencies from requirements.txt files defined by a project's pipelines.
     """

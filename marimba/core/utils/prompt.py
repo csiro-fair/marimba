@@ -1,9 +1,9 @@
-from typing import Optional
+from typing import Optional, Any, Dict
 
 from rich.prompt import Confirm, FloatPrompt, IntPrompt, Prompt
 
 
-def prompt_schema(schema: dict) -> Optional[dict]:
+def prompt_schema(schema: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
     Prompt the user for values for each field in the schema.
 
