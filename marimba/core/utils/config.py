@@ -25,8 +25,10 @@ def load_config(config_path: Union[str, Path]) -> Dict[str, Any]:
 
     with open(config_path, "r", encoding="utf-8") as file:
         data = yaml.safe_load(file)
-        # Assert that the loaded data is a dictionary
-        assert isinstance(data, dict), "Configuration data must be a dictionary"
+
+        if not isinstance(data, dict):
+            raise TypeError("Configuration data must be a dictionary")
+
     return data
 
 

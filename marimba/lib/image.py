@@ -217,7 +217,10 @@ def is_blurry(path: Union[str, Path], threshold: float = 100.0) -> bool:
     variance_of_laplacian = float(variance_of_laplacian)
 
     image_is_blurry = variance_of_laplacian < threshold
-    assert isinstance(image_is_blurry, bool)  # Assert that image_is_blurry is indeed a boolean
+
+    if not isinstance(image_is_blurry, bool):
+        raise TypeError("Expected image_is_blurry to be a boolean")
+
     return image_is_blurry
 
 
@@ -327,9 +330,10 @@ def get_width_height(path: Union[str, Path]) -> Tuple[int, int]:
     path = Path(path)
     img = Image.open(path)
     size = img.size
-    assert (
-        isinstance(size, tuple) and len(size) == 2 and all(isinstance(x, int) for x in size)
-    ), "Size must be a tuple of two integers"
+
+    if not (isinstance(size, tuple) and len(size) == 2 and all(isinstance(x, int) for x in size)):
+        raise ValueError("Size must be a tuple of two integers")
+
     return size
 
 

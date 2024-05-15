@@ -1,4 +1,5 @@
 import logging
+import shutil
 import subprocess
 import sys
 from importlib.util import module_from_spec, spec_from_file_location
@@ -275,8 +276,18 @@ class PipelineWrapper(LogMixin):
         if self.requirements_path.is_file():
             self.logger.info(f"Installing pipeline dependencies from {self.requirements_path}...")
             try:
+                # Ensure the requirements path is an absolute path and exists
+                requirements_path = str(self.requirements_path.absolute())
+                if not Path(requirements_path).is_file():
+                    raise PipelineWrapper.InstallError(f"Requirements file not found: {requirements_path}")
+
+                # Find the full path to the pip executable
+                pip_path = shutil.which("pip")
+                if pip_path is None:
+                    raise PipelineWrapper.InstallError("pip executable not found in PATH")
+
                 with subprocess.Popen(
-                    ["pip", "install", "--no-input", "-r", str(self.requirements_path.absolute())],
+                    [pip_path, "install", "--no-input", "-r", requirements_path],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                 ) as process:
@@ -287,9 +298,14 @@ class PipelineWrapper(LogMixin):
                         self.logger.warning(error.decode("utf-8"))
 
                     if process.returncode != 0:
-                        raise Exception(f"pip install had a non-zero return code: {process.returncode}")
+                        raise PipelineWrapper.InstallError(
+                            f"pip install had a non-zero return code: {process.returncode}"
+                        )
 
                 self.logger.info("Pipeline dependencies installed successfully.")
             except Exception as e:
                 self.logger.error(f"Error installing pipeline dependencies: {e}")
                 raise PipelineWrapper.InstallError from e
+        else:
+            self.logger.error(f"Requirements file does not exist: {self.requirements_path}")
+            raise PipelineWrapper.InstallError(f"Requirements file does not exist: {self.requirements_path}")
