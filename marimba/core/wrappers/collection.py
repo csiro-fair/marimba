@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Union, Dict, Any
+from typing import Any, Dict, Union
 
 from marimba.core.utils.config import load_config, save_config
 

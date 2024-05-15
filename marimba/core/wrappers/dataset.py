@@ -9,12 +9,12 @@ from fractions import Fraction
 from pathlib import Path
 from shutil import copy2, copytree, ignore_patterns
 from textwrap import dedent
-from typing import Dict, Iterable, Optional, Tuple, Union, Any, List
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 from uuid import uuid4
 
 import piexif
-from PIL import Image
 from ifdo.models import ImageData, ImageSetHeader, iFDO
+from PIL import Image
 from rich.progress import Progress, SpinnerColumn
 
 from marimba.core.utils.log import LogMixin, get_file_handler

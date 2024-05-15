@@ -3,7 +3,7 @@ import subprocess
 import sys
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
-from typing import Union, Dict, Any, Optional, Type
+from typing import Any, Dict, Optional, Type, Union
 
 from git import Repo
 

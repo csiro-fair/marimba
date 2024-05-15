@@ -1,7 +1,7 @@
 import logging
 from enum import Enum
 from pathlib import Path
-from typing import Union, Optional, Any
+from typing import Any, Optional, Union
 
 from rich.console import Console
 from rich.logging import RichHandler

@@ -1,7 +1,7 @@
 from inspect import getfullargspec, isclass
 from pathlib import Path
 from types import FunctionType
-from typing import Tuple, Union, Any, Dict, Optional, cast
+from typing import Any, Dict, Optional, Tuple, Union, cast
 
 from rich.prompt import Prompt
 

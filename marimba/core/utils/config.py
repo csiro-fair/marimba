@@ -2,7 +2,7 @@
 Marimba configuration utilities.
 """
 from pathlib import Path
-from typing import Union, Any, Dict
+from typing import Any, Dict, Union
 
 import yaml
 

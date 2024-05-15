@@ -1,4 +1,4 @@
-from typing import Optional, Any, Dict
+from typing import Any, Dict, Optional
 
 from rich.prompt import Confirm, FloatPrompt, IntPrompt, Prompt
 

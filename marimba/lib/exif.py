@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Union, Any
+from typing import Any, Union
 
 import piexif
 

@@ -1,6 +1,6 @@
 from pathlib import Path
 from shutil import rmtree
-from typing import Dict, Any
+from typing import Any, Dict
 from unittest import TestCase, mock
 
 from marimba.core.wrappers.dataset import DatasetWrapper

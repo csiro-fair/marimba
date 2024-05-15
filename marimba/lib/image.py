@@ -4,7 +4,7 @@ Image utilities. Includes transcoding, resizing, cropping, etc.
 
 from pathlib import Path
 from shutil import copy2
-from typing import Iterable, Tuple, Union, Optional
+from typing import Iterable, Optional, Tuple, Union
 
 import cv2
 import numpy as np

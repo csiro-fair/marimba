@@ -8,13 +8,8 @@ from rich import print
 from marimba.core.utils.help import project_dir_help
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.prompt import prompt_schema
-from marimba.core.utils.rich import (
-    MARIMBA,
-    error_panel,
-    format_command,
-    format_entity,
-    success_panel,
-)
+from marimba.core.utils.rich import (MARIMBA, error_panel, format_command,
+                                     format_entity, success_panel)
 from marimba.core.wrappers.project import ProjectWrapper
 from marimba.core.wrappers.target import DistributionTargetWrapper
 

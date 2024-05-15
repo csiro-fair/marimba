@@ -3,7 +3,7 @@ GPS functions.
 """
 
 from pathlib import Path
-from typing import Union, Tuple, List, Optional
+from typing import List, Optional, Tuple, Union
 
 import piexif
 
