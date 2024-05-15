@@ -48,8 +48,12 @@ def _resize_fit(img: Image.Image, max_width: int, max_height: int) -> Image.Imag
     return img
 
 
-def resize_fit(path: Union[str, Path], max_width: int = 1920, max_height: int = 1080,
-               destination: Optional[Union[str, Path]] = None) -> None:
+def resize_fit(
+    path: Union[str, Path],
+    max_width: int = 1920,
+    max_height: int = 1080,
+    destination: Optional[Union[str, Path]] = None,
+) -> None:
     """
     Resize an image to fit within a maximum width and height.
 
@@ -67,8 +71,9 @@ def resize_fit(path: Union[str, Path], max_width: int = 1920, max_height: int = 
     img.save(destination)
 
 
-def resize_exact(path: Union[str, Path], width: int = 1920, height: int = 1080,
-                 destination: Optional[Union[str, Path]] = None) -> None:
+def resize_exact(
+    path: Union[str, Path], width: int = 1920, height: int = 1080, destination: Optional[Union[str, Path]] = None
+) -> None:
     """
     Resize an image to exact dimensions.
 
@@ -109,10 +114,7 @@ def scale(path: Union[str, Path], scale_factor: float, destination: Optional[Uni
 
 
 def rotate_clockwise(
-        path: Union[str, Path],
-        degrees: int,
-        expand: bool = False,
-        destination: Optional[Union[str, Path]] = None
+    path: Union[str, Path], degrees: int, expand: bool = False, destination: Optional[Union[str, Path]] = None
 ) -> None:
     """
     Rotate an image clockwise by a given number of degrees.
@@ -219,8 +221,9 @@ def is_blurry(path: Union[str, Path], threshold: float = 100.0) -> bool:
     return image_is_blurry
 
 
-def crop(path: Union[str, Path], x: int, y: int, width: int, height: int,
-         destination: Optional[Union[str, Path]] = None) -> None:
+def crop(
+    path: Union[str, Path], x: int, y: int, width: int, height: int, destination: Optional[Union[str, Path]] = None
+) -> None:
     """
     Crop an image to a given size and position.
 
@@ -241,10 +244,10 @@ def crop(path: Union[str, Path], x: int, y: int, width: int, height: int,
 
 
 def apply_clahe(
-        path: Union[str, Path],
-        clip_limit: float = 2.0,
-        tile_grid_size: Tuple[int, int] = (8, 8),
-        destination: Optional[Union[str, Path]] = None
+    path: Union[str, Path],
+    clip_limit: float = 2.0,
+    tile_grid_size: Tuple[int, int] = (8, 8),
+    destination: Optional[Union[str, Path]] = None,
 ) -> None:
     """
     Apply Contrast Limited Adaptive Histogram Equalization (CLAHE) to an image.
@@ -269,8 +272,9 @@ def apply_clahe(
     cv2.imwrite(str(destination), img_clahe)
 
 
-def gaussian_blur(path: Union[str, Path], kernel_size: Tuple[int, int] = (5, 5),
-                  destination: Optional[Union[str, Path]] = None) -> None:
+def gaussian_blur(
+    path: Union[str, Path], kernel_size: Tuple[int, int] = (5, 5), destination: Optional[Union[str, Path]] = None
+) -> None:
     """
     Blur an image.
 
@@ -323,13 +327,15 @@ def get_width_height(path: Union[str, Path]) -> Tuple[int, int]:
     path = Path(path)
     img = Image.open(path)
     size = img.size
-    assert isinstance(size, tuple) and len(size) == 2 and all(
-        isinstance(x, int) for x in size), "Size must be a tuple of two integers"
+    assert (
+        isinstance(size, tuple) and len(size) == 2 and all(isinstance(x, int) for x in size)
+    ), "Size must be a tuple of two integers"
     return size
 
 
-def create_grid_image(paths: Iterable[Union[str, Path]], destination: Union[str, Path], columns: int = 5,
-                      column_width: int = 300) -> None:
+def create_grid_image(
+    paths: Iterable[Union[str, Path]], destination: Union[str, Path], columns: int = 5, column_width: int = 300
+) -> None:
     """
     Create an image that represents a grid of images.
 

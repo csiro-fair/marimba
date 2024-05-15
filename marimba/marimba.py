@@ -50,7 +50,7 @@ logger = get_logger(__name__)
 
 @marimba.callback()
 def global_options(
-        level: LogLevel = typer.Option(LogLevel.INFO, help="Logging level."),
+    level: LogLevel = typer.Option(LogLevel.INFO, help="Logging level."),
 ) -> None:
     """
     Global options for Marimba CLI.
@@ -61,19 +61,17 @@ def global_options(
 
 @marimba.command("import")
 def import_command(
-        collection_name: str = typer.Argument(..., help="Marimba collection name for targeted processing."),
-        source_paths: List[Path] = typer.Argument(..., help="Paths to source files/directories to provide for import."),
-        parent_collection_name: Optional[str] = typer.Option(
-            None,
-            help="Name of the parent collection. If unspecified, use the last collection."
-        ),
-        project_dir: Optional[Path] = typer.Option(None, help=project_dir_help),
-        overwrite: bool = typer.Option(False, help="Overwrite an existing collection with the same name."),
-        extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
-        dry_run: bool = typer.Option(
-            False,
-            help="Execute the command and print logging to the terminal, but do not change any files."
-        ),
+    collection_name: str = typer.Argument(..., help="Marimba collection name for targeted processing."),
+    source_paths: List[Path] = typer.Argument(..., help="Paths to source files/directories to provide for import."),
+    parent_collection_name: Optional[str] = typer.Option(
+        None, help="Name of the parent collection. If unspecified, use the last collection."
+    ),
+    project_dir: Optional[Path] = typer.Option(None, help=project_dir_help),
+    overwrite: bool = typer.Option(False, help="Overwrite an existing collection with the same name."),
+    extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+    dry_run: bool = typer.Option(
+        False, help="Execute the command and print logging to the terminal, but do not change any files."
+    ),
 ) -> None:
     """
     Import data in a source directory into a new or existing Marimba collection.
@@ -114,20 +112,19 @@ def import_command(
 
 @marimba.command("package")
 def package_command(
-        dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
-        # pipeline_name: str = typer.Argument(..., help="Marimba pipeline name to package."),
-        collection_names: Optional[List[str]] = typer.Argument(
-            None,
-            help="Marimba collection names to package. If none are specified, "
-                 "all collections will be packaged together."
-        ),
-        project_dir: Optional[Path] = typer.Option(None, help=project_dir_help),
-        copy: bool = typer.Option(True, help="Copy files to dataset directory. Set to False to move files instead."),
-        extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
-        dry_run: bool = typer.Option(
-            False,
-            help="Execute the command and print logging to the terminal, but do not change any files."
-        ),
+    dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
+    # pipeline_name: str = typer.Argument(..., help="Marimba pipeline name to package."),
+    collection_names: Optional[List[str]] = typer.Argument(
+        None,
+        help="Marimba collection names to package. If none are specified, "
+        "all collections will be packaged together.",
+    ),
+    project_dir: Optional[Path] = typer.Option(None, help=project_dir_help),
+    copy: bool = typer.Option(True, help="Copy files to dataset directory. Set to False to move files instead."),
+    extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+    dry_run: bool = typer.Option(
+        False, help="Execute the command and print logging to the terminal, but do not change any files."
+    ),
 ) -> None:
     """
     Package up a Marimba collection ready for distribution.
@@ -179,14 +176,13 @@ def package_command(
 
 @marimba.command("process")
 def process_command(
-        pipeline_name: Optional[str] = typer.Option(None, help="Marimba pipeline name for targeted processing."),
-        collection_name: Optional[str] = typer.Option(None, help="Marimba collection name for targeted processing."),
-        project_dir: Optional[Path] = typer.Option(None, help=project_dir_help),
-        extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
-        dry_run: bool = typer.Option(
-            False,
-            help="Execute the command and print logging to the terminal, but do not change any files."
-        ),
+    pipeline_name: Optional[str] = typer.Option(None, help="Marimba pipeline name for targeted processing."),
+    collection_name: Optional[str] = typer.Option(None, help="Marimba collection name for targeted processing."),
+    project_dir: Optional[Path] = typer.Option(None, help=project_dir_help),
+    extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+    dry_run: bool = typer.Option(
+        False, help="Execute the command and print logging to the terminal, but do not change any files."
+    ),
 ) -> None:
     """
     Process the Marimba collection based on the pipeline specification.
@@ -200,13 +196,12 @@ def process_command(
 
 @marimba.command("distribute")
 def distribute_command(
-        dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
-        target_name: str = typer.Argument(..., help="Marimba distribution target name."),
-        project_dir: Optional[Path] = typer.Option(None, help=project_dir_help),
-        dry_run: bool = typer.Option(
-            False,
-            help="Execute the command and print logging to the terminal, but do not change any files."
-        ),
+    dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
+    target_name: str = typer.Argument(..., help="Marimba distribution target name."),
+    project_dir: Optional[Path] = typer.Option(None, help=project_dir_help),
+    dry_run: bool = typer.Option(
+        False, help="Execute the command and print logging to the terminal, but do not change any files."
+    ),
 ) -> None:
     """
     Distribute a Marimba dataset.

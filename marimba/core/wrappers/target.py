@@ -33,11 +33,7 @@ class DistributionTargetWrapper:
 
     @classmethod
     def create(
-            cls,
-            config_path:
-            Union[str, Path],
-            target_type: str,
-            target_args: Dict[str, Any]
+        cls, config_path: Union[str, Path], target_type: str, target_args: Dict[str, Any]
     ) -> Optional[DistributionTargetBase]:
         """
         Create a distribution target at the specified path with the specified type and arguments.
@@ -92,7 +88,7 @@ class DistributionTargetWrapper:
             raise TypeError(f"Target class for type {target_type} is not a class")
 
         # Check if __init__ method exists
-        if not hasattr(target_class, '__init__'):
+        if not hasattr(target_class, "__init__"):
             raise TypeError(f"Target class {target_type} does not have an __init__ method")
 
         # Ensure that target_class.__init__ is a method

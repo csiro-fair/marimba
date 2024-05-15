@@ -79,11 +79,7 @@ class BasePipeline(ABC, LogMixin):
         return self.__class__.__name__
 
     def run_import(
-            self,
-            data_dir: Path,
-            source_paths: List[Path],
-            config: Dict[str, Any],
-            **kwargs: Dict[str, Any]
+        self, data_dir: Path, source_paths: List[Path], config: Dict[str, Any], **kwargs: Dict[str, Any]
     ) -> None:
         """
         Public interface for the import command. Delegate to the private implementation method `_import`.
@@ -120,10 +116,7 @@ class BasePipeline(ABC, LogMixin):
         return self._process(data_dir, config, **kwargs)
 
     def run_compose(
-            self,
-            data_dirs: List[Path],
-            configs: List[Dict[str, Any]],
-            **kwargs: Dict[str, Any]
+        self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: Dict[str, Any]
     ) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
         """
         Compose a dataset from the given data directories and their corresponding collection configurations.
@@ -147,11 +140,7 @@ class BasePipeline(ABC, LogMixin):
         return self._compose(data_dirs, configs, **kwargs)
 
     def _import(
-            self,
-            data_dir: Path,
-            source_paths: List[Path],
-            config: Dict[str, Any],
-            **kwargs: Dict[str, Any]
+        self, data_dir: Path, source_paths: List[Path], config: Dict[str, Any], **kwargs: Dict[str, Any]
     ) -> None:
         """
         `run_import` implementation; override this to implement the import command.
@@ -176,10 +165,7 @@ class BasePipeline(ABC, LogMixin):
 
     @abstractmethod
     def _compose(
-            self,
-            data_dirs: List[Path],
-            configs: List[Dict[str, Any]],
-            **kwargs: Dict[str, Any]
+        self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: Dict[str, Any]
     ) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
         """
         `run_compose` implementation; override this.

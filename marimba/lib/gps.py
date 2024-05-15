@@ -9,10 +9,7 @@ import piexif
 
 
 def convert_gps_coordinate_to_degrees(
-    value: Union[
-        Tuple[Tuple[int, int], Tuple[int, int], Tuple[int, int]],
-        List[Tuple[int, int]]
-    ]
+    value: Union[Tuple[Tuple[int, int], Tuple[int, int], Tuple[int, int]], List[Tuple[int, int]]]
 ) -> float:
     """
     Convert a GPS coordinate value to decimal degrees.

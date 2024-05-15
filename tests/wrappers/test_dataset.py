@@ -18,19 +18,13 @@ class TestDatasetWrapper(TestCase):
     def test_check_dataset_mapping(self) -> None:
         # Test that an invalid dataset mapping raises an error
         dataset_mapping: Dict[Any, Any] = {
-            "test": {
-                Path("nonexistent_file.txt"): (Path("destination.txt"), None, None)
-            }
+            "test": {Path("nonexistent_file.txt"): (Path("destination.txt"), None, None)}
         }
         with self.assertRaises(DatasetWrapper.InvalidDatasetMappingError):
             self.dataset_wrapper.check_dataset_mapping(dataset_mapping)
 
         # Test that a valid path mapping does not raise an error
-        dataset_mapping = {
-            "test": {
-                Path(__file__): (Path("destination.txt"), None, None)
-            }
-        }
+        dataset_mapping = {"test": {Path(__file__): (Path("destination.txt"), None, None)}}
         with mock.patch.object(Path, "exists", return_value=True):
             self.dataset_wrapper.check_dataset_mapping(dataset_mapping)
 
@@ -46,11 +40,7 @@ class TestDatasetWrapper(TestCase):
                 self.dataset_wrapper.check_dataset_mapping(dataset_mapping)
 
             # Test that a path mapping with absolute destination paths raises an error
-            dataset_mapping = {
-                "test": {
-                    Path("file.txt"): (Path("path/to/destination.txt").absolute(), None, None)
-                }
-            }
+            dataset_mapping = {"test": {Path("file.txt"): (Path("path/to/destination.txt").absolute(), None, None)}}
             with self.assertRaises(DatasetWrapper.InvalidDatasetMappingError):
                 self.dataset_wrapper.check_dataset_mapping(dataset_mapping)
 

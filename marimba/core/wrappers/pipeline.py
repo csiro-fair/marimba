@@ -281,7 +281,7 @@ class PipelineWrapper(LogMixin):
                 process = subprocess.Popen(
                     ["pip", "install", "--no-input", "-r", str(self.requirements_path.absolute())],
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE
+                    stderr=subprocess.PIPE,
                 )
                 output, error = process.communicate()
                 if output:
