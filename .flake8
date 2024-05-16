@@ -12,4 +12,9 @@ ignore = E203, W503
 max-complexity = 10
 
 # Exclude directories and files
-exclude = temp
+exclude =
+    .git,
+    __pycache__,
+    build,
+    dist
+    temp
