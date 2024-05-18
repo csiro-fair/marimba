@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
-from unittest.mock import MagicMock
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import typer
@@ -425,7 +424,7 @@ def test_project_prints_success_message(setup_test_directory: Path) -> None:
     with patch("marimba.core.wrappers.project.ProjectWrapper.create", return_value=MagicMock(root_dir=project_dir)):
         result = runner.invoke(marimba, ["new", "project", str(project_dir)])
         assert result.exit_code == 0
-        assert f"Created new Marimba project at:" in result.output
+        assert "Created new Marimba project at:" in result.output
 
 
 def test_project_exit_code_on_success(setup_test_directory: Path) -> None:
@@ -510,10 +509,13 @@ def test_pipeline_invalid_name_error(setup_test_directory: Path) -> None:
     pipeline_name = "invalid/name"
     url = "https://example.com/repo.git"
 
-    with patch(
-        "marimba.core.wrappers.project.ProjectWrapper.create_pipeline",
-        side_effect=ProjectWrapper.NameError("Invalid name"),
-    ), patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir):
+    with (
+        patch(
+            "marimba.core.wrappers.project.ProjectWrapper.create_pipeline",
+            side_effect=ProjectWrapper.NameError("Invalid name"),
+        ),
+        patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
+    ):
         result = runner.invoke(marimba, ["new", "pipeline", pipeline_name, url, "--project-dir", str(project_dir)])
         assert result.exit_code != 0
         assert "Invalid pipeline name:" in result.output
@@ -533,9 +535,10 @@ def test_pipeline_creation_failure(setup_test_directory: Path) -> None:
     pipeline_name = "test_pipeline"
     url = "https://example.com/repo.git"
 
-    with patch(
-        "marimba.core.wrappers.project.ProjectWrapper.create_pipeline", side_effect=Exception("Creation failed")
-    ), patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir):
+    with (
+        patch("marimba.core.wrappers.project.ProjectWrapper.create_pipeline", side_effect=Exception("Creation failed")),
+        patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
+    ):
         result = runner.invoke(marimba, ["new", "pipeline", pipeline_name, url, "--project-dir", str(project_dir)])
         assert result.exit_code != 0
         assert "Could not create pipeline:" in result.output
@@ -556,8 +559,9 @@ def test_pipeline_logs_command_execution(setup_test_directory: Path) -> None:
     pipeline_name = "test_pipeline"
     url = "https://example.com/repo.git"
 
-    with patch("marimba.core.wrappers.project.ProjectWrapper.create_pipeline", return_value=MagicMock()), patch(
-        "marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir
+    with (
+        patch("marimba.core.wrappers.project.ProjectWrapper.create_pipeline", return_value=MagicMock()),
+        patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
     ):
         result = runner.invoke(marimba, ["new", "pipeline", pipeline_name, url, "--project-dir", str(project_dir)])
         assert result.exit_code == 0
@@ -584,12 +588,12 @@ def test_collection_creates_new_collection(setup_test_directory: Path) -> None:
     collection_name = "test_collection"
     parent_collection_name = "parent_collection"
 
-    with patch(
-        "marimba.core.wrappers.project.ProjectWrapper.create_collection", return_value=MagicMock()
-    ) as mock_create_collection, patch(
-        "marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir
-    ), patch(
-        "marimba.core.wrappers.project.ProjectWrapper.prompt_collection_config", return_value=MagicMock()
+    with (
+        patch(
+            "marimba.core.wrappers.project.ProjectWrapper.create_collection", return_value=MagicMock()
+        ) as mock_create_collection,
+        patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
+        patch("marimba.core.wrappers.project.ProjectWrapper.prompt_collection_config", return_value=MagicMock()),
     ):
         result = runner.invoke(
             marimba, ["new", "collection", collection_name, parent_collection_name, "--project-dir", str(project_dir)]
@@ -613,10 +617,13 @@ def test_collection_invalid_name_error(setup_test_directory: Path) -> None:
     project_dir.mkdir()
     collection_name = "invalid/name"
 
-    with patch(
-        "marimba.core.wrappers.project.ProjectWrapper.create_collection",
-        side_effect=ProjectWrapper.NameError("Invalid name"),
-    ), patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir):
+    with (
+        patch(
+            "marimba.core.wrappers.project.ProjectWrapper.create_collection",
+            side_effect=ProjectWrapper.NameError("Invalid name"),
+        ),
+        patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
+    ):
         result = runner.invoke(marimba, ["new", "collection", collection_name, "--project-dir", str(project_dir)])
         assert result.exit_code != 0
         assert "Invalid collection name:" in result.output
@@ -637,10 +644,13 @@ def test_collection_no_such_parent_collection_error(setup_test_directory: Path) 
     collection_name = "test_collection"
     parent_collection_name = "non_existent_parent"
 
-    with patch(
-        "marimba.core.wrappers.project.ProjectWrapper.create_collection",
-        side_effect=ProjectWrapper.NoSuchCollectionError("No such parent collection"),
-    ), patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir):
+    with (
+        patch(
+            "marimba.core.wrappers.project.ProjectWrapper.create_collection",
+            side_effect=ProjectWrapper.NoSuchCollectionError("No such parent collection"),
+        ),
+        patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
+    ):
         result = runner.invoke(
             marimba, ["new", "collection", collection_name, parent_collection_name, "--project-dir", str(project_dir)]
         )
@@ -662,10 +672,13 @@ def test_collection_creation_failure(setup_test_directory: Path) -> None:
     project_dir.mkdir()
     collection_name = "test_collection"
 
-    with patch(
-        "marimba.core.wrappers.project.ProjectWrapper.create_collection",
-        side_effect=ProjectWrapper.CreateCollectionError("Creation failed"),
-    ), patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir):
+    with (
+        patch(
+            "marimba.core.wrappers.project.ProjectWrapper.create_collection",
+            side_effect=ProjectWrapper.CreateCollectionError("Creation failed"),
+        ),
+        patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
+    ):
         result = runner.invoke(marimba, ["new", "collection", collection_name, "--project-dir", str(project_dir)])
         assert result.exit_code != 0
         assert "Could not create collection:" in result.output
@@ -685,10 +698,13 @@ def test_collection_creation_other_failure(setup_test_directory: Path) -> None:
     project_dir.mkdir()
     collection_name = "test_collection"
 
-    with patch(
-        "marimba.core.wrappers.project.ProjectWrapper.create_collection",
-        side_effect=Exception("Creation failed"),
-    ), patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir):
+    with (
+        patch(
+            "marimba.core.wrappers.project.ProjectWrapper.create_collection",
+            side_effect=Exception("Creation failed"),
+        ),
+        patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
+    ):
         result = runner.invoke(marimba, ["new", "collection", collection_name, "--project-dir", str(project_dir)])
         assert result.exit_code != 0
         assert "Could not create collection:" in result.output
@@ -708,8 +724,9 @@ def test_collection_logs_command_execution(setup_test_directory: Path) -> None:
     project_dir.mkdir()
     collection_name = "test_collection"
 
-    with patch("marimba.core.wrappers.project.ProjectWrapper.create_collection", return_value=MagicMock()), patch(
-        "marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir
+    with (
+        patch("marimba.core.wrappers.project.ProjectWrapper.create_collection", return_value=MagicMock()),
+        patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
     ):
         result = runner.invoke(marimba, ["new", "collection", collection_name, "--project-dir", str(project_dir)])
         assert result.exit_code == 0
@@ -765,12 +782,16 @@ def test_target_invalid_name_error(setup_test_directory: Path) -> None:
     project_dir.mkdir()
     target_name = "invalid/name"
 
-    with patch(
-        "marimba.core.wrappers.project.ProjectWrapper.create_target",
-        side_effect=ProjectWrapper.NameError("Invalid name"),
-    ), patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir), patch(
-        "marimba.core.wrappers.project.DistributionTargetWrapper.prompt_target",
-        return_value=("target_type", "target_config"),
+    with (
+        patch(
+            "marimba.core.wrappers.project.ProjectWrapper.create_target",
+            side_effect=ProjectWrapper.NameError("Invalid name"),
+        ),
+        patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
+        patch(
+            "marimba.core.wrappers.project.DistributionTargetWrapper.prompt_target",
+            return_value=("target_type", "target_config"),
+        ),
     ):
         result = runner.invoke(marimba, ["new", "target", target_name, "--project-dir", str(project_dir)])
         assert result.exit_code != 0
@@ -791,11 +812,13 @@ def test_target_already_exists_error(setup_test_directory: Path) -> None:
     project_dir.mkdir()
     target_name = "existing_target"
 
-    with patch("marimba.core.wrappers.project.ProjectWrapper.create_target", side_effect=FileExistsError), patch(
-        "marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir
-    ), patch(
-        "marimba.core.wrappers.project.DistributionTargetWrapper.prompt_target",
-        return_value=("target_type", "target_config"),
+    with (
+        patch("marimba.core.wrappers.project.ProjectWrapper.create_target", side_effect=FileExistsError),
+        patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
+        patch(
+            "marimba.core.wrappers.project.DistributionTargetWrapper.prompt_target",
+            return_value=("target_type", "target_config"),
+        ),
     ):
         result = runner.invoke(marimba, ["new", "target", target_name, "--project-dir", str(project_dir)])
         print(result.output)
@@ -817,9 +840,10 @@ def test_target_creation_failure(setup_test_directory: Path) -> None:
     project_dir.mkdir()
     target_name = "test_target"
 
-    with patch(
-        "marimba.core.wrappers.project.ProjectWrapper.create_target", side_effect=Exception("Creation failed")
-    ), patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir):
+    with (
+        patch("marimba.core.wrappers.project.ProjectWrapper.create_target", side_effect=Exception("Creation failed")),
+        patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
+    ):
         result = runner.invoke(marimba, ["new", "target", target_name, "--project-dir", str(project_dir)])
         assert result.exit_code != 0
         assert "Could not create target:" in result.output
@@ -839,11 +863,13 @@ def test_target_logs_command_execution(setup_test_directory: Path) -> None:
     project_dir.mkdir()
     target_name = "test_target"
 
-    with patch("marimba.core.wrappers.project.ProjectWrapper.create_target", return_value=MagicMock()), patch(
-        "marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir
-    ), patch(
-        "marimba.core.wrappers.project.DistributionTargetWrapper.prompt_target",
-        return_value=("target_type", "target_config"),
+    with (
+        patch("marimba.core.wrappers.project.ProjectWrapper.create_target", return_value=MagicMock()),
+        patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
+        patch(
+            "marimba.core.wrappers.project.DistributionTargetWrapper.prompt_target",
+            return_value=("target_type", "target_config"),
+        ),
     ):
         result = runner.invoke(marimba, ["new", "target", target_name, "--project-dir", str(project_dir)])
         assert result.exit_code == 0

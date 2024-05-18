@@ -2,7 +2,6 @@
 Map generation utilities.
 """
 
-
 from typing import Iterable, Optional, Tuple
 
 from PIL import Image

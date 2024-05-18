@@ -34,7 +34,6 @@ Functions:
     - get_merged_keyword_args: Merges extra key-value arguments with other keyword arguments.
 """
 
-
 import ast
 import logging
 from pathlib import Path
@@ -168,9 +167,9 @@ class ProjectWrapper(LogMixin):
         self._pipeline_wrappers: Dict[str, PipelineWrapper] = {}  # pipeline name -> PipelineWrapper instance
         self._collection_wrappers: Dict[str, CollectionWrapper] = {}  # collection name -> CollectionWrapper instance
         self._dataset_wrappers: Dict[str, DatasetWrapper] = {}  # dataset name -> DatasetWrapper instance
-        self._target_wrappers: Dict[
-            str, DistributionTargetWrapper
-        ] = {}  # target name -> DistributionTargetWrapper instance
+        self._target_wrappers: Dict[str, DistributionTargetWrapper] = (
+            {}
+        )  # target name -> DistributionTargetWrapper instance
 
         self._check_file_structure()
         self._setup_logging()

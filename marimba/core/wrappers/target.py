@@ -24,7 +24,6 @@ Functions:
     - prompt_target: Use Rich to prompt for a distribution target configuration.
 """
 
-
 from inspect import getfullargspec, isclass
 from pathlib import Path
 from types import FunctionType

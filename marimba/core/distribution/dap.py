@@ -43,7 +43,7 @@ class CSIRODapDistributionTarget(S3DistributionTarget):
             remote_directory (str): The remote directory path where the files will be accessed.
         """
         first_slash = remote_directory.find("/")
-        bucket_name, base_prefix = remote_directory[:first_slash], remote_directory[first_slash + 1:]
+        bucket_name, base_prefix = remote_directory[:first_slash], remote_directory[first_slash + 1 :]
 
         super().__init__(bucket_name, endpoint_url, access_key, secret_access_key, base_prefix=base_prefix)
 

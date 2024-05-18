@@ -34,7 +34,6 @@ Functions:
     - target: Creates and configures a new distribution target in a project.
 """
 
-
 from os import R_OK, access
 from pathlib import Path
 from typing import Optional, Union

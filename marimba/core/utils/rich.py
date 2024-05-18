@@ -5,8 +5,7 @@ Rich console output utilities.
 from typing import Tuple
 
 from rich.panel import Panel
-from rich.progress import (BarColumn, ProgressColumn, TaskProgressColumn,
-                           TextColumn, TimeRemainingColumn)
+from rich.progress import BarColumn, ProgressColumn, TaskProgressColumn, TextColumn, TimeRemainingColumn
 
 MARIMBA = "[bold][aquamarine3]Marimba[/aquamarine3][/bold]"
 

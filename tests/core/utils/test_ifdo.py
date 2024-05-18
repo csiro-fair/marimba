@@ -38,11 +38,7 @@ class TestIfdo(TestCase):
         self.ifdo.save(self.ifdo_path)
         loaded_ifdo = load_ifdo(self.ifdo_path)
         self.assertEqual(self.ifdo, loaded_ifdo)
-        if self.ifdo_path.exists():
-            self.ifdo_path.unlink()
 
     def test_save_ifdo(self) -> None:
         save_ifdo(self.ifdo, self.ifdo_path)
         self.assertTrue(self.ifdo_path.exists())
-        if self.ifdo_path.exists():
-            self.ifdo_path.unlink()

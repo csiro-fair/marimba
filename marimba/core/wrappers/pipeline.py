@@ -28,7 +28,6 @@ Classes:
         - InstallError: Exception raised when there is an error installing pipeline dependencies.
 """
 
-
 import logging
 import shutil
 import subprocess

@@ -10,7 +10,8 @@ Imports:
     - pathlib.Path: The Path class from the Python standard library for handling file paths.
     - typing: Type hinting classes and utilities from the Python standard library.
     - rich.console.Console: The Console class from the Rich library for formatting console output.
-    - rich.logging.RichHandler: The RichHandler class from the Rich library for integrating Rich formatting with logging.
+    - rich.logging.RichHandler: The RichHandler class from the Rich library for integrating Rich formatting with
+    logging.
 
 Classes:
     - DryRunRichHandler: A custom log handler that extends RichHandler and adds dry run functionality.
