@@ -104,8 +104,7 @@ repos:
         entry: poetry run bandit
         language: system
         types: [python]
-        args: ['--config', 'bandit.yml', '--severity-level', 'medium', '--recursive', '.']
-        pass_filenames: false
+        args: ['--config', 'bandit.yml', '--severity-level', 'medium']
 
       - id: mypy
         name: Mypy
