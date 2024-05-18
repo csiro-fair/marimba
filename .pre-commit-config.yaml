@@ -69,8 +69,7 @@ repos:
         entry: poetry run black
         language: system
         types: [python]
-        pass_filenames: false
-        args: ["--line-length", "120", ".", "--check"]
+        args: ["--line-length", "120", "--check"]
 
       - id: flake8
         name: Flake8
