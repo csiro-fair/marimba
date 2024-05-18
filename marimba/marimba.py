@@ -198,10 +198,10 @@ def package_command(
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()
-    # except Exception as e:
-    #     logger.error(e)
-    #     print(error_panel(f"Could not package collection: {e}"))
-    #     raise typer.Exit()
+    except Exception as e:
+        logger.error(e)
+        print(error_panel(f"Could not package collection: {e}"))
+        raise typer.Exit()
 
     print(success_panel(f"Created {MARIMBA} dataset {dataset_name} in {dataset_wrapper.root_dir}"))
 
@@ -264,6 +264,10 @@ def distribute_command(
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()
+    except Exception as e:
+        logger.error(e)
+        print(error_panel(f"Could not distribute dataset: {e}"))
+        raise typer.Exit()
 
     print(success_panel(f"Successfully distributed dataset {dataset_name}"))
 
@@ -292,7 +296,12 @@ def install_command(project_dir: Optional[Path] = typer.Option(None, help=PROJEC
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
-    project_wrapper.install_pipelines()
+    try:
+        project_wrapper.install_pipelines()
+    except Exception as e:
+        logger.error(e)
+        print(error_panel(f"Could not install pipelines: {e}"))
+        raise typer.Exit()
 
 
 if __name__ == "__main__":
