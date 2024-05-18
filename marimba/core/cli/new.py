@@ -1,3 +1,40 @@
+"""
+Marimba CLI Module.
+
+This module provides the Marimba command line interface for creating and configuring new Marimba projects,
+pipelines, collections, and distribution targets. It uses Typer for defining the CLI commands and Rich for
+formatting the output.
+
+Imports:
+    - os: Provides access to operating system functionality.
+    - pathlib: Provides classes for working with file paths.
+    - typing: Provides type hinting classes.
+    - typer: A library for building command line interfaces.
+    - rich: A library for rich text formatting in the terminal.
+    - marimba.core.utils.constants: Provides constants used in the Marimba project.
+    - marimba.core.utils.log: Provides logging functionality.
+    - marimba.core.utils.prompt: Provides functionality for prompting the user for input.
+    - marimba.core.utils.rich: Provides utility functions for formatting output using Rich.
+    - marimba.core.wrappers.project: Provides a wrapper class for working with Marimba projects.
+    - marimba.core.wrappers.target: Provides a wrapper class for working with Marimba distribution targets.
+
+Classes:
+    - ProjectWrapper: A wrapper class for working with Marimba projects.
+        - NameError: Raised when an invalid name is provided for a project entity.
+        - NoSuchCollectionError: Raised when a specified parent collection does not exist.
+        - CreateCollectionError: Raised when an error occurs while creating a collection.
+    - DistributionTargetWrapper: A wrapper class for working with Marimba distribution targets.
+
+Functions:
+    - find_project_dir: Finds the project root directory from a given path.
+    - find_project_dir_or_exit: Finds the project root directory or exits with an error.
+    - project: Creates a new Marimba project.
+    - pipeline: Creates and configures a new Marimba pipeline in a project.
+    - collection: Creates and configures a new Marimba collection in a project.
+    - target: Creates and configures a new distribution target in a project.
+"""
+
+
 from os import R_OK, access
 from pathlib import Path
 from typing import Optional, Union
@@ -51,7 +88,6 @@ def find_project_dir_or_exit(project_dir: Optional[Union[str, Path]] = None) -> 
     Raises:
         typer.Exit: If no project root directory was found.
     """
-
     # Convert project_dir to Path if it is not None, otherwise use current working directory
     project_dir = Path(project_dir) if project_dir else Path.cwd()
 

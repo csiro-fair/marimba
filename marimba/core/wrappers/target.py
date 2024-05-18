@@ -1,3 +1,30 @@
+"""
+Marimba Core Target Wrapper Module.
+
+The distribution_target_wrapper module provides a wrapper class for creating and managing distribution targets. It
+allows for the creation of distribution target instances based on a given configuration file, as well as interactive
+prompting for creating a new distribution target configuration.
+
+Imports:
+    - getfullargspec, isclass from inspect: Used for introspecting distribution target classes.
+    - Path from pathlib: Used for handling file paths.
+    - FunctionType from types: Used for type checking.
+    - Any, Dict, Optional, Tuple, Union, cast from typing: Used for type hinting.
+    - Prompt from rich.prompt: Used for interactive prompting.
+    - DistributionTargetBase from marimba.core.distribution.bases: Base class for distribution targets.
+    - CSIRODapDistributionTarget from marimba.core.distribution.dap: CSIRO DAP distribution target implementation.
+    - S3DistributionTarget from marimba.core.distribution.s3: S3 distribution target implementation.
+    - load_config, save_config from marimba.core.utils.config: Used for loading and saving configuration files.
+
+Classes:
+    - DistributionTargetWrapper: A wrapper class for creating and managing distribution targets.
+        - InvalidConfigError: Raised when the configuration file is invalid.
+
+Functions:
+    - prompt_target: Use Rich to prompt for a distribution target configuration.
+"""
+
+
 from inspect import getfullargspec, isclass
 from pathlib import Path
 from types import FunctionType
@@ -39,6 +66,12 @@ class DistributionTargetWrapper:
         """
 
     def __init__(self, config_path: Union[str, Path]):
+        """
+        Initialise the class instance.
+
+        Args:
+            config_path (Union[str, Path]): The path to the configuration file.
+        """
         self._config_path = Path(config_path)
         self._config: Dict[str, Any] = {}
 

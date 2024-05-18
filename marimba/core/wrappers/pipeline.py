@@ -1,3 +1,34 @@
+"""
+Marimba Core Pipeline Wrapper Module.
+
+This module provides the PipelineWrapper class for managing pipeline directories, including creation, configuration,
+dependency installation, and instance management.
+
+The PipelineWrapper class allows for creating a new pipeline directory from a remote git repository, loading and
+saving pipeline configurations, and retrieving instances of the pipeline implementation. It also provides functionality
+for updating the pipeline repository and installing pipeline dependencies.
+
+Imports:
+    - logging: Python logging module for logging messages.
+    - shutil: High-level operations on files and collections of files.
+    - subprocess: Subprocess management module for running external commands.
+    - sys: System-specific parameters and functions.
+    - importlib.util: Utility functions for importing modules.
+    - pathlib.Path: Object-oriented filesystem paths.
+    - typing: Support for type hints.
+    - git.Repo: GitPython library for interacting with Git repositories.
+    - marimba.core.pipeline.BasePipeline: Base class for pipeline implementations.
+    - marimba.core.utils.config: Utility functions for loading and saving configuration files.
+    - marimba.core.utils.log.LogMixin: Mixin class for adding logging functionality.
+    - marimba.core.utils.log.get_file_handler: Function for creating a file handler for logging.
+
+Classes:
+    - PipelineWrapper: Pipeline directory wrapper class for managing pipeline directories.
+        - InvalidStructureError: Exception raised when the project file structure is invalid.
+        - InstallError: Exception raised when there is an error installing pipeline dependencies.
+"""
+
+
 import logging
 import shutil
 import subprocess
@@ -29,6 +60,13 @@ class PipelineWrapper(LogMixin):
         """
 
     def __init__(self, root_dir: Union[str, Path], dry_run: bool = False):
+        """
+        Initialise the class instance.
+
+        Args:
+            root_dir: A string or Path object representing the root directory.
+            dry_run: A boolean indicating whether the method should be executed in a dry run mode.
+        """
         self._root_dir = Path(root_dir)
         self._dry_run = dry_run
 
@@ -200,8 +238,9 @@ class PipelineWrapper(LogMixin):
 
     def get_pipeline_class(self) -> Optional[Type[BasePipeline]]:
         """
-        Get the pipeline class. Lazy-loaded and cached. Automatically scans the repository for a pipeline
-        implementation.
+        Get the pipeline class.
+
+        Lazy-loaded and cached. Automatically scans the repository for a pipeline implementation.
 
         Returns:
             The pipeline class.

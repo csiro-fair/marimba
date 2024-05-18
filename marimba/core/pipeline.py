@@ -1,3 +1,24 @@
+"""
+Marimba Pipeline Abstract Base Class Module.
+
+The `BasePipeline` class is an abstract base class that all Marimba pipelines should inherit from. It provides a
+standard interface for implementing pipelines and includes methods for running import, process, and compose commands.
+
+Imports:
+    - ABC: Abstract base class from the `abc` module.
+    - abstractmethod: Decorator for declaring abstract methods from the `abc` module.
+    - Path: Class for representing file system paths from the `pathlib` module.
+    - Any, Dict, List, Optional, Tuple, Union: Type hinting classes from the `typing` module.
+    - ImageData: Class for representing image data from the `ifdo.models` module.
+    - LogMixin: Mixin class for logging from the `marimba.core.utils.log` module.
+    - format_command, format_entity: Functions for formatting command and entity names from the
+      `marimba.core.utils.rich` module.
+
+Classes:
+    - BasePipeline: Abstract base class for Marimba pipelines.
+
+"""
+
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -14,6 +35,14 @@ class BasePipeline(ABC, LogMixin):
     """
 
     def __init__(self, root_path: Union[str, Path], config: Optional[Dict[str, Any]] = None, dry_run: bool = False):
+        """
+        Initialise the class instance.
+
+        Args:
+            root_path (Union[str, Path]): The root path where the object will work.
+            config (Optional[Dict[str, Any]]): The configuration settings for the object. Defaults to None.
+            dry_run (bool): Whether to perform a dry run or not. Defaults to False.
+        """
         self._root_path = root_path
         self._config = config
         self._dry_run = dry_run
@@ -21,7 +50,7 @@ class BasePipeline(ABC, LogMixin):
     @staticmethod
     def get_pipeline_config_schema() -> Dict[str, Any]:
         """
-        Returns the pipeline configuration schema.
+        Return the pipeline configuration schema.
 
         The returned dictionary should be a flat map of key -> default value.
         All keys must be strings, and values must be YAML-serializable.
@@ -48,7 +77,7 @@ class BasePipeline(ABC, LogMixin):
     @staticmethod
     def get_collection_config_schema() -> Dict[str, Any]:
         """
-        Returns the collection configuration schema.
+        Return the collection configuration schema.
 
         The collection configuration schema represents the values that the pipeline requires that are specific to a
         collection. Use `get_pipeline_config_schema` for values that are static for the pipeline across all collections.

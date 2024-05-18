@@ -1,3 +1,43 @@
+"""
+Marimba Core Dataset Wrapper Module.
+
+This module provides various utilities and classes for handling image datasets in the Marimba project. It includes
+functionality for managing datasets, creating and validating manifests, summarizing imagery collections, and applying
+EXIF metadata.
+
+Imports:
+    - hashlib: Provides hash functions for generating hashes.
+    - io: Core tools for working with streams.
+    - json: JSON encoding and decoding library.
+    - logging: Logging facility for Python.
+    - collections.OrderedDict: Dictionary that remembers the order entries were added.
+    - dataclasses.dataclass: A decorator for generating special methods.
+    - datetime.timezone: Timezone information objects.
+    - fractions.Fraction: Rational number arithmetic.
+    - pathlib.Path: Object-oriented filesystem paths.
+    - shutil: High-level file operations.
+    - textwrap.dedent: Remove any common leading whitespace from every line.
+    - typing: Type hints for function signatures and variables.
+    - uuid: Generate unique identifiers.
+    - piexif: Library to insert and extract EXIF metadata from images.
+    - ifdo.models: Data models for images.
+    - PIL.Image: Python Imaging Library for opening, manipulating, and saving image files.
+    - rich.progress: Utilities for creating progress bars.
+    - marimba.core.utils.log: Utilities for logging.
+    - marimba.core.utils.map: Utility for creating summary maps.
+    - marimba.core.utils.rich: Utility for default columns in rich progress.
+    - marimba.lib.image: Library for image processing.
+    - marimba.lib.gps: Utility for GPS coordinate conversion.
+
+Functions:
+    - sizeof_fmt: Convert a number of bytes to a human-readable format.
+
+Classes:
+    - ImagerySummary: A summary of an imagery collection.
+    - Manifest: A dataset manifest used to validate datasets for corruption or modification.
+    - DatasetWrapper: A wrapper class for handling dataset directories.
+"""
+
 import hashlib
 import io
 import json
@@ -57,10 +97,23 @@ class ImagerySummary:
 
     @property
     def num_files(self) -> int:
+        """
+        Return the total number of files.
+
+        Returns:
+            int: The total number of files, calculated by adding the number of images, the number of videos,
+            and the number of other files.
+        """
         return self.num_images + self.num_videos + self.num_other
 
     @property
     def size_files_bytes(self) -> int:
+        """
+        Calculate the total size of files in bytes.
+
+        Returns:
+            int: The total size of files in bytes.
+        """
         return self.size_images_bytes + self.size_videos_bytes + self.size_other_bytes
 
     @classmethod
@@ -279,6 +332,13 @@ class DatasetWrapper(LogMixin):
         """
 
     def __init__(self, root_dir: Union[str, Path], dry_run: bool = False):
+        """
+        Initialize a new instance of the class.
+
+        Args:
+            root_dir (Union[str, Path]): The root directory for the operation.
+            dry_run (bool, optional): Indicates if the operation should be performed in dry-run mode. Default is False.
+        """
         self._root_dir = Path(root_dir)
         self._dry_run = dry_run
 
@@ -322,11 +382,16 @@ class DatasetWrapper(LogMixin):
 
     def _check_file_structure(self) -> None:
         """
-        Check that the file structure of the project directory is valid. If not, raise an InvalidStructureError with
-        details.
+        Check the file structure of the dataset.
+
+        Parameters:
+            self: the instance of the class
 
         Raises:
-            DatasetWrapper.InvalidStructureError: If the file structure is invalid.
+            InvalidStructureError: if any of the required directories do not exist or is not a directory
+
+        Returns:
+            None
         """
 
         def check_dir_exists(path: Path) -> None:

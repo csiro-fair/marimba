@@ -1,3 +1,28 @@
+"""
+Marimba S3 Distribution Target.
+
+This module provides an S3 distribution target class for distributing datasets to an S3 bucket. It allows uploading
+dataset files to a specified S3 bucket using the provided credentials and configuration.
+
+Imports:
+    - pathlib.Path: Provides classes for working with file system paths.
+    - typing.Iterable: Provides generic type hints for iterable objects.
+    - typing.Tuple: Provides generic type hints for tuple objects.
+    - boto3.resource: Provides a resource service client for interacting with AWS services.
+    - boto3.exceptions.S3UploadFailedError: Represents an exception raised when an S3 upload fails.
+    - boto3.s3.transfer.TransferConfig: Represents the configuration for an S3 transfer.
+    - botocore.exceptions.ClientError: Represents an exception raised when an AWS client encounters an error.
+    - rich.progress.DownloadColumn: Provides a progress bar column for tracking download progress.
+    - rich.progress.Progress: Provides a progress bar for tracking the progress of an operation.
+    - rich.progress.SpinnerColumn: Provides a spinning progress indicator column.
+    - marimba.core.distribution.bases.DistributionTargetBase: Provides a base class for distribution targets.
+    - marimba.core.utils.rich.get_default_columns: Provides default columns for the progress bar.
+    - marimba.core.wrappers.dataset.DatasetWrapper: Provides a wrapper class for datasets.
+
+Classes:
+    - S3DistributionTarget: Represents an S3 bucket distribution target for datasets.
+"""
+
 from pathlib import Path
 from typing import Iterable, Tuple
 
@@ -20,6 +45,16 @@ class S3DistributionTarget(DistributionTargetBase):
     def __init__(
         self, bucket_name: str, endpoint_url: str, access_key_id: str, secret_access_key: str, base_prefix: str = ""
     ):
+        """
+        Initialise the class instance.
+
+        Args:
+            bucket_name: A string representing the name of the S3 bucket.
+            endpoint_url: A string representing the URL of the S3 endpoint.
+            access_key_id: A string representing the access key ID for accessing the S3 bucket.
+            secret_access_key: A string representing the secret access key for accessing the S3 bucket.
+            base_prefix: An optional string representing the base prefix for the S3 bucket.
+        """
         self._bucket_name = bucket_name
         self._base_prefix = base_prefix.rstrip("/")
 
@@ -118,6 +153,18 @@ class S3DistributionTarget(DistributionTargetBase):
                 progress.update(task, advance=file_bytes)
 
     def distribute(self, dataset_wrapper: DatasetWrapper) -> None:
+        """
+        Distributes the dataset_wrapper to the distribution target.
+
+        Args:
+            dataset_wrapper: The dataset wrapper object containing the dataset to be distributed.
+
+        Raises:
+            DistributionTargetBase.DistributionError: If there is an error during the distribution process.
+
+        Returns:
+            None
+        """
         try:
             return self._distribute(dataset_wrapper)
         except Exception as e:

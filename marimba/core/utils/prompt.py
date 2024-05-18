@@ -1,3 +1,27 @@
+"""
+Marimba Prompt Utilities.
+
+This module provides functionality to prompt a user for input values based on a provided schema. The schema is a dictionary
+mapping field names to default values. The user is prompted for each field, with the default value used if no input is
+provided. The resulting user input is returned as a dictionary with keys matching the schema fields and values of the
+appropriate type based on the schema defaults.
+
+Imports:
+    - typing.Any: Type hint for any type.
+    - typing.Dict: Type hint for dictionaries.
+    - typing.Optional: Type hint for optional values.
+    - rich.prompt.Confirm: Function for prompting the user with a yes/no question.
+    - rich.prompt.FloatPrompt: Function for prompting the user for a float value.
+    - rich.prompt.IntPrompt: Function for prompting the user for an integer value.
+    - rich.prompt.Prompt: Function for prompting the user for a string value.
+
+Functions:
+    - prompt_schema(schema: Dict[str, Any]) -> Optional[Dict[str, Any]]: Prompts the user for values for each field in the
+      provided schema, returning a dictionary of user input values with keys matching the schema fields, or None if the input
+      was interrupted.
+"""
+
+
 from typing import Any, Dict, Optional
 
 from rich.prompt import Confirm, FloatPrompt, IntPrompt, Prompt

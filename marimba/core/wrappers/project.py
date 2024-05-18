@@ -1,3 +1,40 @@
+"""
+Marimba Core Project Wrapper Module.
+
+This module provides functionality for managing Marimba project directories, including creating, wrapping,
+and interacting with projects. It includes utility functions and classes to handle keyword arguments, project structure,
+logging, and various wrappers for pipelines, collections, datasets, and distribution targets.
+
+Imports:
+    - ast: Abstract Syntax Trees for parsing Python syntax.
+    - logging: Logging facility for Python.
+    - pathlib.Path: Object-oriented filesystem paths.
+    - typing: Type hints for function signatures and variables.
+    - ifdo.models.ImageData: Data model for image data.
+    - rich.progress.Progress, rich.progress.SpinnerColumn: Utilities for creating progress bars.
+    - marimba.core.utils.log.LogMixin, marimba.core.utils.log.get_file_handler:
+      Utilities for logging.
+    - marimba.core.utils.prompt.prompt_schema: Utility for prompting schema.
+    - marimba.core.utils.rich.get_default_columns: Utility for default columns in rich progress.
+    - marimba.core.wrappers.collection.CollectionWrapper: Wrapper for collections.
+    - marimba.core.wrappers.dataset.DatasetWrapper: Wrapper for datasets.
+    - marimba.core.wrappers.pipeline.PipelineWrapper: Wrapper for pipelines.
+    - marimba.core.wrappers.target.DistributionTargetWrapper: Wrapper for
+      distribution targets.
+
+Classes:
+    - ProjectWrapper: A class to manage Marimba project directories.
+        - Nested exceptions for various project-related errors.
+        - Methods for creating and wrapping projects, checking file structures, setting up logging, loading pipelines,
+        collections, datasets, and targets, running commands, composing datasets, creating datasets and targets,
+        distributing datasets, importing collections, prompting collection configurations, updating pipelines,
+        and installing pipeline dependencies.
+
+Functions:
+    - get_merged_keyword_args: Merges extra key-value arguments with other keyword arguments.
+"""
+
+
 import ast
 import logging
 from pathlib import Path
@@ -116,6 +153,13 @@ class ProjectWrapper(LogMixin):
         """
 
     def __init__(self, root_dir: Union[str, Path], dry_run: bool = False):
+        """
+        Initialise the class instance.
+
+        Args:
+            root_dir (Union[str, Path]): The root directory path.
+            dry_run (bool, optional): Specifies whether to run the method in dry run mode. Defaults to False.
+        """
         super().__init__()
 
         self._root_dir = Path(root_dir)

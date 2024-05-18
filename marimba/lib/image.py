@@ -117,13 +117,19 @@ def rotate_clockwise(
     path: Union[str, Path], degrees: int, expand: bool = False, destination: Optional[Union[str, Path]] = None
 ) -> None:
     """
-    Rotate an image clockwise by a given number of degrees.
+    Rotates an image in the clockwise direction by the specified number of degrees.
 
     Args:
-        path: The path to the image file.
-        degrees: The number of degrees to rotate the image.
-        expand:
-        destination: The path to save the rotated image to. If not provided, the original file will be overwritten.
+        path (Union[str, Path]): The path to the image file to rotate.
+        degrees (int): The number of degrees to rotate the image in the clockwise direction.
+        expand (bool, optional): Whether to expand the size of the image to fit the rotated version.
+            Defaults to False.
+        destination (Optional[Union[str, Path]], optional): The destination path to save the rotated image.
+            If not provided, the rotated image will be overwritten on the original path. Defaults to None.
+
+    Returns:
+        None: This method does not return any value.
+
     """
     path = Path(path)
     destination = Path(destination) if destination is not None else path
@@ -390,7 +396,7 @@ def create_grid_image(
 
 def get_shannon_entropy(image_data: Image) -> float:
     """
-    Calculates the Shannon entropy of an image file.
+    Calculate the Shannon entropy of an image file.
 
     Args:
         image_data: The loaded image data.
@@ -398,7 +404,6 @@ def get_shannon_entropy(image_data: Image) -> float:
     Returns:
         The Shannon entropy of the image as a float value.
     """
-
     # Convert to grayscale
     grayscale_image = image_data.convert("L")
 
@@ -419,7 +424,7 @@ def get_shannon_entropy(image_data: Image) -> float:
 
 def get_average_image_color(image_data: Image) -> Tuple[int, ...]:
     """
-    Calculates the average color of an image.
+    Calculate the average color of an image.
 
     Args:
         image_data: The loaded image data.

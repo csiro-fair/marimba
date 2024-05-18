@@ -1,3 +1,19 @@
+"""
+Marimba Abstract Base Class for Distribution Targets.
+
+This module provides an abstract base class that defines the interface for all distribution targets of Marimba datasets.
+
+Imports:
+    - ABC: Helper class that provides a standard way to create an abstract class.
+    - abstractmethod: A decorator indicating abstract methods.
+    - LogMixin: Mixin class that provides logging functionality.
+    - DatasetWrapper: Wrapper class for Marimba datasets.
+
+Classes:
+    - DistributionTargetBase: Abstract base class that defines the interface for all distribution targets.
+        - DistributionError: Base class for all distribution errors.
+"""
+
 from abc import ABC, abstractmethod
 
 from marimba.core.utils.log import LogMixin

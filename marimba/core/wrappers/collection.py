@@ -1,3 +1,21 @@
+"""
+Marimba Core Collection Wrapper Module.
+
+This module provides the CollectionWrapper class, which serves as a wrapper for managing collection directories
+within the Marimba project. It includes functionality for creating and validating the directory structure,
+handling configuration files, and managing pipeline data directories.
+
+Imports:
+    - Path from pathlib: For handling filesystem paths.
+    - Any, Dict, Union from typing: For type hints.
+    - load_config, save_config from marimba.core.utils.config: For loading and saving configuration files.
+
+Classes:
+    - CollectionWrapper: A class that provides methods for creating, validating, and managing collection directories.
+        - InvalidStructureError: Raised when the collection directory structure is invalid.
+        - NoSuchPipelineError: Raised when a pipeline is not found.
+"""
+
 from pathlib import Path
 from typing import Any, Dict, Union
 
@@ -20,6 +38,12 @@ class CollectionWrapper:
         """
 
     def __init__(self, root_dir: Union[str, Path]):
+        """
+        Initialise the class instance.
+
+        Args:
+            root_dir (Union[str, Path]): The root directory for the file structure.
+        """
         self._root_dir = Path(root_dir)
 
         self._check_file_structure()

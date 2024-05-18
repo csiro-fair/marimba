@@ -1,7 +1,37 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+"""
+Marimba: A Python framework for structuring, managing, processing and FAIR-ising scientific marine image datasets.
+
+This module provides the command-line interface for the Marimba framework. It allows users to import data into
+collections, process collections using pipelines, package collections into datasets, and distribute datasets to
+various targets.
+
+Imports:
+    - logging: Python logging module for generating log messages.
+    - pathlib.Path: Class for representing filesystem paths.
+    - typing.List: Type hint for a list of elements.
+    - typing.Optional: Type hint for an optional value.
+    - typer: Library for building CLI applications.
+    - rich: Library for rich text and beautiful formatting in the terminal.
+    - marimba.core.cli.new: Module for creating new Marimba projects.
+    - marimba.core.distribution.bases.DistributionTargetBase: Base class for distribution targets.
+    - marimba.core.utils.constants.PROJECT_DIR_HELP: Constant for the help text of the project directory option.
+    - marimba.core.utils.log: Module for logging utilities.
+    - marimba.core.utils.rich: Module for rich text utilities.
+    - marimba.core.wrappers.dataset.DatasetWrapper: Wrapper class for Marimba datasets.
+    - marimba.core.wrappers.project.ProjectWrapper: Wrapper class for Marimba projects.
+
+Functions:
+    - global_options: Sets global options for the Marimba CLI.
+    - import_command: Imports data into a new or existing Marimba collection.
+    - package_command: Packages a Marimba collection into a dataset.
+    - process_command: Processes a Marimba collection based on a pipeline specification.
+    - distribute_command: Distributes a Marimba dataset to a specified target.
+    - update_command: Updates (pulls) all Marimba pipelines.
+    - install_command: Installs Python dependencies from requirements.txt files defined by a project's pipelines.
+"""
 
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
@@ -16,8 +46,10 @@ from marimba.core.utils.rich import MARIMBA, error_panel, success_panel
 from marimba.core.wrappers.dataset import DatasetWrapper
 from marimba.core.wrappers.project import ProjectWrapper
 
+current_year = datetime.now().year
+
 __author__ = "Marimba Development Team"
-__copyright__ = "Copyright 2023, CSIRO"
+__copyright__ = f"Copyright {current_year}, CSIRO"
 __credits__ = [
     "Chris Jackett <chris.jackett@csiro.au>",
     "Kevin Barnard <kbarnard@mbari.org>",
@@ -28,7 +60,7 @@ __credits__ = [
     "Bec Gorton <bec.gorton@csiro.au>",
     "Ben Scoulding <ben.scoulding@csiro.au>",
 ]
-__license__ = "MIT"
+__license__ = "CC BY-SA 4.0"
 __version__ = "0.3"
 __maintainer__ = "Chris Jackett"
 __email__ = "chris.jackett@csiro.au"
