@@ -146,7 +146,7 @@ class ProjectWrapper(LogMixin):
         Raised when a distribution target does not exist in the project.
         """
 
-    class NameError(Exception):
+    class InvalidNameError(Exception):
         """
         Raised when an invalid name is used.
         """
@@ -580,7 +580,7 @@ class ProjectWrapper(LogMixin):
             dataset_mapping,
             self.pipelines_dir,
             self.log_path,
-            map(lambda pw: pw.log_path, self.pipeline_wrappers.values()),
+            (pw.log_path for pw in self.pipeline_wrappers.values()),
             copy=copy,
         )
 
@@ -919,4 +919,4 @@ class ProjectWrapper(LogMixin):
         """
         for char in name:
             if not (char.isalnum() or char in ("_", "-")):
-                raise ProjectWrapper.NameError(name)
+                raise ProjectWrapper.InvalidNameError(name)

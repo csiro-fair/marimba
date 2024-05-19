@@ -196,18 +196,18 @@ class Manifest:
             The hash of the path contents.
         """
         # SHA-256 hash
-        hash = hashlib.sha256()
+        file_hash = hashlib.sha256()
 
         if path.is_file():
             # Hash the file contents
             with path.open("rb") as f:
                 for chunk in iter(lambda: f.read(4096), b""):
-                    hash.update(chunk)
+                    file_hash.update(chunk)
 
         # Hash the path
-        hash.update(str(path.as_posix()).encode("utf-8"))
+        file_hash.update(str(path.as_posix()).encode("utf-8"))
 
-        return hash.digest()
+        return file_hash.digest()
 
     @classmethod
     def from_dir(
@@ -274,8 +274,8 @@ class Manifest:
         if len(self.hashes) != len(other.hashes):
             return False
 
-        for path, hash in self.hashes.items():
-            if hash != other.hashes.get(path):
+        for path, file_hash in self.hashes.items():
+            if file_hash != other.hashes.get(path):
                 return False
 
         return True
@@ -691,16 +691,16 @@ class DatasetWrapper(LogMixin):
 
             for image_path, image_data in image_set_items.items():
                 image_data_path = Path(self.data_dir) / image_path
-                hash = hashlib.sha256()
+                file_hash = hashlib.sha256()
                 if image_data_path.is_file():
                     with image_data_path.open("rb") as f:
                         while True:
                             chunk = f.read(4096)
                             if not chunk:
                                 break
-                            hash.update(chunk)
+                            file_hash.update(chunk)
                     for image_data_item in image_data:
-                        image_data_item.image_hash_sha256 = hash.hexdigest()
+                        image_data_item.image_hash_sha256 = file_hash.hexdigest()
                 progress.advance(task)
 
             image_set_items = OrderedDict(sorted(image_set_items.items(), key=lambda item: item[0]))

@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import typer
-from rich import print
+from rich import print  # noqa: A004
 
 from marimba.core.cli import new
 from marimba.core.distribution.bases import DistributionTargetBase
@@ -118,7 +118,7 @@ def import_command(
         try:
             collection_config = project_wrapper.prompt_collection_config(parent_collection_name=parent_collection_name)
             project_wrapper.create_collection(collection_name, collection_config)
-        except ProjectWrapper.NameError as e:
+        except ProjectWrapper.InvalidNameError as e:
             error_message = f"Invalid collection name: {e}"
             logger.error(error_message)
             print(error_panel(error_message))

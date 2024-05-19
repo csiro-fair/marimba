@@ -512,7 +512,7 @@ def test_pipeline_invalid_name_error(setup_test_directory: Path) -> None:
     with (
         patch(
             "marimba.core.wrappers.project.ProjectWrapper.create_pipeline",
-            side_effect=ProjectWrapper.NameError("Invalid name"),
+            side_effect=ProjectWrapper.InvalidNameError("Invalid name"),
         ),
         patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
     ):
@@ -620,7 +620,7 @@ def test_collection_invalid_name_error(setup_test_directory: Path) -> None:
     with (
         patch(
             "marimba.core.wrappers.project.ProjectWrapper.create_collection",
-            side_effect=ProjectWrapper.NameError("Invalid name"),
+            side_effect=ProjectWrapper.InvalidNameError("Invalid name"),
         ),
         patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
     ):
@@ -785,7 +785,7 @@ def test_target_invalid_name_error(setup_test_directory: Path) -> None:
     with (
         patch(
             "marimba.core.wrappers.project.ProjectWrapper.create_target",
-            side_effect=ProjectWrapper.NameError("Invalid name"),
+            side_effect=ProjectWrapper.InvalidNameError("Invalid name"),
         ),
         patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
         patch(

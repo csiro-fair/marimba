@@ -39,7 +39,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 import typer
-from rich import print
+from rich import print  # noqa: A004
 
 from marimba.core.utils.constants import PROJECT_DIR_HELP
 from marimba.core.utils.log import get_logger
@@ -146,7 +146,7 @@ def pipeline(
 
         # Create the pipeline
         pipeline_wrapper = project_wrapper.create_pipeline(pipeline_name, url)
-    except ProjectWrapper.NameError as e:
+    except ProjectWrapper.InvalidNameError as e:
         error_message = f"Invalid pipeline name: {e}"
         logger.error(error_message)
         print(error_panel(error_message))
@@ -194,7 +194,7 @@ def collection(
 
         # Create the collection
         collection_wrapper = project_wrapper.create_collection(collection_name, collection_config)
-    except ProjectWrapper.NameError as e:
+    except ProjectWrapper.InvalidNameError as e:
         logger.error(e)
         print(error_panel(f"Invalid collection name: {e}"))
         raise typer.Exit(code=1)
@@ -241,7 +241,7 @@ def target(
 
         # Create the distribution target
         distribution_target_wrapper = project_wrapper.create_target(target_name, target_type, target_config)
-    except ProjectWrapper.NameError as e:
+    except ProjectWrapper.InvalidNameError as e:
         error_message = f"Invalid target name: {e}"
         logger.error(error_message)
         print(error_panel(error_message))
