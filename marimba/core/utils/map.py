@@ -2,7 +2,7 @@
 Map generation utilities.
 """
 
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, Optional, Tuple, cast
 
 from PIL import Image
 from staticmap import CircleMarker, StaticMap
@@ -31,4 +31,4 @@ def make_summary_map(geolocations: Iterable[Tuple[float, float]]) -> Optional[Im
     if not m.markers:
         return None
 
-    return m.render()
+    return cast(Image.Image, m.render())

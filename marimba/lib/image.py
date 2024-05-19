@@ -44,7 +44,7 @@ def _resize_fit(img: Image.Image, max_width: int, max_height: int) -> Image.Imag
         ratio = min(max_width / width, max_height / height)
         new_width = int(width * ratio)
         new_height = int(height * ratio)
-        img = img.resize((new_width, new_height), Image.LANCZOS)
+        img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
     return img
 
 
@@ -87,7 +87,7 @@ def resize_exact(
     destination = Path(destination) if destination is not None else path
 
     img = Image.open(path)
-    img = img.resize((width, height), Image.LANCZOS)
+    img = img.resize((width, height), Image.Resampling.LANCZOS)
     img.save(destination)
 
 
@@ -109,7 +109,7 @@ def scale(path: Union[str, Path], scale_factor: float, destination: Optional[Uni
     width, height = img.size
     new_width = int(width * scale_factor)
     new_height = int(height * scale_factor)
-    img = img.resize((new_width, new_height), Image.LANCZOS)
+    img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
     img.save(destination)
 
 
@@ -157,9 +157,9 @@ def turn_clockwise(path: Union[str, Path], turns: int = 1, destination: Optional
 
     # Map turns to the corresponding rotation constants
     rotation_constants = {
-        1: Image.ROTATE_90,
-        2: Image.ROTATE_180,
-        3: Image.ROTATE_270,
+        1: Image.Transpose.ROTATE_90,
+        2: Image.Transpose.ROTATE_180,
+        3: Image.Transpose.ROTATE_270,
     }
 
     img = Image.open(path)
@@ -179,7 +179,7 @@ def flip_vertical(path: Union[str, Path], destination: Optional[Union[str, Path]
     destination = Path(destination) if destination is not None else path
 
     img = Image.open(path)
-    img = img.transpose(Image.FLIP_TOP_BOTTOM)
+    img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
     img.save(destination)
 
 
@@ -195,7 +195,7 @@ def flip_horizontal(path: Union[str, Path], destination: Optional[Union[str, Pat
     destination = Path(destination) if destination is not None else path
 
     img = Image.open(path)
-    img = img.transpose(Image.FLIP_LEFT_RIGHT)
+    img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
     img.save(destination)
 
 
@@ -394,7 +394,7 @@ def create_grid_image(
     grid_image.save(destination)
 
 
-def get_shannon_entropy(image_data: Image) -> float:
+def get_shannon_entropy(image_data: Image.Image) -> float:
     """
     Calculate the Shannon entropy of an image file.
 
@@ -422,7 +422,7 @@ def get_shannon_entropy(image_data: Image) -> float:
     return float(entropy)
 
 
-def get_average_image_color(image_data: Image) -> Tuple[int, ...]:
+def get_average_image_color(image_data: Image.Image) -> Tuple[int, ...]:
     """
     Calculate the average color of an image.
 

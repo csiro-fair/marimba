@@ -521,7 +521,7 @@ class DatasetWrapper(LogMixin):
             ifd_gps[piexif.GPSIFD.GPSAltitudeRef] = 0 if image_data.image_altitude >= 0 else 1
 
     @staticmethod
-    def _add_thumbnail(path: Path, exif_dict: Dict[str, Any]) -> Image:
+    def _add_thumbnail(path: Path, exif_dict: Dict[str, Any]) -> Image.Image:
         """
         Add a thumbnail to the EXIF metadata.
 
@@ -531,14 +531,14 @@ class DatasetWrapper(LogMixin):
         """
         image_file = Image.open(path)
         thumbnail_size = (320, 240)
-        image_file.thumbnail(thumbnail_size, Image.ANTIALIAS)
+        image_file.thumbnail(thumbnail_size)
         thumbnail_io = io.BytesIO()
         image_file.save(thumbnail_io, format="JPEG", quality=90)
         exif_dict["thumbnail"] = thumbnail_io.getvalue()
         return image_file
 
     @staticmethod
-    def _extract_image_properties(image_file: Image, image_data: ImageData) -> None:
+    def _extract_image_properties(image_file: Image.Image, image_data: ImageData) -> None:
         """
         Extract image properties and update the image data.
 
