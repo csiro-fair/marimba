@@ -10,7 +10,7 @@ repos:
         entry: poetry run bandit
         language: system
         types: [ python ]
-        args: [ '--config', 'bandit.yml', '--severity-level', 'medium' ]
+        args: [ '--config', 'config/bandit.yml', '--severity-level', 'medium' ]
 
       - id: black
         name: Black
@@ -24,39 +24,40 @@ repos:
         entry: poetry run flake8
         language: system
         types: [ python ]
-        args: [ '--config=.flake8' ]
+        args: [ '--config=config/.flake8' ]
 
       - id: isort
         name: isort
         entry: poetry run isort
         language: system
         types: [ python ]
-        args: [ '--settings-path=.isort.cfg' ]
+        args: [ '--settings-path=config/.isort.cfg' ]
 
       - id: mypy
         name: Mypy
         entry: poetry run mypy
         language: system
         types: [ python ]
-        args: [ '--config-file', 'mypy.ini' ]
+        args: [ '--config-file', 'config/mypy.ini' ]
 
       - id: pydocstyle
         name: Pydocstyle
         entry: poetry run pydocstyle
         language: system
         types: [ python ]
-        args: [ '--config=.pydocstyle' ]
+        args: [ '--config=config/.pydocstyle' ]
 
       #      - id: pylint
       #        name: Pylint
       #        entry: poetry run pylint
       #        language: system
       #        types: [python]
-      #        args: ['--rcfile=.pylintrc']
+      #        args: ['--rcfile=config/.pylintrc']
 
+      # Note: The confcutdir argument doesn't appear to work, requiring the tests directory to be specified here
       - id: pytest
         name: Pytest
         entry: poetry run pytest
         language: system
         types: [ python ]
-        args: [ 'tests' ]
+        args: [ "--confcutdir=config", "tests" ]
