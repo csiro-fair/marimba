@@ -1,6 +1,6 @@
 [MASTER]
 # Add your ignored directories here (e.g., temporary directory)
-ignore=temp
+ignore=tests,temp
 
 # Specify a configuration file.
 rcfile=
