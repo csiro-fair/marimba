@@ -531,7 +531,7 @@ class DatasetWrapper(LogMixin):
         """
         image_file = Image.open(path)
         thumbnail_size = (320, 240)
-        image_file.thumbnail(thumbnail_size)
+        image_file.thumbnail(thumbnail_size)  # type: ignore[no-untyped-call]
         thumbnail_io = io.BytesIO()
         image_file.save(thumbnail_io, format="JPEG", quality=90)
         exif_dict["thumbnail"] = thumbnail_io.getvalue()

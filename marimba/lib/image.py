@@ -135,7 +135,7 @@ def rotate_clockwise(
     destination = Path(destination) if destination is not None else path
 
     img = Image.open(path)
-    img = img.rotate(-degrees, expand=expand)
+    img = img.rotate(-degrees, expand=expand)  # type: ignore[no-untyped-call]
     img.save(destination)
 
 
