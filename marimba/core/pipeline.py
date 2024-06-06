@@ -107,9 +107,7 @@ class BasePipeline(ABC, LogMixin):
         """
         return self.__class__.__name__
 
-    def run_import(
-        self, data_dir: Path, source_paths: List[Path], config: Dict[str, Any], **kwargs: Dict[str, Any]
-    ) -> None:
+    def run_import(self, data_dir: Path, source_path: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]) -> None:
         """
         Public interface for the import command. Delegate to the private implementation method `_import`.
 
@@ -117,15 +115,15 @@ class BasePipeline(ABC, LogMixin):
 
         Args:
             data_dir: The data directory.
-            source_paths: The source paths.
+            source_path: The source path.
             config: The collection configuration.
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
             f"Running {format_command('import')} command for pipeline {format_entity(self.class_name)} with args: "
-            f"{data_dir=}, {source_paths=}, {config=}, {kwargs=}"
+            f"{data_dir=}, {source_path=}, {config=}, {kwargs=}"
         )
-        return self._import(data_dir, source_paths, config, **kwargs)
+        return self._import(data_dir, source_path, config, **kwargs)
 
     def run_process(self, data_dir: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]) -> None:
         """
@@ -168,9 +166,7 @@ class BasePipeline(ABC, LogMixin):
         )
         return self._compose(data_dirs, configs, **kwargs)
 
-    def _import(
-        self, data_dir: Path, source_paths: List[Path], config: Dict[str, Any], **kwargs: Dict[str, Any]
-    ) -> None:
+    def _import(self, data_dir: Path, source_path: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]) -> None:
         """
         `run_import` implementation; override this to implement the import command.
 

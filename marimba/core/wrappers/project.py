@@ -36,12 +36,15 @@ Functions:
 
 import ast
 import logging
+import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from ifdo.models import ImageData
 from rich.progress import Progress, SpinnerColumn
 
+from marimba.core.parallel.pipeline_loader import load_pipeline_instance
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.prompt import prompt_schema
 from marimba.core.utils.rich import get_default_columns
@@ -84,6 +87,46 @@ def get_merged_keyword_args(
                 logger.warning(f'Invalid extra argument provided: "{arg}"')
 
     return {**kwargs, **extra_dict}
+
+
+def import_pipeline(
+    pipeline_name: str,
+    repo_dir: Path,
+    config_path: Path,
+    dry_run: bool,
+    collection_data_dir: Path,
+    collection_config: Dict[str, Any],
+    source_path: Path,
+    merged_kwargs: Dict[str, Any],
+) -> str:
+    """
+    Import a pipeline and runs the import process.
+
+    Args:
+        pipeline_name (str): The name of the pipeline.
+        repo_dir (Path): The directory of the pipeline repository.
+        config_path (Path): The configuration file path.
+        dry_run (bool): Flag indicating if the import should be run in dry run mode.
+        collection_data_dir (Path): The directory where collection data will be stored.
+        collection_config (Dict[str, Any]): Additional configuration for the collection process.
+        source_path (Path): The source path for import.
+        merged_kwargs (Dict[str, Any]): Additional keyword arguments to be passed to the import process.
+
+    Returns:
+        str: A message indicating the completion of the import process and the elapsed time in seconds.
+
+    """
+    start_pipeline_time = time.time()
+
+    # Load the pipeline instance using the standalone function
+    pipeline_instance = load_pipeline_instance(repo_dir, config_path, dry_run)
+
+    # Run the import
+    pipeline_instance.run_import(collection_data_dir, source_path, collection_config, **merged_kwargs)
+
+    end_pipeline_time = time.time()
+    pipeline_duration = end_pipeline_time - start_pipeline_time
+    return f"Import completed for pipeline {pipeline_name} in {pipeline_duration:.2f} seconds"
 
 
 class ProjectWrapper(LogMixin):
@@ -691,8 +734,6 @@ class ProjectWrapper(LogMixin):
         Raises:
             ProjectWrapper.NoSuchCollectionError: If the collection does not exist in the project.
         """
-        source_paths = [Path(p) for p in source_paths]
-
         merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
 
         # Get the collection wrapper
@@ -700,25 +741,44 @@ class ProjectWrapper(LogMixin):
         if collection_wrapper is None:
             raise ProjectWrapper.NoSuchCollectionError(collection_name)
 
-        # Import each pipeline
+        # Import each pipeline in parallel
         pretty_paths = ", ".join(str(Path(p).resolve().absolute()) for p in source_paths)
         self.logger.debug(
             f'Running import for collection "{collection_name}" from source path(s) '
             f"{pretty_paths} with kwargs {merged_kwargs}"
         )
-        for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
-            # Get the pipeline instance
-            pipeline = pipeline_wrapper.get_instance()
 
-            # Get the collection data directory
-            collection_data_dir = collection_wrapper.get_pipeline_data_dir(pipeline_name)
+        with ProcessPoolExecutor() as executor:
+            futures = {}
+            for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
+                repo_dir = pipeline_wrapper.repo_dir
+                config_path = pipeline_wrapper.config_path
+                dry_run = pipeline_wrapper.dry_run
+                collection_data_dir = collection_wrapper.get_pipeline_data_dir(pipeline_name)
+                collection_config = collection_wrapper.load_config()
 
-            # Load the collection config
-            collection_config = collection_wrapper.load_config()
+                for source_path in source_paths:
+                    futures[
+                        executor.submit(
+                            import_pipeline,
+                            pipeline_name,
+                            repo_dir,
+                            config_path,
+                            dry_run,
+                            collection_data_dir,
+                            collection_config,
+                            Path(source_path),
+                            merged_kwargs,
+                        )
+                    ] = (pipeline_name, source_path)
 
-            # Run the import
-            source_paths_as_paths = [Path(p) for p in source_paths]
-            pipeline.run_import(collection_data_dir, source_paths_as_paths, collection_config, **merged_kwargs)
+            for future in as_completed(futures):
+                pipeline_name, source_path = futures[future]
+                try:
+                    result = future.result()
+                    self.logger.warning(result)
+                except Exception as e:
+                    self.logger.error(f"Import failed for pipeline {pipeline_name} and source {source_path}: {e}")
 
     def prompt_collection_config(self, parent_collection_name: Optional[str] = None) -> Dict[Any, Any]:
         """

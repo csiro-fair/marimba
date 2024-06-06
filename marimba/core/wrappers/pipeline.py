@@ -38,6 +38,7 @@ from typing import Any, Dict, Optional, Type, Union
 
 from git import Repo
 
+from marimba.core.parallel.pipeline_loader import load_pipeline_instance
 from marimba.core.pipeline import BasePipeline
 from marimba.core.utils.config import load_config, save_config
 from marimba.core.utils.log import LogMixin, get_file_handler
@@ -207,29 +208,18 @@ class PipelineWrapper(LogMixin):
 
     def get_instance(self) -> BasePipeline:
         """
-        Get an instance of the pipeline implementation.
+        Get the pipeline instance.
 
-        Injects the pipeline configuration and logger into the instance.
+        This method loads the pipeline instance using the standalone function `load_pipeline_instance()`.
+        The pipeline instance is then set up for file logging if the `_file_handler` is initialized.
 
         Returns:
-            The pipeline instance.
-
-        Raises:
-            FileNotFoundError:
-                If the pipeline implementation file cannot be found, or if there are multiple pipeline implementation
-                files.
-            ImportError: If the pipeline implementation file cannot be imported.
+            BasePipeline: The pipeline instance.
         """
-        # Get the pipeline class
-        pipeline_class = self.get_pipeline_class()
+        # Use the standalone function to load the pipeline instance
+        pipeline_instance = load_pipeline_instance(self.repo_dir, self.config_path, self.dry_run)
 
-        if pipeline_class is None:
-            raise ImportError("Pipeline class has not been set or could not be found.")
-
-        # Create an instance of the pipeline
-        pipeline_instance = pipeline_class(self.repo_dir, config=self.load_config(), dry_run=self.dry_run)
-
-        # Set up pipeline file logging if _file_handler is initialized
+        # Set up pipeline file logging if _file_handler is initialised
         if self._file_handler is not None:
             pipeline_instance.logger.addHandler(self._file_handler)
 
