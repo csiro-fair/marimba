@@ -20,27 +20,30 @@ Functions:
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import wraps
-from typing import Any, Callable, Iterable, TypeVar
+from typing import Any, Callable, Iterable, Optional, TypeVar, cast
 
 # Define a generic type variable
 T = TypeVar("T", bound=Callable[..., Any])
 
 
-def multithreaded(logger: logging.Logger) -> Callable[[T], T]:
+def multithreaded(logger: logging.Logger, num_workers: Optional[int] = None) -> Callable[[T], T]:
     """
     Multithreaded method decorator.
 
     Args:
         logger: Logging object to record any errors encountered while processing.
+        num_workers: Number of worker threads to use. Defaults to None (uses ThreadPoolExecutor default).
 
     Returns:
         The decorated function.
     """
+    if logger is None:
+        logger = logging.getLogger(__name__)
 
     def decorator(func: T) -> T:
         @wraps(func)
         def wrapper(*args: Any, items: Iterable[Any], **kwargs: Any) -> None:
-            with ThreadPoolExecutor() as executor:
+            with ThreadPoolExecutor(max_workers=num_workers) as executor:
                 futures = {executor.submit(func, *args, item=item, **kwargs): item for item in items}
                 for future in as_completed(futures):
                     item = futures[future]
@@ -49,6 +52,6 @@ def multithreaded(logger: logging.Logger) -> Callable[[T], T]:
                     except Exception as e:
                         logger.error(f"Error processing {item}: {e}")
 
-        return wrapper  # type: ignore
+        return cast(T, wrapper)
 
     return decorator
