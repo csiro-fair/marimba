@@ -1,5 +1,5 @@
 """
-Image utilities. Includes transcoding, resizing, cropping, etc.
+Marimba image utilities. Includes transcoding, resizing, cropping, etc.
 """
 
 from pathlib import Path
@@ -9,6 +9,32 @@ from typing import Iterable, Optional, Tuple, Union
 import cv2
 import numpy as np
 from PIL import Image
+
+from marimba.core.utils.log import get_logger
+
+logger = get_logger(__name__)
+
+
+def generate_thumbnail(image: Path, output_directory: Path, suffix: str = "_THUMB") -> Path:
+    """
+    Generate a thumbnail image from the given image file.
+
+    Args:
+        image: A Path object representing the path to the source image file.
+        output_directory: A Path object representing the directory where the thumbnail will be saved.
+        suffix (optional): A string representing the suffix to be added to the filename of the generated thumbnail
+        image. Defaults to "_THUMB".
+
+    Returns:
+        A Path object representing the path to the generated thumbnail image.
+
+    """
+    output_filename = image.stem + suffix + image.suffix
+    output_path = output_directory / output_filename
+    if not output_path.exists():
+        logger.info(f"Generating thumbnail image: {output_path}")
+        resize_fit(image, 300, 300, output_path)
+    return output_path
 
 
 def convert_to_jpeg(path: Union[str, Path], quality: int = 95, destination: Optional[Union[str, Path]] = None) -> Path:
@@ -344,7 +370,10 @@ def get_width_height(path: Union[str, Path]) -> Tuple[int, int]:
 
 
 def create_grid_image(
-    paths: Iterable[Union[str, Path]], destination: Union[str, Path], columns: int = 5, column_width: int = 300
+    paths: Iterable[Union[str, Path]],
+    destination: Union[str, Path],
+    columns: int = 5,
+    column_width: int = 300,
 ) -> None:
     """
     Create an image that represents a grid of images.
@@ -355,6 +384,11 @@ def create_grid_image(
         columns: The number of columns in the grid.
         column_width: The width in pixels of each column in the grid.
     """
+    if not paths or Path(destination).exists():
+        return
+
+    logger.info(f"Creating thumbnail overview image: {str(destination)}")
+
     paths = [Path(p) for p in paths]
     destination = Path(destination)
 

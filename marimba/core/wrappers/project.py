@@ -776,7 +776,7 @@ class ProjectWrapper(LogMixin):
                 pipeline_name, source_path = futures[future]
                 try:
                     result = future.result()
-                    self.logger.warning(result)
+                    self.logger.info(result)
                 except Exception as e:
                     self.logger.error(f"Import failed for pipeline {pipeline_name} and source {source_path}: {e}")
 
