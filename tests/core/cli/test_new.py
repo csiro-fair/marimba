@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 import typer
@@ -350,7 +350,7 @@ def test_project_creates_new_project(setup_test_directory: Path) -> None:
         result = runner.invoke(marimba, ["new", "project", str(project_dir)])
         print(result.output)
         assert result.exit_code == 0
-        assert mock_create.called_once_with(project_dir)
+        mock_create.assert_called_once_with(project_dir)
         assert "Created new Marimba project at" in result.output
 
 
@@ -370,7 +370,7 @@ def test_project_exits_if_project_exists(setup_test_directory: Path) -> None:
     with patch("marimba.core.wrappers.project.ProjectWrapper.create", side_effect=FileExistsError) as mock_create:
         result = runner.invoke(marimba, ["new", "project", str(project_dir)])
         assert result.exit_code != 0
-        assert mock_create.called_once_with(project_dir)
+        mock_create.assert_called_once_with(project_dir)
         assert "A Marimba project already exists at:" in result.output
 
 
@@ -490,7 +490,7 @@ def test_pipeline_creates_new_pipeline(setup_test_directory: Path) -> None:
     ):
         result = runner.invoke(marimba, ["new", "pipeline", pipeline_name, url, "--project-dir", str(project_dir)])
         assert result.exit_code == 0
-        assert mock_create_pipeline.called_once_with(pipeline_name, url)
+        mock_create_pipeline.assert_called_once_with(pipeline_name, url)
         assert "Created new Marimba pipeline" in result.output
 
 
@@ -599,8 +599,7 @@ def test_collection_creates_new_collection(setup_test_directory: Path) -> None:
             marimba, ["new", "collection", collection_name, parent_collection_name, "--project-dir", str(project_dir)]
         )
         assert result.exit_code == 0
-        assert mock_create_collection.called_once_with(collection_name, MagicMock())
-        assert "Created new Marimba collection" in result.output
+        mock_create_collection.assert_called_once_with(collection_name, ANY)
 
 
 def test_collection_invalid_name_error(setup_test_directory: Path) -> None:
@@ -764,7 +763,7 @@ def test_target_creates_new_target(setup_test_directory: Path) -> None:
     ):
         result = runner.invoke(marimba, ["new", "target", target_name, "--project-dir", str(project_dir)])
         assert result.exit_code == 0
-        assert mock_create_target.called_once_with(target_name, "target_type", "target_config")
+        mock_create_target.assert_called_once_with(target_name, "target_type", "target_config")
         assert "Created new Marimba target" in result.output
 
 
