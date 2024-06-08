@@ -174,6 +174,39 @@ def execute_command(
     )
 
 
+def execute_packaging(
+    collection_data_dir: Path,
+    collection_config: Dict[str, Any],
+    merged_kwargs: Dict[str, Any],
+    repo_dir: Path,
+    config_path: Path,
+    dry_run: bool,
+) -> Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]]:
+    """
+    Package a pipeline's data for a given collection directory and configuration.
+
+    Args:
+        pipeline_name: The name of the pipeline.
+        collection_name: The name of the collection.
+        collection_data_dir: The directory containing the collection data.
+        collection_config: The configuration for the collection.
+        merged_kwargs: Additional keyword arguments to be passed to the package process.
+        repo_dir: The directory of the pipeline repository.
+        config_path: The configuration file path.
+        dry_run: Flag indicating if the package should be run in dry run mode.
+
+    Returns:
+        A dictionary mapping output file paths to tuples of input file paths, image data, and additional data.
+    """
+    # Load the pipeline instance using the standalone function
+    pipeline_instance = load_pipeline_instance(repo_dir, config_path, dry_run)
+
+    # Run the package method
+    pipeline_data_mapping = pipeline_instance.run_package(collection_data_dir, collection_config, **merged_kwargs)
+
+    return pipeline_data_mapping
+
+
 class ProjectWrapper(LogMixin):
     """
     Marimba project directory wrapper. Provides methods for interacting with the project.
@@ -498,7 +531,7 @@ class ProjectWrapper(LogMixin):
                     f'Command "{command_name}" does not exist for pipeline "{run_pipeline_name}".'
                 )
 
-    def _create_future_tasks(
+    def _create_command_tasks(
         self,
         executor: ProcessPoolExecutor,
         pipeline_wrappers_to_run: Dict[str, Any],
@@ -578,7 +611,7 @@ class ProjectWrapper(LogMixin):
             }
 
             with ProcessPoolExecutor() as executor:
-                futures = self._create_future_tasks(
+                futures = self._create_command_tasks(
                     executor,
                     pipeline_wrappers_to_run,
                     collection_wrappers_to_run,
@@ -599,8 +632,43 @@ class ProjectWrapper(LogMixin):
                     finally:
                         progress.advance(tasks_by_pipeline_name[pipeline_name])
 
+    def _create_composition_tasks(
+        self,
+        executor: ProcessPoolExecutor,
+        collection_names: List[str],
+        collection_wrappers: List[Any],
+        collection_configs: List[Dict[str, Any]],
+        merged_kwargs: Dict[str, Any],
+    ) -> Dict[Any, Tuple[str, str]]:
+        futures = {}
+        for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
+            repo_dir = pipeline_wrapper.repo_dir
+            config_path = pipeline_wrapper.config_path
+            dry_run = pipeline_wrapper.dry_run
+
+            for collection_name, collection_wrapper, collection_config in zip(
+                collection_names, collection_wrappers, collection_configs
+            ):
+                if collection_wrapper is not None:
+                    collection_data_dir = collection_wrapper.get_pipeline_data_dir(pipeline_name)
+
+                    futures[
+                        executor.submit(
+                            execute_packaging,
+                            collection_data_dir,
+                            collection_config,
+                            merged_kwargs,
+                            repo_dir,
+                            config_path,
+                            dry_run,
+                        )
+                    ] = (pipeline_name, collection_name)
+
+        return futures
+
     def compose(
         self,
+        dataset_name: str,
         collection_names: List[str],
         extra_args: Optional[List[str]] = None,
         **kwargs: Dict[str, Any],
@@ -609,6 +677,7 @@ class ProjectWrapper(LogMixin):
         Compose a dataset for the given collections across all pipelines.
 
         Args:
+            dataset_name: A string representing the name of the dataset.
             collection_names: The names of the collections to compose.
             extra_args: Any extra CLI arguments to pass to the command.
             kwargs: Any keyword arguments to pass to the command.
@@ -620,7 +689,10 @@ class ProjectWrapper(LogMixin):
             ProjectWrapper.NoSuchCollectionError: If a collection does not exist in the project.
             ProjectWrapper.CompositionError: If a pipeline cannot compose its data.
         """
-        merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
+        # Check that the dataset directory doesn't already exist
+        dataset_root_dir = self.datasets_dir / dataset_name
+        if dataset_root_dir.is_dir():
+            raise FileExistsError(dataset_root_dir)
 
         # Get the collection wrappers
         collection_wrappers: List[CollectionWrapper] = []
@@ -630,40 +702,43 @@ class ProjectWrapper(LogMixin):
                 raise ProjectWrapper.NoSuchCollectionError(collection_name)
             collection_wrappers.append(collection_wrapper)
 
-        # Load the collection configs
+        # Load the collection configs and get the merged keyword arguments
         collection_configs = [collection_wrapper.load_config() for collection_wrapper in collection_wrappers]
+        merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
 
         self.logger.debug(
             f'Composing dataset for collections {", ".join(collection_names)} with kwargs {merged_kwargs}'
         )
+
         dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]]] = {}
+
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Composing data", total=len(self.pipeline_wrappers))
-            for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
-                # Get the pipeline instance
-                pipeline = pipeline_wrapper.get_instance()
+            total_task_length = len(self.pipeline_wrappers) * len(collection_wrappers)
+            task = progress.add_task("[green]Composing data (1/10)", total=total_task_length)
 
-                # Get the collection data directories for the pipeline
-                collection_data_dirs = [
-                    collection_wrapper.get_pipeline_data_dir(pipeline_name)
-                    for collection_wrapper in collection_wrappers
-                ]
+            with ProcessPoolExecutor() as executor:
+                futures = self._create_composition_tasks(
+                    executor,
+                    collection_names,
+                    collection_wrappers,
+                    collection_configs,
+                    merged_kwargs,
+                )
 
-                # Compose the pipeline data mapping
-                try:
-                    pipeline_data_mapping = pipeline.run_compose(
-                        collection_data_dirs, collection_configs, **merged_kwargs
-                    )
-                except Exception as e:
-                    raise ProjectWrapper.CompositionError(
-                        f'Pipeline "{pipeline_name}" failed to compose its data:\n{e}'
-                    ) from e
-
-                # Add the pipeline data mapping to the dataset mapping
-                dataset_mapping[pipeline_name] = pipeline_data_mapping
-
-                # Update the task
-                progress.advance(task)
+                for future in as_completed(futures):
+                    pipeline_name, collection_name = futures[future]
+                    try:
+                        pipeline_data_mapping = future.result()
+                        if pipeline_name not in dataset_mapping:
+                            dataset_mapping[pipeline_name] = {}
+                        dataset_mapping[pipeline_name].update(pipeline_data_mapping)
+                    except Exception as e:
+                        raise ProjectWrapper.CompositionError(
+                            f'Pipeline "{pipeline_name}" failed to compose its data for collection '
+                            f'"{collection_name}":\n{e}'
+                        ) from e
+                    finally:
+                        progress.advance(task)
 
         return dataset_mapping
 
@@ -711,8 +786,9 @@ class ProjectWrapper(LogMixin):
 
         # Validate it
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Validating", total=1)
-            dataset_wrapper.validate()
+            globbed_files = list(dataset_wrapper.root_dir.glob("**/*"))
+            task = progress.add_task("[green]Validating dataset (10/10)", total=len(globbed_files))
+            dataset_wrapper.validate(progress, task)
             progress.advance(task)
 
         self._dataset_wrappers[dataset_name] = dataset_wrapper

@@ -1,5 +1,5 @@
 """
-Marimba decorators.
+Marimba Standard Library Decorators.
 
 This module provides a decorator for easily processing items in a multithreaded manner,
 as well as supporting type definitions and common imports.
@@ -19,7 +19,7 @@ Functions:
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import wraps
-from typing import Any, Callable, Iterable, Optional, TypeVar, cast
+from typing import Any, Callable, Iterable, List, Optional, TypeVar, cast
 
 from marimba.core.utils.log import get_logger
 
@@ -42,15 +42,18 @@ def multithreaded(max_workers: Optional[int] = None) -> Callable[[T], T]:
 
     def decorator(func: T) -> T:
         @wraps(func)
-        def wrapper(*args: Any, items: Iterable[Any], **kwargs: Any) -> None:
+        def wrapper(*args: Any, items: Iterable[Any], **kwargs: Any) -> List[Any]:
+            results = []
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {executor.submit(func, *args, item=item, **kwargs): item for item in items}
                 for future in as_completed(futures):
                     item = futures[future]
                     try:
-                        future.result()
+                        result = future.result()
+                        results.append(result)
                     except Exception as e:
                         logger.error(f"Error processing {item}: {e}")
+            return results
 
         return cast(T, wrapper)
 

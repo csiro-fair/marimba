@@ -21,7 +21,7 @@ Classes:
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 from ifdo.models import ImageData
 
@@ -142,8 +142,8 @@ class BasePipeline(ABC, LogMixin):
         )
         return self._process(data_dir, config, **kwargs)
 
-    def run_compose(
-        self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: Dict[str, Any]
+    def run_package(
+        self, data_dir: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]
     ) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
         """
         Compose a dataset from the given data directories and their corresponding collection configurations.
@@ -153,8 +153,8 @@ class BasePipeline(ABC, LogMixin):
         resulting distributable dataset.
 
         Args:
-            data_dirs: The data directories to compose.
-            configs: The collection configurations for the data directories.
+            data_dir: The data directory to compose.
+            config: The collection configuration for the data directory.
             kwargs: Additional keyword arguments.
 
         Returns:
@@ -162,9 +162,9 @@ class BasePipeline(ABC, LogMixin):
         """
         self.logger.debug(
             f"Running {format_command('compose')} command for pipeline {format_entity(self.class_name)} with args: "
-            f"{data_dirs=}, {configs=}, {kwargs=}"
+            f"{data_dir=}, {config=}, {kwargs=}"
         )
-        return self._compose(data_dirs, configs, **kwargs)
+        return self._package(data_dir, config, **kwargs)
 
     def _import(self, data_dir: Path, source_path: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]) -> None:
         """
@@ -189,8 +189,8 @@ class BasePipeline(ABC, LogMixin):
         )
 
     @abstractmethod
-    def _compose(
-        self, data_dirs: List[Path], configs: List[Dict[str, Any]], **kwargs: Dict[str, Any]
+    def _package(
+        self, data_dir: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]
     ) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
         """
         `run_compose` implementation; override this.

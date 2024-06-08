@@ -31,6 +31,7 @@ Functions:
 """
 
 import logging
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -108,6 +109,8 @@ def import_command(
     """
     Import data in a source directory into a new or existing Marimba collection.
     """
+    start_time = time.time()
+
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
     get_rich_handler().set_dry_run(dry_run)
@@ -139,7 +142,13 @@ def import_command(
         raise typer.Exit()
 
     pretty_source_paths = "\n".join([f"  - {source_path.resolve().absolute()}" for source_path in source_paths])
-    print(success_panel(f"Imported data to collection {collection_name} from source paths:\n{pretty_source_paths}"))
+    elapsed_time = time.time() - start_time
+    print(
+        success_panel(
+            f"Imported data to collection {collection_name} from source paths:\n{pretty_source_paths}"
+            f"\nin {elapsed_time:.2f} seconds"
+        )
+    )
 
 
 @marimba.command("package")
@@ -161,6 +170,8 @@ def package_command(
     """
     Package up a Marimba collection ready for distribution.
     """
+    start_time = time.time()
+
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
     get_rich_handler().set_dry_run(dry_run)
@@ -170,7 +181,7 @@ def package_command(
 
     try:
         # Compose the dataset
-        dataset_mapping = project_wrapper.compose(collection_names, extra)
+        dataset_mapping = project_wrapper.compose(dataset_name, collection_names, extra)
 
         # Package it
         dataset_wrapper = project_wrapper.create_dataset(dataset_name, dataset_mapping, copy=copy)
@@ -203,7 +214,12 @@ def package_command(
         print(error_panel(f"Could not package collection: {e}"))
         raise typer.Exit()
 
-    print(success_panel(f"Created {MARIMBA} dataset {dataset_name} in {dataset_wrapper.root_dir}"))
+    elapsed_time = time.time() - start_time
+    print(
+        success_panel(
+            f"Created {MARIMBA} dataset {dataset_name} at {dataset_wrapper.root_dir} in {elapsed_time:.2f} seconds"
+        )
+    )
 
 
 @marimba.command("process")
@@ -238,6 +254,8 @@ def distribute_command(
     """
     Distribute a Marimba dataset.
     """
+    start_time = time.time()
+
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
     get_rich_handler().set_dry_run(dry_run)
@@ -269,7 +287,8 @@ def distribute_command(
         print(error_panel(f"Could not distribute dataset: {e}"))
         raise typer.Exit()
 
-    print(success_panel(f"Successfully distributed dataset {dataset_name}"))
+    elapsed_time = time.time() - start_time
+    print(success_panel(f"Successfully distributed dataset {dataset_name} in {elapsed_time:.2f} seconds"))
 
 
 @marimba.command("update")
