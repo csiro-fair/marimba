@@ -5,7 +5,14 @@ Rich console output utilities.
 from typing import Tuple
 
 from rich.panel import Panel
-from rich.progress import BarColumn, ProgressColumn, TaskProgressColumn, TextColumn, TimeRemainingColumn
+from rich.progress import (
+    BarColumn,
+    ProgressColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 
 MARIMBA = "[bold][aquamarine3]Marimba[/aquamarine3][/bold]"
 
@@ -76,4 +83,5 @@ def get_default_columns() -> Tuple[ProgressColumn, ...]:
         BarColumn(bar_width=None),
         TaskProgressColumn(),
         TimeRemainingColumn(),
+        TimeElapsedColumn(),
     )
