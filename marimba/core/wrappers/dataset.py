@@ -258,7 +258,7 @@ class Manifest:
             task=task,
         )  # type: ignore
 
-        return cls(hashes)
+        return cls(dict(sorted(hashes.items(), key=lambda item: item[0])))
 
     def validate(
         self,
