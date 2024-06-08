@@ -62,7 +62,7 @@ __credits__ = [
     "Ben Scoulding <ben.scoulding@csiro.au>",
 ]
 __license__ = "CC BY-SA 4.0"
-__version__ = "0.3"
+__version__ = "0.4.0"
 __maintainer__ = "Chris Jackett"
 __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
