@@ -669,11 +669,16 @@ class DatasetWrapper(LogMixin):
             item: Tuple[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]],
             pipeline_name: str,
             copy: bool,
+            image_set_items: Dict[str, List[ImageData]],
             progress: Optional[Progress] = None,
             tasks_by_pipeline_name: Optional[Dict[str, Any]] = None,
         ) -> None:
             src, (relative_dst, image_data_list, _) = item
             dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
+
+            if image_data_list:
+                dst_relative = dst.relative_to(self.data_dir)
+                image_set_items[dst_relative.as_posix()] = image_data_list
 
             if not self.dry_run:
                 dst.parent.mkdir(parents=True, exist_ok=True)
@@ -686,11 +691,11 @@ class DatasetWrapper(LogMixin):
             if progress and tasks_by_pipeline_name:
                 progress.advance(tasks_by_pipeline_name[pipeline_name])
 
-        image_set_items: Dict[str, ImageData] = {}
+        image_set_items: Dict[str, List[ImageData]] = {}
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             tasks_by_pipeline_name = {
                 pipeline_name: progress.add_task(
-                    f"[green]Populating data for {pipeline_name} pipeline (3/10)", total=len(pipeline_data_mapping)
+                    f"[green]Populating data for {pipeline_name} pipeline", total=len(pipeline_data_mapping)
                 )
                 for pipeline_name, pipeline_data_mapping in dataset_mapping.items()
                 if len(pipeline_data_mapping) > 0
@@ -701,6 +706,7 @@ class DatasetWrapper(LogMixin):
                     items=[(src, data) for src, data in pipeline_data_mapping.items()],
                     pipeline_name=pipeline_name,
                     copy=copy,
+                    image_set_items=image_set_items,
                     progress=progress,
                     tasks_by_pipeline_name=tasks_by_pipeline_name,
                 )  # type: ignore
@@ -741,11 +747,15 @@ class DatasetWrapper(LogMixin):
 
         @multithreaded()
         def hash_image(
-            item: Path, image_data: List[ImageData], progress: Optional[Progress] = None, task: Optional[TaskID] = None
+            item: Tuple[str, ImageData],
+            progress: Optional[Progress] = None,
+            task: Optional[TaskID] = None,
         ) -> None:
+            image_path, image_data = item
+            image_data_path = Path(self.data_dir) / image_path
             file_hash = hashlib.sha256()
-            if item.is_file():
-                with item.open("rb") as f:
+            if image_data_path.is_file():
+                with image_data_path.open("rb") as f:
                     while True:
                         chunk = f.read(4096)
                         if not chunk:
