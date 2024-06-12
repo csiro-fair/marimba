@@ -43,7 +43,7 @@ from marimba.core.cli import new
 from marimba.core.distribution.bases import DistributionTargetBase
 from marimba.core.utils.constants import PROJECT_DIR_HELP
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
-from marimba.core.utils.rich import MARIMBA, error_panel, success_panel
+from marimba.core.utils.rich import error_panel, format_entity, success_panel
 from marimba.core.wrappers.dataset import DatasetWrapper
 from marimba.core.wrappers.project import ProjectWrapper
 
@@ -145,8 +145,8 @@ def import_command(
     elapsed_time = time.time() - start_time
     print(
         success_panel(
-            f"Imported data to collection {collection_name} from source paths:\n{pretty_source_paths}"
-            f"\nin {elapsed_time:.2f} seconds"
+            f'Imported data into collection "{format_entity(collection_name)}" from the following source paths in '
+            f"{elapsed_time:.2f} seconds:\n{pretty_source_paths}"
         )
     )
 
@@ -217,7 +217,8 @@ def package_command(
     elapsed_time = time.time() - start_time
     print(
         success_panel(
-            f"Created {MARIMBA} dataset {dataset_name} at {dataset_wrapper.root_dir} in {elapsed_time:.2f} seconds"
+            f'Packaged dataset "{format_entity(dataset_name)}" at {dataset_wrapper.root_dir} in '
+            f"{elapsed_time:.2f} seconds"
         )
     )
 
@@ -235,11 +236,43 @@ def process_command(
     """
     Process the Marimba collection based on the pipeline specification.
     """
+    start_time = time.time()
+
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
     get_rich_handler().set_dry_run(dry_run)
 
-    project_wrapper.run_command("run_process", pipeline_name, collection_name, extra)
+    # Run the processing
+    try:
+        project_wrapper.run_process(pipeline_name, collection_name, extra)
+    except Exception as e:
+        error_message = f"Error during processing: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+
+    if pipeline_name is None:
+        pipeline_names = list(project_wrapper.pipeline_wrappers.keys())
+    else:
+        pipeline_names = [pipeline_name]
+
+    if collection_name is None:
+        collection_names = list(project_wrapper.collection_wrappers.keys())
+    else:
+        collection_names = [collection_name]
+
+    pretty_pipelines = ", ".join(f'"{str(p)}"' for p in pipeline_names)
+    pretty_collections = ", ".join(f'"{str(c)}"' for c in collection_names)
+    pipeline_label = "pipeline" if len(pipeline_names) == 1 else "pipelines"
+    collection_label = "collection" if len(collection_names) == 1 else "collections"
+
+    elapsed_time = time.time() - start_time
+    print(
+        success_panel(
+            f"Processed data for {pipeline_label} {pretty_pipelines} and {collection_label} {pretty_collections} in "
+            f"{elapsed_time:.2f} seconds"
+        )
+    )
 
 
 @marimba.command("distribute")

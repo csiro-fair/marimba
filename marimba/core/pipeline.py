@@ -146,7 +146,7 @@ class BasePipeline(ABC, LogMixin):
         self, data_dir: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]
     ) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
         """
-        Compose a dataset from the given data directories and their corresponding collection configurations.
+        Package a dataset from the given data directories and their corresponding collection configurations.
 
         Return an [iFDO](https://marine-imaging.com/fair/ifdos/iFDO-overview/) instance that represents the composed
         dataset and a dictionary that maps files within the provided data directories to relative paths for the
@@ -161,7 +161,7 @@ class BasePipeline(ABC, LogMixin):
             The iFDO and path mapping dict.
         """
         self.logger.debug(
-            f"Running {format_command('compose')} command for pipeline {format_entity(self.class_name)} with args: "
+            f"Running {format_command('package')} command for pipeline {format_entity(self.class_name)} with args: "
             f"{data_dir=}, {config=}, {kwargs=}"
         )
         return self._package(data_dir, config, **kwargs)

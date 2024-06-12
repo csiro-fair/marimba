@@ -17,9 +17,10 @@ Functions:
     - multithreaded: A decorator to process items in a multithreaded manner.
 """
 
+import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import wraps
-from typing import Any, Callable, Iterable, List, Optional, TypeVar, cast
+from typing import Any, Callable, Iterable, List, Optional, Sized, TypeVar, cast
 
 from marimba.core.utils.log import get_logger
 
@@ -42,17 +43,29 @@ def multithreaded(max_workers: Optional[int] = None) -> Callable[[T], T]:
 
     def decorator(func: T) -> T:
         @wraps(func)
-        def wrapper(*args: Any, items: Iterable[Any], **kwargs: Any) -> List[Any]:
+        def wrapper(self: Any, *args: Any, items: Iterable[Any], **kwargs: Any) -> List[Any]:
+            if not isinstance(items, Sized):
+                raise TypeError("items must be a Sized iterable")
             results = []
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = {executor.submit(func, *args, item=item, **kwargs): item for item in items}
+                futures = {
+                    executor.submit(
+                        func,
+                        self,
+                        *args,
+                        item=item,
+                        thread_num=f"{i:0{math.ceil(math.log10(len(items) + 1))}}",
+                        **kwargs,
+                    ): item
+                    for i, item in enumerate(items)
+                }
                 for future in as_completed(futures):
                     item = futures[future]
                     try:
                         result = future.result()
                         results.append(result)
                     except Exception as e:
-                        logger.error(f"Error processing {item}: {e}")
+                        self.logger.error(f"Error processing {item}: {e}")
             return results
 
         return cast(T, wrapper)

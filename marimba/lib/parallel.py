@@ -25,11 +25,13 @@ from pathlib import Path
 from threading import Lock
 from typing import List, Optional
 
+from marimba.core.pipeline import BasePipeline
 from marimba.lib.decorators import multithreaded
 from marimba.lib.image import generate_thumbnail
 
 
 def multithreaded_generate_thumbnails(
+    self: BasePipeline,
     image_list: List[Path],
     output_directory: Path,
     max_workers: Optional[int] = None,
@@ -51,12 +53,13 @@ def multithreaded_generate_thumbnails(
     output_directory.mkdir(exist_ok=True)
 
     @multithreaded(max_workers=max_workers)
-    def generate_thumbnail_task(item: Path) -> None:
+    def generate_thumbnail_task(self: BasePipeline, thread_num: str, item: Path) -> None:
         thumbnail_path = generate_thumbnail(item, output_directory)
+        self.logger.debug(f"Thread {thread_num} - Generated thumbnail for image {item}")
         if thumbnail_path:
             with list_lock:
                 thumbnail_path_list.append(thumbnail_path)
 
-    generate_thumbnail_task(items=image_list)  # type: ignore
+    generate_thumbnail_task(self, items=image_list)  # type: ignore
 
     return sorted(thumbnail_path_list)

@@ -24,9 +24,17 @@ from typing import Optional, Type
 
 from marimba.core.pipeline import BasePipeline
 from marimba.core.utils.config import load_config
+from marimba.core.utils.log import LogPrefixFilter, get_file_handler
 
 
-def load_pipeline_instance(repo_dir: Path, config_path: Path, dry_run: bool) -> BasePipeline:
+def load_pipeline_instance(
+    root_dir: Path,
+    repo_dir: Path,
+    pipeline_name: str,
+    config_path: Path,
+    dry_run: bool,
+    log_string_prefix: Optional[str] = None,
+) -> BasePipeline:
     """
     Load the pipeline instance from the given repository directory.
 
@@ -34,6 +42,8 @@ def load_pipeline_instance(repo_dir: Path, config_path: Path, dry_run: bool) -> 
         repo_dir: The repository directory of the pipeline.
         config_path: The path to the pipeline configuration file.
         dry_run: Whether to run in dry-run mode.
+        primary_log_string: The index of the process.
+        secondary_log_string: The index of the source path.
 
     Returns:
         The pipeline instance.
@@ -89,5 +99,14 @@ def load_pipeline_instance(repo_dir: Path, config_path: Path, dry_run: bool) -> 
 
     # Create an instance of the pipeline
     pipeline_instance = pipeline_class(repo_dir, config=load_config(config_path), dry_run=dry_run)
+
+    # Add the log string prefix to the logger
+    if log_string_prefix:
+        prefix_filter = LogPrefixFilter(log_string_prefix)
+        pipeline_instance.logger.addFilter(prefix_filter.apply_prefix)
+
+    # Add a file handler to accumulate pipeline logs
+    file_handler = get_file_handler(root_dir, pipeline_name, dry_run)
+    pipeline_instance.logger.addHandler(file_handler)
 
     return pipeline_instance

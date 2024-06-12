@@ -150,7 +150,7 @@ class PipelineWrapper(LogMixin):
         Set up logging. Create file handler for this instance that writes to `pipeline.log`.
         """
         # Create a file handler for this instance
-        self._file_handler = get_file_handler(self.root_dir, self.name, False, level=logging.DEBUG)
+        self._file_handler = get_file_handler(self.root_dir, self.name, self._dry_run)
 
         # Add the file handler to the logger
         self.logger.addHandler(self._file_handler)
@@ -217,11 +217,9 @@ class PipelineWrapper(LogMixin):
             BasePipeline: The pipeline instance.
         """
         # Use the standalone function to load the pipeline instance
-        pipeline_instance = load_pipeline_instance(self.repo_dir, self.config_path, self.dry_run)
-
-        # Set up pipeline file logging if _file_handler is initialised
-        if self._file_handler is not None:
-            pipeline_instance.logger.addHandler(self._file_handler)
+        pipeline_instance = load_pipeline_instance(
+            self.root_dir, self.repo_dir, self.name, self.config_path, self.dry_run
+        )
 
         return pipeline_instance
 
