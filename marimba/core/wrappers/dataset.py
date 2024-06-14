@@ -41,7 +41,6 @@ Classes:
 import hashlib
 import io
 import json
-import logging
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import timezone
@@ -55,12 +54,13 @@ from uuid import uuid4
 import piexif
 from ifdo.models import ImageData, ImageSetHeader, iFDO
 from PIL import Image
-from rich.progress import Progress, SpinnerColumn
+from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.map import make_summary_map
 from marimba.core.utils.rich import get_default_columns
 from marimba.lib import image
+from marimba.lib.decorators import multithreaded
 from marimba.lib.gps import convert_degrees_to_gps_coordinate
 
 
@@ -211,7 +211,11 @@ class Manifest:
 
     @classmethod
     def from_dir(
-        cls, directory: Path, exclude_paths: Optional[Iterable[Path]] = None, progress: Optional[Progress] = None
+        cls,
+        directory: Path,
+        exclude_paths: Optional[Iterable[Path]] = None,
+        progress: Optional[Progress] = None,
+        task: Optional[TaskID] = None,
     ) -> "Manifest":
         """
         Create a manifest from a directory.
@@ -224,25 +228,47 @@ class Manifest:
         Returns:
             A manifest.
         """
-        hashes = {}
+        hashes: Dict[Path, bytes] = {}
         exclude_paths = set(exclude_paths) if exclude_paths is not None else set()
-
         globbed_files = list(directory.glob("**/*"))
-        if progress:
-            task = progress.add_task("[green]Generating manifest", total=len(globbed_files))
 
-        for path in globbed_files:
-            # Update the task
-            if progress:
+        @multithreaded()
+        def process_file(
+            self: None,
+            thread_num: str,
+            item: Path,
+            directory: Path,
+            exclude_paths: Optional[Iterable[Path]],
+            hashes: Dict[Path, bytes],
+            progress: Optional[Progress] = None,
+            task: Optional[TaskID] = None,
+        ) -> None:
+            if progress and task is not None:
                 progress.advance(task)
-            if path in exclude_paths:
-                continue
-            rel_path = path.resolve().relative_to(directory)
-            hashes[rel_path] = Manifest.compute_hash(path)
+            if exclude_paths and item in exclude_paths:
+                return
+            rel_path = item.resolve().relative_to(directory)
+            hashes[rel_path] = Manifest.compute_hash(item)
 
-        return cls(hashes)
+        process_file(
+            self=None,
+            items=globbed_files,
+            directory=directory,
+            exclude_paths=exclude_paths,
+            hashes=hashes,
+            progress=progress,
+            task=task,
+        )  # type: ignore
 
-    def validate(self, directory: Path, exclude_paths: Optional[Iterable[Path]] = None) -> bool:
+        return cls(dict(sorted(hashes.items(), key=lambda item: item[0])))
+
+    def validate(
+        self,
+        directory: Path,
+        exclude_paths: Optional[Iterable[Path]] = None,
+        progress: Optional[Progress] = None,
+        task: Optional[TaskID] = None,
+    ) -> bool:
         """
         Validate a directory against the manifest.
 
@@ -254,7 +280,12 @@ class Manifest:
             True if the directory is valid, False otherwise.
         """
         # Create a manifest from the directory
-        manifest = Manifest.from_dir(directory, exclude_paths=exclude_paths)
+        manifest = Manifest.from_dir(
+            directory,
+            exclude_paths=exclude_paths,
+            progress=progress,
+            task=task,
+        )
 
         return self == manifest
 
@@ -367,10 +398,6 @@ class DatasetWrapper(LogMixin):
         logs_dir = root_dir / "logs"
         pipeline_logs_dir = logs_dir / "pipelines"
 
-        # Check that the root directory doesn't already exist
-        if root_dir.is_dir():
-            raise FileExistsError(root_dir)
-
         # Create the file structure
         if not dry_run:
             root_dir.mkdir(parents=True)
@@ -403,7 +430,7 @@ class DatasetWrapper(LogMixin):
         check_dir_exists(self.logs_dir)
         check_dir_exists(self.pipeline_logs_dir)
 
-    def validate(self) -> None:
+    def validate(self, dataset_name: str, progress: Optional[Progress] = None, task: Optional[TaskID] = None) -> None:
         """
         Validate the dataset. If the dataset is inconsistent with its manifest (if present), raise a ManifestError.
 
@@ -412,16 +439,21 @@ class DatasetWrapper(LogMixin):
         """
         if self.manifest_path.exists():
             manifest = Manifest.load(self.manifest_path)
-            if not manifest.validate(self.root_dir, exclude_paths=[self.manifest_path, self.log_path]):
+            if not manifest.validate(
+                self.root_dir,
+                exclude_paths=[self.manifest_path, self.log_path],
+                progress=progress,
+                task=task,
+            ):
                 raise DatasetWrapper.ManifestError(self.manifest_path)
-            self.logger.debug(f"Dataset is consistent with manifest at {self.manifest_path}.")
+            self.logger.debug(f'Packaged dataset "{dataset_name}" has been successfully validated against the manifest')
 
     def _setup_logging(self) -> None:
         """
         Set up logging. Create file handler for this instance that writes to `dataset.log`.
         """
         # Create a file handler for this instance
-        self._file_handler = get_file_handler(self.root_dir, "dataset", False, level=logging.DEBUG)
+        self._file_handler = get_file_handler(self.logs_dir, "dataset", self._dry_run)
 
         # Add the file handler to the logger
         self.logger.addHandler(self._file_handler)
@@ -445,12 +477,21 @@ class DatasetWrapper(LogMixin):
         Args:
             metadata_mapping: A dict mapping file paths to image data.
         """
-        for path, (image_data, ancillary_data) in metadata_mapping.items():
+
+        @multithreaded()
+        def process_file(
+            self: DatasetWrapper,
+            thread_num: str,
+            item: Tuple[Path, Tuple[ImageData, Optional[Dict[str, Any]]]],
+            progress: Optional[Progress] = None,
+            task: Optional[TaskID] = None,
+        ) -> None:
+            path, (image_data, ancillary_data) = item
             try:
                 exif_dict = piexif.load(str(path))
             except piexif.InvalidImageDataError as e:
                 self.logger.warning(f"Failed to load EXIF metadata from {path}: {e}")
-                continue
+                return
 
             self._inject_datetime(image_data, exif_dict)
             self._inject_gps_coordinates(image_data, exif_dict)
@@ -461,9 +502,17 @@ class DatasetWrapper(LogMixin):
             try:
                 exif_bytes = piexif.dump(exif_dict)
                 piexif.insert(exif_bytes, str(path))
-                self.logger.debug(f"Applied iFDO EXIF tags to {path}.")
+                self.logger.debug(f"Thread {thread_num} - Applied iFDO metadata to EXIF tags for image {path}")
             except piexif.InvalidImageDataError:
                 self.logger.warning(f"Failed to write EXIF metadata to {path}")
+
+            if progress and task is not None:
+                progress.advance(task)
+
+        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
+            task = progress.add_task("[green]Applying iFDO metadata to EXIF tags (4/10)", total=len(metadata_mapping))
+
+            process_file(self, items=metadata_mapping.items(), progress=progress, task=task)  # type: ignore
 
     @staticmethod
     def _inject_datetime(image_data: ImageData, exif_dict: Dict[str, Any]) -> None:
@@ -591,16 +640,16 @@ class DatasetWrapper(LogMixin):
         Raises:
             DatasetWrapper.InvalidPathMappingError: If the path mapping is invalid.
         """
-        DatasetWrapper.check_dataset_mapping(dataset_mapping)
-        self.logger.debug("Dataset mapping is valid.")
+        pipeline_label = "pipeline" if len(dataset_mapping) == 1 else "pipelines"
+        self.logger.debug(f'Creating dataset "{dataset_name}" containing {len(dataset_mapping)} {pipeline_label}')
 
+        self.check_dataset_mapping(dataset_mapping)
         image_set_items = self._populate_files(dataset_mapping, copy)
-
         self._apply_exif_metadata(dataset_mapping)
         self._generate_ifdo(dataset_name, image_set_items)
         self._generate_dataset_summary(image_set_items)
-        self._copy_logs(project_log_path, pipeline_log_paths)
         self._copy_pipelines(project_pipelines_dir)
+        self._copy_logs(project_log_path, pipeline_log_paths)
         self._generate_manifest()
 
     def _populate_files(
@@ -618,32 +667,59 @@ class DatasetWrapper(LogMixin):
         Returns:
             Dict[str, ImageData]: A dictionary of image set items for further processing.
         """
-        image_set_items = {}
+
+        @multithreaded()
+        def process_file(
+            self: DatasetWrapper,
+            item: Tuple[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]],
+            thread_num: str,
+            pipeline_name: str,
+            copy: bool,
+            image_set_items: Dict[str, List[ImageData]],
+            progress: Optional[Progress] = None,
+            tasks_by_pipeline_name: Optional[Dict[str, Any]] = None,
+        ) -> None:
+            src, (relative_dst, image_data_list, _) = item
+            dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
+
+            if image_data_list:
+                dst_relative = dst.relative_to(self.data_dir)
+                image_set_items[dst_relative.as_posix()] = image_data_list
+
+            if not self.dry_run:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                if copy:
+                    copy2(src, dst)
+                    self.logger.debug(f"Thread {thread_num} - Copying file {src.absolute()} -> {dst}")
+                else:
+                    src.rename(dst)
+                    self.logger.debug(f"Thread {thread_num} - Moving file {src.absolute()} -> {dst}")
+
+            if progress and tasks_by_pipeline_name:
+                progress.advance(tasks_by_pipeline_name[pipeline_name])
+
+        image_set_items: Dict[str, List[ImageData]] = {}
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             tasks_by_pipeline_name = {
                 pipeline_name: progress.add_task(
-                    f"[green]Populating data for {pipeline_name} pipeline", total=len(pipeline_data_mapping)
+                    f"[green]Populating data for {pipeline_name} pipeline (3/10)", total=len(pipeline_data_mapping)
                 )
                 for pipeline_name, pipeline_data_mapping in dataset_mapping.items()
                 if len(pipeline_data_mapping) > 0
             }
 
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-                pipeline_data_dir = self.get_pipeline_data_dir(pipeline_name)
-                for src, (relative_dst, image_data_list, _) in pipeline_data_mapping.items():
-                    dst = pipeline_data_dir / relative_dst
-                    if image_data_list:
-                        dst_relative = dst.relative_to(self.data_dir)
-                        image_set_items[dst_relative.as_posix()] = image_data_list
+                self.logger.debug(f"Populating data for {pipeline_name} pipeline")
+                process_file(
+                    self,
+                    items=[(src, data) for src, data in pipeline_data_mapping.items()],
+                    pipeline_name=pipeline_name,
+                    copy=copy,
+                    image_set_items=image_set_items,
+                    progress=progress,
+                    tasks_by_pipeline_name=tasks_by_pipeline_name,
+                )  # type: ignore
 
-                    if not self.dry_run:
-                        dst.parent.mkdir(parents=True, exist_ok=True)
-                        if copy:
-                            copy2(src, dst)
-                        else:
-                            src.rename(dst)
-                    self.logger.debug(f"{src.absolute()} -> {dst} ({copy=})")
-                    progress.advance(tasks_by_pipeline_name[pipeline_name])
         return image_set_items
 
     def _apply_exif_metadata(
@@ -657,26 +733,17 @@ class DatasetWrapper(LogMixin):
             dataset_mapping: The dataset mapping containing source and destination paths.
         """
         metadata_mapping = {}
-        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            tasks_by_pipeline_name = {
-                pipeline_name: progress.add_task(
-                    f"[green]Applying iFDO EXIF tags for {pipeline_name} pipeline", total=len(pipeline_data_mapping)
-                )
-                for pipeline_name, pipeline_data_mapping in dataset_mapping.items()
-                if len(pipeline_data_mapping) > 0
-            }
 
-            for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-                for _, (relative_dst, image_data_list, ancillary_data) in pipeline_data_mapping.items():
-                    progress.advance(tasks_by_pipeline_name[pipeline_name])
-                    dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
-                    if not image_data_list:
-                        continue
-                    metadata_mapping[dst] = (image_data_list[0], ancillary_data)
+        for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
+            for _, (relative_dst, image_data_list, ancillary_data) in pipeline_data_mapping.items():
+                dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
+                if not image_data_list:
+                    continue
+                metadata_mapping[dst] = (image_data_list[0], ancillary_data)
 
-            if not self.dry_run:
-                self._apply_ifdo_exif_tags(metadata_mapping)
-            self.logger.debug(f"Applied iFDO EXIF tags to {len(metadata_mapping)} files")
+        if not self.dry_run:
+            self._apply_ifdo_exif_tags(metadata_mapping)
+        self.logger.debug(f"Applied iFDO EXIF tags to {len(metadata_mapping)} files")
 
     def _generate_ifdo(self, dataset_name: str, image_set_items: Dict[str, ImageData]) -> None:
         """
@@ -686,22 +753,39 @@ class DatasetWrapper(LogMixin):
             dataset_name: The name of the dataset.
             image_set_items: The dictionary of image set items to include in the iFDO.
         """
-        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Generating iFDO", total=len(image_set_items) + 1)
 
-            for image_path, image_data in image_set_items.items():
-                image_data_path = Path(self.data_dir) / image_path
-                file_hash = hashlib.sha256()
-                if image_data_path.is_file():
-                    with image_data_path.open("rb") as f:
-                        while True:
-                            chunk = f.read(4096)
-                            if not chunk:
-                                break
-                            file_hash.update(chunk)
-                    for image_data_item in image_data:
-                        image_data_item.image_hash_sha256 = file_hash.hexdigest()
+        @multithreaded()
+        def hash_image(
+            self: DatasetWrapper,
+            thread_num: str,
+            item: Tuple[str, ImageData],
+            progress: Optional[Progress] = None,
+            task: Optional[TaskID] = None,
+        ) -> None:
+            image_path, image_data = item
+            image_data_path = Path(self.data_dir) / image_path
+            file_hash = hashlib.sha256()
+            if image_data_path.is_file():
+                with image_data_path.open("rb") as f:
+                    while True:
+                        chunk = f.read(4096)
+                        if not chunk:
+                            break
+                        file_hash.update(chunk)
+                for image_data_item in image_data:
+                    image_data_item.image_hash_sha256 = file_hash.hexdigest()
+
+            if progress and task is not None:
                 progress.advance(task)
+
+        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
+            task = progress.add_task("[green]Generating iFDO (5/10)", total=len(image_set_items) + 1)
+
+            items = [
+                (Path(self.data_dir) / image_path, image_data) for image_path, image_data in image_set_items.items()
+            ]
+
+            hash_image(self, items=items, progress=progress, task=task)  # type: ignore
 
             image_set_items = OrderedDict(sorted(image_set_items.items(), key=lambda item: item[0]))
 
@@ -713,11 +797,14 @@ class DatasetWrapper(LogMixin):
                 ),
                 image_set_items=image_set_items,
             )
+
+            progress.update(task, description="[green]Writing iFDO to disk (5/10)")
             if not self.dry_run:
                 ifdo.save(self.metadata_path)
-            self.logger.debug(
-                f"Generated iFDO at {self.metadata_path} with {len(ifdo.image_set_items)} image set items"
-            )
+
+            item_count = len(ifdo.image_set_items)
+            item_label = "item" if item_count == 1 else "items"
+            self.logger.debug(f"Generated iFDO containing {item_count} image set {item_label} at {self.metadata_path}")
             progress.advance(task)
 
     def _generate_dataset_summary(self, image_set_items: Dict[str, ImageData]) -> None:
@@ -728,12 +815,14 @@ class DatasetWrapper(LogMixin):
             image_set_items: The dictionary of image set items to summarize.
         """
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Generating dataset summary", total=1)
+            task = progress.add_task("[green]Generating dataset summary (6/10)", total=2)
             summary = self.summarize()
             if not self.dry_run:
                 self.summary_path.write_text(str(summary))
-            self.logger.debug(f"Updated dataset summary at {self.summary_path}")
+            self.logger.debug(f"Generated dataset summary at {self.summary_path}")
+            progress.advance(task)
 
+            # Check for geolocations
             geolocations = [
                 (image_data.image_latitude, image_data.image_longitude)
                 for image_data_list in image_set_items.values()
@@ -741,13 +830,15 @@ class DatasetWrapper(LogMixin):
                 if image_data.image_latitude is not None and image_data.image_longitude is not None
             ]
             if geolocations:
-                progress.update(task, description="[green]Generating summary map")
                 summary_map = make_summary_map(geolocations)
                 if summary_map is not None:
                     map_path = self.root_dir / "map.png"
                     if not self.dry_run:
                         summary_map.save(map_path)
-                    self.logger.debug(f"Generated summary map at {map_path}")
+                    coordinate_label = "spatial coordinate" if len(geolocations) == 1 else "spatial coordinates"
+                    self.logger.debug(
+                        f"Generated summary map containing {len(geolocations)} {coordinate_label} at {map_path}"
+                    )
             progress.advance(task)
 
     def _copy_logs(self, project_log_path: Path, pipeline_log_paths: Iterable[Path]) -> None:
@@ -759,7 +850,7 @@ class DatasetWrapper(LogMixin):
             pipeline_log_paths: The paths to the pipeline log files.
         """
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Copying logs", total=1)
+            task = progress.add_task("[green]Copying logs (8/10)", total=1)
             if not self.dry_run:
                 copy2(project_log_path, self.logs_dir)
                 for pipeline_log_path in pipeline_log_paths:
@@ -775,7 +866,7 @@ class DatasetWrapper(LogMixin):
             project_pipelines_dir: The path to the project pipelines directory.
         """
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Copying pipelines", total=1)
+            task = progress.add_task("[green]Copying pipelines (7/10)", total=1)
             if not self.dry_run:
                 ignore = ignore_patterns(
                     ".git",
@@ -799,12 +890,17 @@ class DatasetWrapper(LogMixin):
         The manifest provides a comprehensive list of files and their hashes for verification.
         """
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
+            globbed_files = list(self.root_dir.glob("**/*"))
+            task = progress.add_task("[green]Generating manifest (9/10)", total=len(globbed_files))
             manifest = Manifest.from_dir(
-                self.root_dir, exclude_paths=[self.manifest_path, self.log_path], progress=progress
+                self.root_dir,
+                exclude_paths=[self.manifest_path, self.log_path],
+                progress=progress,
+                task=task,
             )
             if not self.dry_run:
                 manifest.save(self.manifest_path)
-            self.logger.debug(f"Generated manifest at {self.manifest_path}")
+            self.logger.debug(f"Generated manifest for {len(globbed_files)} files and paths at {self.manifest_path}")
 
     def summarize(self) -> ImagerySummary:
         """
@@ -858,18 +954,18 @@ class DatasetWrapper(LogMixin):
         return self._root_dir.name
 
     @property
-    def log_path(self) -> Path:
-        """
-        The path to the dataset log file.
-        """
-        return self._root_dir / "dataset.log"
-
-    @property
     def logs_dir(self) -> Path:
         """
         The path to the logs directory.
         """
         return self._root_dir / "logs"
+
+    @property
+    def log_path(self) -> Path:
+        """
+        The path to the dataset log file.
+        """
+        return self.logs_dir / "dataset.log"
 
     @property
     def pipelines_dir(self) -> Path:
@@ -892,9 +988,8 @@ class DatasetWrapper(LogMixin):
         """
         return self._dry_run
 
-    @staticmethod
     def check_dataset_mapping(
-        dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]]]
+        self, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]]]
     ) -> None:
         """
         Verify that the given dataset mapping is valid.
@@ -905,52 +1000,144 @@ class DatasetWrapper(LogMixin):
         Raises:
             DatasetWrapper.InvalidDatasetMappingError: If the path mapping is invalid.
         """
-        for _, pipeline_data_mapping in dataset_mapping.items():
-            DatasetWrapper._verify_source_paths_exist(pipeline_data_mapping)
-            DatasetWrapper._verify_unique_source_resolutions(pipeline_data_mapping)
-            DatasetWrapper._verify_relative_destination_paths(pipeline_data_mapping)
-            DatasetWrapper._verify_no_destination_collisions(pipeline_data_mapping)
+        total_tasks = 0
+        for pipeline_data_mapping in dataset_mapping.values():
+            total_tasks += len(pipeline_data_mapping) * 4
 
-    @staticmethod
+        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
+            task = progress.add_task("[green]Checking dataset mapping (2/10)", total=total_tasks)
+
+            for _, pipeline_data_mapping in dataset_mapping.items():
+                self._verify_source_paths_exist(pipeline_data_mapping, progress, task)
+                self._verify_unique_source_resolutions(pipeline_data_mapping, progress, task)
+                self._verify_relative_destination_paths(pipeline_data_mapping, progress, task)
+                self._verify_no_destination_collisions(pipeline_data_mapping, progress, task)
+
+        self.logger.debug("Dataset mapping is valid")
+
     def _verify_source_paths_exist(
-        pipeline_data_mapping: Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]]
+        self,
+        pipeline_data_mapping: Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]],
+        progress: Progress,
+        task: TaskID,
     ) -> None:
-        for src in pipeline_data_mapping:
-            if not src.exists():
-                raise DatasetWrapper.InvalidDatasetMappingError(f"Source path {src} does not exist.")
+        @multithreaded()
+        def verify_path(
+            self: DatasetWrapper,
+            thread_num: str,
+            item: Path,
+            progress: Optional[Progress] = None,
+            task: Optional[TaskID] = None,
+        ) -> None:
+            if not item.exists():
+                raise DatasetWrapper.InvalidDatasetMappingError(f"Source path {item} does not exist")
+            if progress and task is not None:
+                progress.advance(task)
 
-    @staticmethod
+        verify_path(
+            self,
+            items=list(pipeline_data_mapping.keys()),
+            progress=progress,
+            task=task,
+        )  # type: ignore
+
     def _verify_unique_source_resolutions(
-        pipeline_data_mapping: Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]]
+        self,
+        pipeline_data_mapping: Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]],
+        progress: Progress,
+        task: TaskID,
     ) -> None:
         reverse_src_resolution: Dict[Path, Path] = {}
-        for src in pipeline_data_mapping:
-            resolved = src.resolve().absolute()
+
+        @multithreaded()
+        def verify_resolution(
+            self: DatasetWrapper,
+            thread_num: str,
+            item: Path,
+            reverse_src_resolution: Dict[Path, Path],
+            progress: Optional[Progress] = None,
+            task: Optional[TaskID] = None,
+        ) -> None:
+            resolved = item.resolve().absolute()
             if resolved in reverse_src_resolution:
                 raise DatasetWrapper.InvalidDatasetMappingError(
-                    f"Source paths {src} and {reverse_src_resolution[resolved]} both resolve to {resolved}."
+                    f"Source paths {item} and {reverse_src_resolution[resolved]} both resolve to {resolved}"
                 )
-            reverse_src_resolution[resolved] = src
+            reverse_src_resolution[resolved] = item
+            if progress and task is not None:
+                progress.advance(task)
 
-    @staticmethod
+        verify_resolution(
+            self,
+            items=pipeline_data_mapping.keys(),
+            reverse_src_resolution=reverse_src_resolution,
+            progress=progress,
+            task=task,
+        )  # type: ignore
+
     def _verify_relative_destination_paths(
-        pipeline_data_mapping: Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]]
+        self,
+        pipeline_data_mapping: Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]],
+        progress: Progress,
+        task: TaskID,
     ) -> None:
-        for dst, _, _ in pipeline_data_mapping.values():
-            if dst.is_absolute():
-                raise DatasetWrapper.InvalidDatasetMappingError(f"Destination path {dst} must be relative.")
+        destinations = [dst for dst, _, _ in pipeline_data_mapping.values()]
 
-    @staticmethod
+        @multithreaded()
+        def verify_destination_path(
+            self: DatasetWrapper,
+            thread_num: str,
+            item: Path,
+            progress: Optional[Progress] = None,
+            task: Optional[TaskID] = None,
+        ) -> None:
+            if item.is_absolute():
+                raise DatasetWrapper.InvalidDatasetMappingError(f"Destination path {item} must be relative")
+            if progress and task is not None:
+                progress.advance(task)
+
+        verify_destination_path(
+            self,
+            items=destinations,
+            progress=progress,
+            task=task,
+        )  # type: ignore
+
     def _verify_no_destination_collisions(
-        pipeline_data_mapping: Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]]
+        self,
+        pipeline_data_mapping: Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]],
+        progress: Progress,
+        task: TaskID,
     ) -> None:
         reverse_mapping: Dict[Path, Path] = {
             dst.resolve(): src for src, (dst, _, _) in pipeline_data_mapping.items() if dst is not None
         }
-        for src, (dst, _, _) in pipeline_data_mapping.items():
+
+        @multithreaded()
+        def verify_no_collision(
+            self: DatasetWrapper,
+            thread_num: str,
+            item: Tuple[Path, Path],
+            reverse_mapping: Dict[Path, Path],
+            progress: Optional[Progress] = None,
+            task: Optional[TaskID] = None,
+        ) -> None:
+            (src, dst) = item
             if dst is not None:
                 src_other = reverse_mapping.get(dst.resolve())
                 if src_other is not None and src.resolve() != src_other.resolve():
                     raise DatasetWrapper.InvalidDatasetMappingError(
-                        f"Resolved destination path {dst.resolve()} is the same for source paths {src} and {src_other}."
+                        f"Resolved destination path {dst.resolve()} is the same for source paths {src} and {src_other}"
                     )
+            if progress and task is not None:
+                progress.advance(task)
+
+        items = [(src, dst) for src, (dst, _, _) in pipeline_data_mapping.items()]
+
+        verify_no_collision(
+            self,
+            items=items,
+            reverse_mapping=reverse_mapping,
+            progress=progress,
+            task=task,
+        )  # type: ignore

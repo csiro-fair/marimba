@@ -138,7 +138,7 @@ def get_rich_handler() -> DryRunRichHandler:
 
 
 def get_file_handler(
-    output_dir: Union[str, Path], name: str, dry_run: bool, level: int = logging.INFO
+    output_dir: Union[str, Path], name: str, dry_run: bool, level: int = logging.DEBUG
 ) -> logging.FileHandler:
     """
     Get a file handler for a given output directory and name.
@@ -170,10 +170,6 @@ def get_file_handler(
     handler.setFormatter(file_formatter)
 
     return handler
-
-
-# Create a Rich console object
-console = Console()
 
 
 class NoRichFileHandler(logging.FileHandler):
@@ -234,6 +230,38 @@ class NoRichFileHandler(logging.FileHandler):
 
         # Call the original emit method to write the plain text log entry to the file
         super().emit(record)
+
+
+class LogPrefixFilter(logging.Filter):
+    """
+    A log filter that adds a prefix to log messages.
+
+    Attributes:
+        prefix (str): The prefix to add to log messages.
+    """
+
+    def __init__(self, prefix: str) -> None:
+        """
+        Initialise the filter with a prefix.
+
+        Args:
+            prefix (str): The prefix to add to log messages.
+        """
+        self.prefix = prefix
+        super().__init__()
+
+    def apply_prefix(self, record: logging.LogRecord) -> bool:
+        """
+        Apply the prefix to the log record's message.
+
+        Args:
+            record (logging.LogRecord): The log record.
+
+        Returns:
+            bool: Always returns True to ensure the record is not filtered out.
+        """
+        record.msg = f"{self.prefix} - {record.msg}"
+        return True
 
 
 class LogLevel(str, Enum):

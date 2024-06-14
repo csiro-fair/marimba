@@ -1,3 +1,4 @@
+import tempfile
 from pathlib import Path
 from unittest import TestCase
 
@@ -8,9 +9,6 @@ from marimba.core.utils.config import load_config
 
 class TestLoadConfig(TestCase):
     """
-
-    TestLoadConfig(TestCase)
-
     A class to test the functionality of the load_config function with different scenarios.
 
     Attributes:
@@ -35,16 +33,15 @@ class TestLoadConfig(TestCase):
         test_load_config_with_nonexistent_file() -> None:
             Test the load_config function with a nonexistent file.
             Assert that a FileNotFoundError is raised.
-
     """
 
     def setUp(self) -> None:
-        self.config_path = Path("test_config.yaml")
+        self.test_dir = tempfile.TemporaryDirectory()
+        self.config_path = Path(self.test_dir.name) / "test_config.yaml"
         self.config_data = {"key": "value"}
 
     def tearDown(self) -> None:
-        if self.config_path.exists():
-            self.config_path.unlink()
+        self.test_dir.cleanup()
 
     def test_load_config_with_valid_yaml(self) -> None:
         with self.config_path.open("w", encoding="utf-8") as f:
@@ -61,5 +58,6 @@ class TestLoadConfig(TestCase):
             load_config(self.config_path)
 
     def test_load_config_with_nonexistent_file(self) -> None:
+        nonexistent_path = Path(self.test_dir.name) / "nonexistent_config.yaml"
         with self.assertRaises(FileNotFoundError):
-            load_config(self.config_path)
+            load_config(nonexistent_path)
