@@ -32,7 +32,6 @@ Functions:
 
 import logging
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
@@ -47,10 +46,7 @@ from marimba.core.utils.rich import error_panel, format_entity, success_panel
 from marimba.core.wrappers.dataset import DatasetWrapper
 from marimba.core.wrappers.project import ProjectWrapper
 
-current_year = datetime.now().year
-
 __author__ = "Marimba Development Team"
-__copyright__ = f"Copyright {current_year}, CSIRO"
 __credits__ = [
     "Chris Jackett <chris.jackett@csiro.au>",
     "Kevin Barnard <kbarnard@mbari.org>",
