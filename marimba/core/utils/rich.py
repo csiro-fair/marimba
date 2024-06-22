@@ -1,5 +1,21 @@
 """
-Rich console output utilities.
+Marimba Rich Utilities.
+
+This module provides utility functions and constants for creating visually appealing console output using the Rich
+library, specifically tailored for the Marimba project. It includes functions for creating styled panels, formatting
+text, and configuring progress bars.
+
+Imports:
+    - typing: Provides type hinting support.
+    - rich.panel: Used for creating stylized panels.
+    - rich.progress: Provides components for creating progress bars.
+
+Functions:
+    - success_panel: Creates a green-bordered panel for success messages.
+    - error_panel: Creates a red-bordered panel for error messages.
+    - format_command: Formats a command name with steel blue color.
+    - format_entity: Formats an entity name with light pink color.
+    - get_default_columns: Returns a tuple of default progress columns.
 """
 
 from typing import Tuple

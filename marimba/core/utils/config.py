@@ -1,5 +1,17 @@
 """
-Marimba configuration utilities.
+Marimba Configuration Utilities.
+
+This module provides functions for loading and saving YAML configuration files. It includes utilities for handling
+file paths and converting YAML data to Python dictionaries.
+
+Imports:
+    - pathlib: Provides classes for handling file system paths.
+    - typing: Provides support for type hints.
+    - yaml: Provides YAML parsing and dumping functionality.
+
+Functions:
+    - load_config: Load a YAML config file and return its contents as a dictionary.
+    - save_config: Save a dictionary as a YAML config file.
 """
 
 from pathlib import Path
