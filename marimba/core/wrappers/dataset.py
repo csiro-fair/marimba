@@ -29,9 +29,6 @@ Imports:
     - marimba.lib.image: Library for image processing.
     - marimba.lib.gps: Utility for GPS coordinate conversion.
 
-Functions:
-    - sizeof_fmt: Convert a number of bytes to a human-readable format.
-
 Classes:
     - ImagerySummary: A summary of an imagery collection.
     - Manifest: A dataset manifest used to validate datasets for corruption or modification.
@@ -42,12 +39,10 @@ import hashlib
 import io
 import json
 from collections import OrderedDict
-from dataclasses import dataclass
 from datetime import timezone
 from fractions import Fraction
 from pathlib import Path
 from shutil import copy2, copytree, ignore_patterns
-from textwrap import dedent
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 from uuid import uuid4
 
@@ -57,289 +52,13 @@ from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.utils.log import LogMixin, get_file_handler
+from marimba.core.utils.maifest import Manifest
 from marimba.core.utils.map import make_summary_map
 from marimba.core.utils.rich import get_default_columns
+from marimba.core.utils.summary import ImagerySummary
 from marimba.lib import image
 from marimba.lib.decorators import multithreaded
 from marimba.lib.gps import convert_degrees_to_gps_coordinate
-
-
-def sizeof_fmt(num: float, suffix: str = "B") -> str:
-    """
-    Convert a number of bytes to a human-readable format.
-
-    Args:
-        num: The number of bytes.
-        suffix: The suffix to use for the size (default is "B").
-
-    Returns:
-        A string representing the human-readable size.
-    """
-    for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
-        if abs(num) < 1024:
-            return f"{num:.1f} {unit}{suffix}"
-        num /= 1024
-    return f"{num:.1f} Yi{suffix}"
-
-
-@dataclass
-class ImagerySummary:
-    """
-    Summary of an imagery collection.
-    """
-
-    num_images: int
-    size_images_bytes: int
-    num_videos: int
-    size_videos_bytes: int
-    num_other: int
-    size_other_bytes: int
-
-    @property
-    def num_files(self) -> int:
-        """
-        Return the total number of files.
-
-        Returns:
-            int: The total number of files, calculated by adding the number of images, the number of videos,
-            and the number of other files.
-        """
-        return self.num_images + self.num_videos + self.num_other
-
-    @property
-    def size_files_bytes(self) -> int:
-        """
-        Calculate the total size of files in bytes.
-
-        Returns:
-            int: The total size of files in bytes.
-        """
-        return self.size_images_bytes + self.size_videos_bytes + self.size_other_bytes
-
-    @classmethod
-    def from_dataset(cls, dataset_wrapper: "DatasetWrapper") -> "ImagerySummary":
-        """
-        Create an imagery summary from a dataset wrapper.
-
-        Args:
-            dataset_wrapper: The dataset wrapper.
-
-        Returns:
-            An imagery summary.
-        """
-        return ImagerySummary.from_dir(dataset_wrapper.data_dir)
-
-    @classmethod
-    def from_dir(cls, directory: Path) -> "ImagerySummary":
-        """
-        Create an imagery summary from a directory.
-
-        Args:
-            directory: The directory.
-
-        Returns:
-            An imagery summary.
-        """
-        num_images = 0
-        size_images_bytes = 0
-        num_videos = 0
-        size_videos_bytes = 0
-        num_other = 0
-        size_other_bytes = 0
-
-        for path in directory.glob("**/*"):
-            if path.is_dir():
-                continue
-
-            # Match the suffix to determine the file type and update the counts/sizes
-            suffix = path.suffix.lower()
-            if suffix in [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif"]:
-                num_images += 1
-                size_images_bytes += path.stat().st_size
-            elif suffix in [".mp4", ".mov", ".avi", ".wmv", ".flv", ".mkv", ".webm"]:
-                num_videos += 1
-                size_videos_bytes += path.stat().st_size
-            else:
-                num_other += 1
-                size_other_bytes += path.stat().st_size
-
-        return cls(num_images, size_images_bytes, num_videos, size_videos_bytes, num_other, size_other_bytes)
-
-    def __str__(self) -> str:
-        return dedent(
-            f"""\
-            Dataset summary:
-            {self.num_images} images ({sizeof_fmt(self.size_images_bytes)})
-            {self.num_videos} videos ({sizeof_fmt(self.size_videos_bytes)})
-            {self.num_other} other files ({sizeof_fmt(self.size_other_bytes)})
-            {self.num_files} total files ({sizeof_fmt(self.size_files_bytes)})"""
-        )
-
-
-@dataclass
-class Manifest:
-    """
-    Dataset manifest. Used to validate datasets to check if the underlying data has been corrupted or modified.
-    """
-
-    hashes: Dict[Path, bytes]
-
-    @staticmethod
-    def compute_hash(path: Path) -> bytes:
-        """
-        Compute the hash of a path.
-
-        Args:
-            path: The path.
-
-        Returns:
-            The hash of the path contents.
-        """
-        # SHA-256 hash
-        file_hash = hashlib.sha256()
-
-        if path.is_file():
-            # Hash the file contents
-            with path.open("rb") as f:
-                for chunk in iter(lambda: f.read(4096), b""):
-                    file_hash.update(chunk)
-
-        # Hash the path
-        file_hash.update(str(path.as_posix()).encode("utf-8"))
-
-        return file_hash.digest()
-
-    @classmethod
-    def from_dir(
-        cls,
-        directory: Path,
-        exclude_paths: Optional[Iterable[Path]] = None,
-        progress: Optional[Progress] = None,
-        task: Optional[TaskID] = None,
-    ) -> "Manifest":
-        """
-        Create a manifest from a directory.
-
-        Args:
-            directory: The directory.
-            exclude_paths: Paths to exclude from the manifest.
-            progress: A progress bar to monitor the manifest generation
-
-        Returns:
-            A manifest.
-        """
-        hashes: Dict[Path, bytes] = {}
-        exclude_paths = set(exclude_paths) if exclude_paths is not None else set()
-        globbed_files = list(directory.glob("**/*"))
-
-        @multithreaded()
-        def process_file(
-            self: None,
-            thread_num: str,
-            item: Path,
-            directory: Path,
-            exclude_paths: Optional[Iterable[Path]],
-            hashes: Dict[Path, bytes],
-            progress: Optional[Progress] = None,
-            task: Optional[TaskID] = None,
-        ) -> None:
-            if progress and task is not None:
-                progress.advance(task)
-            if exclude_paths and item in exclude_paths:
-                return
-            rel_path = item.resolve().relative_to(directory)
-            hashes[rel_path] = Manifest.compute_hash(item)
-
-        process_file(
-            self=None,
-            items=globbed_files,
-            directory=directory,
-            exclude_paths=exclude_paths,
-            hashes=hashes,
-            progress=progress,
-            task=task,
-        )  # type: ignore
-
-        return cls(dict(sorted(hashes.items(), key=lambda item: item[0])))
-
-    def validate(
-        self,
-        directory: Path,
-        exclude_paths: Optional[Iterable[Path]] = None,
-        progress: Optional[Progress] = None,
-        task: Optional[TaskID] = None,
-    ) -> bool:
-        """
-        Validate a directory against the manifest.
-
-        Args:
-            directory: The directory.
-            exclude_paths: Paths to exclude from the manifest.
-
-        Returns:
-            True if the directory is valid, False otherwise.
-        """
-        # Create a manifest from the directory
-        manifest = Manifest.from_dir(
-            directory,
-            exclude_paths=exclude_paths,
-            progress=progress,
-            task=task,
-        )
-
-        return self == manifest
-
-    def __eq__(self, other: object) -> bool:
-        """
-        Check if two manifests are equal.
-
-        Args:
-            other: The other manifest.
-
-        Returns:
-            True if the manifests are equal, False otherwise.
-        """
-        if not isinstance(other, Manifest):
-            return NotImplemented
-
-        if len(self.hashes) != len(other.hashes):
-            return False
-
-        for path, file_hash in self.hashes.items():
-            if file_hash != other.hashes.get(path):
-                return False
-
-        return True
-
-    def save(self, path: Path) -> None:
-        """
-        Save the manifest to a file.
-
-        Args:
-            path: The path to the file.
-        """
-        with path.open("w") as f:
-            for file_path, file_hash in self.hashes.items():
-                f.write(f"{file_path.as_posix()}:{file_hash.hex()}\n")
-
-    @classmethod
-    def load(cls, path: Path) -> "Manifest":
-        """
-        Load a manifest from a file.
-
-        Args:
-            path: The path to the file.
-
-        Returns:
-            A manifest.
-        """
-        hashes = {}
-        with path.open("r") as f:
-            for line in f:
-                if line:
-                    path_str, hash_str = line.split(":")
-                    hashes[Path(path_str)] = bytes.fromhex(hash_str)
-        return cls(hashes)
 
 
 class DatasetWrapper(LogMixin):
@@ -362,23 +81,52 @@ class DatasetWrapper(LogMixin):
         Raised when the dataset is inconsistent with its manifest.
         """
 
-    def __init__(self, root_dir: Union[str, Path], dry_run: bool = False):
+    def __init__(
+        self,
+        root_dir: Union[str, Path],
+        version: Optional[str] = "1.0",
+        contact_name: Optional[str] = None,
+        contact_email: Optional[str] = None,
+        dry_run: bool = False,
+    ):
         """
         Initialize a new instance of the class.
 
+        This method sets up a new instance with the provided parameters, initializing internal attributes for file
+        processing, version control, and contact information. It also sets up a dry-run mode for testing purposes
+        without making actual changes.
+
         Args:
-            root_dir (Union[str, Path]): The root directory for the operation.
-            dry_run (bool, optional): Indicates if the operation should be performed in dry-run mode. Default is False.
+            - root_dir (Union[str, Path]): The root directory where the files will be processed.
+            - version (Optional[str]): The version number. Defaults to "1.0".
+            - contact_name (Optional[str]): The name of the contact person. Defaults to None.
+            - contact_email (Optional[str]): The email address of the contact person. Defaults to None.
+            - dry_run (bool): If True, the method runs in dry-run mode without making any changes. Defaults to False.
+
+        Returns:
+            None
         """
         self._root_dir = Path(root_dir)
+        self._version = version
+        self._contact_name = contact_name
+        self._contact_email = contact_email
         self._dry_run = dry_run
+
+        self._summary_name = "summary.md"
 
         if not dry_run:
             self._check_file_structure()
             self._setup_logging()
 
     @classmethod
-    def create(cls, root_dir: Union[str, Path], dry_run: bool = False) -> "DatasetWrapper":
+    def create(
+        cls,
+        root_dir: Union[str, Path],
+        version: Optional[str] = "1.0",
+        contact_name: Optional[str] = None,
+        contact_email: Optional[str] = None,
+        dry_run: bool = False,
+    ) -> "DatasetWrapper":
         """
         Create a new dataset from an iFDO.
 
@@ -397,6 +145,9 @@ class DatasetWrapper(LogMixin):
         data_dir = root_dir / "data"
         logs_dir = root_dir / "logs"
         pipeline_logs_dir = logs_dir / "pipelines"
+        version = version
+        contact_name = contact_name
+        contact_email = contact_email
 
         # Create the file structure
         if not dry_run:
@@ -405,7 +156,7 @@ class DatasetWrapper(LogMixin):
             logs_dir.mkdir()
             pipeline_logs_dir.mkdir()
 
-        return cls(root_dir, dry_run=dry_run)
+        return cls(root_dir, version=version, contact_name=contact_name, contact_email=contact_email, dry_run=dry_run)
 
     def _check_file_structure(self) -> None:
         """
@@ -510,7 +261,7 @@ class DatasetWrapper(LogMixin):
                 progress.advance(task)
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Applying iFDO metadata to EXIF tags (4/10)", total=len(metadata_mapping))
+            task = progress.add_task("[green]Applying iFDO metadata to EXIF tags (4/11)", total=len(metadata_mapping))
 
             process_file(self, items=metadata_mapping.items(), progress=progress, task=task)  # type: ignore
 
@@ -648,6 +399,7 @@ class DatasetWrapper(LogMixin):
         self._apply_exif_metadata(dataset_mapping)
         self._generate_ifdo(dataset_name, image_set_items)
         self._generate_dataset_summary(image_set_items)
+        self._generate_dataset_map(image_set_items)
         self._copy_pipelines(project_pipelines_dir)
         self._copy_logs(project_log_path, pipeline_log_paths)
         self._generate_manifest()
@@ -702,7 +454,7 @@ class DatasetWrapper(LogMixin):
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             tasks_by_pipeline_name = {
                 pipeline_name: progress.add_task(
-                    f"[green]Populating data for {pipeline_name} pipeline (3/10)", total=len(pipeline_data_mapping)
+                    f"[green]Populating data for {pipeline_name} pipeline (3/11)", total=len(pipeline_data_mapping)
                 )
                 for pipeline_name, pipeline_data_mapping in dataset_mapping.items()
                 if len(pipeline_data_mapping) > 0
@@ -779,7 +531,7 @@ class DatasetWrapper(LogMixin):
                 progress.advance(task)
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Generating iFDO (5/10)", total=len(image_set_items) + 1)
+            task = progress.add_task("[green]Generating iFDO (5/11)", total=len(image_set_items) + 1)
 
             items = [
                 (Path(self.data_dir) / image_path, image_data) for image_path, image_data in image_set_items.items()
@@ -798,7 +550,7 @@ class DatasetWrapper(LogMixin):
                 image_set_items=image_set_items,
             )
 
-            progress.update(task, description="[green]Writing iFDO to disk (5/10)")
+            progress.update(task, description="[green]Writing iFDO to disk (5/11)")
             if not self.dry_run:
                 ifdo.save(self.metadata_path)
 
@@ -807,7 +559,30 @@ class DatasetWrapper(LogMixin):
             self.logger.debug(f"Generated iFDO containing {item_count} image set {item_label} at {self.metadata_path}")
             progress.advance(task)
 
-    def _generate_dataset_summary(self, image_set_items: Dict[str, ImageData]) -> None:
+    def _generate_dataset_summary(self, image_set_items: Dict[str, ImageData], progress: bool = True) -> None:
+        """
+        Generate a summary of the dataset, including a map of geolocations if available.
+
+        Args:
+            image_set_items: The dictionary of image set items to summarize.
+            progress: A flag to indicate whether to show a progress bar.
+        """
+
+        def generate_summary() -> None:
+            summary = self.summarize(image_set_items)
+            if not self.dry_run:
+                self.summary_path.write_text(str(summary))
+            self.logger.debug(f"Generated dataset summary at {self.summary_path}")
+
+        if progress:
+            with Progress(SpinnerColumn(), *get_default_columns()) as progress_bar:
+                task = progress_bar.add_task("[green]Generating dataset summary (6/11)", total=1)
+                generate_summary()
+                progress_bar.advance(task)
+        else:
+            generate_summary()
+
+    def _generate_dataset_map(self, image_set_items: Dict[str, ImageData]) -> None:
         """
         Generate a summary of the dataset, including a map of geolocations if available.
 
@@ -815,12 +590,7 @@ class DatasetWrapper(LogMixin):
             image_set_items: The dictionary of image set items to summarize.
         """
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Generating dataset summary (6/10)", total=2)
-            summary = self.summarize()
-            if not self.dry_run:
-                self.summary_path.write_text(str(summary))
-            self.logger.debug(f"Generated dataset summary at {self.summary_path}")
-            progress.advance(task)
+            task = progress.add_task("[green]Generating dataset map (7/11)", total=1)
 
             # Check for geolocations
             geolocations = [
@@ -850,7 +620,7 @@ class DatasetWrapper(LogMixin):
             pipeline_log_paths: The paths to the pipeline log files.
         """
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Copying logs (8/10)", total=1)
+            task = progress.add_task("[green]Copying logs (9/11)", total=1)
             if not self.dry_run:
                 copy2(project_log_path, self.logs_dir)
                 for pipeline_log_path in pipeline_log_paths:
@@ -866,7 +636,7 @@ class DatasetWrapper(LogMixin):
             project_pipelines_dir: The path to the project pipelines directory.
         """
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Copying pipelines (7/10)", total=1)
+            task = progress.add_task("[green]Copying pipelines (8/11)", total=1)
             if not self.dry_run:
                 ignore = ignore_patterns(
                     ".git",
@@ -891,7 +661,7 @@ class DatasetWrapper(LogMixin):
         """
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             globbed_files = list(self.root_dir.glob("**/*"))
-            task = progress.add_task("[green]Generating manifest (9/10)", total=len(globbed_files))
+            task = progress.add_task("[green]Generating manifest (10/11)", total=len(globbed_files))
             manifest = Manifest.from_dir(
                 self.root_dir,
                 exclude_paths=[self.manifest_path, self.log_path],
@@ -902,14 +672,14 @@ class DatasetWrapper(LogMixin):
                 manifest.save(self.manifest_path)
             self.logger.debug(f"Generated manifest for {len(globbed_files)} files and paths at {self.manifest_path}")
 
-    def summarize(self) -> ImagerySummary:
+    def summarize(self, image_set_items: Dict[str, ImageData]) -> ImagerySummary:
         """
         Create an imagery summary for this dataset.
 
         Returns:
             An imagery summary.
         """
-        return ImagerySummary.from_dataset(self)
+        return ImagerySummary.from_dataset(self, image_set_items)
 
     @property
     def root_dir(self) -> Path:
@@ -937,7 +707,21 @@ class DatasetWrapper(LogMixin):
         """
         The path to the dataset summary.
         """
-        return self._root_dir / "summary.txt"
+        return self._root_dir / self.summary_name
+
+    @property
+    def summary_name(self) -> str:
+        """
+        The path to the dataset summary.
+        """
+        return self._summary_name
+
+    @summary_name.setter
+    def summary_name(self, filename: str) -> None:
+        """
+        Setter for the path to the dataset summary.
+        """
+        self._summary_name = filename
 
     @property
     def manifest_path(self) -> Path:
@@ -982,11 +766,39 @@ class DatasetWrapper(LogMixin):
         return self.logs_dir / "pipelines"
 
     @property
+    def version(self) -> Optional[str]:
+        """
+        Version of the dataset.
+        """
+        return self._version
+
+    @property
+    def contact_name(self) -> Optional[str]:
+        """
+        Full name of the contact person for the packaged dataset.
+        """
+        return self._contact_name
+
+    @property
+    def contact_email(self) -> Optional[str]:
+        """
+        Email address of the contact person for the packaged dataset.
+        """
+        return self._contact_email
+
+    @property
     def dry_run(self) -> bool:
         """
         Whether the dataset generation should run in dry-run mode.
         """
         return self._dry_run
+
+    @dry_run.setter
+    def dry_run(self, value: bool) -> None:
+        """
+        Set the dry-run mode for the dataset generation.
+        """
+        self._dry_run = value
 
     def check_dataset_mapping(
         self, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]]]
@@ -1005,7 +817,7 @@ class DatasetWrapper(LogMixin):
             total_tasks += len(pipeline_data_mapping) * 4
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Checking dataset mapping (2/10)", total=total_tasks)
+            task = progress.add_task("[green]Checking dataset mapping (2/11)", total=total_tasks)
 
             for _, pipeline_data_mapping in dataset_mapping.items():
                 self._verify_source_paths_exist(pipeline_data_mapping, progress, task)

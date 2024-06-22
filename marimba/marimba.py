@@ -158,6 +158,11 @@ def package_command(
     ),
     project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
     copy: bool = typer.Option(True, help="Copy files to dataset directory. Set to False to move files instead."),
+    version: Optional[str] = typer.Option("1.0", help="Version of the packaged dataset."),
+    contact_name: Optional[str] = typer.Option(None, help="Full name of the contact person for the packaged dataset."),
+    contact_email: Optional[str] = typer.Option(
+        None, help="Email address of the contact person for the packaged dataset."
+    ),
     extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(
         False, help="Execute the command and print logging to the terminal, but do not change any files."
@@ -180,7 +185,14 @@ def package_command(
         dataset_mapping = project_wrapper.compose(dataset_name, collection_names, extra)
 
         # Package it
-        dataset_wrapper = project_wrapper.create_dataset(dataset_name, dataset_mapping, copy=copy)
+        dataset_wrapper = project_wrapper.create_dataset(
+            dataset_name,
+            dataset_mapping,
+            copy=copy,
+            version=version,
+            contact_name=contact_name,
+            contact_email=contact_email,
+        )
     except ProjectWrapper.CompositionError as e:
         logger.error(e)
         print(error_panel(str(e)))

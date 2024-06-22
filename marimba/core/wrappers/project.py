@@ -826,7 +826,7 @@ class ProjectWrapper(LogMixin):
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             total_task_length = len(self.pipeline_wrappers) * len(collection_wrappers)
-            task = progress.add_task("[green]Composing data (1/10)", total=total_task_length)
+            task = progress.add_task("[green]Composing data (1/11)", total=total_task_length)
 
             with ProcessPoolExecutor() as executor:
                 futures = self._create_composition_tasks(
@@ -860,6 +860,9 @@ class ProjectWrapper(LogMixin):
         dataset_name: str,
         dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]]],
         copy: bool = True,
+        version: Optional[str] = "1.0",
+        contact_name: Optional[str] = None,
+        contact_email: Optional[str] = None,
     ) -> DatasetWrapper:
         """
         Create a Marimba dataset from a dataset mapping.
@@ -883,7 +886,13 @@ class ProjectWrapper(LogMixin):
 
         # Create the dataset
         dataset_root_dir = self.datasets_dir / dataset_name
-        dataset_wrapper = DatasetWrapper.create(dataset_root_dir, dry_run=self.dry_run)
+        dataset_wrapper = DatasetWrapper.create(
+            dataset_root_dir,
+            version=version,
+            contact_name=contact_name,
+            contact_email=contact_email,
+            dry_run=self.dry_run,
+        )
 
         # Populate it
         dataset_wrapper.populate(
@@ -898,7 +907,7 @@ class ProjectWrapper(LogMixin):
         # Validate it
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             globbed_files = list(dataset_wrapper.root_dir.glob("**/*"))
-            task = progress.add_task("[green]Validating dataset (10/10)", total=len(globbed_files))
+            task = progress.add_task("[green]Validating dataset (11/11)", total=len(globbed_files))
             dataset_wrapper.validate(dataset_name, progress, task)
             progress.advance(task)
 
