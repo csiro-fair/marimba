@@ -112,6 +112,7 @@ class DatasetWrapper(LogMixin):
         self._contact_email = contact_email
         self._dry_run = dry_run
 
+        self._metadata_name = "metadata.yml"
         self._summary_name = "summary.md"
 
         if not dry_run:
@@ -397,8 +398,8 @@ class DatasetWrapper(LogMixin):
         self.check_dataset_mapping(dataset_mapping)
         image_set_items = self._populate_files(dataset_mapping, copy)
         self._apply_exif_metadata(dataset_mapping)
-        self._generate_ifdo(dataset_name, image_set_items)
-        self._generate_dataset_summary(image_set_items)
+        self.generate_ifdo(dataset_name, image_set_items)
+        self.generate_dataset_summary(image_set_items)
         self._generate_dataset_map(image_set_items)
         self._copy_pipelines(project_pipelines_dir)
         self._copy_logs(project_log_path, pipeline_log_paths)
@@ -497,13 +498,24 @@ class DatasetWrapper(LogMixin):
             self._apply_ifdo_exif_tags(metadata_mapping)
         self.logger.debug(f"Applied iFDO EXIF tags to {len(metadata_mapping)} files")
 
-    def _generate_ifdo(self, dataset_name: str, image_set_items: Dict[str, ImageData]) -> None:
-        """
-        Generate the iFDO (Image File Directory Object) metadata for the dataset.
+    def generate_ifdo(self, dataset_name: str, image_set_items: Dict[str, ImageData], progress: bool = True) -> None:
+        """Generate the iFDO for the dataset.
+
+        This function creates an iFDO metadata file for a given dataset. It processes the provided image set items,
+        calculates SHA256 hashes for each image, and generates an iFDO object. The function can optionally display
+        a progress bar during execution.
 
         Args:
-            dataset_name: The name of the dataset.
-            image_set_items: The dictionary of image set items to include in the iFDO.
+            - dataset_name: A string representing the name of the dataset.
+            - image_set_items: A dictionary mapping image paths to ImageData objects containing metadata for each image.
+            - progress: A boolean indicating whether to display a progress bar during execution. Defaults to True.
+
+        Returns:
+            None
+
+        Raises:
+            - IOError: If there are issues reading image files or writing the iFDO to disk.
+            - ValueError: If the input data is invalid or missing required information.
         """
 
         @multithreaded()
@@ -530,17 +542,32 @@ class DatasetWrapper(LogMixin):
             if progress and task is not None:
                 progress.advance(task)
 
-        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Generating iFDO (5/11)", total=len(image_set_items) + 1)
-
+        def _process_items(
+            image_set_items: Dict[str, ImageData], progress: Optional[Progress] = None, task: Optional[TaskID] = None
+        ) -> (Dict)[str, ImageData]:
             items = [
                 (Path(self.data_dir) / image_path, image_data) for image_path, image_data in image_set_items.items()
             ]
-
             hash_image(self, items=items, progress=progress, task=task)  # type: ignore
+            return OrderedDict(sorted(image_set_items.items(), key=lambda item: item[0]))
 
-            image_set_items = OrderedDict(sorted(image_set_items.items(), key=lambda item: item[0]))
+        if progress:
+            with Progress(SpinnerColumn(), *get_default_columns()) as progress_bar:
+                task = progress_bar.add_task("[green]Generating iFDO (5/11)", total=len(image_set_items) + 1)
+                image_set_items = _process_items(image_set_items, progress_bar, task)
+                progress_bar.update(task, description="[green]Writing iFDO to disk (5/11)")
+                self._create_ifdo(dataset_name, image_set_items)
+                progress_bar.advance(task)  # Advance after creating the iFDO
+        else:
+            image_set_items = _process_items(image_set_items)
+            self._create_ifdo(dataset_name, image_set_items)
 
+        item_count = len(image_set_items)
+        item_label = "item" if item_count == 1 else "items"
+        self.logger.debug(f"Generated iFDO containing {item_count} image set {item_label} at {self.metadata_path}")
+
+    def _create_ifdo(self, dataset_name: str, image_set_items: Dict[str, ImageData]) -> iFDO:
+        if not self.dry_run:
             ifdo = iFDO(
                 image_set_header=ImageSetHeader(
                     image_set_name=dataset_name,
@@ -549,17 +576,9 @@ class DatasetWrapper(LogMixin):
                 ),
                 image_set_items=image_set_items,
             )
+            ifdo.save(self.metadata_path)
 
-            progress.update(task, description="[green]Writing iFDO to disk (5/11)")
-            if not self.dry_run:
-                ifdo.save(self.metadata_path)
-
-            item_count = len(ifdo.image_set_items)
-            item_label = "item" if item_count == 1 else "items"
-            self.logger.debug(f"Generated iFDO containing {item_count} image set {item_label} at {self.metadata_path}")
-            progress.advance(task)
-
-    def _generate_dataset_summary(self, image_set_items: Dict[str, ImageData], progress: bool = True) -> None:
+    def generate_dataset_summary(self, image_set_items: Dict[str, ImageData], progress: bool = True) -> None:
         """
         Generate a summary of the dataset, including a map of geolocations if available.
 
@@ -700,7 +719,21 @@ class DatasetWrapper(LogMixin):
         """
         The path to the iFDO.
         """
-        return self._root_dir / "metadata.yml"
+        return self._root_dir / self.metadata_name
+
+    @property
+    def metadata_name(self) -> str:
+        """
+        The name to the iFDO.
+        """
+        return self._metadata_name
+
+    @metadata_name.setter
+    def metadata_name(self, filename: str) -> None:
+        """
+        Setter for the name of the dataset summary.
+        """
+        self._metadata_name = filename
 
     @property
     def summary_path(self) -> Path:
@@ -712,14 +745,14 @@ class DatasetWrapper(LogMixin):
     @property
     def summary_name(self) -> str:
         """
-        The path to the dataset summary.
+        The name of the dataset summary.
         """
         return self._summary_name
 
     @summary_name.setter
     def summary_name(self, filename: str) -> None:
         """
-        Setter for the path to the dataset summary.
+        Setter for the name of the dataset summary.
         """
         self._summary_name = filename
 
