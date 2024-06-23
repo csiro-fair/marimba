@@ -42,6 +42,7 @@ from marimba.core.cli import new
 from marimba.core.distribution.bases import DistributionTargetBase
 from marimba.core.utils.constants import PROJECT_DIR_HELP
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
+from marimba.core.utils.map import NetworkConnectionError
 from marimba.core.utils.rich import error_panel, format_entity, success_panel
 from marimba.core.wrappers.dataset import DatasetWrapper
 from marimba.core.wrappers.project import ProjectWrapper
@@ -253,6 +254,11 @@ def process_command(
     # Run the processing
     try:
         project_wrapper.run_process(pipeline_name, collection_name, extra)
+    except NetworkConnectionError as e:
+        error_message = f"No internet connection: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
     except Exception as e:
         error_message = f"Error during processing: {e}"
         logger.error(error_message)

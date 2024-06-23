@@ -4,8 +4,15 @@ Map generation utilities.
 
 from typing import Iterable, Optional, Tuple, cast
 
+import requests
 from PIL import Image, ImageDraw, ImageFont
 from staticmap import CircleMarker, StaticMap
+
+
+class NetworkConnectionError(Exception):
+    """
+    Raised when there is a network connection error.
+    """
 
 
 def add_axes(
@@ -115,13 +122,17 @@ def make_summary_map(
     min_lon = min(lon for lat, lon in geolocations)
     max_lon = max(lon for lat, lon in geolocations)
 
-    m = StaticMap(width, height, url_template="http://a.tile.osm.org/{z}/{x}/{y}.png")
+    try:
+        m = StaticMap(width, height, url_template="http://a.tile.osm.org/{z}/{x}/{y}.png")
 
-    for lat, lon in geolocations:
-        marker = CircleMarker((lon, lat), marker_color, marker_size)
-        m.add_marker(marker)
+        for lat, lon in geolocations:
+            marker = CircleMarker((lon, lat), marker_color, marker_size)
+            m.add_marker(marker)
 
-    image = cast(Image.Image, m.render())
+        image = cast(Image.Image, m.render())
+
+    except requests.exceptions.ConnectionError:
+        raise NetworkConnectionError("Unable to render the map.")
 
     # Add coordinate axes
     draw = ImageDraw.Draw(image)
