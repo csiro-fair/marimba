@@ -588,7 +588,7 @@ class DatasetWrapper(LogMixin):
         """
 
         def generate_summary() -> None:
-            summary = self.summarize(image_set_items)
+            summary = self.summarise(image_set_items)
             if not self.dry_run:
                 self.summary_path.write_text(str(summary))
             self.logger.debug(f"Generated dataset summary at {self.summary_path}")
@@ -691,7 +691,7 @@ class DatasetWrapper(LogMixin):
                 manifest.save(self.manifest_path)
             self.logger.debug(f"Generated manifest for {len(globbed_files)} files and paths at {self.manifest_path}")
 
-    def summarize(self, image_set_items: Dict[str, ImageData]) -> ImagerySummary:
+    def summarise(self, image_set_items: Dict[str, ImageData]) -> ImagerySummary:
         """
         Create an imagery summary for this dataset.
 

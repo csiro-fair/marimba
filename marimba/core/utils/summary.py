@@ -657,7 +657,7 @@ class ImagerySummary:
                     corrupt_videos += 1
 
         # Support for gathering statistics that do not have an associated iFDO
-        for path in dataset_wrapper.data_dir.glob("**/*"):
+        for path in dataset_wrapper.root_dir.glob("**/*"):
             if path.is_dir():
                 continue
 
