@@ -701,7 +701,7 @@ class ProjectWrapper(LogMixin):
                         message = future.result()
                         self.logger.debug(f"{log_string_prefix} - {message}")
                     except Exception as e:
-                        self.logger.error(f"{log_string_prefix} - Failed to execute command: {e}")
+                        raise Exception(f"{log_string_prefix} - {e}")
                     finally:
                         progress.advance(tasks_by_pipeline_name[pipeline_name])
 
@@ -847,9 +847,10 @@ class ProjectWrapper(LogMixin):
                         dataset_mapping[pipeline_name].update(pipeline_data_mapping)
                     except Exception as e:
                         raise ProjectWrapper.CompositionError(
+                            f"{log_string_prefix} - "
                             f'Pipeline "{pipeline_name}" failed to compose its data for collection '
                             f'"{collection_name}":\n{e}'
-                        ) from e
+                        )
                     finally:
                         progress.advance(task)
 
@@ -1098,7 +1099,7 @@ class ProjectWrapper(LogMixin):
                         message = future.result()
                         self.logger.debug(f"{log_string_prefix} - {message}")
                     except Exception as e:
-                        self.logger.error(f"{log_string_prefix} - Failed to import: {e}")
+                        raise Exception(f"{log_string_prefix} - {e}")
                     finally:
                         progress.advance(tasks_by_pipeline_name[pipeline_name])
 
@@ -1168,6 +1169,7 @@ class ProjectWrapper(LogMixin):
             try:
                 pipeline_wrapper.update()
                 self.logger.info(f'Successfully updated pipeline "{pipeline_name}"')
+            # TODO: Raise these exceptions and handle in marimba.py
             except (IOError, ValueError) as e:
                 self.logger.error(f'Failed to update pipeline "{pipeline_name}" due to an I/O or value error: {e}')
             except Exception as e:
