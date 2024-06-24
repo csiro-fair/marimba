@@ -1,5 +1,36 @@
-"""
-Marimba image utilities. Includes transcoding, resizing, cropping, etc.
+"""Marimba Image Utilities.
+
+This module contains a collection of functions for various image processing tasks such as resizing, cropping, rotating,
+and applying filters. It also includes utilities for image analysis and grid creation.
+
+Imports:
+    - pathlib: Provides classes for filesystem path operations.
+    - shutil: Offers high-level operations on files and collections of files.
+    - typing: Provides support for type hints.
+    - cv2: OpenCV library for computer vision tasks.
+    - numpy: Library for numerical computing in Python.
+    - PIL: Python Imaging Library for opening, manipulating, and saving image files.
+    - marimba.core.utils.log: Custom logging utility for the Marimba project.
+
+Functions:
+    - generate_image_thumbnail: Create a thumbnail version of an image.
+    - convert_to_jpeg: Convert an image to JPEG format.
+    - resize_fit: Resize an image to fit within specified dimensions.
+    - resize_exact: Resize an image to exact dimensions.
+    - scale: Scale an image by a given factor.
+    - rotate_clockwise: Rotate an image clockwise by a specified number of degrees.
+    - turn_clockwise: Turn an image clockwise in 90-degree increments.
+    - flip_vertical: Flip an image vertically.
+    - flip_horizontal: Flip an image horizontally.
+    - is_blurry: Determine if an image is blurry.
+    - crop: Crop an image to a specified size and position.
+    - apply_clahe: Apply Contrast Limited Adaptive Histogram Equalization to an image.
+    - gaussian_blur: Apply Gaussian blur to an image.
+    - sharpen: Sharpen an image.
+    - get_width_height: Get the dimensions of an image.
+    - create_grid_image: Create a grid image from multiple images.
+    - get_shannon_entropy: Calculate the Shannon entropy of an image.
+    - get_average_image_color: Calculate the average color of an image.
 """
 
 from pathlib import Path
@@ -15,7 +46,7 @@ from marimba.core.utils.log import get_logger
 logger = get_logger(__name__)
 
 
-def generate_thumbnail(image: Path, output_directory: Path, suffix: str = "_THUMB") -> Path:
+def generate_image_thumbnail(image: Path, output_directory: Path, suffix: str = "_THUMB") -> Path:
     """
     Generate a thumbnail image from the given image file.
 
@@ -32,7 +63,7 @@ def generate_thumbnail(image: Path, output_directory: Path, suffix: str = "_THUM
     output_filename = image.stem + suffix + image.suffix
     output_path = output_directory / output_filename
     if not output_path.exists():
-        logger.info(f"Generating thumbnail image: {output_path}")
+        logger.info(f"Generating image thumbnail at: {output_path}")
         resize_fit(image, 300, 300, output_path)
     return output_path
 
