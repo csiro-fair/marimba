@@ -112,7 +112,7 @@ class DatasetWrapper(LogMixin):
         self._contact_email = contact_email
         self._dry_run = dry_run
 
-        self._metadata_name = "metadata.yml"
+        self._metadata_name = "ifdo.yml"
         self._summary_name = "summary.md"
 
         if not dry_run:
