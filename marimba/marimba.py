@@ -80,7 +80,7 @@ logger = get_logger(__name__)
 
 @marimba.callback()
 def global_options(
-    level: LogLevel = typer.Option(LogLevel.INFO, help="Logging level."),
+    level: LogLevel = typer.Option(LogLevel.WARNING, help="Logging level."),
 ) -> None:
     """
     Global options for Marimba CLI.

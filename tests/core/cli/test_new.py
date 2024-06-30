@@ -388,7 +388,7 @@ def test_project_logs_command_execution(setup_test_directory: Path) -> None:
 
     result = runner.invoke(marimba, ["new", "project", str(project_dir)])
     assert result.exit_code == 0
-    assert "Executing the Marimba new project" in result.output
+    assert "Created new Marimba project at" in result.output
 
 
 # def test_project_handles_invalid_path(tmp_path: Path) -> None:
@@ -565,7 +565,7 @@ def test_pipeline_logs_command_execution(setup_test_directory: Path) -> None:
     ):
         result = runner.invoke(marimba, ["new", "pipeline", pipeline_name, url, "--project-dir", str(project_dir)])
         assert result.exit_code == 0
-        assert "Executing the Marimba new" in result.output
+        assert "Created new Marimba pipeline" in result.output
 
 
 # ---------------------------------------------------------------------------------------------------------------------#
@@ -729,7 +729,7 @@ def test_collection_logs_command_execution(setup_test_directory: Path) -> None:
     ):
         result = runner.invoke(marimba, ["new", "collection", collection_name, "--project-dir", str(project_dir)])
         assert result.exit_code == 0
-        assert "Executing the Marimba new" in result.output
+        assert "Created new Marimba collection" in result.output
 
 
 # ---------------------------------------------------------------------------------------------------------------------#
@@ -872,4 +872,4 @@ def test_target_logs_command_execution(setup_test_directory: Path) -> None:
     ):
         result = runner.invoke(marimba, ["new", "target", target_name, "--project-dir", str(project_dir)])
         assert result.exit_code == 0
-        assert "Executing the Marimba new target" in result.output
+        assert "Created new Marimba target" in result.output
