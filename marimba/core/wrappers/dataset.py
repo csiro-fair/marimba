@@ -717,23 +717,29 @@ class DatasetWrapper(LogMixin):
     @property
     def metadata_path(self) -> Path:
         """
-        The path to the iFDO.
+        The path to the iFDO metadata file.
         """
         return self._root_dir / self.metadata_name
 
     @property
     def metadata_name(self) -> str:
         """
-        The name to the iFDO.
+        The name of the iFDO metadata file.
         """
         return self._metadata_name
 
     @metadata_name.setter
     def metadata_name(self, filename: str) -> None:
         """
-        Setter for the name of the dataset summary.
+        Setter for the name of the dataset metadata.
+
+        Args:
+            filename (str): The new filename for the metadata.
         """
-        self._metadata_name = filename
+        if filename:
+            self._metadata_name = filename if filename.endswith(".ifdo.yml") else f"{filename}.ifdo.yml"
+        else:
+            self._metadata_name = "ifdo.yml"
 
     @property
     def summary_path(self) -> Path:
@@ -745,7 +751,7 @@ class DatasetWrapper(LogMixin):
     @property
     def summary_name(self) -> str:
         """
-        The name of the dataset summary.
+        The name of the dataset summary file.
         """
         return self._summary_name
 
@@ -753,8 +759,14 @@ class DatasetWrapper(LogMixin):
     def summary_name(self, filename: str) -> None:
         """
         Setter for the name of the dataset summary.
+
+        Args:
+            filename (str): The new filename for the summary.
         """
-        self._summary_name = filename
+        if filename:
+            self._summary_name = filename if filename.endswith(".summary.md") else f"{filename}.summary.md"
+        else:
+            self._summary_name = "summary.md"
 
     @property
     def manifest_path(self) -> Path:
