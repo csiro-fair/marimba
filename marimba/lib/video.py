@@ -161,7 +161,7 @@ def generate_video_thumbnails(
         A tuple containing the input video path and a list of generated thumbnail paths.
     """
     output_directory.mkdir(parents=True, exist_ok=True)
-    container = av.open(str(video))
+    container = av.open(str(video))  # type: ignore
     stream = container.streams.video[0]
 
     frame_rate, time_base, total_frames = get_stream_properties(stream)

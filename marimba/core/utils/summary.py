@@ -262,7 +262,7 @@ class ImagerySummary:
         """
         sorted_names = sorted(names, key=lambda name: name.split()[-1])
         return (
-            ", ".join(sorted_names[:-1]) + ", and " + sorted_names[-1]
+            ", ".join(sorted_names[:-1]) + " and " + sorted_names[-1]
             if len(sorted_names) > 1
             else sorted_names[0] if sorted_names else "N/A"
         )
@@ -369,6 +369,51 @@ class ImagerySummary:
             - color_depths: Set of unique color depths.
             - corrupt_videos: Number of corrupt videos detected.
         """
+        total_seconds: float = 0.0
+        resolutions = set()
+        codecs = set()
+        frame_rates = set()
+        color_depths = set()
+        corrupt_videos = 0
+
+        for path in video_list:
+            command = [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=duration,width,height,codec_name,r_frame_rate,bits_per_raw_sample",
+                "-of",
+                "json",
+                str(path),
+            ]
+            output = ImagerySummary.run_ffmpeg_command(command)["streams"][0]
+            total_seconds += float(output.get("duration", 0))
+            resolutions.add((output.get("width"), output.get("height")))
+            codecs.add(output.get("codec_name"))
+            frame_rate_str = output.get("r_frame_rate", "0/1")
+            num, denom = map(int, frame_rate_str.split("/"))
+            frame_rates.add(num / denom)
+            color_depth = output.get("bits_per_raw_sample")
+            if color_depth:
+                color_depths.add(int(color_depth))
+            if ImagerySummary.is_video_corrupt_quick(str(path)):
+                corrupt_videos += 1
+
+        return {
+            "total_seconds": total_seconds,
+            "resolutions": resolutions,
+            "codecs": codecs,
+            "frame_rates": frame_rates,
+            "color_depths": color_depths,
+            "corrupt_videos": corrupt_videos,
+        }
+
+    @staticmethod
+    def get_other_properties(video_list: List[Path]) -> Dict[str, Any]:
+        """Get video properties from a list of other files."""
         total_seconds: float = 0.0
         resolutions = set()
         codecs = set()
@@ -568,187 +613,268 @@ class ImagerySummary:
         return self.sizeof_fmt(average_size)
 
     @classmethod
-    def from_dataset(cls, dataset_wrapper: "DatasetWrapper", image_set_items: Dict[str, ImageData]) -> "ImagerySummary":
+    def from_dataset(
+        cls, dataset_wrapper: "DatasetWrapper", image_set_items: Dict[str, "ImageData"]
+    ) -> "ImagerySummary":
         """Create an ImagerySummary object from a dataset and image set items.
 
-         This class method processes a dataset wrapper and a dictionary of image set items to create an ImagerySummary
-         object. It calculates various statistics and metadata for images, videos, and other files in the dataset,
-         including file counts, sizes, types, and properties. The method also computes geographical and temporal
-         extents for images and videos.
+        This class method processes a dataset wrapper and a dictionary of image set items to create an ImagerySummary
+        object. It calculates various statistics and metadata for images, videos, and other files in the dataset.
 
         Args:
-            cls: The class on which this method is called.
             dataset_wrapper: A DatasetWrapper object containing dataset information.
             image_set_items: A dictionary mapping file paths to ImageData objects.
 
         Returns:
-            An ImagerySummary object containing comprehensive statistics and metadata about the dataset's imagery
-            content.
+            An ImagerySummary object containing comprehensive statistics and metadata about the dataset's imagery.
         """
-        dataset_name = dataset_wrapper.name
-        context = set()
-        contributors = set()
-        version = dataset_wrapper.version
-        licenses = set()
-        contact = (
-            f"{dataset_wrapper.contact_name} <{dataset_wrapper.contact_email}>"
-            if dataset_wrapper.contact_name and dataset_wrapper.contact_email
-            else dataset_wrapper.contact_name or dataset_wrapper.contact_email or None
-        )
+        dataset_info = cls._extract_dataset_info(dataset_wrapper)
+        image_data, video_data, other_data = cls._process_files(dataset_wrapper, image_set_items)
+        file_stats = cls._calculate_file_stats(image_data, video_data, other_data)
 
-        image_num = 0
-        image_size_bytes = 0
-        image_file_types = set()
-        image_lats, image_lons = [], []
-        image_datetimes = []
-        image_unique_directories = set()
-        image_licenses = set()
+        # Ensure all data matches expected types, handle None, and combine data
+        complete_data = {**dataset_info, **file_stats}
 
-        video_num = 0
-        video_size_bytes = 0
-        video_file_types = set()
-        video_lats, video_lons = [], []
-        video_datetimes = []
-        video_unique_directories = set()
-        video_licenses = set()
+        # Define expected types based on the ImagerySummary dataclass
+        expected_types = {
+            "dataset_name": str,
+            "context": str,
+            "contributors": str,
+            "version": (str, type(None)),
+            "licenses": str,
+            "contact": (str, type(None)),
+            "image_num": int,
+            "image_size_bytes": int,
+            "image_average_file_size": str,
+            "image_file_types": list,
+            "image_resolution": str,
+            "image_color_depth": str,
+            "image_latitude_extent": str,
+            "image_longitude_extent": str,
+            "image_temporal_extent": str,
+            "image_unique_directories": int,
+            "image_licenses": str,
+            "image_data_quality": str,
+            "video_num": int,
+            "video_size_bytes": int,
+            "video_average_file_size": str,
+            "video_total_duration": str,
+            "video_file_types": list,
+            "video_resolution": str,
+            "video_color_depth": str,
+            "video_frame_rate": str,
+            "video_encoding_details": str,
+            "video_latitude_extent": str,
+            "video_longitude_extent": str,
+            "video_temporal_extent": str,
+            "video_unique_directories": int,
+            "video_licenses": str,
+            "video_data_quality": str,
+            "other_num": int,
+            "other_size_bytes": int,
+            "other_average_file_size": str,
+            "other_file_types": list,
+        }
 
-        other_num = 0
-        other_size_bytes = 0
-        other_file_types = set()
+        # Convert or default None values
+        for key, types in expected_types.items():
+            if not isinstance(types, tuple):
+                types = (types,)
+            value = complete_data.get(key, None)
+            if value is None or not isinstance(value, types):
+                if str in types:
+                    complete_data[key] = ""
+                elif int in types:
+                    complete_data[key] = 0
+                elif list in types:
+                    complete_data[key] = []
 
-        image_list = []
-        video_list = []
-        other_list = []
+        # Pass the validated and type-corrected data to the constructor
+        summary = cls(**complete_data)
 
-        corrupt_videos = 0
+        cls._set_dataset_properties(summary, image_data, video_data)
+        cls._set_image_properties(summary, image_data)
+        cls._set_video_properties(summary, video_data)
+        cls._set_other_properties(summary)
+        cls._set_geographical_temporal_extents(summary, image_data, video_data)
 
-        # Process all images and videos that have an iFDO
-        for path_str, image_data in image_set_items.items():
+        return summary
+
+    @staticmethod
+    def _extract_dataset_info(dataset_wrapper: "DatasetWrapper") -> Dict[str, Optional[str]]:
+        return {
+            "dataset_name": dataset_wrapper.name,
+            "version": dataset_wrapper.version,
+            "contact": (
+                f"{dataset_wrapper.contact_name} <{dataset_wrapper.contact_email}>"
+                if dataset_wrapper.contact_name and dataset_wrapper.contact_email
+                else dataset_wrapper.contact_name or dataset_wrapper.contact_email or None
+            ),
+        }
+
+    @classmethod
+    def _process_files(
+        cls, dataset_wrapper: "DatasetWrapper", image_set_items: Dict[str, List["ImageData"]]
+    ) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+        image_data: Dict[str, Any] = {"files": [], "context": set(), "contributors": set(), "licenses": set()}
+        video_data: Dict[str, Any] = {"files": [], "context": set(), "contributors": set(), "licenses": set()}
+        other_data: Dict[str, List[str]] = {"files": []}
+
+        for path_str, image_data_list in image_set_items.items():
             path = dataset_wrapper.data_dir / path_str
             suffix = path.suffix.lower()
+            image_info = image_data_list[0]
 
-            # Accumulate dataset-level metadata
-            context.add(image_data[0].image_context)
-            licenses.add(image_data[0].image_license)
-            for contributor in image_data[0].image_creators:
-                contributors.add(contributor.name)
+            cls._update_common_data(image_data, image_info)
+            cls._update_common_data(video_data, image_info)
 
-            if suffix in [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif"]:
-                image_num += 1
-                image_size_bytes += path.stat().st_size
-                image_file_types.add(suffix.replace(".", ""))
-                image_lats.append(image_data[0].image_latitude)
-                image_lons.append(image_data[0].image_longitude)
-                image_datetimes.append(image_data[0].image_datetime)
-                image_unique_directories.add(Path(path_str).parent)
-                image_licenses.add(image_data[0].image_license)
-                image_list.append(path)
-            elif suffix in [".mp4", ".mov", ".avi", ".wmv", ".flv", ".mkv", ".webm"]:
-                video_num += 1
-                video_size_bytes += path.stat().st_size
-                video_file_types.add(suffix.replace(".", ""))
-                video_lats.append(image_data[0].image_latitude)
-                video_lons.append(image_data[0].image_longitude)
-                video_datetimes.append(image_data[0].image_datetime)
-                video_unique_directories.add(Path(path_str).parent)
-                video_licenses.add(image_data[0].image_license)
-                video_list.append(path)
-                if cls.is_video_corrupt_quick(str(path)):
-                    corrupt_videos += 1
+            if suffix in cls.IMAGE_EXTENSIONS:
+                cls._process_image(image_data, path, image_info)
+            elif suffix in cls.VIDEO_EXTENSIONS:
+                cls._process_video(video_data, path, image_info)
 
-        # Support for gathering statistics that do not have an associated iFDO
-        for path in dataset_wrapper.root_dir.glob("**/*"):
-            if path.is_dir():
-                continue
+        cls._process_other_files(dataset_wrapper, other_data)
 
-            suffix = path.suffix.lower()
-            if suffix not in [
-                ".jpg",
-                ".jpeg",
-                ".png",
-                ".gif",
-                ".bmp",
-                ".tiff",
-                ".tif",
-                ".mp4",
-                ".mov",
-                ".avi",
-                ".wmv",
-                ".flv",
-                ".mkv",
-                ".webm",
-            ]:
-                other_num += 1
-                other_file_types.add(suffix.replace(".", ""))
-                other_size_bytes += path.stat().st_size
-                other_list.append(path)
+        return image_data, video_data, other_data
 
-        summary = cls(
-            dataset_name=dataset_name,
-            context=cls.context_to_text(list(context)),
-            contributors=cls.contributors_to_text(list(contributors)),
-            version=version,
-            contact=contact,
-            licenses=cls.list_to_text(list(licenses)),
-            image_num=image_num,
-            image_size_bytes=image_size_bytes,
-            image_file_types=list(image_file_types),
-            image_unique_directories=len(image_unique_directories),
-            video_num=video_num,
-            video_size_bytes=video_size_bytes,
-            video_file_types=list(video_file_types),
-            video_unique_directories=len(video_unique_directories),
-            other_num=other_num,
-            other_size_bytes=other_size_bytes,
-            other_file_types=list(other_file_types),
+    @staticmethod
+    def _update_common_data(data: Dict[str, Any], image_info: "ImageData") -> None:
+        data["context"].add(image_info.image_context)
+        data["licenses"].add(image_info.image_license)
+        data["contributors"].update(contributor.name for contributor in image_info.image_creators)
+
+    @classmethod
+    def _process_image(cls, image_data: Dict[str, Any], path: Path, image_info: "ImageData") -> None:
+        image_data["files"].append(
+            {
+                "path": path,
+                "size": path.stat().st_size,
+                "type": path.suffix.lower().replace(".", ""),
+                "lat": image_info.image_latitude,
+                "lon": image_info.image_longitude,
+                "datetime": image_info.image_datetime,
+                "directory": path.parent,
+            }
         )
 
-        image_props = cls.get_image_properties(image_list)
+    @classmethod
+    def _process_video(cls, video_data: Dict[str, Any], path: Path, image_info: "ImageData") -> None:
+        video_data["files"].append(
+            {
+                "path": path,
+                "size": path.stat().st_size,
+                "type": path.suffix.lower().replace(".", ""),
+                "lat": getattr(image_info, "image_latitude", None),
+                "lon": getattr(image_info, "image_longitude", None),
+                "datetime": image_info.image_datetime,
+                "directory": path.parent,
+                "is_corrupt": cls.is_video_corrupt_quick(str(path)),
+            }
+        )
+
+    @staticmethod
+    def _process_other_files(dataset_wrapper: "DatasetWrapper", other_data: Dict[str, Any]) -> None:
+        for path in dataset_wrapper.root_dir.glob("**/*"):
+            if (
+                path.is_file()
+                and path.suffix.lower() not in ImagerySummary.IMAGE_EXTENSIONS | ImagerySummary.VIDEO_EXTENSIONS
+            ):
+                other_data["files"].append(
+                    {"path": path, "size": path.stat().st_size, "type": path.suffix.lower().replace(".", "")}
+                )
+
+    @staticmethod
+    def _calculate_file_stats(
+        image_data: Dict[str, Any], video_data: Dict[str, Any], other_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        return {
+            "image_num": len(image_data["files"]),
+            "image_size_bytes": sum(file["size"] for file in image_data["files"]),
+            "image_file_types": list({file["type"] for file in image_data["files"]}),
+            "image_unique_directories": len({file["directory"] for file in image_data["files"]}),
+            "video_num": len(video_data["files"]),
+            "video_size_bytes": sum(file["size"] for file in video_data["files"]),
+            "video_file_types": list({file["type"] for file in video_data["files"]}),
+            "video_unique_directories": len({file["directory"] for file in video_data["files"]}),
+            "other_num": len(other_data["files"]),
+            "other_size_bytes": sum(file["size"] for file in other_data["files"]),
+            "other_file_types": list({file["type"] for file in other_data["files"]}),
+        }
+
+    @classmethod
+    def _set_dataset_properties(
+        cls, summary: "ImagerySummary", image_data: Dict[str, Any], video_data: Dict[str, Any]
+    ) -> None:
+        summary.context = summary.context_to_text(list(image_data["context"] | video_data["context"]))
+        summary.contributors = summary.contributors_to_text(
+            list(image_data["contributors"] | video_data["contributors"])
+        )
+        summary.licenses = summary.list_to_text(list(image_data["licenses"] | video_data["licenses"]))
+
+    @classmethod
+    def _set_image_properties(cls, summary: "ImagerySummary", image_data: Dict[str, Any]) -> None:
+        image_props = cls.get_image_properties([file["path"] for file in image_data["files"]])
         summary.image_resolution = cls.calculate_image_resolution(image_props["resolutions"])
         summary.image_color_depth = cls.calculate_image_color_depth(image_props["color_depths"])
-        summary.image_data_quality = cls.calculate_image_data_quality(image_num, image_props["corrupt_images"])
+        summary.image_data_quality = cls.calculate_image_data_quality(
+            len(image_data["files"]), image_props["corrupt_images"]
+        )
         summary.image_average_file_size = summary.calculate_image_average_file_size()
+        summary.image_licenses = summary.list_to_text(list(image_data["licenses"]))
 
-        video_props = cls.get_video_properties(video_list)
+    @classmethod
+    def _set_video_properties(cls, summary: "ImagerySummary", video_data: Dict[str, Any]) -> None:
+        video_props = cls.get_video_properties([file["path"] for file in video_data["files"]])
         summary.video_total_duration = cls.calculate_video_total_duration(video_props["total_seconds"])
         summary.video_resolution = cls.calculate_video_resolution(video_props["resolutions"])
         summary.video_encoding_details = cls.calculate_video_encoding_details(video_props["codecs"])
         summary.video_frame_rate = cls.calculate_video_frame_rate(video_props["frame_rates"])
         summary.video_color_depth = cls.calculate_video_color_depth(video_props["color_depths"])
         summary.video_average_file_size = summary.calculate_video_average_file_size()
-        summary.video_data_quality = cls.calculate_video_data_quality(video_num, video_props["corrupt_videos"])
-
-        summary.image_licenses = summary.list_to_text(list(image_licenses))
-        summary.image_latitude_extent = f"{min(image_lats):.3f} to {max(image_lats):.3f}" if image_lats else "N/A"
-        summary.image_longitude_extent = f"{min(image_lons):.3f} to {max(image_lons):.3f}" if image_lons else "N/A"
-        summary.image_temporal_extent = (
-            f"{min(image_datetimes).strftime('%d %b %Y')} - {max(image_datetimes).strftime('%d %b %Y')}"
-            if image_datetimes
-            else "N/A"
+        summary.video_data_quality = cls.calculate_video_data_quality(
+            len(video_data["files"]), video_props["corrupt_videos"]
         )
+        summary.video_licenses = summary.list_to_text(list(video_data["licenses"]))
 
-        summary.video_licenses = summary.list_to_text(list(video_licenses))
-        summary.video_latitude_extent = f"{min(video_lats):.3f} to {max(video_lats):.3f}" if video_lats else "N/A"
-        summary.video_longitude_extent = f"{min(video_lons):.3f} to {max(video_lons):.3f}" if video_lons else "N/A"
-        summary.video_temporal_extent = (
-            f"{min(video_datetimes).strftime('%d %b %Y')} - {max(video_datetimes).strftime('%d %b %Y')}"
-            if video_datetimes
-            else "N/A"
-        )
-
+    @classmethod
+    def _set_other_properties(cls, summary: "ImagerySummary") -> None:
         summary.other_average_file_size = summary.calculate_other_average_file_size()
 
-        return summary
+    @staticmethod
+    def _set_geographical_temporal_extents(
+        summary: "ImagerySummary", image_data: Dict[str, Any], video_data: Dict[str, Any]
+    ) -> None:
+        for data_type in ["image", "video"]:
+            data = image_data if data_type == "image" else video_data
+            lats = [file["lat"] for file in data["files"] if file["lat"] is not None]
+            lons = [file["lon"] for file in data["files"] if file["lon"] is not None]
+            datetimes = [file["datetime"] for file in data["files"] if file["datetime"] is not None]
+
+            setattr(summary, f"{data_type}_latitude_extent", f"{min(lats):.3f} to {max(lats):.3f}" if lats else "N/A")
+            setattr(summary, f"{data_type}_longitude_extent", f"{min(lons):.3f} to {max(lons):.3f}" if lons else "N/A")
+            setattr(
+                summary,
+                f"{data_type}_temporal_extent",
+                (
+                    f"{min(datetimes).strftime('%d %b %Y')} - {max(datetimes).strftime('%d %b %Y')}"
+                    if datetimes
+                    else "N/A"
+                ),
+            )
+
+    IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif"}
+    VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".wmv", ".flv", ".mkv", ".webm"}
 
     def __str__(self) -> str:
         dataset_metadata: List[List[str]] = [
             ["Dataset Name", self.dataset_name],
-            ["Context", self.context],
             ["Creation Date", datetime.now().strftime("%d %B %Y")],
             ["Contributors", self.contributors],
             ["License" if "," not in self.licenses else "Licenses", self.licenses],
         ]
 
+        if self.context:
+            dataset_metadata.insert(1, ["Context", self.context])
         if self.version:
             dataset_metadata.append(["Dataset Version", self.version])
         if self.contact:
