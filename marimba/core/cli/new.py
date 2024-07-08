@@ -34,6 +34,7 @@ Functions:
     - target: Creates and configures a new distribution target in a project.
 """
 
+import json
 from os import R_OK, access
 from pathlib import Path
 from typing import Optional, Union
@@ -43,7 +44,6 @@ from rich import print  # noqa: A004
 
 from marimba.core.utils.constants import PROJECT_DIR_HELP
 from marimba.core.utils.log import get_logger
-from marimba.core.utils.prompt import prompt_schema
 from marimba.core.utils.rich import MARIMBA, error_panel, format_command, format_entity, success_panel
 from marimba.core.wrappers.project import ProjectWrapper
 from marimba.core.wrappers.target import DistributionTargetWrapper
@@ -132,10 +132,21 @@ def pipeline(
         None,
         help=PROJECT_DIR_HELP,
     ),
+    config: str = typer.Option(
+        None, help="A custom configuration in JSON format to be merged with the prompted pipeline configuration."
+    ),
 ) -> None:
     """
     Create and configure a new Marimba pipeline in a project.
     """
+    try:
+        config_dict = json.loads(config) if config else {}
+    except json.JSONDecodeError as e:
+        error_message = f"Error parsing configuration JSON: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+
     project_dir = find_project_dir_or_exit(project_dir)
 
     logger.info(f"Executing the {MARIMBA} {format_command('new pipeline')} command.")
@@ -158,9 +169,7 @@ def pipeline(
         raise typer.Exit(code=1)
 
     # Configure the pipeline from the command line
-    pipeline = pipeline_wrapper.get_instance()
-    pipeline_config_schema = pipeline.get_pipeline_config_schema()
-    pipeline_config = prompt_schema(pipeline_config_schema)
+    pipeline_config = pipeline_wrapper.prompt_pipeline_config(config_dict)
     pipeline_wrapper.save_config(pipeline_config)
 
     print(
@@ -177,10 +186,21 @@ def collection(
         None, help="Name of the parent collection. If unspecified, use the last collection."
     ),
     project_dir: Path = typer.Option(None, help=PROJECT_DIR_HELP),
+    config: str = typer.Option(
+        None, help="A custom configuration in JSON format to be merged with the prompted collection configuration."
+    ),
 ) -> None:
     """
     Create and configure a new Marimba collection in a project.
     """
+    try:
+        config_dict = json.loads(config) if config else {}
+    except json.JSONDecodeError as e:
+        error_message = f"Error parsing configuration JSON: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+
     project_dir = find_project_dir_or_exit(project_dir)
 
     logger.info(f"Executing the {MARIMBA} {format_command('new collection')} command.")
@@ -190,7 +210,10 @@ def collection(
         project_wrapper = ProjectWrapper(project_dir)
 
         # Configure the collection from the resolved schema
-        collection_config = project_wrapper.prompt_collection_config(parent_collection_name=parent_collection_name)
+        collection_config = project_wrapper.prompt_collection_config(
+            parent_collection_name=parent_collection_name,
+            config=config_dict,
+        )
 
         # Create the collection
         collection_wrapper = project_wrapper.create_collection(collection_name, collection_config)

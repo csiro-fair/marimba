@@ -42,6 +42,7 @@ from marimba.core.parallel.pipeline_loader import load_pipeline_instance
 from marimba.core.pipeline import BasePipeline
 from marimba.core.utils.config import load_config, save_config
 from marimba.core.utils.log import LogMixin, get_file_handler
+from marimba.core.utils.prompt import prompt_schema
 
 
 class PipelineWrapper(LogMixin):
@@ -284,6 +285,48 @@ class PipelineWrapper(LogMixin):
                     break
 
         return self._pipeline_class
+
+    def prompt_pipeline_config(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Prompt for and process pipeline configuration.
+
+        This function prompts for pipeline configuration based on the provided schema and any existing configuration.
+        It merges the existing configuration (if provided) with additional user input for missing configuration items.
+
+        Args:
+            - config (Optional[Dict]): Existing pipeline configuration. If provided, it will be used to pre-fill
+              the configuration dictionary.
+
+        Returns:
+            Dict[Any, Any]: A dictionary containing the final pipeline configuration after merging existing config
+            and user input.
+
+        Raises:
+            - ValueError: If the pipeline instance or configuration schema cannot be retrieved.
+            - TypeError: If the provided config is not a dictionary.
+        """
+        pipeline = self.get_instance()
+        pipeline_config_schema = pipeline.get_pipeline_config_schema()
+
+        # Prepopulate collection_config with values from provided config
+        pipeline_config = {}
+        if config:
+            for key in list(pipeline_config_schema.keys()):
+                if key in config:
+                    pipeline_config[key] = config[key]
+                    del pipeline_config_schema[key]  # Remove the key so it won't be prompted
+
+        # Prompt from the remaining resolved schema
+        if pipeline_config_schema:
+            additional_config = prompt_schema(pipeline_config_schema)
+            if additional_config:
+                pipeline_config.update(additional_config)
+
+        self.logger.debug(f"Final prompted pipeline config: {pipeline_config}")
+
+        return pipeline_config
 
     def update(self) -> None:
         """

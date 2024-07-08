@@ -1103,62 +1103,78 @@ class ProjectWrapper(LogMixin):
                     finally:
                         progress.advance(tasks_by_pipeline_name[pipeline_name])
 
-    def prompt_collection_config(self, parent_collection_name: Optional[str] = None) -> Dict[Any, Any]:
+    def prompt_collection_config(
+        self, parent_collection_name: Optional[str] = None, config: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
-        Prompt the user for a collection configuration.
-
-        The schema will be generated from the pipeline-specific collection config schemas of all pipelines in the
-        project, as well as the collection config of the parent collection if specified.
+        Prompt the user for a collection configuration using predefined schemas and optional parent collection settings.
 
         Args:
-            parent_collection_name:
-                The name of the parent collection. If unspecified, use the last collection by modification time.
+            parent_collection_name (Optional[str]): The name of the parent collection. Defaults to the last modified
+            collection if unspecified.
+            config (Optional[Dict[str, Any]]): Initial configuration values, if any.
 
         Returns:
-            The collection configuration as a dictionary.
+            Dict[str, Any]: The complete collection configuration.
 
         Raises:
-            ProjectWrapper.NoSuchCollectionError: If the parent collection does not exist in the project.
+            NoSuchCollectionError: Raised if the specified parent collection does not exist in the project.
         """
-        # Get the union of all pipeline-specific collection config schemas
-        resolved_collection_schema = {}
+        resolved_collection_schema = self._get_unified_collection_schema()
+        parent_collection_name = self._resolve_parent_collection_name(parent_collection_name)
+        self._update_schema_with_parent_config(resolved_collection_schema, parent_collection_name)
+        return self._collect_final_config(resolved_collection_schema, config)
+
+    def _get_unified_collection_schema(self) -> Dict[str, Any]:
+        """Aggregate collection config schemas from all pipelines in the project."""
+        schema = {}
         for _, pipeline_wrapper in self.pipeline_wrappers.items():
             pipeline = pipeline_wrapper.get_instance()
-            collection_config_schema = pipeline.get_collection_config_schema()
-            resolved_collection_schema.update(collection_config_schema)
+            schema.update(pipeline.get_collection_config_schema())
+        return schema
 
-        def get_last_collection_name() -> Optional[str]:
-            if len(self.collection_wrappers) == 0:
-                return None
-            return max(self.collection_wrappers, key=lambda k: self.collection_wrappers[k].root_dir.stat().st_mtime)
-
-        # Use the last collection if no parent is specified
+    def _resolve_parent_collection_name(self, parent_collection_name: Optional[str]) -> Optional[str]:
+        """Determine the appropriate parent collection name if not specified."""
         if parent_collection_name is None:
-            parent_collection_name = get_last_collection_name()  # may be None
-            if parent_collection_name is not None:
+            parent_collection_name = self._get_last_modified_collection_name()
+            if parent_collection_name:
                 self.logger.info(f'Using last collection "{parent_collection_name}" as parent')
+        return parent_collection_name
 
-        # Update the schema with the parent collection
-        if parent_collection_name is not None:
-            parent_collection_wrapper = self.collection_wrappers.get(parent_collection_name, None)
+    def _get_last_modified_collection_name(self) -> Optional[str]:
+        """Fetch the name of the last modified collection."""
+        if not self.collection_wrappers:
+            return None
+        return max(self.collection_wrappers, key=lambda k: self.collection_wrappers[k].root_dir.stat().st_mtime)
 
-            if parent_collection_wrapper is None:
+    def _update_schema_with_parent_config(self, schema: Dict[str, Any], parent_collection_name: Optional[str]) -> None:
+        """Update the schema based on the configuration of the parent collection, if applicable."""
+        if parent_collection_name:
+            parent_wrapper = self.collection_wrappers.get(parent_collection_name)
+            if parent_wrapper is None:
                 raise ProjectWrapper.NoSuchCollectionError(parent_collection_name)
+            parent_config = parent_wrapper.load_config()
+            schema.update(parent_config)
+            self.logger.debug(f'Using parent collection "{parent_collection_name}" with config: {parent_config}')
 
-            parent_collection_config = parent_collection_wrapper.load_config()
-            resolved_collection_schema.update(parent_collection_config)
-            self.logger.debug(
-                f'Using parent collection "{parent_collection_name}" with config: {parent_collection_config}'
-            )
+    def _collect_final_config(
+        self, schema: Dict[str, Any], provided_config: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Combine the user-provided config with additional prompted entries from the schema."""
+        final_config = provided_config or {}
+        # Prepopulate with existing config and remove keys that will not be prompted
+        for key in list(schema.keys()):
+            if key in final_config:
+                del schema[key]  # Remove the key so it won't be prompted
 
-        # Prompt from the resolved schema
-        collection_config = prompt_schema(resolved_collection_schema)
-        if collection_config is None:
-            collection_config = {}
+        # Prompt for additional configuration and update
+        if schema:
+            additional_config = prompt_schema(schema)
+            if additional_config:  # Ensure additional_config is not None
+                final_config.update(additional_config)
 
-        self.logger.debug(f"Prompted collection config: {collection_config}")
-
-        return collection_config
+        self.logger.debug(f"Final prompted collection config: {final_config}")
+        return final_config
 
     def update_pipelines(self) -> None:
         """

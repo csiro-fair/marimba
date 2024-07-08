@@ -30,6 +30,7 @@ Functions:
     - install_command: Installs Python dependencies from requirements.txt files defined by a project's pipelines.
 """
 
+import json
 import logging
 import time
 from pathlib import Path
@@ -98,6 +99,9 @@ def import_command(
     ),
     project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
     overwrite: bool = typer.Option(False, help="Overwrite an existing collection with the same name."),
+    config: str = typer.Option(
+        None, help="A custom configuration in JSON format to be merged with the prompted collection configuration."
+    ),
     extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(
         False, help="Execute the command and print logging to the terminal, but do not change any files."
@@ -108,6 +112,14 @@ def import_command(
     """
     start_time = time.time()
 
+    try:
+        config_dict = json.loads(config) if config else {}
+    except json.JSONDecodeError as e:
+        error_message = f"Error parsing configuration JSON: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit()
+
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
     get_rich_handler().set_dry_run(dry_run)
@@ -116,7 +128,10 @@ def import_command(
     collection_wrapper = project_wrapper.collection_wrappers.get(collection_name, None)
     if collection_wrapper is None:
         try:
-            collection_config = project_wrapper.prompt_collection_config(parent_collection_name=parent_collection_name)
+            collection_config = project_wrapper.prompt_collection_config(
+                parent_collection_name=parent_collection_name,
+                config=config_dict,
+            )
             project_wrapper.create_collection(collection_name, collection_config)
         except ProjectWrapper.InvalidNameError as e:
             error_message = f"Invalid collection name: {e}"
