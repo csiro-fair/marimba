@@ -634,7 +634,7 @@ class DatasetWrapper(LogMixin):
 
     def generate_dataset_summary(self, image_set_items: Dict[str, ImageData], progress: bool = True) -> None:
         """
-        Generate a summary of the dataset, including a map of geolocations if available.
+        Generate a summary of the dataset.
 
         Args:
             image_set_items: The dictionary of image set items to summarize.
@@ -724,8 +724,6 @@ class DatasetWrapper(LogMixin):
             self.logger.debug(f"Copied project pipelines to {self.pipelines_dir}")
             progress.advance(task)
 
-    # TODO: Possible speed improvement - pass through image_set_items to avoid duplicate computation of SHA256 hashes
-    #  for images
     def _generate_manifest(self, image_set_items: Dict[str, ImageData]) -> None:
         """
         Generate and save the manifest for the dataset, excluding certain paths.
