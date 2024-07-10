@@ -35,7 +35,7 @@ Functions:
 
 from pathlib import Path
 from shutil import copy2
-from typing import Iterable, Optional, Tuple, Union
+from typing import Iterable, Optional, Tuple, Union, cast
 
 import cv2
 import numpy as np
@@ -90,7 +90,7 @@ def convert_to_jpeg(path: Union[str, Path], quality: int = 95, destination: Opti
     if path.suffix.lower() in (".jpg", ".jpeg"):
         copy2(path, destination)
     else:
-        img = Image.open(path)
+        img = cast(Image.Image, Image.open(path))
         img.convert("RGB").save(destination, "JPEG", quality=quality)
     return destination
 
@@ -123,7 +123,7 @@ def resize_fit(
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = Image.open(path)
+    img = cast(Image.Image, Image.open(path))
     img = _resize_fit(img, max_width, max_height)
     img.save(destination)
 
@@ -143,7 +143,7 @@ def resize_exact(
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = Image.open(path)
+    img = cast(Image.Image, Image.open(path))
     img = img.resize((width, height), Image.Resampling.LANCZOS)
     img.save(destination)
 
@@ -162,7 +162,7 @@ def scale(path: Union[str, Path], scale_factor: float, destination: Optional[Uni
         destination = Path(destination)
     else:
         destination = path
-    img = Image.open(path)
+    img = cast(Image.Image, Image.open(path))
     width, height = img.size
     new_width = int(width * scale_factor)
     new_height = int(height * scale_factor)
@@ -191,7 +191,7 @@ def rotate_clockwise(
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = Image.open(path)
+    img = cast(Image.Image, Image.open(path))
     img = img.rotate(-degrees, expand=expand)  # type: ignore[no-untyped-call]
     img.save(destination)
 
@@ -219,7 +219,7 @@ def turn_clockwise(path: Union[str, Path], turns: int = 1, destination: Optional
         3: Image.Transpose.ROTATE_270,
     }
 
-    img = Image.open(path)
+    img = cast(Image.Image, Image.open(path))
     img = img.transpose(rotation_constants[turns])
     img.save(destination)
 
@@ -235,7 +235,7 @@ def flip_vertical(path: Union[str, Path], destination: Optional[Union[str, Path]
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = Image.open(path)
+    img = cast(Image.Image, Image.open(path))
     img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
     img.save(destination)
 
@@ -251,7 +251,7 @@ def flip_horizontal(path: Union[str, Path], destination: Optional[Union[str, Pat
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = Image.open(path)
+    img = cast(Image.Image, Image.open(path))
     img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
     img.save(destination)
 
@@ -304,7 +304,7 @@ def crop(
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = Image.open(path)
+    img = cast(Image.Image, Image.open(path))
     img = img.crop((x, y, x + width, y + height))
     img.save(destination)
 
@@ -391,7 +391,7 @@ def get_width_height(path: Union[str, Path]) -> Tuple[int, int]:
         A tuple containing the width and height of the image.
     """
     path = Path(path)
-    img = Image.open(path)
+    img = cast(Image.Image, Image.open(path))
     size = img.size
 
     if not (isinstance(size, tuple) and len(size) == 2 and all(isinstance(x, int) for x in size)):
@@ -431,7 +431,7 @@ def create_grid_image(
     # Compute the optimal row height to remove whitespace
     row_height = column_width
     for path in paths:
-        img = Image.open(path)
+        img = cast(Image.Image, Image.open(path))
         img_width, img_height = img.size
         ratio = img_width / img_height
         row_height = min(row_height, int(column_width / ratio))
@@ -444,7 +444,7 @@ def create_grid_image(
         y = (i // columns) * row_height
 
         # Resize the image to fit in the grid
-        img = Image.open(path)
+        img = cast(Image.Image, Image.open(path))
         img = _resize_fit(img, column_width, row_height)
 
         # Center the image in the grid tile
