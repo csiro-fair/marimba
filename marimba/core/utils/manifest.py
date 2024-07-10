@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Dict, Iterable, Optional
 
 from distlib.util import Progress
+from ifdo.models import ImageData
 from rich.progress import TaskID
 
 from marimba.lib.decorators import multithreaded
@@ -67,6 +68,7 @@ class Manifest:
         cls,
         directory: Path,
         exclude_paths: Optional[Iterable[Path]] = None,
+        image_set_items: Optional[Dict[str, ImageData]] = None,
         progress: Optional[Progress] = None,
         task: Optional[TaskID] = None,
     ) -> "Manifest":
@@ -93,6 +95,7 @@ class Manifest:
             directory: Path,
             exclude_paths: Optional[Iterable[Path]],
             hashes: Dict[Path, bytes],
+            image_set_items: Optional[Dict[str, ImageData]] = None,
             progress: Optional[Progress] = None,
             task: Optional[TaskID] = None,
         ) -> None:
@@ -100,7 +103,15 @@ class Manifest:
                 progress.advance(task)
             if exclude_paths and item in exclude_paths:
                 return
+
             rel_path = item.resolve().relative_to(directory)
+
+            # Check if the relative path as a string exists in image_set_items and return the hash if it does
+            if image_set_items is not None and str(rel_path) in image_set_items:
+                hashes[rel_path] = image_set_items[str(rel_path)].image_hash_sha256
+                return  # Return if hash exists in image_set_items to avoid re-computation
+
+            # Compute the hash if it does not exist in image_set_items
             hashes[rel_path] = Manifest.compute_hash(item)
 
         process_file(
@@ -109,6 +120,7 @@ class Manifest:
             directory=directory,
             exclude_paths=exclude_paths,
             hashes=hashes,
+            image_set_items=image_set_items,
             progress=progress,
             task=task,
         )  # type: ignore

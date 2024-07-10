@@ -53,7 +53,7 @@ from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.utils.log import LogMixin, get_file_handler
-from marimba.core.utils.maifest import Manifest
+from marimba.core.utils.manifest import Manifest
 from marimba.core.utils.map import make_summary_map
 from marimba.core.utils.rich import get_default_columns
 from marimba.core.utils.summary import ImagerySummary
@@ -457,7 +457,7 @@ class DatasetWrapper(LogMixin):
         self._generate_dataset_map(image_set_items)
         self._copy_pipelines(project_pipelines_dir)
         self._copy_logs(project_log_path, pipeline_log_paths)
-        self._generate_manifest()
+        self._generate_manifest(image_set_items)
 
     def _populate_files(
         self,
@@ -726,7 +726,7 @@ class DatasetWrapper(LogMixin):
 
     # TODO: Possible speed improvement - pass through image_set_items to avoid duplicate computation of SHA256 hashes
     #  for images
-    def _generate_manifest(self) -> None:
+    def _generate_manifest(self, image_set_items: Dict[str, ImageData]) -> None:
         """
         Generate and save the manifest for the dataset, excluding certain paths.
 
@@ -738,6 +738,7 @@ class DatasetWrapper(LogMixin):
             manifest = Manifest.from_dir(
                 self.root_dir,
                 exclude_paths=[self.manifest_path, self.log_path],
+                image_set_items=image_set_items,
                 progress=progress,
                 task=task,
             )
