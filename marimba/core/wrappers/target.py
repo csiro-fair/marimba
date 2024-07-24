@@ -80,7 +80,7 @@ class DistributionTargetWrapper:
     @classmethod
     def create(
         cls, config_path: Union[str, Path], target_type: str, target_args: Dict[str, Any]
-    ) -> Optional[DistributionTargetBase]:
+    ) -> "DistributionTargetWrapper":
         """
         Create a distribution target at the specified path with the specified type and arguments.
 
@@ -108,7 +108,7 @@ class DistributionTargetWrapper:
         # Save the config
         save_config(config_path, config)
 
-        return cls(config_path).get_instance()
+        return cls(config_path)
 
     @staticmethod
     def prompt_target() -> Tuple[str, Dict[str, Any]]:
