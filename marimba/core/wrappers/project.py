@@ -46,6 +46,7 @@ from ifdo.models import ImageData
 from rich.progress import Progress, SpinnerColumn
 
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
+from marimba.core.utils.constants import Operation
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.prompt import prompt_schema
 from marimba.core.utils.rich import get_default_columns
@@ -860,7 +861,7 @@ class ProjectWrapper(LogMixin):
         self,
         dataset_name: str,
         dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]]],
-        copy: bool = True,
+        operation: Operation = Operation.copy,
         version: Optional[str] = "1.0",
         contact_name: Optional[str] = None,
         contact_email: Optional[str] = None,
@@ -902,7 +903,7 @@ class ProjectWrapper(LogMixin):
             self.pipelines_dir,
             self.log_path,
             (pw.log_path for pw in self.pipeline_wrappers.values()),
-            copy=copy,
+            operation=operation,
         )
 
         # Validate it

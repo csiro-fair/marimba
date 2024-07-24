@@ -41,7 +41,7 @@ from rich import print  # noqa: A004
 
 from marimba.core.cli import new
 from marimba.core.distribution.bases import DistributionTargetBase
-from marimba.core.utils.constants import PROJECT_DIR_HELP
+from marimba.core.utils.constants import PROJECT_DIR_HELP, Operation
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
 from marimba.core.utils.map import NetworkConnectionError
 from marimba.core.utils.rich import error_panel, format_entity, success_panel
@@ -64,6 +64,7 @@ __version__ = "0.4.0"
 __maintainer__ = "Chris Jackett"
 __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
+
 
 marimba = typer.Typer(
     name="Marimba",
@@ -173,7 +174,7 @@ def package_command(
         "all collections will be packaged together.",
     ),
     project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
-    copy: bool = typer.Option(True, help="Copy files to dataset directory. Set to False to move files instead."),
+    operation: Operation = typer.Option(Operation.copy, help="Operation to perform: copy, move, or link"),
     version: Optional[str] = typer.Option("1.0", help="Version of the packaged dataset."),
     contact_name: Optional[str] = typer.Option(None, help="Full name of the contact person for the packaged dataset."),
     contact_email: Optional[str] = typer.Option(
@@ -204,7 +205,7 @@ def package_command(
         dataset_wrapper = project_wrapper.create_dataset(
             dataset_name,
             dataset_mapping,
-            copy=copy,
+            operation=operation,
             version=version,
             contact_name=contact_name,
             contact_email=contact_email,

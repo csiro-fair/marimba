@@ -38,6 +38,7 @@ Classes:
 import hashlib
 import io
 import json
+import os
 from collections import OrderedDict
 from datetime import timezone
 from fractions import Fraction
@@ -52,6 +53,7 @@ from ifdo.models import ImageData, ImageSetHeader, iFDO
 from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
+from marimba.core.utils.constants import Operation
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.manifest import Manifest
 from marimba.core.utils.map import make_summary_map
@@ -430,7 +432,7 @@ class DatasetWrapper(LogMixin):
         project_pipelines_dir: Path,
         project_log_path: Path,
         pipeline_log_paths: Iterable[Path],
-        copy: bool = True,
+        operation: Operation = Operation.copy,
     ) -> None:
         """
         Populate the dataset with files from the given dataset mapping.
@@ -450,7 +452,7 @@ class DatasetWrapper(LogMixin):
         self.logger.debug(f'Creating dataset "{dataset_name}" containing {len(dataset_mapping)} {pipeline_label}')
 
         self.check_dataset_mapping(dataset_mapping)
-        image_set_items = self._populate_files(dataset_mapping, copy)
+        image_set_items = self._populate_files(dataset_mapping, operation)
         self._apply_exif_metadata(dataset_mapping)
         self.generate_ifdo(dataset_name, image_set_items)
         self.generate_dataset_summary(image_set_items)
@@ -462,14 +464,14 @@ class DatasetWrapper(LogMixin):
     def _populate_files(
         self,
         dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]]],
-        copy: bool,
+        operation: Operation,
     ) -> Dict[str, ImageData]:
         """
         Copy or move files from the dataset mapping to the destination directory.
 
         Args:
             dataset_mapping: The dataset mapping containing source and destination paths.
-            copy: Boolean indicating whether to copy (True) or move (False) the files.
+            operation: The operation to perform (copy, move, link).
 
         Returns:
             Dict[str, ImageData]: A dictionary of image set items for further processing.
@@ -481,7 +483,7 @@ class DatasetWrapper(LogMixin):
             item: Tuple[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]],
             thread_num: str,
             pipeline_name: str,
-            copy: bool,
+            operation: Operation,
             image_set_items: Dict[str, List[ImageData]],
             progress: Optional[Progress] = None,
             tasks_by_pipeline_name: Optional[Dict[str, Any]] = None,
@@ -495,12 +497,15 @@ class DatasetWrapper(LogMixin):
 
             if not self.dry_run:
                 dst.parent.mkdir(parents=True, exist_ok=True)
-                if copy:
+                if operation == Operation.copy:
                     copy2(src, dst)
                     self.logger.debug(f"Thread {thread_num} - Copying file {src.absolute()} -> {dst}")
-                else:
+                elif operation == Operation.move:
                     src.rename(dst)
                     self.logger.debug(f"Thread {thread_num} - Moving file {src.absolute()} -> {dst}")
+                elif operation == Operation.link:
+                    os.link(src, dst)
+                    self.logger.debug(f"Thread {thread_num} - Linking file {src.absolute()} -> {dst}")
 
             if progress and tasks_by_pipeline_name:
                 progress.advance(tasks_by_pipeline_name[pipeline_name])
@@ -521,7 +526,7 @@ class DatasetWrapper(LogMixin):
                     self,
                     items=[(src, data) for src, data in pipeline_data_mapping.items()],
                     pipeline_name=pipeline_name,
-                    copy=copy,
+                    operation=operation,
                     image_set_items=image_set_items,
                     progress=progress,
                     tasks_by_pipeline_name=tasks_by_pipeline_name,
