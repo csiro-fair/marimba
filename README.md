@@ -3,7 +3,6 @@
 <!-- PROJECT LOGO -->
 <figure markdown style="text-align: center">
 
-![](img/logo.png "Marimba logo")
 ![](docs/img/logo.png "Marimba logo")
 
 </figure>
