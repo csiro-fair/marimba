@@ -47,7 +47,7 @@ from shutil import copy2, copytree, ignore_patterns
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 from uuid import uuid4
 
-import exiftool
+# import exiftool
 import piexif
 from ifdo.models import ImageData, ImageSetHeader, iFDO
 from PIL import Image
@@ -244,8 +244,10 @@ class DatasetWrapper(LogMixin):
             path, (image_data, ancillary_data) = item
             if path.suffix.lower() in {".jpg", ".jpeg", ".png"}:
                 self._process_image_file(path, image_data, ancillary_data, thread_num)
-            elif path.suffix.lower() == ".mp4":
-                self._process_video_file(path, image_data, ancillary_data, thread_num)
+            # TODO: Cleanup required
+            # Note: Removed adding metadata to mp4 files to remove dependency on pyexiftool (GPLv3)
+            # elif path.suffix.lower() == ".mp4":
+            #     self._process_video_file(path, image_data, ancillary_data, thread_num)
 
             if progress and task is not None:
                 progress.advance(task)
@@ -276,19 +278,19 @@ class DatasetWrapper(LogMixin):
         except piexif.InvalidImageDataError:
             self.logger.warning(f"Failed to write EXIF metadata to {path}")
 
-    def _process_video_file(
-        self, path: Path, image_data: ImageData, ancillary_data: Optional[Dict[str, Any]], thread_num: str
-    ) -> None:
-        try:
-            # Prepare metadata
-            metadata = self._prepare_metadata(image_data, ancillary_data)
-
-            # Inject metadata using ExifTool
-            self._inject_metadata_exiftool(path, metadata)
-
-            self.logger.debug(f"Thread {thread_num} - Applied iFDO metadata to MP4 file {path}")
-        except Exception as e:
-            self.logger.warning(f"Failed to write MP4 metadata to {path}: {e}")
+    # def _process_video_file(
+    #     self, path: Path, image_data: ImageData, ancillary_data: Optional[Dict[str, Any]], thread_num: str
+    # ) -> None:
+    #     try:
+    #         # Prepare metadata
+    #         metadata = self._prepare_metadata(image_data, ancillary_data)
+    #
+    #         # Inject metadata using ExifTool
+    #         self._inject_metadata_exiftool(path, metadata)
+    #
+    #         self.logger.debug(f"Thread {thread_num} - Applied iFDO metadata to MP4 file {path}")
+    #     except Exception as e:
+    #         self.logger.warning(f"Failed to write MP4 metadata to {path}: {e}")
 
     def _prepare_metadata(self, image_data: ImageData, ancillary_data: Optional[Dict[str, Any]]) -> Dict[str, str]:
         metadata = {}
@@ -311,16 +313,16 @@ class DatasetWrapper(LogMixin):
 
         return metadata
 
-    def _inject_metadata_exiftool(self, path: Path, metadata: Dict[str, Any]) -> None:
-        with exiftool.ExifTool() as et:
-            # Build the arguments for exiftool
-            args = []
-            for key, value in metadata.items():
-                args.append(f"-{key}={value}")
-            args.append(str(path))
-
-            # Run ExifTool with the arguments
-            et.execute(*args)
+    # def _inject_metadata_exiftool(self, path: Path, metadata: Dict[str, Any]) -> None:
+    #     with exiftool.ExifTool() as et:
+    #         # Build the arguments for exiftool
+    #         args = []
+    #         for key, value in metadata.items():
+    #             args.append(f"-{key}={value}")
+    #         args.append(str(path))
+    #
+    #         # Run ExifTool with the arguments
+    #         et.execute(*args)
 
     @staticmethod
     def _inject_datetime(image_data: ImageData, exif_dict: Dict[str, Any]) -> None:
