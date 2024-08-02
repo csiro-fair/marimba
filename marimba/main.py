@@ -66,7 +66,7 @@ __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
 
 
-marimba = typer.Typer(
+marimba_cli = typer.Typer(
     name="Marimba",
     help="""Marimba\n
         A Python framework for structuring, managing, processing and FAIR-ising scientific marine image datasets.""",
@@ -75,12 +75,12 @@ marimba = typer.Typer(
     pretty_exceptions_show_locals=False,
 )
 
-marimba.add_typer(new.app, name="new")
+marimba_cli.add_typer(new.app, name="new")
 
 logger = get_logger(__name__)
 
 
-@marimba.callback()
+@marimba_cli.callback()
 def global_options(
     level: LogLevel = typer.Option(LogLevel.WARNING, help="Logging level."),
 ) -> None:
@@ -91,7 +91,7 @@ def global_options(
     logger.info(f"Initialised Marimba CLI v{__version__}")
 
 
-@marimba.command("import")
+@marimba_cli.command("import")
 def import_command(
     collection_name: str = typer.Argument(..., help="Marimba collection name for targeted processing."),
     source_paths: List[Path] = typer.Argument(..., help="Paths to source files/directories to provide for import."),
@@ -164,7 +164,7 @@ def import_command(
     )
 
 
-@marimba.command("package")
+@marimba_cli.command("package")
 def package_command(
     dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
     # pipeline_name: str = typer.Argument(..., help="Marimba pipeline name to package."),
@@ -248,7 +248,7 @@ def package_command(
     )
 
 
-@marimba.command("process")
+@marimba_cli.command("process")
 def process_command(
     pipeline_name: Optional[str] = typer.Option(None, help="Marimba pipeline name for targeted processing."),
     collection_name: Optional[str] = typer.Option(None, help="Marimba collection name for targeted processing."),
@@ -305,7 +305,7 @@ def process_command(
     )
 
 
-@marimba.command("distribute")
+@marimba_cli.command("distribute")
 def distribute_command(
     dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
     target_name: str = typer.Argument(..., help="Marimba distribution target name."),
@@ -354,7 +354,7 @@ def distribute_command(
     print(success_panel(f"Successfully distributed dataset {dataset_name} in {elapsed_time:.2f} seconds"))
 
 
-@marimba.command("update")
+@marimba_cli.command("update")
 def update_command(project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP)) -> None:
     """
     Update (pull) all Marimba pipelines.
@@ -370,7 +370,7 @@ def update_command(project_dir: Optional[Path] = typer.Option(None, help=PROJECT
         raise typer.Exit()
 
 
-@marimba.command("install")
+@marimba_cli.command("install")
 def install_command(project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP)) -> None:
     """
     Install Python dependencies from requirements.txt files defined by a project's pipelines.
@@ -387,4 +387,4 @@ def install_command(project_dir: Optional[Path] = typer.Option(None, help=PROJEC
 
 
 if __name__ == "__main__":
-    marimba()
+    marimba_cli()
