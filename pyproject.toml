@@ -25,7 +25,7 @@ tabulate = "^0.9.0"
 pyav = "^12.2.0"
 
 [tool.poetry.scripts]
-marimba = "marimba.marimba:marimba"
+marimba = "marimba.main:marimba_cli"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.4.2"
