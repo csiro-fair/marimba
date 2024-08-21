@@ -1,5 +1,5 @@
 """
-Marimba: A Python framework for structuring, managing, processing and FAIR-ising scientific marine image datasets.
+Marimba: A Python framework for structuring, managing and processing FAIR scientific image datasets.
 
 This module provides the command-line interface for the Marimba framework. It allows users to import data into
 collections, process collections using pipelines, package collections into datasets, and distribute datasets to
@@ -69,7 +69,7 @@ __status__ = "Development"
 marimba_cli = typer.Typer(
     name="Marimba",
     help="""Marimba\n
-        A Python framework for structuring, managing, processing and FAIR-ising scientific marine image datasets.""",
+        A Python framework for structuring, managing and processing FAIR scientific image datasets""",
     short_help="Marimba",
     no_args_is_help=True,
     pretty_exceptions_show_locals=False,
