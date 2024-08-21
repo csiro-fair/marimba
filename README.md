@@ -230,12 +230,12 @@ This project is distributed under the [CSIRO BSD/MIT](LICENSE) license.
 
 For inquiries related to this repository, please contact:
 
-- **Chris Jackett**
-  *Software Engineer, CSIRO*
+- **Chris Jackett**  
+  *Software Engineer, CSIRO*  
   Email: [chris.jackett@csiro.au](mailto:chris.jackett@csiro.au)
 
-- **Kevin Barnard**
-  *Software Engineer, MBARI*
+- **Kevin Barnard**  
+  *Software Engineer, MBARI*  
   Email: [kbarnard@mbari.org](mailto:kbarnard@mbari.org)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
