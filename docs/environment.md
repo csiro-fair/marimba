@@ -53,8 +53,7 @@ marimba
 ├── .gitignore                  - Specifies files and folders to be ignored by Git
 ├── .isort.cfg                  - Configuration settings for isort tool
 ├── .pre-commit-config.yaml     - Configuration for pre-commit hooks that can be executed locally and in CI
-├── LICENSE.md                  - License information for the project
-├── mkdocs.yml                  - Configuration for MkDocs documentation generator
+├── LICENSE                     - License information for the project
 ├── pyproject.toml              - Custom Python Black code formatting settings
 └── README.md                   - Project readme file providing an overview and setup instructions for the project
 ```
