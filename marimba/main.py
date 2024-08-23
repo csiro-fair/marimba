@@ -40,6 +40,7 @@ import typer
 from rich import print  # noqa: A004
 
 from marimba.core.cli import new
+from marimba.core.cli import delete
 from marimba.core.distribution.bases import DistributionTargetBase
 from marimba.core.utils.constants import PROJECT_DIR_HELP, Operation
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
@@ -76,6 +77,7 @@ marimba_cli = typer.Typer(
 )
 
 marimba_cli.add_typer(new.app, name="new")
+marimba_cli.add_typer(delete.app, name="delete")
 
 logger = get_logger(__name__)
 
