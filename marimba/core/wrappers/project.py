@@ -470,9 +470,6 @@ class ProjectWrapper(LogMixin):
         """
         Delete a project.
 
-        Args:
-            root_dir: The root directory of the project.
-
         Returns:
             A Path to the deleted project.
 
