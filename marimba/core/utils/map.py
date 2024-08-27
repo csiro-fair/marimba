@@ -1,5 +1,5 @@
 """
-Map generation utilities.
+Marimba Map Utilities.
 """
 
 from typing import Iterable, Optional, Tuple, cast

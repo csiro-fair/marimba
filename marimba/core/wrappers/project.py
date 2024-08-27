@@ -48,6 +48,7 @@ from rich.progress import Progress, SpinnerColumn
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.log import LogMixin, get_file_handler
+from marimba.core.utils.paths import remove_directory_tree
 from marimba.core.utils.prompt import prompt_schema
 from marimba.core.utils.rich import get_default_columns
 from marimba.core.wrappers.collection import CollectionWrapper
@@ -316,6 +317,11 @@ class ProjectWrapper(LogMixin):
         Raised when an invalid name is used.
         """
 
+    class DeletePipelineError(Exception):
+        """
+        Raised when a Pipeline cannot be deleted.
+        """
+
     def __init__(self, root_dir: Union[str, Path], dry_run: bool = False):
         """
         Initialise the class instance.
@@ -463,6 +469,18 @@ class ProjectWrapper(LogMixin):
         for target_config_path in target_config_paths:
             self._target_wrappers[target_config_path.stem] = DistributionTargetWrapper(target_config_path)
 
+    def delete_project(self) -> Path:
+        """
+        Delete a project.
+
+        Returns:
+            A Path to the deleted project.
+
+        """
+        if not self.dry_run:
+            remove_directory_tree(self.root_dir.resolve(), "project", self.dry_run)
+        return self.root_dir
+
     def create_pipeline(self, name: str, url: str) -> PipelineWrapper:
         """
         Create a new pipeline.
@@ -502,6 +520,34 @@ class ProjectWrapper(LogMixin):
 
         return pipeline_wrapper
 
+    def delete_pipeline(self, name: str, dry_run: bool) -> Path:
+        """
+        Delete a pipeline.
+
+        Args:
+            name: The name of the pipeline.
+
+        Returns:
+            The path to deleted pipeline.
+
+        Raises:
+            ProjectWrapper.DeletePipelineError: If the pipeline cannot be deleted.
+            ProjectWrapper.NameError: If the name is invalid.
+        """
+        self.logger.debug(f'Deleting pipeline "{name}"')
+
+        # Check the name is valid
+        ProjectWrapper.check_name(name)
+
+        # Check that a pipeline with the same name doesn't already exist
+        pipeline_dir = self.pipelines_dir / name
+        if pipeline_dir.exists():
+            if not dry_run:
+                remove_directory_tree(pipeline_dir, "pipeline", dry_run)
+        else:
+            raise ProjectWrapper.DeletePipelineError(f'A pipeline with the name "{name}" does not exist.')
+        return pipeline_dir
+
     def create_collection(self, name: str, config: Dict[str, Any]) -> CollectionWrapper:
         """
         Create a new collection.
@@ -539,6 +585,33 @@ class ProjectWrapper(LogMixin):
         self.logger.debug(f'Created collection "{name}" successfully')
 
         return collection_wrapper
+
+    def delete_collection(self, name: str, dry_run: bool) -> Path:
+        """
+        Delete a collection.
+
+        Args:
+            name: The name of the collection.
+            config: The collection configuration.
+
+        Returns:
+            The collection directory wrapper.
+
+        Raises:
+            ProjectWrapper.CreateCollectionError: If the collection cannot be created.
+        """
+        self.logger.debug(f'Deleting collection "{name}"')
+
+        # Check the name is valid
+        ProjectWrapper.check_name(name)
+
+        # Check that a collection with the same name doesn't already exist
+        collection_dir = self.collections_dir / name
+        if collection_dir.exists():
+            remove_directory_tree(collection_dir, "collection", dry_run)
+        else:
+            raise ProjectWrapper.NoSuchCollectionError(f'A collection with the name "{name}" does not exist.')
+        return collection_dir
 
     def _get_wrappers_to_run(
         self, pipeline_name: Optional[str], collection_name: Optional[str]
@@ -917,6 +990,32 @@ class ProjectWrapper(LogMixin):
 
         return dataset_wrapper
 
+    def delete_dataset(
+        self,
+        dataset_name: str,
+    ) -> Path:
+        """
+        Delete a Marimba dataset.
+
+        Args:
+            dataset_name: The name of the dataset.
+
+        Raises:
+            ProjectWrapper.NameError: If the name is invalid.
+            FileExistsError: If the dataset root directory does not exist.
+        """
+        # Check the name is valid
+        ProjectWrapper.check_name(dataset_name)
+
+        # Create the dataset
+        dataset_root_dir = self.datasets_dir / dataset_name
+        if dataset_root_dir.exists():
+            if not self.dry_run:
+                remove_directory_tree(dataset_root_dir, "dataset", dry_run=self.dry_run)
+        else:
+            raise FileExistsError(f'"{dataset_root_dir}" dataset does not exist.')
+        return dataset_root_dir
+
     def create_target(
         self, target_name: str, target_type: str, target_config: Dict[str, Any]
     ) -> DistributionTargetWrapper:
@@ -952,6 +1051,28 @@ class ProjectWrapper(LogMixin):
         self._target_wrappers[target_name] = target_wrapper
 
         return target_wrapper
+
+    def delete_target(self, target_name: str) -> Path:
+        """
+        Delete a Marimba distribution target file.
+
+        Args:
+            target_name: The name of the distribution target to delete.
+
+        Raises:
+            ProjectWrapper.NameError: If the name is invalid.
+            FileExistsError: If the target not found.
+        """
+        # Check the name is valid
+        ProjectWrapper.check_name(target_name)
+        target_config_path = self.targets_dir / f"{target_name}.yml"
+        if target_config_path.exists():
+            if not self.dry_run:
+                target_config_path.unlink()
+        else:
+            raise FileExistsError(f'"{target_config_path}"target does not exist.')
+        self.logger.debug(f'Deleting distribution target "{target_name}"')
+        return target_config_path
 
     def distribute(self, dataset_name: str, target_name: str) -> None:
         """
