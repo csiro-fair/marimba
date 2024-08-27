@@ -1,9 +1,9 @@
 """
-Marimba CLI Module.
+Marimba CLI Module - delete and manage Marimba project components.
 
-This module provides the Marimba command line interface for deleting and Marimba pipelines, collections, and distribution targets. 
-It uses Typer for defining the CLI commands and Rich for
-formatting the output.
+This module provides a command-line interface for deleting Marimba projects, pipelines, collections, and
+distribution targets. It utilizes Typer for defining CLI commands and Rich for formatting output.
+
 
 Imports:
     - os: Provides access to operating system functionality.
@@ -26,29 +26,23 @@ Classes:
     - DistributionTargetWrapper: A wrapper class for working with Marimba distribution targets.
 
 Functions:
-    - find_project_dir: Finds the project root directory from a given path.
-    - find_project_dir_or_exit: Finds the project root directory or exits with an error.
     - project: Creates a new Marimba project.
     - pipeline: Creates and configures a new Marimba pipeline in a project.
     - collection: Creates and configures a new Marimba collection in a project.
     - target: Creates and configures a new distribution target in a project.
 """
 
-import json
-from os import R_OK, access
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 import typer
 from rich import print  # noqa: A004
 
 from marimba.core.utils.constants import PROJECT_DIR_HELP
 from marimba.core.utils.log import get_logger
+from marimba.core.utils.paths import find_project_dir_or_exit
 from marimba.core.utils.rich import MARIMBA, error_panel, format_command, format_entity, success_panel
 from marimba.core.wrappers.project import ProjectWrapper
-from marimba.core.wrappers.target import DistributionTargetWrapper
-from marimba.core.utils.paths import find_project_dir_or_exit,remove_all_subdirectories
-
 
 logger = get_logger(__name__)
 
@@ -58,14 +52,12 @@ app = typer.Typer(
 )
 
 
-
-
-
-
 @app.command()
 def project(
     project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
-    dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files.",
+    dry_run: bool = typer.Option(
+        False,
+        help="Execute the command and print logging to the terminal, but do not change any files.",
     ),
 ) -> None:
     """
@@ -77,7 +69,7 @@ def project(
     try:
         project_dir = find_project_dir_or_exit(project_dir)
         project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
-        root_path =project_wrapper.delete_project()
+        root_path = project_wrapper.delete_project()
         logger.info(f'Project Deleted {MARIMBA} {format_entity("project")} "{project_wrapper.root_dir}"')
     except ProjectWrapper.InvalidStructureError:
         error_message = f'A {MARIMBA} {format_entity("project")} not valid project: "{project_dir}"'
@@ -87,12 +79,13 @@ def project(
     print(success_panel(f'Deleted {MARIMBA} {format_entity("project")} "{root_path}"'))
 
 
-
 @app.command()
 def pipeline(
     pipeline_name: str = typer.Argument(..., help="Name of the pipeline."),
     project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
-    dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
+    dry_run: bool = typer.Option(
+        False, help="Execute the command and print logging to the terminal, but do not change any files."
+    ),
 ) -> None:
     """
     Delete a Marimba pipeline from a project.
@@ -103,7 +96,7 @@ def pipeline(
         # iterate through the pipelines
         project_dir = find_project_dir_or_exit(project_dir)
         project_wrapper = ProjectWrapper(project_dir)
-        root_path =project_wrapper.delete_pipeline(pipeline_name,dry_run=dry_run)
+        root_path = project_wrapper.delete_pipeline(pipeline_name, dry_run=dry_run)
     except ProjectWrapper.InvalidNameError as e:
         error_message = f"Invalid pipeline name: {e}"
         logger.error(error_message)
@@ -114,35 +107,27 @@ def pipeline(
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit(code=1)
-    print(success_panel(
-        f'Deleted {MARIMBA} {format_entity("pipeline")} "{pipeline_name}" at: "{root_path}"'
-        )
-    )
-
-
+    print(success_panel(f'Deleted {MARIMBA} {format_entity("pipeline")} "{pipeline_name}" at: "{root_path}"'))
 
 
 @app.command()
 def collection(
     collection_name: str = typer.Argument(..., help="Name of the collection to delete"),
-    parent_collection_name: Optional[str] = typer.Argument(
-        None, help="Name of the parent collection. If unspecified, use the last collection."
-    ),
     project_dir: Path = typer.Option(None, help=PROJECT_DIR_HELP),
-    dry_run: bool = typer.Option(False, help="Execute the command and print logging to the terminal, but do not change any files."),
-
+    dry_run: bool = typer.Option(
+        False, help="Execute the command and print logging to the terminal, but do not change any files."
+    ),
 ) -> None:
     """
     Delete Marimba collection in a project.
     """
-
     project_dir = find_project_dir_or_exit(project_dir)
     logger.info(f"Executing the {MARIMBA} {format_command('delete collection')} command.")
 
     try:
         # Create project wrapper instance
         project_wrapper = ProjectWrapper(project_dir)
-        root_path =project_wrapper.delete_collection(collection_name,dry_run=dry_run)
+        root_path = project_wrapper.delete_collection(collection_name, dry_run=dry_run)
     except ProjectWrapper.InvalidNameError as e:
         logger.error(e)
         print(error_panel(f"Invalid collection name: {e}"))
@@ -157,12 +142,7 @@ def collection(
         print(error_panel(error_message))
         raise typer.Exit(code=1)
 
-    print(
-        success_panel(
-            f'Deleted {MARIMBA} {format_entity("collection")} "{collection_name}" at: '
-            f'"{root_path}"'
-        )
-    )
+    print(success_panel(f'Deleted {MARIMBA} {format_entity("collection")} "{collection_name}" at: ' f'"{root_path}"'))
 
 
 @app.command()
@@ -199,7 +179,6 @@ def target(
 
     print(
         success_panel(
-            f'Deleted {MARIMBA} {format_entity("target")} "{target_name}" at: '
-            f'"{project_wrapper.targets_dir}"'
+            f'Deleted {MARIMBA} {format_entity("target")} "{target_name}" at: ' f'"{project_wrapper.targets_dir}"'
         )
     )

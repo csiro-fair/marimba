@@ -138,7 +138,7 @@ class DistributionTargetWrapper:
             raise TypeError(f"Target class {target_type} does not have an __init__ method")
 
         # Ensure that target_class.__init__ is a method
-        if not isinstance(target_class, FunctionType):
+        if not isinstance(target_class.__init__, FunctionType):  # type: ignore
             raise TypeError(f"__init__ of target class {target_type} is not a method")
 
         # Get the distribution target __init__ positional and keyword arguments

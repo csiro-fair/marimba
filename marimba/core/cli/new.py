@@ -1,5 +1,5 @@
 """
-Marimba CLI Module.
+Marimba CLI Module - create new Marimba project components.
 
 This module provides the Marimba command line interface for creating and configuring new Marimba projects,
 pipelines, collections, and distribution targets. It uses Typer for defining the CLI commands and Rich for

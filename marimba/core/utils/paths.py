@@ -1,8 +1,9 @@
 """
-Marimba path utilities Module.
+Marimba Path Utilities.
 
-This module provides functions for working with the directory structure of a marimba project
-formatting the output.
+This module provides utility functions to work with the directory structure of a Marimba project, including locating
+the project root directory and managing subdirectories.
+
 
 Imports:
     - os: Provides access to operating system functionality.
@@ -12,33 +13,35 @@ Imports:
     - marimba.core.utils.log: Provides logging functionality.
     - marimba.core.utils.rich: Provides utility functions for formatting output using Rich.
 
-
 Functions:
-    - find_project_dir: Finds the project root directory from a given path.
-    - find_project_dir_or_exit: Finds the project root directory or exits with an error.
+    - find_project_dir: Locates the project root directory starting from a specified path.
+    - find_project_dir_or_exit: Locates the project root directory or exits with an error if not found.
+    - remove_all_subdirectories: Deletes all subdirectories within a specified directory, with optional dry-run and root
+    directory removal features.
 """
 
-
+import shutil
 from os import R_OK, access
 from pathlib import Path
 from typing import Optional, Union
-from marimba.core.utils.log import get_logger
+
 import typer
-from marimba.core.utils.rich import MARIMBA, error_panel,format_entity
-import shutil
+
+from marimba.core.utils.log import get_logger
+from marimba.core.utils.rich import MARIMBA, error_panel, format_entity
 
 logger = get_logger(__name__)
 
 
 def find_project_dir(path: Union[str, Path]) -> Optional[Path]:
     """
-    Find the project root directory from a given path.
+    Locate the project root directory starting from a specified path.
 
     Args:
-        path: The path to start searching from.
+        path (Union[str, Path]): The starting path for the search.
 
     Returns:
-        The project root directory, or None if no project root directory was found.
+        Optional[Path]: The project root directory, or None if not found.
     """
     path = Path(path)
     while access(path, R_OK) and path != path.parent:
@@ -76,29 +79,35 @@ def find_project_dir_or_exit(project_dir: Optional[Union[str, Path]] = None) -> 
 
     return found_project_dir
 
-def remove_all_subdirectories(directory,entity,remove_head,dry_run):
+
+def remove_directory_tree(directory: Union[str, Path], entity: str, dry_run: bool) -> None:
     """
-    Find all the subdirectories of this directory and delete them
+    Recursively delete the provided directory and all of its contents.
 
     Args:
-        directory: The path to start searching from.
-        entity : the type of operation
-        remove_head: remove the head directory
-        dry_run: if true don't delete
+        directory (Union[str, Path]): The directory to delete.
+        entity (str): A description of the operation being performed.
+        dry_run (bool): If True, only logs the deletion without actually performing it.
 
-    
     Raises:
-        typer.Exit: If no project root directory was found.
-    """    
+        typer.Exit: If the specified directory is not valid or an error occurs during deletion.
+    """
     dir_path = Path(directory)
-    if dir_path.is_dir():
-        for sub_dir in dir_path.iterdir():
-            if sub_dir.is_dir():
-                if not dry_run:
-                    shutil.rmtree(sub_dir)
-                logger.info(f'Deleting {MARIMBA} {format_entity(entity)} at: "{sub_dir}"')
-        if remove_head:
-            logger.info(f'Deleting {MARIMBA} {format_entity(entity)} at: "{dir_path}"')
-            if not dry_run:
-                shutil.rmtree(dir_path)
-                
+    if not dir_path.is_dir():
+        error_message = f"Invalid directory: {dir_path}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit(code=1)
+
+    try:
+        if not dry_run:
+            shutil.rmtree(dir_path)
+        logger.info(f'Deleting {MARIMBA} {format_entity(entity)} at: "{dir_path}"')
+
+    except Exception as e:
+        error_message = f"Error occurred while deleting the directory: {e}"
+        logger.error(error_message)
+        print(error_panel(error_message))
+        raise typer.Exit(code=1)
+
+    logger.info("Successfully deleted directory.")
