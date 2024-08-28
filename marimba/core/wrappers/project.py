@@ -782,6 +782,7 @@ class ProjectWrapper(LogMixin):
     def _create_composition_tasks(
         self,
         executor: ProcessPoolExecutor,
+        pipeline_names: List[str],
         collection_names: List[str],
         collection_wrappers: List[Any],
         collection_configs: List[Dict[str, Any]],
@@ -790,13 +791,20 @@ class ProjectWrapper(LogMixin):
 
         futures = {}
         process_index = 1
-        total_processes = len(self.pipeline_wrappers) * len(collection_wrappers)
+        total_processes = len(pipeline_names) * len(collection_names)
 
         process_padding_length = math.ceil(math.log10(total_processes + 1))
-        pipeline_padding_length = math.ceil(math.log10(len(self.pipeline_wrappers) + 1))
-        collection_padding_length = math.ceil(math.log10(len(collection_wrappers) + 1))
+        pipeline_padding_length = math.ceil(math.log10(len(pipeline_names) + 1))
+        collection_padding_length = math.ceil(math.log10(len(collection_names) + 1))
 
-        for pipeline_index, (pipeline_name, pipeline_wrapper) in enumerate(self.pipeline_wrappers.items(), start=1):
+        # for pipeline_index, (pipeline_name, pipeline_wrapper) in enumerate(self.pipeline_wrappers.items(), start=1):
+        for pipeline_index, pipeline_name in enumerate(pipeline_names, start=1):
+
+            # Get the pipeline wrapper
+            pipeline_wrapper = self.pipeline_wrappers.get(pipeline_name, None)
+            if pipeline_wrapper is None:
+                raise ProjectWrapper.NoSuchPipelineError(pipeline_name)
+
             root_dir = pipeline_wrapper.root_dir
             repo_dir = pipeline_wrapper.repo_dir
             config_path = pipeline_wrapper.config_path
@@ -842,6 +850,7 @@ class ProjectWrapper(LogMixin):
         self,
         dataset_name: str,
         collection_names: List[str],
+        pipeline_names: List[str],
         extra_args: Optional[List[str]] = None,
         **kwargs: Dict[str, Any],
     ) -> Dict[str, Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]]:
@@ -905,6 +914,7 @@ class ProjectWrapper(LogMixin):
             with ProcessPoolExecutor() as executor:
                 futures = self._create_composition_tasks(
                     executor,
+                    pipeline_names,
                     collection_names,
                     collection_wrappers,
                     collection_configs,
