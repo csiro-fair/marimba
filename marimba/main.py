@@ -196,10 +196,8 @@ def package_command(
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
     get_rich_handler().set_dry_run(dry_run)
 
-    # If no collection names are specified, package all collections
+    # If no collection and pipeline names are specified, package all collections and pipelines
     collection_names = collection_name if collection_name else list(project_wrapper.collection_wrappers.keys())
-
-    # If no pipeline names are specified, package all pipelines
     pipeline_names = pipeline_name if pipeline_name else list(project_wrapper._pipeline_wrappers.keys())
 
     try:
@@ -255,8 +253,14 @@ def package_command(
 
 @marimba_cli.command("process")
 def process_command(
-    pipeline_name: Optional[str] = typer.Option(None, help="Marimba pipeline name for targeted processing."),
-    collection_name: Optional[str] = typer.Option(None, help="Marimba collection name for targeted processing."),
+    collection_name: Optional[List[str]] = typer.Option(
+        None,
+        help="Marimba collection name for targeted processing.",
+    ),
+    pipeline_name: Optional[List[str]] = typer.Option(
+        None,
+        help="Marimba pipeline name for targeted processing.",
+    ),
     project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
     extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(
@@ -271,9 +275,13 @@ def process_command(
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
     get_rich_handler().set_dry_run(dry_run)
 
+    # If no collection and pipeline names are specified, package all collections and pipelines
+    collection_names = collection_name if collection_name else list(project_wrapper.collection_wrappers.keys())
+    pipeline_names = pipeline_name if pipeline_name else list(project_wrapper._pipeline_wrappers.keys())
+
     # Run the processing
     try:
-        project_wrapper.run_process(pipeline_name, collection_name, extra)
+        project_wrapper.run_process(collection_names, pipeline_names, extra)
     except NetworkConnectionError as e:
         error_message = f"No internet connection: {e}"
         logger.error(error_message)
@@ -284,16 +292,6 @@ def process_command(
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()
-
-    if pipeline_name is None:
-        pipeline_names = list(project_wrapper.pipeline_wrappers.keys())
-    else:
-        pipeline_names = [pipeline_name]
-
-    if collection_name is None:
-        collection_names = list(project_wrapper.collection_wrappers.keys())
-    else:
-        collection_names = [collection_name]
 
     pretty_pipelines = ", ".join(f'"{str(p)}"' for p in pipeline_names)
     pretty_collections = ", ".join(f'"{str(c)}"' for c in collection_names)
