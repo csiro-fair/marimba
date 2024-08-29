@@ -1118,6 +1118,7 @@ class ProjectWrapper(LogMixin):
         self,
         collection_name: str,
         source_paths: List[Path],
+        pipeline_names: Optional[str] = None,
         extra_args: Optional[List[str]] = None,
         **kwargs: Dict[str, Any],
     ) -> None:
@@ -1129,6 +1130,7 @@ class ProjectWrapper(LogMixin):
         Args:
             collection_name: The name of the collection to import into.
             source_paths: The source paths to import from.
+            pipeline_names: Names of the pipelines to run
             extra_args: Any extra CLI arguments to pass to the command.
             kwargs: Any keyword arguments to pass to the command.
 
@@ -1147,8 +1149,11 @@ class ProjectWrapper(LogMixin):
             f'Importing data for collection "{collection_name}" from source path(s) '
             f"{pretty_paths} with kwargs {merged_kwargs}"
         )
-
-        num_pipelines = len(self.pipeline_wrappers)
+        if pipeline_names is None:
+           pipelines_to_execute = self.pipeline_wrappers
+        else:
+            pipelines_to_execute = {key: self.pipeline_wrappers[key] for key in pipeline_names if key in self.pipeline_wrappers}
+        num_pipelines = len(pipelines_to_execute)
         num_sources = len(source_paths)
         total_processes = num_pipelines * num_sources
 
@@ -1168,7 +1173,7 @@ class ProjectWrapper(LogMixin):
                 pipeline_name: progress.add_task(
                     f"[green]Importing data for pipeline {pipeline_name}", total=num_pipelines
                 )
-                for pipeline_name in self.pipeline_wrappers
+                for pipeline_name in pipelines_to_execute
             }
 
             with ProcessPoolExecutor() as executor:
@@ -1176,7 +1181,7 @@ class ProjectWrapper(LogMixin):
                 process_index = 1
 
                 for pipeline_index, (pipeline_name, pipeline_wrapper) in enumerate(
-                    self.pipeline_wrappers.items(), start=1
+                    pipelines_to_execute.items(), start=1
                 ):
                     root_dir = pipeline_wrapper.root_dir
                     repo_dir = pipeline_wrapper.repo_dir

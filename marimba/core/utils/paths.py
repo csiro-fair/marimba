@@ -111,3 +111,38 @@ def remove_directory_tree(directory: Union[str, Path], entity: str, dry_run: boo
         raise typer.Exit(code=1)
 
     logger.info("Successfully deleted directory.")
+
+
+def hardlink_data(src_directory:Path, dest_directory:Path,dry_run: bool):
+    """
+    Recursively link the provided directory and all of its contents.
+
+    Args:
+        src_directory  (Path): The directory to link to .
+        dest_directory (Path): A description of the operation being performed.
+        dry_run (bool): If True, only logs the deletion without actually performing it.
+
+    Raises:
+        typer.Exit: If the specified directory is not valid or an error occurs during deletion.
+    """
+
+
+    # Convert source and destination directories to Path objects
+    # Ensure destination directory exists
+    dest_directory.mkdir(parents=True, exist_ok=True)
+
+    # Iterate over all files in the source directory and its subdirectories
+    for src_path in src_directory.rglob('*'):
+        # Only process files (skip directories)
+        if src_path.is_file():
+            # Determine the corresponding destination path
+            relative_path = src_path.relative_to(src_directory)
+            dest_path = dest_directory / relative_path
+
+            # Ensure the destination directory exists
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Create a hard link from the source to the destination
+            if not dry_run:
+                dest_path.hardlink_to(src_path)
+            logger.info(f"Created hard link: {dest_path} -> {src_path}")
