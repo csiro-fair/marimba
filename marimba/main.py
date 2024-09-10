@@ -39,7 +39,7 @@ from typing import List, Optional
 import typer
 from rich import print  # noqa: A004
 
-from marimba.core.cli import new
+from marimba.core.cli import delete, new
 from marimba.core.distribution.bases import DistributionTargetBase
 from marimba.core.utils.constants import PROJECT_DIR_HELP, Operation
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
@@ -76,6 +76,7 @@ marimba_cli = typer.Typer(
 )
 
 marimba_cli.add_typer(new.app, name="new")
+marimba_cli.add_typer(delete.app, name="delete")
 
 logger = get_logger(__name__)
 
@@ -167,11 +168,13 @@ def import_command(
 @marimba_cli.command("package")
 def package_command(
     dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
-    # pipeline_name: str = typer.Argument(..., help="Marimba pipeline name to package."),
-    collection_names: Optional[List[str]] = typer.Argument(
+    collection_name: Optional[List[str]] = typer.Option(
         None,
-        help="Marimba collection names to package. If none are specified, "
-        "all collections will be packaged together.",
+        help="Marimba collection names to package. If none are specified, all collections will be packaged together.",
+    ),
+    pipeline_name: Optional[List[str]] = typer.Option(
+        None,
+        help="Marimba pipeline names to package. If none are specified, all collections will be packaged together.",
     ),
     project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
     operation: Operation = typer.Option(Operation.copy, help="Operation to perform: copy, move, or link"),
@@ -189,17 +192,17 @@ def package_command(
     Package up a Marimba collection ready for distribution.
     """
     start_time = time.time()
-
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
     get_rich_handler().set_dry_run(dry_run)
 
-    if not collection_names:  # If no collection names are specified, package all collections
-        collection_names = list(project_wrapper.collection_wrappers.keys())
+    # If no collection and pipeline names are specified, package all collections and pipelines
+    collection_names = collection_name if collection_name else list(project_wrapper.collection_wrappers.keys())
+    pipeline_names = pipeline_name if pipeline_name else list(project_wrapper._pipeline_wrappers.keys())
 
     try:
         # Compose the dataset
-        dataset_mapping = project_wrapper.compose(dataset_name, collection_names, extra)
+        dataset_mapping = project_wrapper.compose(dataset_name, collection_names, pipeline_names, extra)
 
         # Package it
         dataset_wrapper = project_wrapper.create_dataset(
@@ -250,8 +253,14 @@ def package_command(
 
 @marimba_cli.command("process")
 def process_command(
-    pipeline_name: Optional[str] = typer.Option(None, help="Marimba pipeline name for targeted processing."),
-    collection_name: Optional[str] = typer.Option(None, help="Marimba collection name for targeted processing."),
+    collection_name: Optional[List[str]] = typer.Option(
+        None,
+        help="Marimba collection name for targeted processing.",
+    ),
+    pipeline_name: Optional[List[str]] = typer.Option(
+        None,
+        help="Marimba pipeline name for targeted processing.",
+    ),
     project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
     extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(
@@ -262,14 +271,17 @@ def process_command(
     Process the Marimba collection based on the pipeline specification.
     """
     start_time = time.time()
-
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
     get_rich_handler().set_dry_run(dry_run)
 
+    # If no collection and pipeline names are specified, package all collections and pipelines
+    collection_names = collection_name if collection_name else list(project_wrapper.collection_wrappers.keys())
+    pipeline_names = pipeline_name if pipeline_name else list(project_wrapper._pipeline_wrappers.keys())
+
     # Run the processing
     try:
-        project_wrapper.run_process(pipeline_name, collection_name, extra)
+        project_wrapper.run_process(collection_names, pipeline_names, extra)
     except NetworkConnectionError as e:
         error_message = f"No internet connection: {e}"
         logger.error(error_message)
@@ -280,16 +292,6 @@ def process_command(
         logger.error(error_message)
         print(error_panel(error_message))
         raise typer.Exit()
-
-    if pipeline_name is None:
-        pipeline_names = list(project_wrapper.pipeline_wrappers.keys())
-    else:
-        pipeline_names = [pipeline_name]
-
-    if collection_name is None:
-        collection_names = list(project_wrapper.collection_wrappers.keys())
-    else:
-        collection_names = [collection_name]
 
     pretty_pipelines = ", ".join(f'"{str(p)}"' for p in pipeline_names)
     pretty_collections = ", ".join(f'"{str(c)}"' for c in collection_names)
@@ -318,7 +320,6 @@ def distribute_command(
     Distribute a Marimba dataset.
     """
     start_time = time.time()
-
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
     get_rich_handler().set_dry_run(dry_run)

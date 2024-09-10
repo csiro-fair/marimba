@@ -596,7 +596,8 @@ def test_collection_creates_new_collection(setup_test_directory: Path) -> None:
         patch("marimba.core.wrappers.project.ProjectWrapper.prompt_collection_config", return_value=MagicMock()),
     ):
         result = runner.invoke(
-            marimba_cli, ["new", "collection", collection_name, parent_collection_name, "--project-dir", str(project_dir)]
+            marimba_cli,
+            ["new", "collection", collection_name, parent_collection_name, "--project-dir", str(project_dir)],
         )
         assert result.exit_code == 0
         mock_create_collection.assert_called_once_with(collection_name, ANY)
@@ -651,7 +652,8 @@ def test_collection_no_such_parent_collection_error(setup_test_directory: Path) 
         patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
     ):
         result = runner.invoke(
-            marimba_cli, ["new", "collection", collection_name, parent_collection_name, "--project-dir", str(project_dir)]
+            marimba_cli,
+            ["new", "collection", collection_name, parent_collection_name, "--project-dir", str(project_dir)],
         )
         assert result.exit_code != 0
         assert "No such parent collection:" in result.output
