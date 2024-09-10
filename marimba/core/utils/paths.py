@@ -111,3 +111,49 @@ def remove_directory_tree(directory: Union[str, Path], entity: str, dry_run: boo
         raise typer.Exit(code=1)
 
     logger.info("Successfully deleted directory.")
+
+
+def hardlink_path(src_path: Path, dest_path: Path, dry_run: bool) -> None:
+    """
+    Recursively creates hard links for all files from the source path to the destination path.
+
+    This function scans the source directory and its subdirectories, replicating the directory structure in the
+    destination directory and creating hard links for each file found. If `dry_run` is enabled, the function logs the
+    operations without making any changes to the filesystem.
+
+    Args:
+        src_path (Path): The source directory or file path from which to create hard links.
+        dest_path (Path): The destination directory where the hard links will be created.
+        dry_run (bool): If True, only logs the intended hard link operations without executing them.
+
+    Raises:
+        typer.Exit: If the source path is invalid, or an error occurs during the linking process.
+    """
+    # Ensure the source path is valid and is a directory
+    if not src_path.exists() or not src_path.is_dir():
+        logger.error(f"Source path '{src_path}' is not a valid directory.")
+        raise typer.Exit(1)
+
+    # Ensure the destination directory exists
+    dest_path.mkdir(parents=True, exist_ok=True)
+
+    # Traverse all files in the source directory and subdirectories
+    for src_file in src_path.rglob("*"):
+        # Only process files (ignore directories)
+        if src_file.is_file():
+            # Compute the relative path to preserve directory structure
+            relative_path = src_file.relative_to(src_path)
+            destination = dest_path / relative_path
+
+            # Ensure the parent directory for the destination file exists
+            destination.parent.mkdir(parents=True, exist_ok=True)
+
+            # Create a hard link from the destination to the source
+            if dry_run:
+                logger.info(f"Created hard link: {destination} -> {src_file}")
+            else:
+                try:
+                    destination.hardlink_to(src_file)
+                    logger.info(f"Created hard link: {destination} -> {src_file}")
+                except OSError as e:
+                    logger.error(f"Failed to create hard link: {destination} -> {src_file}: {e}")
