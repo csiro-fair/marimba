@@ -178,6 +178,8 @@ The development of this project has benefited from the contributions of many peo
 * David Webb - CSIRO NCMI
 * Aaron Tyndall - CSIRO NCMI
 * Franzis Althaus - CSIRO Environment
+* Candice Untiedt - CSIRO Environment
+* Carlie Devine - CSIRO Environment
 * Bec Gorton - CSIRO Environment
 * Ben Scoulding - CSIRO Environment
 
