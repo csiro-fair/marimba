@@ -99,7 +99,10 @@ def import_command(
     parent_collection_name: Optional[str] = typer.Option(
         None, help="Name of the parent collection. If unspecified, use the last collection."
     ),
-    pipeline_names: Optional[List[str]] = typer.Option([], help="Marimba pipeline name for targeted processing."),
+    pipeline_name: Optional[List[str]] = typer.Option(
+        None,
+        help="Marimba pipeline name for targeted processing. If none are specified, all pipelines will be processed.",
+    ),
     operation: Operation = typer.Option(Operation.copy, help="Operation to perform: copy, move, or link"),
     project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
     overwrite: bool = typer.Option(False, help="Overwrite an existing collection with the same name."),
@@ -115,7 +118,7 @@ def import_command(
     Import data in a source directory into a new or existing Marimba collection.
     """
     start_time = time.time()
-    print(pipeline_names)
+
     try:
         config_dict = json.loads(config) if config else {}
     except json.JSONDecodeError as e:
@@ -148,9 +151,14 @@ def import_command(
         print(error_panel(error_message))
         raise typer.Exit()
 
+    # If no pipeline names are specified, process all pipelines
+    pipeline_names = pipeline_name if pipeline_name else list(project_wrapper._pipeline_wrappers.keys())
+
     # Run the import
     try:
-        project_wrapper.run_import(collection_name, source_paths, pipeline_names,extra_args=extra,operation=operation)
+        project_wrapper.run_import(
+            collection_name, source_paths, pipeline_names, extra_args=extra, operation=operation.__dict__
+        )
     except Exception as e:
         error_message = f"Error during import: {e}"
         logger.error(error_message)
@@ -176,7 +184,7 @@ def package_command(
     ),
     pipeline_name: Optional[List[str]] = typer.Option(
         None,
-        help="Marimba pipeline names to package. If none are specified, all collections will be packaged together.",
+        help="Marimba pipeline name to package. If none are specified, all pipelines will be packaged together.",
     ),
     project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
     operation: Operation = typer.Option(Operation.copy, help="Operation to perform: copy, move, or link"),

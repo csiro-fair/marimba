@@ -1126,7 +1126,7 @@ class ProjectWrapper(LogMixin):
         self,
         collection_name: str,
         source_paths: List[Path],
-        pipeline_names: Optional[str] = None,
+        pipeline_names: List[str],
         extra_args: Optional[List[str]] = None,
         **kwargs: Dict[str, Any],
     ) -> None:
@@ -1157,11 +1157,10 @@ class ProjectWrapper(LogMixin):
             f'Importing data for collection "{collection_name}" from source path(s) '
             f"{pretty_paths} with kwargs {merged_kwargs}"
         )
-        if pipeline_names is None:
-           pipelines_to_execute = self.pipeline_wrappers
-        else:
-            pipelines_to_execute = {key: self.pipeline_wrappers[key] for key in pipeline_names if key in self.pipeline_wrappers}
-        num_pipelines = len(pipelines_to_execute)
+
+        pipeline_wrappers_to_run, _ = self._get_wrappers_to_run(pipeline_names, [])
+
+        num_pipelines = len(pipeline_wrappers_to_run)
         num_sources = len(source_paths)
         total_processes = num_pipelines * num_sources
 
@@ -1181,7 +1180,7 @@ class ProjectWrapper(LogMixin):
                 pipeline_name: progress.add_task(
                     f"[green]Importing data for pipeline {pipeline_name}", total=num_pipelines
                 )
-                for pipeline_name in pipelines_to_execute
+                for pipeline_name in pipeline_wrappers_to_run
             }
 
             with ProcessPoolExecutor() as executor:
@@ -1189,7 +1188,7 @@ class ProjectWrapper(LogMixin):
                 process_index = 1
 
                 for pipeline_index, (pipeline_name, pipeline_wrapper) in enumerate(
-                    pipelines_to_execute.items(), start=1
+                    pipeline_wrappers_to_run.items(), start=1
                 ):
                     root_dir = pipeline_wrapper.root_dir
                     repo_dir = pipeline_wrapper.repo_dir
