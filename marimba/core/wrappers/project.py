@@ -614,30 +614,26 @@ class ProjectWrapper(LogMixin):
         return collection_dir
 
     def _get_wrappers_to_run(
-        self, pipeline_name: Optional[str], collection_name: Optional[str]
+        self, pipeline_names: List[str], collection_names: List[str]
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        if pipeline_name is not None:
-            pipeline_wrapper = self._pipeline_wrappers.get(pipeline_name, None)
+        pipeline_wrappers_to_run = {}
+        collection_wrappers_to_run = {}
+
+        # Process pipeline names
+        for pipeline_name in pipeline_names:
+            pipeline_wrapper = self._pipeline_wrappers.get(pipeline_name)
             if pipeline_wrapper is None:
                 raise ProjectWrapper.RunCommandError(f'Pipeline "{pipeline_name}" does not exist within the project.')
+            pipeline_wrappers_to_run[pipeline_name] = pipeline_wrapper
 
-        if collection_name is not None:
-            collection_wrapper = self._collection_wrappers.get(collection_name, None)
+        # Process collection names
+        for collection_name in collection_names:
+            collection_wrapper = self._collection_wrappers.get(collection_name)
             if collection_wrapper is None:
                 raise ProjectWrapper.RunCommandError(
                     f'Collection "{collection_name}" does not exist within the project.'
                 )
-
-        pipeline_wrappers_to_run = (
-            {pipeline_name: self._pipeline_wrappers[pipeline_name]}
-            if pipeline_name is not None
-            else self._pipeline_wrappers
-        )
-        collection_wrappers_to_run = (
-            {collection_name: self._collection_wrappers[collection_name]}
-            if collection_name is not None
-            else self._collection_wrappers
-        )
+            collection_wrappers_to_run[collection_name] = collection_wrapper
 
         return pipeline_wrappers_to_run, collection_wrappers_to_run
 
@@ -710,8 +706,8 @@ class ProjectWrapper(LogMixin):
 
     def run_process(
         self,
-        pipeline_name: Optional[str] = None,
-        collection_name: Optional[str] = None,
+        collection_names: List[str],
+        pipeline_names: List[str],
         extra_args: Optional[List[str]] = None,
         **kwargs: Dict[str, Any],
     ) -> None:
@@ -719,8 +715,8 @@ class ProjectWrapper(LogMixin):
         Run a command within the project.
 
         Args:
-            pipeline_name: The name of the pipeline to run the command for.
-            collection_name: The name of the collection to run the command for.
+            collection_names: The names of the collections to run the command for.
+            pipeline_names: The names of the pipelines to run the command for.
             extra_args: Any extra arguments to pass to the command.
             kwargs: Any keyword arguments to pass to the command.
 
@@ -733,7 +729,9 @@ class ProjectWrapper(LogMixin):
         """
         merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
 
-        pipeline_wrappers_to_run, collection_wrappers_to_run = self._get_wrappers_to_run(pipeline_name, collection_name)
+        pipeline_wrappers_to_run, collection_wrappers_to_run = self._get_wrappers_to_run(
+            pipeline_names, collection_names
+        )
 
         pretty_pipelines = ", ".join(f'"{str(p)}"' for p, _ in pipeline_wrappers_to_run.items())
         pretty_collections = ", ".join(f'"{str(c)}"' for c, _ in collection_wrappers_to_run.items())
@@ -782,6 +780,7 @@ class ProjectWrapper(LogMixin):
     def _create_composition_tasks(
         self,
         executor: ProcessPoolExecutor,
+        pipeline_names: List[str],
         collection_names: List[str],
         collection_wrappers: List[Any],
         collection_configs: List[Dict[str, Any]],
@@ -790,13 +789,20 @@ class ProjectWrapper(LogMixin):
 
         futures = {}
         process_index = 1
-        total_processes = len(self.pipeline_wrappers) * len(collection_wrappers)
+        total_processes = len(pipeline_names) * len(collection_names)
 
         process_padding_length = math.ceil(math.log10(total_processes + 1))
-        pipeline_padding_length = math.ceil(math.log10(len(self.pipeline_wrappers) + 1))
-        collection_padding_length = math.ceil(math.log10(len(collection_wrappers) + 1))
+        pipeline_padding_length = math.ceil(math.log10(len(pipeline_names) + 1))
+        collection_padding_length = math.ceil(math.log10(len(collection_names) + 1))
 
-        for pipeline_index, (pipeline_name, pipeline_wrapper) in enumerate(self.pipeline_wrappers.items(), start=1):
+        # for pipeline_index, (pipeline_name, pipeline_wrapper) in enumerate(self.pipeline_wrappers.items(), start=1):
+        for pipeline_index, pipeline_name in enumerate(pipeline_names, start=1):
+
+            # Get the pipeline wrapper
+            pipeline_wrapper = self.pipeline_wrappers.get(pipeline_name, None)
+            if pipeline_wrapper is None:
+                raise ProjectWrapper.NoSuchPipelineError(pipeline_name)
+
             root_dir = pipeline_wrapper.root_dir
             repo_dir = pipeline_wrapper.repo_dir
             config_path = pipeline_wrapper.config_path
@@ -842,6 +848,7 @@ class ProjectWrapper(LogMixin):
         self,
         dataset_name: str,
         collection_names: List[str],
+        pipeline_names: List[str],
         extra_args: Optional[List[str]] = None,
         **kwargs: Dict[str, Any],
     ) -> Dict[str, Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]]:
@@ -905,6 +912,7 @@ class ProjectWrapper(LogMixin):
             with ProcessPoolExecutor() as executor:
                 futures = self._create_composition_tasks(
                     executor,
+                    pipeline_names,
                     collection_names,
                     collection_wrappers,
                     collection_configs,
