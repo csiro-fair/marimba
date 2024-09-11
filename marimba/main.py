@@ -30,6 +30,7 @@ Functions:
     - install_command: Installs Python dependencies from requirements.txt files defined by a project's pipelines.
 """
 
+import importlib.metadata
 import json
 import logging
 import time
@@ -56,11 +57,13 @@ __credits__ = [
     "David Webb <david.webb@csiro.au>",
     "Aaron Tyndall <aaron.tyndall@csiro.au>",
     "Franzis Althaus <franzis.althaus@csiro.au>",
+    "Candice Untiedt <candice.untiedt@csiro.au>",
+    "Carlie Devine <carlie.devine@csiro.au>",
     "Bec Gorton <bec.gorton@csiro.au>",
     "Ben Scoulding <ben.scoulding@csiro.au>",
 ]
 __license__ = "CC BY-SA 4.0"
-__version__ = "0.4.0"
+__version__ = importlib.metadata.version("marimba")
 __maintainer__ = "Chris Jackett"
 __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
