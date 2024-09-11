@@ -258,7 +258,6 @@ The development of this project has greatly benefited from the contributions of 
 * Candice Untiedt - CSIRO Environment
 * Carlie Devine - CSIRO Environment
 * Bec Gorton - CSIRO Environment
-* Carlie Devine - CSIRO Environment
 * Ben Scoulding - CSIRO Environment
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
