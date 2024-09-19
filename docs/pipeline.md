@@ -16,29 +16,39 @@ your own Marimba Pipeline, from setting up the structure of your Pipeline and im
 1. [Introduction to Pipelines](#introduction-to-pipelines)
 2. [Understanding Marimba Pipelines](#understanding-marimba-pipelines)
    - [What Is a Marimba Pipeline?](#what-is-a-marimba-pipeline)
-   - [Pipeline Capabilities](#pipeline-capabilities)
-3. [Pipeline Structure and Components](#pipeline-structure-and-components)
-   - [The `BasePipeline` Class](#the-basepipeline-class)
-   - [Key Methods to Implement](#key-methods-to-implement)
-   - [Pipeline Configuration Files](#pipeline-configuration-files)
-   - [Directory Structure of a Pipeline](#directory-structure-of-a-pipeline)
-4. [Setting Up a New Pipeline](#setting-up-a-new-pipeline)
-   - [Creating the Pipeline Directory](#creating-the-pipeline-directory)
+   - [Pipeline Components](#pipeline-components)
+3. [Setting Up a New Pipeline](#setting-up-a-new-pipeline)
    - [Initializing the Pipeline](#initializing-the-pipeline)
    - [Managing Dependencies](#managing-dependencies)
-5. [Implementing Your Pipeline](#implementing-your-pipeline)
+4. [Implementing Your Pipeline](#implementing-your-pipeline)
+   - [Implementing the `get_pipeline_config_schema` Method](#implementing-the-get_pipeline_config_schema-method)
+        - [Example `get_pipeline_config_schema` Implementation](#example-get_pipeline_config_schema-implementation)
+   - [Implementing the `get_collection_config_schema` Method](#implementing-the-get_collection_config_schema-method)
+        - [Example `get_collection_config_schema` Implementation](#example-get_collection_config_schema-implementation)
    - [Implementing the `_import` Method](#implementing-the-_import-method)
+        - [Example `_import` Implementation](#example-_import-implementation)
+        - [Dry Run Mode](#dry-run-mode)
+        - [Marimba Logging](#marimba-logging)
+        - [Utilizing the `operation` Option](#utilizing-the-operation-option)
+        - [Executing the `_import` Method](#executing-the-_import-method)
+        - [Metadata Handling in Marimba Pipelines](#metadata-handling-in-marimba-pipelines)
+           - [Pipeline-Level Metadata](#pipeline-level-metadata)
+           - [Collection-Level Metadata](#collection-level-metadata)
+           - [Metadata Handling Summary](#metadata-handling-summary)
+       - [Defining and Using Custom `kwargs`](#defining-and-using-custom-kwargs)
+            - [How to Pass Custom `kwargs` Through the CLI](#how-to-pass-custom-kwargs-through-the-cli)
+            - [Accessing `kwargs` in a Marimba Pipeline](#accessing-kwargs-in-a-marimba-pipeline)
    - [Implementing the `_process` Method](#implementing-the-_process-method)
+        - [Example `_process` Implementation](#example-_process-implementation)
+        - [Executing the `_process` Method](#executing-the-_process-method)
+        - [Multithreaded Thumbnail Generation](#multithreaded-thumbnail-generation)
    - [Implementing the `_package` Method](#implementing-the-_package-method)
-   - [Handling Metadata with iFDO](#handling-metadata-with-ifdo)
-6. [Example: Bare-Bones Pipeline Implementation](#example-bare-bones-pipeline-implementation)
-   - [Code Example](#code-example)
-   - [Explanation of the Code](#explanation-of-the-code)
-7. [Advanced Topics](#advanced-topics)
-   - [Multi-Level iFDO and Summaries](#multi-level-ifdo-and-summaries)
-   - [Integration with External Systems](#integration-with-external-systems)
-8. [Testing and Debugging Your Pipeline](#testing-and-debugging-your-pipeline)
-9. [Conclusion and Next Steps](#conclusion-and-next-steps)
+        - [Example `_package` Implementation](#example-_package-implementation)
+        - [Executing the `_package` Method](#executing-the-_package-method)
+5. [Advanced Topics](#advanced-topics)
+   - [Multi-Level iFDO Files](#multi-level-ifdo-files)
+   - [Multi-Level Summary Files](#multi-level-summary-files)
+6. [Conclusion and Next Steps](#conclusion-and-next-steps)
 
 ---
 
@@ -334,11 +344,14 @@ on capturing metadata at the Pipeline and Collection levels, while the other thr
 processing and reporting procedures for your instrument or system.
 
 
-### Implementing the `get_pipeline_config_schema()` Method
+### Implementing the `get_pipeline_config_schema` Method
 
-The `get_pipeline_config_schema()` method is designed to define the schema for capturing Pipeline-level metadata. 
+The `get_pipeline_config_schema` method is designed to define the schema for capturing Pipeline-level metadata. 
 This metadata typically includes details that are constant across various collections within the same Marimba Project, 
 such as project principal investigator or platform ID. Here’s an example of a simple implementation of this method:
+
+
+#### Example `get_pipeline_config_schema` Implementation
 
 ```python
 @staticmethod
@@ -374,11 +387,14 @@ and consistently, customized specifically to the needs of the Pipeline and its d
 
 ---
 
-### Implementing the `get_collection_config_schema()` Method
+### Implementing the `get_collection_config_schema` Method
 
-The `get_collection_config_schema()` method is designed to define the schema for capturing Collection-level metadata,
+The `get_collection_config_schema` method is designed to define the schema for capturing Collection-level metadata,
 which is specific to individual Collections within a Marimba Project. Here’s a basic example of how this method can 
 be structured:
+
+
+#### Example `get_collection_config_schema()` Implementation
 
 ```python
 @staticmethod
@@ -404,8 +420,8 @@ def get_collection_config_schema() -> dict:
 
 Similar to the Pipeline-level config schema, users will be prompted to input values for each element defined in this 
 schema when setting up a new Marimba Collection. This allows for the capture of Collection-level metadata and results 
-in the creation of a new collection metadata file located at `collections/my-collection/collection.yml`, which will 
-store all the entered Collection metadata.
+in the creation of a new collection metadata file located at `collections/my-collection-name/collection.yml`, which 
+will store all the entered Collection metadata.
 
 ---
 
@@ -416,7 +432,7 @@ imports involves recursively searching through all files in the `source_path` an
 the Collection based on specified criteria.
 
 
-#### Example Implementation
+#### Example `_import` Implementation
 
 Here is a simple example of the `_import` method implementing this pattern:
 
@@ -520,11 +536,11 @@ Now that you have successfully implemented the `_import` method, you can import 
 using the following command:
 
 ```bash
-marimba import my-collection /path/to/source/directory --operation link
+marimba import collection-one /path/to/source/directory --operation link
 ```
 
 With this command, Marimba will execute your `_import` method on the specified source path and create a new Marimba 
-Collection at `collections/my-collection`. The method will create hard-links for any files with ".csv", ".jpg", or 
+Collection at `collections/collection-one`. The method will create hard-links for any files with ".csv", ".jpg", or 
 ".mp4" extensions found in the source directory.
 
 Congratulations - you have now successfully imported data into a Marimba Collection using an efficient linking 
@@ -576,7 +592,7 @@ This approach ensures that each collection can be processed with its unique cont
 relevance of data processing activities.
 
 
-##### Metadata Handling Summary 
+##### Metadata Handling Summary
 
 By distinguishing between Pipeline-level and Collection-level metadata, Marimba facilitates diverse data management 
 strategies within a unified framework. Accessing these metadata elements within your Pipeline methods ensures that you 
@@ -605,7 +621,7 @@ custom inputs.
 **Example CLI Usage:**
 
 ```bash
-marimba import my-collection /path/to/source --extra file_types=.txt,.pdf
+marimba import collection-one /path/to/source --extra file_types=.txt,.pdf
 ```
 
 In this example, the `file_types` are custom arguments passed during the import process and specifies additional file 
@@ -652,3 +668,181 @@ example shows how custom `kwargs` can be used to enhance the flexibility of Pipe
 dynamic, and context-aware data processing within Marimba.
 
 ---
+
+### Implementing the `_process` Method
+
+The `_process` method is designed to handle any data conversion, manipulation, and processing steps following the 
+initial import. A typical process in this method might involve setting up a hierarchical directory structure, sorting 
+files into specified subdirectories, applying validation or calibration techniques, and executing file-specific tasks 
+such as image format conversion, video transcoding, thumbnail creation, and sensor data integration. It could also 
+involve compiling data visualizations or generating derived data products. Following the completion of the `_process` 
+method, the data should be prepared and ready for the final packaging stage.
+
+
+#### Example `_process` Implementation
+
+```python
+from pathlib import Path
+from typing import Any, Dict
+
+from marimba.lib import image
+
+def process(data_dir: Path, config: Dict[str, Any], **kwargs: dict):
+    
+    self.logger.info(f"Processing data in {data_dir}")
+
+    # Create directories for different file types
+    csv_dir = data_dir / "data"
+    jpg_dir = data_dir / "images"
+    thumbs_dir = data_dir / "thumbnails"
+    mp4_dir = data_dir / "videos"
+    
+    csv_dir.mkdir(exist_ok=True)
+    jpg_dir.mkdir(exist_ok=True)
+    thumbs_dir.mkdir(exist_ok=True)
+    mp4_dir.mkdir(exist_ok=True)
+
+    # Move files into their respective directories
+    for file_path in data_dir.rglob("*"):
+        if file_path.is_file():
+            if file_path.suffix.lower() == ".csv":
+                file_path.rename(csv_dir / file_path.name)
+            elif file_path.suffix.lower() == ".jpg":
+                file_path.rename(jpg_dir / file_path.name)
+            elif file_path.suffix.lower() == ".mp4":
+                file_path.rename(mp4_dir / file_path.name)
+
+    # Generate thumbnails for each jpg
+    thumbnails = []
+    for jpg_file in jpg_dir.glob("*.jpg"):
+        thumbnail_path = thumbs_dir / f"{jpg_file.stem}_thumbnail{jpg_file.suffix}"
+        image.resize_fit(jpg_file, 300, 300, thumbnail_path)
+        thumbnails.append(thumbnail_path)
+
+    # Create an overview image from the thumbnails
+    overview_path = data_dir / "overview.jpg"
+    image.create_grid_image(thumbnails, overview_path)
+```
+
+This example organizes and processes various file types previously imported into a Marimba Collection. It begins by 
+creating subdirectories for CSV files (`data`), JPG images (`images`), MP4 videos (`videos`), and thumbnails 
+(`thumbnails`). It then recursively scans the `data_dir`, moving CSV, JPG, and MP4 files into their respective 
+subdirectories. For each JPG file, the method generates a thumbnail, saving it in the `thumbnails` directory. Finally, 
+it compiles all the generated thumbnails into a single overview image stored in the root directory of the COllection 
+using the `create_grid_image` from the Marimba standard library.
+
+
+#### Executing the `_process` Method
+
+To be written...
+
+
+#### Multithreaded Thumbnail Generation
+
+Marimba offers a multithreaded approach for generating thumbnails, which efficiently utilizes the available compute 
+resources. This method leverages parallel processing to accelerate the creation of thumbnails, enhancing performance 
+especially on systems with multiple cores or threads.
+
+**Example of Multithreaded Thumbnail Generation:**
+
+```python
+from pathlib import Path
+from typing import Any, Dict
+
+from marimba.lib import image
+from marimba.lib.parallel import multithreaded_generate_thumbnails
+
+def process(data_dir: Path, config: Dict[str, Any], **kwargs: dict):
+    
+    self.logger.info(f"Processing data in {data_dir}")
+
+    # Create directories for different file types
+    jpg_dir = data_dir / "images"
+    thumbs_dir = data_dir / "thumbnails"
+    
+    jpg_dir.mkdir(exist_ok=True)
+    thumbs_dir.mkdir(exist_ok=True)
+
+    # Move files into their respective directories
+    image_list = []
+    for file_path in data_dir.rglob("*"):
+        if file_path.is_file():
+            if file_path.suffix.lower() == ".jpg":
+                file_path.rename(jpg_dir / file_path.name)
+                image_list.append(jpg_dir / file_path.name)
+
+    # Generate thumbnails using multithreading
+    thumbnails = multithreaded_generate_thumbnails(
+        self,
+        image_list=image_list,
+        output_directory=data_dir / "thumbnails",
+    )
+
+    # Create an overview image from the thumbnails
+    thumbnail_overview_path = data_dir / "OVERVIEW.JPG"
+    image.create_grid_image(thumbnails, thumbnail_overview_path)
+```
+
+This example demonstrates how to use Marimba's multithreaded capabilities to streamline thumbnail generation within a 
+data processing workflow. By organizing images into designated directories and applying concurrent processing for thumbnail creation, the script maximizes efficiency and minimizes processing time. This approach not only leverages the computational power of multi-core systems but also optimizes the workflow, ensuring that large image datasets are handled swiftly and effectively. With the thumbnails generated, a comprehensive overview image is then compiled, providing a visual summary of the processed data. This multithreaded method exemplifies a powerful tool for managing and visualizing large datasets within the Marimba framework.
+
+
+### Implementing the `_package` Method
+
+The `_package` method prepares the processed data for packaging and returns a mapping of files and metadata.
+
+
+#### Example `_package` Implementation
+
+```python
+def _package(self, data_dir, config, **kwargs):
+    from ifdo.models import ImageData
+
+    processed_data_dir = data_dir / 'processed_data'
+    data_mapping = {}
+
+    for image_file in processed_data_dir.glob('*.jpg'):
+        metadata = ImageData(
+            filename=image_file.name,
+            # Add more metadata fields as needed
+        )
+        data_mapping[image_file.name] = (image_file, [metadata], None)
+
+    return data_mapping
+```
+
+
+#### Executing the `_package` Method
+
+To be written...
+
+---
+
+## Advanced Topics
+
+### Multi-Level iFDO Files
+
+To be written...
+
+
+### Multi-Level Summary Files
+
+To be written...
+
+---
+
+## Conclusion and Next Steps
+
+By following this guide, you've learned how to:
+
+- Understand the role and capabilities of Marimba Pipelines.
+- Set up the necessary directory structure and files.
+- Implement the essential methods required by the `BasePipeline` class.
+- Handle metadata using the iFDO standard.
+- Expand your Pipeline with advanced features and integrations.
+
+With this foundation, you're now equipped to develop custom Pipelines that meet your specific data processing needs. 
+Explore the Marimba documentation for more advanced features, and consider contributing to the project or sharing your 
+Pipelines with the community.
+
+Happy Marimba data processing!
