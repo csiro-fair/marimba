@@ -123,6 +123,12 @@ class BasePipeline(ABC, LogMixin):
             f"Running {format_command('import')} command for pipeline {format_entity(self.class_name)} with args: "
             f"{data_dir=}, {source_path=}, {config=}, {kwargs=}"
         )
+
+        # Check for the existence of the source_path directory
+        if not source_path.is_dir():
+            self.logger.error(f"Source path {source_path} is not a directory")
+            return
+
         return self._import(data_dir, source_path, config, **kwargs)
 
     def run_process(self, data_dir: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]) -> None:
