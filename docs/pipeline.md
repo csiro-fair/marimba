@@ -46,10 +46,12 @@ your own Marimba Pipeline, from setting up the structure of your Pipeline and im
    - [Implementing the `_package` Method](#implementing-the-_package-method)
         - [Example `_package` Implementation](#example-_package-implementation)
         - [Executing the `_package` Method](#executing-the-_package-method)
-5. [Advanced Topics](#advanced-topics)
-   - [Multi-Level iFDO Files](#multi-level-ifdo-files)
-   - [Multi-Level Summary Files](#multi-level-summary-files)
-6. [Conclusion and Next Steps](#conclusion-and-next-steps)
+          - [Targeted Packaging with Specific Pipelines and Collections](#targeted-packaging-with-specific-pipelines-and-collections)
+        - [Marimba Packaging Steps](#marimba-packaging-steps)
+        - [Multi-Level iFDO Files](#multi-level-ifdo-files)
+        - [Multi-Level Summary Files](#multi-level-summary-files)
+5. [Pipeline Implementation Summary](#pipeline-implementation-summary)
+   - [Next Steps](#next-steps)
 
 ---
 
@@ -386,7 +388,6 @@ results in the creation of a new pipeline metadata file located at `pipelines/my
 store all the entered Pipeline metadata. This procedure ensures that all necessary metadata is collected efficiently 
 and consistently, customized specifically to the needs of the Pipeline and its data management objectives.
 
----
 
 ### Implementing the `get_collection_config_schema` Method
 
@@ -424,7 +425,6 @@ schema when setting up a new Marimba Collection. This allows for the capture of 
 in the creation of a new collection metadata file located at `collections/my-collection-name/collection.yml`, which 
 will store all the entered Collection metadata.
 
----
 
 ### Implementing the `_import` Method
 
@@ -434,8 +434,6 @@ the Collection based on specified criteria.
 
 
 #### Example `_import` Implementation
-
-Here is a simple example of the `_import` method implementing this pattern:
 
 ```python
 from pathlib import Path
@@ -668,7 +666,6 @@ types. The method then checks each file to determine if its suffix matches with 
 example shows how custom `kwargs` can be used to enhance the flexibility of Pipeline operations, providing customizable, 
 dynamic, and context-aware data processing within Marimba.
 
----
 
 ### Implementing the `_process` Method
 
@@ -676,7 +673,7 @@ The `_process` method is designed to handle any data conversion, manipulation, a
 initial import. A typical process in this method might involve setting up a hierarchical directory structure, sorting 
 files into specified subdirectories, applying validation or calibration techniques, and executing file-specific tasks 
 such as image format conversion, video transcoding, thumbnail creation, and sensor data integration. It could also 
-involve compiling data visualizations or generating derived data products. Following the completion of the `_process` 
+involve compiling data visualizations or generating derived data products. Following the execution of the `_process` 
 method, the data should be prepared and ready for the final packaging stage.
 
 
@@ -726,8 +723,8 @@ def process(data_dir: Path, config: Dict[str, Any], **kwargs: dict):
 ```
 
 This example organizes and processes various file types previously imported into a Marimba Collection. It begins by 
-creating subdirectories for CSV files (`data`), JPG images (`images`), MP4 videos (`videos`), and thumbnails 
-(`thumbnails`). It then recursively scans the Collection, moving CSV, JPG, and MP4 files into their respective 
+creating subdirectories for CSV files (`data`), JPG images (`images`), and thumbnails (`thumbnails`), MP4 videos 
+(`videos`). It then recursively scans the Collection, moving CSV, JPG, and MP4 files into their respective 
 subdirectories. For each JPG file, the method generates a low-resolution thumbnail, saving it in the `thumbnails` 
 directory. Finally, it compiles all the generated thumbnails into a single tiled overview image stored in the root 
 directory of the Collection using the `create_grid_image` from the Marimba standard library.
@@ -743,10 +740,10 @@ marimba process
 ```
 
 Marimba will automatically identify each Pipeline and Collection within the Project and initiate the `_process` method
-for each one. Due to Marimba's parallelized core architecture, Marimba will process each Pipeline and Collection 
-combination independently and concurrently. This approach maximizes the utilization of computing resources and 
-significantly accelerates data processing. The image below illustrates how Marimba implements parallel processing, 
-showing the interactions between Pipelines and Collections:
+for each one. Leveraging its parallelized core architecture, Marimba processes each Pipeline and Collection combination
+independently and concurrently. This approach maximizes the utilization of computing resources and significantly 
+accelerates data processing. The image below illustrates how Marimba implements parallel processing, showing the 
+interactions between Pipelines and Collections:
 
 ![Marimba Workflow](img/marimba-workflow.png)
 
@@ -755,9 +752,9 @@ showing the interactions between Pipelines and Collections:
 
 For more targeted processing, Marimba allows you to specify particular Pipelines or Collections. This feature is 
 particularly useful when you need to process only a subset of data or test changes in a specific pipeline without 
-affecting the entire dataset. Using the `--collection-name` and `--pipeline-name` CLI options, you can direct 
-Marimba to process only the specified subsets of Pipelines or Collections. For instance, if you wanted to process data 
-only from a specific Collection using a particular Pipeline, you could use the command:
+affecting the entire dataset. Using the `--collection-name` and `--pipeline-name` CLI options, you can configure 
+Marimba to process only the specified subsets of Pipelines and/or Collections. For instance, if you wanted to process 
+data only from a specific Collection using a particular Pipeline, you could use the command:
 
 ```bash
 marimba process --collection-name collection-one --pipeline-name my-pipeline
@@ -771,17 +768,15 @@ Marimba also supports targeting multiple Pipelines or Collections by allowing th
 marimba process --collection-name collection-one --collection-name collection-two --pipeline-name my-pipeline --pipeline-name my-other-pipeline
 ```
 
-This ability to target specific pipelines and collections allows that Marimba can handle diverse processing requirements 
+This ability to target specific pipelines and collections allows Marimba to handle diverse processing requirements 
 efficiently, whether for isolated testing or comprehensive data processing across various Pipelines or Collections.
 
 
 #### Multithreaded Thumbnail Generation
 
 Marimba offers a multithreaded approach for generating thumbnails, which efficiently utilizes the available compute 
-resources. This method leverages parallel processing to accelerate the creation of thumbnails, enhancing performance 
-especially on systems with multiple cores.
-
-**Example of Multithreaded Thumbnail Generation:**
+resources. This method leverages multi-threading to accelerate the creation of thumbnails, enhancing performance 
+especially on systems with multiple cores:
 
 ```python
 from pathlib import Path
@@ -809,7 +804,7 @@ def process(data_dir: Path, config: Dict[str, Any], **kwargs: dict):
                 file_path.rename(jpg_dir / file_path.name)
                 image_list.append(jpg_dir / file_path.name)
 
-    # Generate thumbnails using multithreading
+    # Generate thumbnails using multi-threading
     thumbnails = multithreaded_generate_thumbnails(
         self,
         image_list=image_list,
@@ -821,66 +816,305 @@ def process(data_dir: Path, config: Dict[str, Any], **kwargs: dict):
     image.create_grid_image(thumbnails, thumbnail_overview_path)
 ```
 
-This example demonstrates how to use the multithreading capabilities provided by the Marimba standard library to 
+This example demonstrates how to use the multi-threading capabilities provided by the Marimba standard library to 
 streamline thumbnail generation within a data processing workflow.
 
 
 ### Implementing the `_package` Method
 
-The `_package` method prepares the processed data for packaging and returns a mapping of files and metadata.
+The `_package` method prepares the processed data for packaging and returns a data mapping that contains all files and 
+associated metadata to be included in the packaged Dataset. Marimba automates the execution of the `_package` method 
+across each Pipeline and Collection combination, aggregates the returned data mappings, and subsequently packages the 
+Marimba Dataset in the `datasets` directory.
 
 
 #### Example `_package` Implementation
 
+A standard pattern in Marimba Pipelines involves creating a CSV file that lists each image in the Collection along with 
+its associated metadata including spatio-temporal attributes such as time, latitude, and longitude, as well as 
+additional metadata like depth, sensor settings, and environmental conditions. This pattern facilitates the use of the 
+CSV file in the `_package` method to systematically populate the data mapping:
+
 ```python
-def _package(self, data_dir, config, **kwargs):
-    from ifdo.models import ImageData
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, Tuple, Optional, List
+from uuid import uuid4
 
-    processed_data_dir = data_dir / 'processed_data'
-    data_mapping = {}
+import pandas as pd
 
-    for image_file in processed_data_dir.glob('*.jpg'):
-        metadata = ImageData(
-            filename=image_file.name,
-            # Add more metadata fields as needed
-        )
-        data_mapping[image_file.name] = (image_file, [metadata], None)
+from ifdo.models import (
+    ImageAcquisition,
+    ImageCaptureMode,
+    ImageData,
+    ImageDeployment,
+    ImageFaunaAttraction,
+    ImageIllumination,
+    ImageMarineZone,
+    ImageNavigation,
+    ImageScaleReference,
+    ImagePI,
+    ImagePixelMagnitude,
+    ImageQuality,
+    ImageSpectralResolution,
+)
 
+from marimba.main import __version__
+
+
+def _package(
+    self,
+    data_dir: Path,
+    config: Dict[str, Any],
+    **kwargs: Dict[str, Any],
+) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
+    
+    # Create the empty data mapping structure
+    data_mapping: Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]] = {}
+    
+    # Safely attempt to load the image reference data into a Pandas dataframe
+    try:
+        image_reference_df = pd.read_csv(next(data_dir.glob("data/*.csv")))
+    except FileNotFoundError:
+        print("Reference CSV not found in the data directory.")
+        return data_mapping
+
+    # Find all ancillary files (non-image files) and add them to the data mapping
+    ancillary_files = [f for f in data_dir.rglob("*") if f.suffix.lower() != ".jpg" and f.is_file()]
+    for file_path in ancillary_files:
+        data_mapping[file_path] = (file_path.relative_to(data_dir), None, None)
+
+    # Loop through each image in the Collection
+    for index, row in image_reference_df.iterrows():
+
+        # Check the file exists
+        file_path = data_dir / "images" / row["filename"]
+        if file_path.is_file():
+            
+            # Construct the ImageData list item
+            image_data = ImageData(
+                # iFDO core
+                image_datetime=datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S.%f"),
+                image_latitude=float(row["latitude"]),
+                image_longitude=float(row["longitude"]),
+                image_altitude=float(row["depth"]),
+                image_coordinate_reference_system="EPSG:4326",
+                image_coordinate_uncertainty_meters=None,
+                image_context=row["image_context"],
+                image_project=row["image_project"],
+                image_event=row["image_event"],
+                image_platform=row["image_platform"],
+                image_sensor=row["image_sensor"],
+                image_uuid=str(uuid4()),
+                image_pi=ImagePI(name="Keiko Abe", orcid="0000-0000-0000-0000"),
+                image_creators=[ImagePI(name="Keiko Abe", orcid="0000-0000-0000-0000")],
+                image_license="CC BY 4.0",
+                image_copyright="My Organisation",
+                image_abstract=row["image_abstract"],
+                # Note: Marimba automatically calculates and injects the SHA256 hash during packaging
+                # image_hash_sha256=image_hash_sha256,
+
+                # # iFDO capture (optional)
+                image_acquisition=ImageAcquisition.SLIDE,
+                image_quality=ImageQuality.PRODUCT,
+                image_deployment=ImageDeployment.SURVEY,
+                image_navigation=ImageNavigation.RECONSTRUCTED,
+                image_scale_reference=ImageScaleReference.NONE,
+                image_illumination=ImageIllumination.ARTIFICIAL_LIGHT,
+                image_pixel_mag=ImagePixelMagnitude.CM,
+                image_marine_zone=ImageMarineZone.SEAFLOOR,
+                image_spectral_resolution=ImageSpectralResolution.RGB,
+                image_capture_mode=ImageCaptureMode.MANUAL,
+                image_fauna_attraction=ImageFaunaAttraction.NONE,
+                # image_area_square_meter=None
+                # image_meters_above_ground=None
+                # image_acquisition_settings=None
+                # image_camera_yaw_degrees=None
+                # image_camera_pitch_degrees=None
+                # image_camera_roll_degrees=None
+                # image_overlap_fraction=0,
+                image_datetime_format="%Y-%m-%d %H:%M:%S.%f",
+                # image_camera_pose=None
+                # image_camera_housing_viewport=None,
+                # image_flatport_parameters=None
+                # image_domeport_parameters=None
+                # image_camera_calibration_model=None
+                # image_photometric_calibration=None
+                # image_objective=None
+                image_target_environment="Benthic habitat",
+                # image_target_timescale=None
+                # image_spatial_constraints=None
+                # image_temporal_constraints=None
+                # image_time_synchronization=None
+                image_item_identification_scheme="<filename_field_1>_<filename_field_2>_<filename_field_3>.<ext>",
+                image_curation_protocol=f"Processed with Marimba v{__version__}",
+
+                # # iFDO content (optional)
+                # Note: Marimba automatically calculates and injects image_entropy and image_average_color during packaging
+                # image_entropy=0.0,
+                # image_particle_count=None
+                # image_average_color=[0, 0, 0],
+                # image_mpeg7_colorlayout=None
+                # image_mpeg7_colorstatistics=None
+                # image_mpeg7_colorstructure=None
+                # image_mpeg7_dominantcolor=None
+                # image_mpeg7_edgehistogram=None
+                # image_mpeg7_homogenoustexture=None
+                # image_mpeg7_stablecolor=None
+                # image_annotation_labels=None
+                # image_annotation_creators=None
+                # image_annotations=None
+            )
+
+            # Add the image file, iFDO and ancillary metadata to the data mapping
+            data_mapping[file_path] = (file_path.relative_to(data_dir), [image_data], row.to_dict())
+
+    # Return the complete data mapping to Marimba
     return data_mapping
 ```
+
+In this example, the `_package` method systematically processes the files in a Marimba Collection. It first attempts to 
+load a CSV file that contains metadata for each image in the Collection, including essential attributes such as 
+timestamps, latitude, longitude, and depth. Using this reference, the method constructs `ImageData` objects for each 
+image, which encapsulate the iFDO metadata for the image, including information about its acquisition, quality, 
+deployment, and capture mode.
+
+The method iterates over the image metadata and verifies that each corresponding image file exists. If found, it 
+populates the `ImageData` object with the extracted metadata, along with additional details like the image’s platform, 
+sensor, and licensing information. Ancillary (non-image) files are also captured and added to the `data_mapping` without 
+associated metadata.
+
+The `data_mapping` structure is built as the method processes each image, storing the relative paths of the files along 
+with their metadata. Finally, this complete data mapping is returned to Marimba for packaging, ensuring all files and 
+metadata are correctly accounted for in the dataset.
 
 
 #### Executing the `_package` Method
 
+To create a Dataset from your Marimba Project, use the Marimba CLI with the packaging command as follows:
+
+```bash
+marimba package my-dataset --version 1.0 --contact-name "Keiko Abe" --contact-email "keiko.abe@email.com"
+```
+
+This command packages the all combinations of Pipelines and Collections into a dataset while incorporating 
+additional metadata like the dataset version (`--version`), contact name (`--contact-name`), and contact email 
+(`--contact-email`). These details are included in the Dataset's summary to ensure comprehensive documentation of 
+the dataset's creation and intended point of contact.
+
+
+##### Targeted Packaging with Specific Pipelines and Collections
+
+For more targeted packaging, Marimba provides the ability to specify particular Pipelines or Collections using the 
+`--collection-name` and `--pipeline-name` CLI options. 
+
+This feature is useful when you need to package only a subset of data or specific pipelines without packaging everything
+contained in a Marimba Project. For example, to package data from a specific collection using a chosen pipeline, you 
+could execute the command:
+
+```bash
+marimba package my-dataset --collection-name collection-one --pipeline-name my-pipeline --version 1.0 --contact-name "Keiko Abe" --contact-email "keiko.abe@email.com"
+```
+
+This command instructs Marimba to package data only from `collection-one` that was processed using logic from
+`my-pipeline`. Additionally, Marimba supports targeted packaging of multiple pipelines or collections by allowing 
+multiple specifications of the `--collection-name` and `--pipeline-name` options:
+
+```bash
+marimba package my-dataset --collection-name collection-one --collection-name collection-two --pipeline-name my-pipeline --pipeline-name my-other-pipeline --version 1.0 --contact-name "Keiko Abe" --contact-email "keiko.abe@email.com"
+```
+
+This ability to target specific Pipelines and Collections allows Marimba to efficiently address diverse packaging 
+requirements, whether for targeted deployments or comprehensive data assembly across various subsets of your 
+Project.
+
+
+#### Marimba Packaging Steps
+
+Marimba executes the comprehensive packaging procedure to create FAIR compliant image datasets, which includes the 
+following key steps:
+
+1. **Composing Data From Pipelines**: Initially, Marimba executes the `_package` command within each Pipeline to 
+compose the data and metadata for packaging.
+
+2. **Creation and Validation of Dataset**: The root directory for the new dataset is created based on the dataset name,
+along with necessary subdirectories for data, logs, and pipelines. Then Marimba performs some validation checks to 
+make sure there will be no file collisions during packaging.
+
+3. **File Transfer**: Files are transferred from their source locations to the newly created dataset at 
+`datasets/my-dataset/data`. This step is governed by the `operation` parameter which determines whether files are 
+copied, moved, or linked.
+
+4. **Application of EXIF Metadata**: Marimba applies reported metadata, such as GPS coordinates and timestamps, directly 
+to the EXIF tags of each JPG image file, ensuring that the metadata of each image reflects its content and source 
+accurately.
+
+5. **iFDO Generation**: An image FAIR Digital Object (iFDO) file is created at `datasets/my-dataset/ifdo.yml` that
+encapsulate all reported image metadata in a standardised format, adhering to FAIR (Findable, Accessible, Interoperable,
+and Reusable) data principles.
+
+6. **Summary Generation**: A dataset summary is generated at `datasets/my-dataset/summary.md` which provides an 
+overview of the dataset contents, including image, video and other file statistics. This document serves as a quick 
+reference to understand the structure and contents of the dataset at a glance.
+
+7. **Map Generation**: All imagery with geographical coordinates is visualized on a dataset map that is written to 
+`datasets/my-dataset/map.png`. This provides an spatial overview of all the locations of image data in the dataset.
+
+8. **Copy Pipelines Files**: The Pipeline code that processed the data is copied to the 
+`datasets/my-dataset/pipelines` directory to provide full provenance, transparency and tracebility of the dataset. 
+
+9. **Copy Logging Files**: All Pipeline processing logs are collected and copied to `datasets/my-dataset/logs/pipelines` 
+directory and the high-level Project logs are copied to `datasets/my-dataset/logs/project.log` Each of the previous 
+packaging steps are also logged and saved to `datasets/my-dataset/logs/dataset.log`, providing a complete history of 
+all processing operations throughout the entire Marimba workflow.  
+
+10. **Manifest Generation**: A manifest file is created which lists all files within the dataset along with their SHA256 
+hashes. This manifest is crucial for validating the integrity of the dataset and ensuring no files were corrupted or 
+altered during packaging.
+
+11. **Validation**: Once the dataset has been finalized, it undergoes a validation process to check for any 
+inconsistencies with its manifest. This step is critical to certify that the dataset is complete and accurate as per the 
+original specifications.
+
+When the packaging process is executed using the Marimba package command, these steps are visually tracked in the CLI 
+using progress bars to provide real-time feedback on the packaging progress. The completion of this process results in a 
+finalized FAIR image dataset that adheres to the highest levels of FAIR data standards, and is ready for publishing and 
+dissemination.
+
+
+#### Multi-Level iFDO Files
+
+To be written...
+
+
+#### Multi-Level Summary Files
+
 To be written...
 
 ---
 
-## Advanced Topics
+## Pipeline Implementation Summary
 
-### Multi-Level iFDO Files
+By following the guidelines in this Pipeline Implementation Guide, you should now have a strong foundation for 
+developing custom Marimba Pipelines. Whether you are importing, processing, or packaging data from a single instrument 
+or complex multi-instrument systems, Marimba provides the flexibility and structure to support your workflows while 
+ensuring compliance with FAIR data principles. The modularity of Marimba Pipelines allows you to iteratively improve and 
+extend your data processing logic as your project evolves, while maintaining transparency, reproducibility, and 
+traceability.
 
-To be written...
+### Next Steps
+1. **Test Your Pipeline**: Ensure your custom Pipeline functions as expected by running it on sample datasets. Use the 
+Marimba CLI to execute `_import`, `_process`, and `_package` methods, and validate the output.
+   
+2. **Expand Your Pipeline**: Leverage advanced features like multithreading, custom metadata handling, and targeted 
+processing to optimise and scale your Pipeline.
 
+3. **Collaborate and Share**: Share your Pipeline with collaborators by hosting it in a version-controlled repository. 
+Consider contributing to the Marimba community by sharing reusable Pipelines that may benefit other projects.
 
-### Multi-Level Summary Files
+By continuously refining your Pipeline and exploring new features, you can ensure that your data processing workflows 
+remain efficient, scalable, and fully compliant with best practices in scientific data management.
 
-To be written...
+Happy data processing with Marimba!
 
 ---
-
-## Conclusion and Next Steps
-
-By following this guide, you've learned how to:
-
-- Understand the role and capabilities of Marimba Pipelines.
-- Set up the necessary directory structure and files.
-- Implement the essential methods required by the `BasePipeline` class.
-- Handle metadata using the iFDO standard.
-- Expand your Pipeline with advanced features and integrations.
-
-With this foundation, you're now equipped to develop custom Pipelines that meet your specific data processing needs. 
-Explore the Marimba documentation for more advanced features, and consider contributing to the project or sharing your 
-Pipelines with the community.
-
-Happy Marimba data processing!
