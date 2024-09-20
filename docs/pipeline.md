@@ -41,6 +41,7 @@ your own Marimba Pipeline, from setting up the structure of your Pipeline and im
    - [Implementing the `_process` Method](#implementing-the-_process-method)
         - [Example `_process` Implementation](#example-_process-implementation)
         - [Executing the `_process` Method](#executing-the-_process-method)
+          - [Targeted Processing with Specific Pipelines and Collections](#targeted-processing-with-specific-pipelines-and-collections)
         - [Multithreaded Thumbnail Generation](#multithreaded-thumbnail-generation)
    - [Implementing the `_package` Method](#implementing-the-_package-method)
         - [Example `_package` Implementation](#example-_package-implementation)
@@ -719,29 +720,66 @@ def process(data_dir: Path, config: Dict[str, Any], **kwargs: dict):
         image.resize_fit(jpg_file, 300, 300, thumbnail_path)
         thumbnails.append(thumbnail_path)
 
-    # Create an overview image from the thumbnails
+    # Create an tiled overview image from the thumbnails
     overview_path = data_dir / "overview.jpg"
     image.create_grid_image(thumbnails, overview_path)
 ```
 
 This example organizes and processes various file types previously imported into a Marimba Collection. It begins by 
 creating subdirectories for CSV files (`data`), JPG images (`images`), MP4 videos (`videos`), and thumbnails 
-(`thumbnails`). It then recursively scans the `data_dir`, moving CSV, JPG, and MP4 files into their respective 
-subdirectories. For each JPG file, the method generates a thumbnail, saving it in the `thumbnails` directory. Finally, 
-it compiles all the generated thumbnails into a single overview image stored in the root directory of the COllection 
-using the `create_grid_image` from the Marimba standard library.
+(`thumbnails`). It then recursively scans the Collection, moving CSV, JPG, and MP4 files into their respective 
+subdirectories. For each JPG file, the method generates a low-resolution thumbnail, saving it in the `thumbnails` 
+directory. Finally, it compiles all the generated thumbnails into a single tiled overview image stored in the root 
+directory of the Collection using the `create_grid_image` from the Marimba standard library.
 
 
 #### Executing the `_process` Method
 
-To be written...
+To execute the `_process` method within your Marimba Pipeline, use the Marimba CLI to initiate the process command for 
+all Collections across all Pipelines within a Project:
+
+```bash
+marimba process
+```
+
+Marimba will automatically identify each Pipeline and Collection within the Project and initiate the `_process` method
+for each one. Due to Marimba's parallelized core architecture, Marimba will process each Pipeline and Collection 
+combination independently and concurrently. This approach maximizes the utilization of computing resources and 
+significantly accelerates data processing. The image below illustrates how Marimba implements parallel processing, 
+showing the interactions between Pipelines and Collections:
+
+![Marimba Workflow](img/marimba-workflow.png)
+
+
+##### Targeted Processing with Specific Pipelines and Collections
+
+For more targeted processing, Marimba allows you to specify particular Pipelines or Collections. This feature is 
+particularly useful when you need to process only a subset of data or test changes in a specific pipeline without 
+affecting the entire dataset. Using the `--collection-name` and `--pipeline-name` CLI options, you can direct 
+Marimba to process only the specified subsets of Pipelines or Collections. For instance, if you wanted to process data 
+only from a specific Collection using a particular Pipeline, you could use the command:
+
+```bash
+marimba process --collection-name collection-one --pipeline-name my-pipeline
+```
+
+This command directs Marimba to process data exclusively from `collection-one` using the logic defined in `my-pipeline`. 
+Marimba also supports targeting multiple Pipelines or Collections by allowing the `--collection-name` and 
+`--pipeline-name` CLI options to be specified multiple times:
+
+```bash
+marimba process --collection-name collection-one --collection-name collection-two --pipeline-name my-pipeline --pipeline-name my-other-pipeline
+```
+
+This ability to target specific pipelines and collections allows that Marimba can handle diverse processing requirements 
+efficiently, whether for isolated testing or comprehensive data processing across various Pipelines or Collections.
 
 
 #### Multithreaded Thumbnail Generation
 
 Marimba offers a multithreaded approach for generating thumbnails, which efficiently utilizes the available compute 
 resources. This method leverages parallel processing to accelerate the creation of thumbnails, enhancing performance 
-especially on systems with multiple cores or threads.
+especially on systems with multiple cores.
 
 **Example of Multithreaded Thumbnail Generation:**
 
@@ -783,8 +821,8 @@ def process(data_dir: Path, config: Dict[str, Any], **kwargs: dict):
     image.create_grid_image(thumbnails, thumbnail_overview_path)
 ```
 
-This example demonstrates how to use Marimba's multithreaded capabilities to streamline thumbnail generation within a 
-data processing workflow. By organizing images into designated directories and applying concurrent processing for thumbnail creation, the script maximizes efficiency and minimizes processing time. This approach not only leverages the computational power of multi-core systems but also optimizes the workflow, ensuring that large image datasets are handled swiftly and effectively. With the thumbnails generated, a comprehensive overview image is then compiled, providing a visual summary of the processed data. This multithreaded method exemplifies a powerful tool for managing and visualizing large datasets within the Marimba framework.
+This example demonstrates how to use the multithreading capabilities provided by the Marimba standard library to 
+streamline thumbnail generation within a data processing workflow.
 
 
 ### Implementing the `_package` Method
