@@ -2,12 +2,11 @@
 
 A Marimba Pipeline is the core component responsible for processing data from a specific instruments or 
 multi-instrument systems. Pipelines contain the complete logic required to transform raw data into FAIR-compliant 
-datasets, allowing you to automate complex workflows tailored to the unique requirements of your data.
-
-By developing a custom Pipeline, you can take advantage of Marimba's powerful features while integrating your own 
-specialised processing steps. This guide will walk you through everything you need to know to create and implement 
-your own Marimba Pipeline, from setting up the structure of your Pipeline and implementing key methods (`_import`, 
-`_process` and `_package`), to making use of the available processing capabilities the Marimba standard library.
+datasets, allowing you to automate complex workflows tailored to the unique requirements of your data. By developing 
+a custom Pipeline, you can take advantage of Marimba's powerful features while integrating your own specialised 
+processing steps. This guide will walk you through everything you need to know to create and implement your own Marimba 
+Pipeline, from setting up the structure of your Pipeline and implementing key methods, to making use of the available 
+processing capabilities the Marimba standard library.
 
 ---
 
@@ -32,8 +31,8 @@ your own Marimba Pipeline, from setting up the structure of your Pipeline and im
         - [Utilizing the `operation` Option](#utilizing-the-operation-option)
         - [Executing the `_import` Method](#executing-the-_import-method)
         - [Metadata Handling in Marimba Pipelines](#metadata-handling-in-marimba-pipelines)
-           - [Pipeline-Level Metadata](#pipeline-level-metadata)
-           - [Collection-Level Metadata](#collection-level-metadata)
+           - [Pipeline-level Metadata](#pipeline-level-metadata)
+           - [Collection-level Metadata](#collection-level-metadata)
            - [Metadata Handling Summary](#metadata-handling-summary)
        - [Defining and Using Custom `kwargs`](#defining-and-using-custom-kwargs)
             - [How to Pass Custom `kwargs` Through the CLI](#how-to-pass-custom-kwargs-through-the-cli)
@@ -60,7 +59,7 @@ your own Marimba Pipeline, from setting up the structure of your Pipeline and im
 Marimba is designed with a clear distinction between the core Marimba system and user-authored Pipelines that are
 responsible for processing data from single or multi-instrument systems. This modular architecture allows you to 
 create custom Pipelines designed to your specific data processing requirements, while minimizing the amount of 
-boilerplate code required to achieve an operational processing system for your instruments.
+boilerplate code required to achieve an operational processing system.
 
 Within a Marimba Project, the core Marimba system manages the overall workflow, including the execution of key 
 Pipeline methods (`_import`, `_process` and `_package`), the capture of processing logs, and the final packaging of 
@@ -75,15 +74,16 @@ instruments or systems it is designed to process.
 
 A Marimba Pipeline is a Python file that defines the processing logic for data from a specific instrument or 
 multi-instrument system. It is executed from within the context of a Marimba Project and interacts with the core 
-Marimba system to perform tasks such as importing data, processing them, and packaging the final datasets.
+Marimba system to perform tasks such as importing data, processing them, and preparing them for final 
+datasets packaging.
 
 Marimba Pipelines inherit from the Marimba `BasePipeline` class and must implement the specific methods that define 
 their behavior. This design provides several key advantages:
 
 - **Modularity**: Pipelines can be developed, tested, and maintained independently
 - **Reusability**: Pipelines can be shared and reused across different projects
-- **Customization**: Each Pipeline can be tailored to handle the unique requirements of different instruments and data 
-  sources
+- **Customization**: Each Pipeline can be customised to handle the unique requirements of different instruments and 
+data sources
 
 
 ### Pipeline Components
@@ -98,8 +98,8 @@ including:
   - This method returns a dictionary schema that users will be prompted to complete when adding a new Marimba 
     Pipeline to a Marimba Project.
   - In this schema, you define the Pipeline-level metadata to be captured, such as `voyage_id`, `voyage_pi`, 
-    `platform_id`, `start_date`, `end_date`, `data_collector`, etc.
-  - The result of this metadata capture is stored in a `pipeline.yml` file located in the Pipeline’s root directory. 
+    `platform_id`, `start_date`, `end_date`, etc.
+  - The result of this captured metadata are stored in a `pipeline.yml` file located in the Pipeline’s root directory. 
     This metadata is then made available by Marimba throughout all stages of Pipeline processing.
 
 
@@ -108,28 +108,28 @@ including:
     Collection to a Marimba Project.
   - In this schema, you define the Collection-level metadata to be captured, such as `deployment_id`, `site_id`, 
     `batch_id`, `data_collector`, etc. 
-  - The result of this metadata capture is stored in a `collection.yml` file located in the Collection’s root 
+  - The result of this captured metadata are stored in a `collection.yml` file located in the Collection’s root 
     directory. This metadata is then made available by Marimba throughout all stages of Pipeline processing.
 
 
 - `_import()`:
   - This method manages the importation of raw data into a designated Marimba Collection. It is designed to be 
     implemented for a single import source, such as a folder on a hard disk or a mounted external storage device. 
-    Core Marimba orchestrates the execution of this method across each installed Pipeline for every specified import 
+    Core Marimba orchestrates the execution of this method for each installed Pipeline and every specified import 
     source within the Collection.
   - The primary function of this method is to ensure that all raw data files are correctly transferred into the 
     designated Collection directory, ready for subsequent processing stages. During this step, there is also the 
-    option to implement hierarchical directory structuring and renaming of files to enhance data organization.
+    potential to implement hierarchical directory structuring and renaming of files to enhance data organization.
   - This import process is useful for maintaining the integrity and organization of data within a Marimba Project, 
     enabling effective and efficient data management across the entire Pipeline workflow.
 
     
 - `_process()`:
   - This method contains the core processing logic of the Pipeline. It is responsible for applying specific 
-    transformations, analyses, and enhancements to the imported data within the Marimba Collection.
+    transformations, analyses, and enhancements to the imported data within Marimba Collections.
   - The `_process` method should be designed to handle the unique requirements and characteristics of the data, and 
     can include processing steps such as converting image file formats, transcoding video files, generating image 
-    thumbnails, and merging sensor data etc. 
+    thumbnails, merging sensor data, etc. 
   - Once the `_process` method has been executed, the data should be ready for the final packaging stage.
 
 
@@ -143,9 +143,9 @@ including:
   - For each image and/or video file, the data mapping can include an
     [ImageData](https://github.com/kevinsbarnard/ifdo-py/blob/main/ifdo/models.py#L177) object, which is a Python 
     implementation of the [iFDO](https://marine-imaging.com/fair/ifdos/iFDO-overview/) specification.
-  - Files listed in the data mapping that contain an iFDO will have their metadata embedded in a dataset-level iFDO 
-    output file named `ifdo.yml`. Additionally, this metadata will be burned into the EXIF metadata of any included JPEG 
-    file, adhering to FAIR data standards.
+  - Files listed in the data mapping that contain an iFDO will have their metadata saved in a dataset-level iFDO 
+    output file named `ifdo.yml`. Additionally, this metadata will be embedded in the EXIF metadata of any included 
+    JPEG file, adhering to FAIR data standards.
 
 ---
 
@@ -168,18 +168,18 @@ directories and files as necessary. For example:
 
 ```plaintext
 my-pipeline
-├── data                            # Optional directory containing any Pipeline-level ancilary data
-├──└── platform_data.csv         # Any additional files, scripts or resources
-├──└── calibration_files.txt        # Any additional files, scripts or resources
-├──└── camera_serial_numbers.yml    # Any additional files, scripts or resources
-├── .gitignore                      # Add description here
+├── data                            # Optional directory containing Pipeline ancillary data
+│   ├── platform_data.csv           # Example additional CSV data file
+│   ├── calibration_files.txt       # Example additional instrument calibration file
+│   └── camera_serial_numbers.yml   # Example additional camera details file
+├── .gitignore                      # Files and directories to be ignored by Git version control
 ├── requirements.txt                # Additional Pipeline-level dependencies required by the Pipeline
-└── my.pipeline.py                  # The Marimba Pipeline implementation
+└── my_pipeline.py                  # The Marimba Pipeline implementation
 ```
 
-It's important to note that Pipeline have the extension `.pipeline.py`. Marimba is configured to automatically identify 
-and bootstrap files with this extension located within the Marimba Project's pipelines directory. Therefore, all Marimba 
-Pipelines must utilize this extension for proper recognition and operation.
+It's important to note that Marimba Pipelines have the extension `.pipeline.py`. Marimba is configured to automatically 
+identify and bootstrap files with this extension located within the Marimba Project's pipelines directory. Therefore, 
+all Marimba Pipelines must utilize this extension for proper recognition and operation.
 
 To initialize a new Marimba Pipeline, you must first create a new Marimba Project:
 
@@ -194,7 +194,7 @@ There are a couple of methods to create a new Marimba Pipeline:
 
    - **Set up a GitHub account:**
      - Visit [GitHub](https://github.com/signup) and sign up for a new account or log in if you already have one
-     - Once logged in, click on "New repository" or navigate to [Create a new repository](https://github.com/new)
+     - Once logged in, click on "New repository" or navigate to [create a new repository](https://github.com/new)
 
    - **Create a new repository:**
      - Name your repository (e.g., `my-pipeline`)
@@ -211,7 +211,7 @@ There are a couple of methods to create a new Marimba Pipeline:
      ```
      This command will clone the Git repository into a new directory in the Marimba project at `pipelines/my-pipeline`.
 
-2. **Manually create the Marimba Pipeline directory and commit it to your Git repository:**
+2. **Manually create the Marimba Pipeline directory and connect it to your Git repository:**
     - Create the pipeline directory:
        ```bash
        mkdir -p pipelines/my-pipeline
@@ -226,21 +226,22 @@ There are a couple of methods to create a new Marimba Pipeline:
        ```
     - Link your local repository to GitHub:
        ```bash
-       git remote add origin https://github.com/yourusername/my-pipeline.git
+       git remote add origin https://github.com/your-user-name/my-pipeline.git
        ```
-    This step connects your local Pipeline implementation to your GitHub repository, allowing you to use standard Git 
-    commands to add, commit, and push files
+       This step connects your local Pipeline implementation to your GitHub repository, allowing you to use standard 
+       Git commands to add, commit, and push files
     - Now, navigate back to the root Marimba Project directory:
        ```bash
        cd ../..
        ```
 
-For both methods, the next steps involve initializing the necessary Pipeline files in your new Pipeline directory.
+For both of these setup methods, the next steps involve initializing the necessary Pipeline files in your new Pipeline 
+directory.
 
 
 ### Initializing the Pipeline
 
-- Create the Marimba Pipeline file (`my.pipeline.py`):
+- Create the Marimba Pipeline file:
   ```bash
   touch pipelines/my-pipeline/my.pipeline.py
   ```
@@ -312,7 +313,6 @@ To make sure your environment includes all the necessary Python packages specifi
 them in a `requirements.txt` file located within the root directory of your Pipeline repo:
 
 ```bash
-# Create a requirements.txt file in your Pipeline directory
 touch pipelines/my-pipeline/requirements.txt
 ```
 
@@ -325,31 +325,35 @@ matplotlib
 scikit-image
 ```
 
-After creating or updating your `requirements.txt`, make sure to track these changes with Git:
+After creating or updating your `requirements.txt`, make sure to stage and commit these changes with Git:
 
 ```bash
-# Stage and commit the requirements.txt file
 git add pipelines/my-pipeline/requirements.txt
 git commit -m "Adding Marimba Pipeline-specific requirements.txt"
 ```
 
-Marimba streamlines the installation of these Pipeline-specific packages with the `marimba install` command. This 
-command automatically traverses all installed Pipelines and installs all the packages listed in their `requirements.txt`
-files, ensuring that each Pipeline has the necessary environment to run successfully.
+Marimba streamlines the installation of these Pipeline-specific packages with the following command:
+
+```bash
+marimba install
+```
+
+This command automatically traverses all installed Pipelines and installs all the packages listed in their 
+`requirements.txt` files, ensuring that each Pipeline has the necessary environment to run successfully.
 
 ---
 
 ## Implementing Your Pipeline
 
-Implementing your Marimba Pipeline involves writing the necessary code to effectively import, process, and package 
-your data. In total, five key methods need to be implemented within your Pipeline. Two of these methods are focused 
-on capturing metadata at the Pipeline and Collection levels, while the other three implement the specific data 
-processing and reporting procedures for your instrument or system.
+Implementing your Marimba Pipeline involves writing the necessary code to import, process, and package your data. In 
+total, five key methods need to be implemented within your Pipeline. Two of these methods are focused on capturing 
+metadata at the Pipeline and Collection levels, while the other three implement the specific data processing and 
+reporting procedures for your instrument or system.
 
 
 ### Implementing the `get_pipeline_config_schema` Method
 
-The `get_pipeline_config_schema` method is designed to define the schema for capturing Pipeline-level metadata. 
+The `get_pipeline_config_schema()` method is designed to define the schema for capturing Pipeline-level metadata. 
 This metadata typically includes details that are constant across various collections within the same Marimba Project, 
 such as project principal investigator or platform ID. Here’s an example of a simple implementation of this method:
 
@@ -391,12 +395,12 @@ and consistently, customized specifically to the needs of the Pipeline and its d
 
 ### Implementing the `get_collection_config_schema` Method
 
-The `get_collection_config_schema` method is designed to define the schema for capturing Collection-level metadata,
+The `get_collection_config_schema()` method is designed to define the schema for capturing Collection-level metadata,
 which is specific to individual Collections within a Marimba Project. Here’s a basic example of how this method can 
 be structured:
 
 
-#### Example `get_collection_config_schema()` Implementation
+#### Example `get_collection_config_schema` Implementation
 
 ```python
 @staticmethod
@@ -422,7 +426,7 @@ def get_collection_config_schema() -> dict:
 
 Similar to the Pipeline-level config schema, users will be prompted to input values for each element defined in this 
 schema when setting up a new Marimba Collection. This allows for the capture of Collection-level metadata and results 
-in the creation of a new collection metadata file located at `collections/my-collection-name/collection.yml`, which 
+in the creation of a new Collection metadata file located at `collections/my-collection-name/collection.yml`, which 
 will store all the entered Collection metadata.
 
 
@@ -473,7 +477,7 @@ import logic to ensure it behaves correctly without modifying any data.
 
 #### Marimba Logging
 
-We recommend including comprehensive logging statements within your Marimba Pipeline for all significant operations,
+We recommend including comprehensive logging statements within your Marimba Pipelines for all significant operations,
 utilizing the Marimba logging system (`self.logger.<debug|info|warning|error|critical>`). Marimba is designed to capture
 and manage all logs from this system, ensuring that packaged datasets include a complete provenance record of all 
 operations performed on the raw data. This documentation not only aids in debugging but also enhances the transparency
@@ -483,7 +487,7 @@ of data processing within the Pipeline.
 #### Utilizing the `operation` Option
 
 In the Marimba CLI, the import command includes an `operation` flag that allows you to specify how files should be 
-transferred into a Marimba collection. This option can be set to [copy|move|link]. The default setting is `copy`, but 
+transferred into a Marimba Collection. This option can be set to `[copy|move|link]`. The default setting is `copy`, but 
 the `move` option is useful for transferring files from a removable storage device like an SD card directly into a 
 Marimba collection, effectively clearing the device in the process. Alternatively, the `link` option enables the 
 creation of hard-links (on Linux systems), which can avoid the time and disk space overhead associated with copying 
@@ -539,8 +543,8 @@ marimba import collection-one /path/to/source/directory --operation link
 ```
 
 With this command, Marimba will execute your `_import` method on the specified source path and create a new Marimba 
-Collection at `collections/collection-one`. The method will create hard-links for any files with ".csv", ".jpg", or 
-".mp4" extensions found in the source directory.
+Collection at `collections/collection-one`. The method will create hard-links for any files with `.csv`, `.jpg`, or 
+`.mp4` extensions found in the source directory.
 
 Congratulations - you have now successfully imported data into a Marimba Collection using an efficient linking 
 operation!
@@ -552,7 +556,7 @@ In Marimba, the capture of both Pipeline-level and Collection-level metadata off
 data processing workflow. 
 
 
-##### Pipeline-Level Metadata
+##### Pipeline-level Metadata
 
 The `self.config` attribute within any Pipeline method contains metadata elements that are captured during the Pipeline 
 installation process, as defined by the `get_pipeline_config_schema()` method. This schema specifies the metadata 
@@ -572,10 +576,10 @@ This allows your Pipeline to use these configurations dynamically during data pr
 informed handling of data based on the specific metadata.
 
 
-##### Collection-Level Metadata
+##### Collection-level Metadata
 
 The `config` dictionary passed into methods like `_import` contains the Collection-level metadata, which is captured as 
-defined in the `get_collection_config_schema()` method. This metadata typically relates to specifics of the data 
+defined by the `get_collection_config_schema()` method. This metadata typically relates to specifics of the data 
 collection, such as the collection date, site information, or specific parameters used during data collection.
 
 Let’s assume your `get_collection_config_schema()` method captures `collection_date` and `site_id` as metadata for 
@@ -587,8 +591,8 @@ site_id = config.get('site_id')
 self.logger.info(f"Importing data collected on {collection_date} from site {site_id}.")
 ```
 
-This approach ensures that each collection can be processed with its unique context, enhancing the granularity and 
-relevance of data processing activities.
+This allows for each collection to be processed with its unique context, enhancing the detail and contextual 
+significance of the data processing.
 
 
 ##### Metadata Handling Summary
@@ -669,7 +673,7 @@ dynamic, and context-aware data processing within Marimba.
 
 ### Implementing the `_process` Method
 
-The `_process` method is designed to handle any data conversion, manipulation, and processing steps following the 
+The `_process` method is designed to handle any data conversion, manipulation, and processing stages following the 
 initial import. A typical process in this method might involve setting up a hierarchical directory structure, sorting 
 files into specified subdirectories, applying validation or calibration techniques, and executing file-specific tasks 
 such as image format conversion, video transcoding, thumbnail creation, and sensor data integration. It could also 
@@ -740,18 +744,18 @@ marimba process
 ```
 
 Marimba will automatically identify each Pipeline and Collection within the Project and initiate the `_process` method
-for each one. Leveraging its parallelized core architecture, Marimba processes each Pipeline and Collection combination
-independently and concurrently. This approach maximizes the utilization of computing resources and significantly 
-accelerates data processing. The image below illustrates how Marimba implements parallel processing, showing the 
-interactions between Pipelines and Collections:
+for each combination. Leveraging its parallelized core architecture, Marimba processes each Pipeline and Collection 
+combination independently and concurrently. This approach maximizes the utilization of computing resources and 
+significantly accelerates data processing. The image below illustrates how Marimba implements parallel processing, 
+showing the interactions between Pipelines and Collections:
 
 ![Marimba Workflow](img/marimba-workflow.png)
 
 
 ##### Targeted Processing with Specific Pipelines and Collections
 
-For more targeted processing, Marimba allows you to specify particular Pipelines or Collections. This feature is 
-particularly useful when you need to process only a subset of data or test changes in a specific pipeline without 
+For more targeted processing, Marimba allows you to specify particular Pipelines and/or Collections. This feature is 
+particularly useful when you need to process only a subset of data or test changes in a specific Pipeline without 
 affecting the entire dataset. Using the `--collection-name` and `--pipeline-name` CLI options, you can configure 
 Marimba to process only the specified subsets of Pipelines and/or Collections. For instance, if you wanted to process 
 data only from a specific Collection using a particular Pipeline, you could use the command:
@@ -823,17 +827,17 @@ streamline thumbnail generation within a data processing workflow.
 ### Implementing the `_package` Method
 
 The `_package` method prepares the processed data for packaging and returns a data mapping that contains all files and 
-associated metadata to be included in the packaged Dataset. Marimba automates the execution of the `_package` method 
-across each Pipeline and Collection combination, aggregates the returned data mappings, and subsequently packages the 
-Marimba Dataset in the `datasets` directory.
+associated metadata to be included in the packaged Marimba Dataset. Marimba automates the execution of the `_package` 
+method across each Pipeline and Collection combination, aggregates the returned data mappings, and subsequently packages 
+the Marimba Dataset in the `datasets` directory.
 
 
 #### Example `_package` Implementation
 
-A standard pattern in Marimba Pipelines involves creating a CSV file that lists each image in the Collection along with 
-its associated metadata including spatio-temporal attributes such as time, latitude, and longitude, as well as 
-additional metadata like depth, sensor settings, and environmental conditions. This pattern facilitates the use of the 
-CSV file in the `_package` method to systematically populate the data mapping:
+A standard pattern for the `_package` method in Marimba Pipelines involves creating a CSV file that lists each image in 
+the Collection along with its associated metadata including spatio-temporal attributes such as time, latitude, and 
+longitude, as well as additional metadata like depth, sensor settings, and environmental conditions. This pattern 
+facilitates the use of the CSV file in the `_package` method to systematically populate the data mapping:
 
 ```python
 from datetime import datetime
@@ -977,7 +981,7 @@ In this example, the `_package` method systematically processes the files in a M
 load a CSV file that contains metadata for each image in the Collection, including essential attributes such as 
 timestamps, latitude, longitude, and depth. Using this reference, the method constructs `ImageData` objects for each 
 image, which encapsulate the iFDO metadata for the image, including information about its acquisition, quality, 
-deployment, and capture mode.
+deployment, and capture.
 
 The method iterates over the image metadata and verifies that each corresponding image file exists. If found, it 
 populates the `ImageData` object with the extracted metadata, along with additional details like the image’s platform, 
@@ -991,21 +995,21 @@ metadata are correctly accounted for in the dataset.
 
 #### Executing the `_package` Method
 
-To create a Dataset from your Marimba Project, use the Marimba CLI with the packaging command as follows:
+To create a Marimba Dataset from your Project, use the Marimba CLI with the packaging command as follows:
 
 ```bash
 marimba package my-dataset --version 1.0 --contact-name "Keiko Abe" --contact-email "keiko.abe@email.com"
 ```
 
-This command packages the all combinations of Pipelines and Collections into a dataset while incorporating 
+This command packages the all combinations of Pipelines and Collections into a Marimba Dataset while incorporating 
 additional metadata like the dataset version (`--version`), contact name (`--contact-name`), and contact email 
-(`--contact-email`). These details are included in the Dataset's summary to ensure comprehensive documentation of 
-the dataset's creation and intended point of contact.
+(`--contact-email`). These details are included in the Dataset summary to ensure comprehensive documentation including
+the creation and intended point of contact.
 
 
 ##### Targeted Packaging with Specific Pipelines and Collections
 
-For more targeted packaging, Marimba provides the ability to specify particular Pipelines or Collections using the 
+For more targeted packaging, Marimba provides the ability to specify particular Pipelines and/or Collections using the 
 `--collection-name` and `--pipeline-name` CLI options. 
 
 This feature is useful when you need to package only a subset of data or specific pipelines without packaging everything
@@ -1025,7 +1029,7 @@ marimba package my-dataset --collection-name collection-one --collection-name co
 ```
 
 This ability to target specific Pipelines and Collections allows Marimba to efficiently address diverse packaging 
-requirements, whether for targeted deployments or comprehensive data assembly across various subsets of your 
+requirements, whether for targeted deployments or comprehensive data assembly across various subsets of your Marimba
 Project.
 
 
@@ -1037,43 +1041,43 @@ following key steps:
 1. **Composing Data From Pipelines**: Initially, Marimba executes the `_package` command within each Pipeline to 
 compose the data and metadata for packaging.
 
-2. **Creation and Validation of Dataset**: The root directory for the new dataset is created based on the dataset name,
-along with necessary subdirectories for data, logs, and pipelines. Then Marimba performs some validation checks to 
-make sure there will be no file collisions during packaging.
+2. **Creation and Validation of Dataset**: The root directory for the new Dataset is created based on the provided 
+Dataset name, along with necessary subdirectories for data, logs, and pipelines. Then Marimba performs some validation 
+checks to make sure there will be no file collisions during packaging.
 
 3. **File Transfer**: Files are transferred from their source locations to the newly created dataset at 
 `datasets/my-dataset/data`. This step is governed by the `operation` parameter which determines whether files are 
 copied, moved, or linked.
 
-4. **Application of EXIF Metadata**: Marimba applies reported metadata, such as GPS coordinates and timestamps, directly 
-to the EXIF tags of each JPG image file, ensuring that the metadata of each image reflects its content and source 
+4. **EXIF Metadata Embedding**: Marimba embeds reported metadata, such as GPS coordinates and timestamps, directly 
+to the EXIF tags of each JPG image file, ensuring that the metadata in each image reflects its content and source 
 accurately.
 
 5. **iFDO Generation**: An image FAIR Digital Object (iFDO) file is created at `datasets/my-dataset/ifdo.yml` that
 encapsulate all reported image metadata in a standardised format, adhering to FAIR (Findable, Accessible, Interoperable,
 and Reusable) data principles.
 
-6. **Summary Generation**: A dataset summary is generated at `datasets/my-dataset/summary.md` which provides an 
-overview of the dataset contents, including image, video and other file statistics. This document serves as a quick 
-reference to understand the structure and contents of the dataset at a glance.
+6. **Summary Generation**: A Dataset summary is generated at `datasets/my-dataset/summary.md` which provides an 
+overview of the Dataset contents, including image, video and other file statistics. This document serves as a quick 
+reference to understand the structure and contents of the Dataset at a glance.
 
-7. **Map Generation**: All imagery with geographical coordinates is visualized on a dataset map that is written to 
-`datasets/my-dataset/map.png`. This provides an spatial overview of all the locations of image data in the dataset.
+7. **Map Generation**: All imagery with geographical coordinates is visualized on a Dataset map that is written to 
+`datasets/my-dataset/map.png`. This provides a spatial overview of all the locations of image data in the Dataset.
 
-8. **Copy Pipelines Files**: The Pipeline code that processed the data is copied to the 
-`datasets/my-dataset/pipelines` directory to provide full provenance, transparency and tracebility of the dataset. 
+8. **Copy Pipelines Files**: The Pipeline code that processed the data is copied to the `datasets/my-dataset/pipelines` 
+directory to provide full provenance, transparency and traceability of the Dataset. 
 
 9. **Copy Logging Files**: All Pipeline processing logs are collected and copied to `datasets/my-dataset/logs/pipelines` 
 directory and the high-level Project logs are copied to `datasets/my-dataset/logs/project.log` Each of the previous 
 packaging steps are also logged and saved to `datasets/my-dataset/logs/dataset.log`, providing a complete history of 
 all processing operations throughout the entire Marimba workflow.  
 
-10. **Manifest Generation**: A manifest file is created which lists all files within the dataset along with their SHA256 
-hashes. This manifest is crucial for validating the integrity of the dataset and ensuring no files were corrupted or 
-altered during packaging.
+10. **Manifest Generation**: A manifest file is generated which lists all files and paths within the dataset along with 
+their SHA256 hashes. This manifest is crucial for validating the integrity of the dataset and ensuring no files were 
+corrupted or altered during packaging.
 
-11. **Validation**: Once the dataset has been finalized, it undergoes a validation process to check for any 
-inconsistencies with its manifest. This step is critical to certify that the dataset is complete and accurate as per the 
+11. **Dataset Validation**: Once the Dataset has been finalized, it undergoes a validation process to check for any 
+inconsistencies with its manifest. This step is critical to certify that the Dataset is complete and accurate as per the 
 original specifications.
 
 When the packaging process is executed using the Marimba package command, these steps are visually tracked in the CLI 
@@ -1103,14 +1107,15 @@ extend your data processing logic as your project evolves, while maintaining tra
 traceability.
 
 ### Next Steps
-1. **Test Your Pipeline**: Ensure your custom Pipeline functions as expected by running it on sample datasets. Use the 
-Marimba CLI to execute `_import`, `_process`, and `_package` methods, and validate the output.
+1. **Test Your Pipeline**: Ensure your custom Marimba Pipeline functions as expected by running it on sample datasets. 
+Use the Marimba CLI to execute `_import`, `_process`, and `_package` methods, and validate the output.
    
-2. **Expand Your Pipeline**: Leverage advanced features like multithreading, custom metadata handling, and targeted 
-processing to optimise and scale your Pipeline.
+2. **Expand Your Pipeline**: Leverage advanced features like multi-threading, custom metadata handling, and targeted 
+processing to optimise and scale your Marimba Pipeline.
 
-3. **Collaborate and Share**: Share your Pipeline with collaborators by hosting it in a version-controlled repository. 
-Consider contributing to the Marimba community by sharing reusable Pipelines that may benefit other projects.
+3. **Collaborate and Share**: Share your Marimba Pipeline with collaborators by hosting it in a version-controlled 
+repository. Consider contributing to the Marimba community by sharing reusable Pipelines that may benefit other 
+projects.
 
 By continuously refining your Pipeline and exploring new features, you can ensure that your data processing workflows 
 remain efficient, scalable, and fully compliant with best practices in scientific data management.
