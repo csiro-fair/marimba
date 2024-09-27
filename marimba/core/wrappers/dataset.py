@@ -669,6 +669,7 @@ class DatasetWrapper(LogMixin):
 
         Args:
             image_set_items: The dictionary of image set items to summarize.
+            zoom: Optional zoom level for the map.
         """
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             task = progress.add_task("[green]Generating dataset map (7/11)", total=1)
