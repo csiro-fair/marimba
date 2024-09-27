@@ -930,44 +930,44 @@ def _package(
                 image_spectral_resolution=ImageSpectralResolution.RGB,
                 image_capture_mode=ImageCaptureMode.MANUAL,
                 image_fauna_attraction=ImageFaunaAttraction.NONE,
-                # image_area_square_meter=None
-                # image_meters_above_ground=None
-                # image_acquisition_settings=None
-                # image_camera_yaw_degrees=None
-                # image_camera_pitch_degrees=None
-                # image_camera_roll_degrees=None
+                # image_area_square_meter=None,
+                # image_meters_above_ground=None,
+                # image_acquisition_settings=None,
+                # image_camera_yaw_degrees=None,
+                # image_camera_pitch_degrees=None,
+                # image_camera_roll_degrees=None,
                 # image_overlap_fraction=0,
                 image_datetime_format="%Y-%m-%d %H:%M:%S.%f",
-                # image_camera_pose=None
+                # image_camera_pose=None,
                 # image_camera_housing_viewport=None,
-                # image_flatport_parameters=None
-                # image_domeport_parameters=None
-                # image_camera_calibration_model=None
-                # image_photometric_calibration=None
-                # image_objective=None
+                # image_flatport_parameters=None,
+                # image_domeport_parameters=None,
+                # image_camera_calibration_model=None,
+                # image_photometric_calibration=None,
+                # image_objective=None,
                 image_target_environment="Benthic habitat",
-                # image_target_timescale=None
-                # image_spatial_constraints=None
-                # image_temporal_constraints=None
-                # image_time_synchronization=None
+                # image_target_timescale=None,
+                # image_spatial_constraints=None,
+                # image_temporal_constraints=None,
+                # image_time_synchronization=None,
                 image_item_identification_scheme="<filename_field_1>_<filename_field_2>_<filename_field_3>.<ext>",
                 image_curation_protocol=f"Processed with Marimba v{__version__}",
 
                 # # iFDO content (optional)
                 # Note: Marimba automatically calculates and injects image_entropy and image_average_color during packaging
                 # image_entropy=0.0,
-                # image_particle_count=None
+                # image_particle_count=None,
                 # image_average_color=[0, 0, 0],
-                # image_mpeg7_colorlayout=None
-                # image_mpeg7_colorstatistics=None
-                # image_mpeg7_colorstructure=None
-                # image_mpeg7_dominantcolor=None
-                # image_mpeg7_edgehistogram=None
-                # image_mpeg7_homogenoustexture=None
-                # image_mpeg7_stablecolor=None
-                # image_annotation_labels=None
-                # image_annotation_creators=None
-                # image_annotations=None
+                # image_mpeg7_colorlayout=None,
+                # image_mpeg7_colorstatistics=None,
+                # image_mpeg7_colorstructure=None,
+                # image_mpeg7_dominantcolor=None,
+                # image_mpeg7_edgehistogram=None,
+                # image_mpeg7_homogenoustexture=None,
+                # image_mpeg7_stablecolor=None,
+                # image_annotation_labels=None,
+                # image_annotation_creators=None,
+                # image_annotations=None,
             )
 
             # Add the image file, iFDO and ancillary metadata to the data mapping
