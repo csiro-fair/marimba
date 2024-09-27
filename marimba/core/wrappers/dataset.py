@@ -253,7 +253,7 @@ class DatasetWrapper(LogMixin):
                 progress.advance(task)
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Applying iFDO metadata to files", total=len(metadata_mapping))
+            task = progress.add_task("[green]Applying iFDO metadata to files (4/11)", total=len(metadata_mapping))
             process_file(self, items=metadata_mapping.items(), progress=progress, task=task)  # type: ignore
 
     def _process_image_file(
