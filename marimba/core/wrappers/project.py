@@ -946,6 +946,7 @@ class ProjectWrapper(LogMixin):
         version: Optional[str] = "1.0",
         contact_name: Optional[str] = None,
         contact_email: Optional[str] = None,
+        zoom: Optional[int] = None,
     ) -> DatasetWrapper:
         """
         Create a Marimba dataset from a dataset mapping.
@@ -985,6 +986,7 @@ class ProjectWrapper(LogMixin):
             self.log_path,
             (pw.log_path for pw in self.pipeline_wrappers.values()),
             operation=operation,
+            zoom=zoom,
         )
 
         # Validate it

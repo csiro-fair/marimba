@@ -196,6 +196,7 @@ def package_command(
     contact_email: Optional[str] = typer.Option(
         None, help="Email address of the contact person for the packaged dataset."
     ),
+    zoom: Optional[int] = typer.Option(None, help="Zoom level for the packaged dataset map."),
     extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(
         False, help="Execute the command and print logging to the terminal, but do not change any files."
@@ -225,6 +226,7 @@ def package_command(
             version=version,
             contact_name=contact_name,
             contact_email=contact_email,
+            zoom=zoom,
         )
     except ProjectWrapper.CompositionError as e:
         logger.error(e)

@@ -435,6 +435,7 @@ class DatasetWrapper(LogMixin):
         project_log_path: Path,
         pipeline_log_paths: Iterable[Path],
         operation: Operation = Operation.copy,
+        zoom: Optional[int] = None,
     ) -> None:
         """
         Populate the dataset with files from the given dataset mapping.
@@ -458,7 +459,7 @@ class DatasetWrapper(LogMixin):
         self._apply_exif_metadata(dataset_mapping)
         self.generate_ifdo(dataset_name, image_set_items)
         self.generate_dataset_summary(image_set_items)
-        self._generate_dataset_map(image_set_items)
+        self._generate_dataset_map(image_set_items, zoom)
         self._copy_pipelines(project_pipelines_dir)
         self._copy_logs(project_log_path, pipeline_log_paths)
         self._generate_manifest(image_set_items)
@@ -662,7 +663,7 @@ class DatasetWrapper(LogMixin):
         else:
             generate_summary()
 
-    def _generate_dataset_map(self, image_set_items: Dict[str, ImageData]) -> None:
+    def _generate_dataset_map(self, image_set_items: Dict[str, ImageData], zoom: Optional[int] = None) -> None:
         """
         Generate a summary of the dataset, including a map of geolocations if available.
 
@@ -680,7 +681,7 @@ class DatasetWrapper(LogMixin):
                 if image_data.image_latitude is not None and image_data.image_longitude is not None
             ]
             if geolocations:
-                summary_map = make_summary_map(geolocations)
+                summary_map = make_summary_map(geolocations, zoom=zoom)
                 if summary_map is not None:
                     map_path = self.root_dir / "map.png"
                     if not self.dry_run:

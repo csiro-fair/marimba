@@ -97,6 +97,7 @@ def make_summary_map(
     marker_size: int = 10,
     num_x_lines: int = 5,
     num_y_lines: int = 5,
+    zoom: Optional[int] = None,
 ) -> Optional[Image.Image]:
     """
     Make a summary map of the given geolocations.
@@ -109,6 +110,9 @@ def make_summary_map(
         marker_size: Size of the markers.
         num_x_lines: Number of dashed lines on the x-axis.
         num_y_lines: Number of dashed lines on the y-axis.
+        zoom: Zoom level for the map (lower values zoom out, higher values zoom in). If None, the map will use the
+            default zoom level based on geolocations.
+
 
     Returns:
         PIL image of the map, or None if no geolocations were given.
@@ -129,7 +133,7 @@ def make_summary_map(
             marker = CircleMarker((lon, lat), marker_color, marker_size)
             m.add_marker(marker)
 
-        image = cast(Image.Image, m.render())
+        image = cast(Image.Image, m.render(zoom=zoom))
 
     except requests.exceptions.ConnectionError:
         raise NetworkConnectionError("Unable to render the map.")
