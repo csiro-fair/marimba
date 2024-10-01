@@ -3,7 +3,7 @@
 <!-- PROJECT LOGO -->
 <figure markdown style="text-align: center">
 
-![Marimba Logo](docs/img/marimba-logo.png "Marimba logo")
+![Marimba Logo](https://raw.githubusercontent.com/csiro-fair/marimba/main/docs/img/marimba-logo.png "Marimba logo")
 
 </figure>
 
