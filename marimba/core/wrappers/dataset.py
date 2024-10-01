@@ -42,6 +42,7 @@ import os
 from collections import OrderedDict
 from datetime import timezone
 from fractions import Fraction
+from math import isnan
 from pathlib import Path
 from shutil import copy2, copytree, ignore_patterns
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
@@ -663,6 +664,40 @@ class DatasetWrapper(LogMixin):
         else:
             generate_summary()
 
+    @staticmethod
+    def _is_valid_coordinate(value: Optional[float], min_value: float, max_value: float) -> bool:
+        """
+        Validate if a coordinate is a valid real number within the given range.
+
+        Args:
+            value: The coordinate value to validate, which can be None or a float.
+            min_value: The minimum acceptable value for the coordinate.
+            max_value: The maximum acceptable value for the coordinate.
+
+        Returns:
+            bool: True if the value is within the specified range and is not NaN, otherwise False.
+        """
+        return value is not None and min_value <= value <= max_value and not isnan(value)
+
+    def _validate_geolocations(self, lat: Optional[float], lon: Optional[float]) -> bool:
+        """
+        Validate latitude and longitude values to ensure they are within acceptable ranges.
+
+        Latitude must be within the range [-90, 90]. Longitude can either be within
+        the range [-180, 180] or within [0, 360] to accommodate different dataset formats.
+
+        Args:
+            lat: Latitude value to validate.
+            lon: Longitude value to validate.
+
+        Returns:
+            bool: True if both latitude and longitude are valid real numbers within their respective ranges, otherwise
+            False.
+        """
+        valid_latitude = self._is_valid_coordinate(lat, -90.0, 90.0)
+        valid_longitude = self._is_valid_coordinate(lon, -180.0, 180.0) or self._is_valid_coordinate(lon, 0.0, 360.0)
+        return valid_latitude and valid_longitude
+
     def _generate_dataset_map(self, image_set_items: Dict[str, ImageData], zoom: Optional[int] = None) -> None:
         """
         Generate a summary of the dataset, including a map of geolocations if available.
@@ -679,7 +714,7 @@ class DatasetWrapper(LogMixin):
                 (image_data.image_latitude, image_data.image_longitude)
                 for image_data_list in image_set_items.values()
                 for image_data in image_data_list
-                if image_data.image_latitude is not None and image_data.image_longitude is not None
+                if self._validate_geolocations(image_data.image_latitude, image_data.image_longitude)
             ]
             if geolocations:
                 summary_map = make_summary_map(geolocations, zoom=zoom)
