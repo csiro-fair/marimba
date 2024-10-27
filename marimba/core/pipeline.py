@@ -21,7 +21,7 @@ Classes:
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any
 
 from ifdo.models import ImageData
 
@@ -34,7 +34,7 @@ class BasePipeline(ABC, LogMixin):
     Marimba pipeline abstract base class. All pipelines should inherit from this class.
     """
 
-    def __init__(self, root_path: Union[str, Path], config: Optional[Dict[str, Any]] = None, dry_run: bool = False):
+    def __init__(self, root_path: str | Path, config: dict[str, Any] | None = None, dry_run: bool = False):
         """
         Initialise the class instance.
 
@@ -48,7 +48,7 @@ class BasePipeline(ABC, LogMixin):
         self._dry_run = dry_run
 
     @staticmethod
-    def get_pipeline_config_schema() -> Dict[str, Any]:
+    def get_pipeline_config_schema() -> dict[str, Any]:
         """
         Return the pipeline configuration schema.
 
@@ -75,7 +75,7 @@ class BasePipeline(ABC, LogMixin):
         return {}
 
     @staticmethod
-    def get_collection_config_schema() -> Dict[str, Any]:
+    def get_collection_config_schema() -> dict[str, Any]:
         """
         Return the collection configuration schema.
 
@@ -87,7 +87,7 @@ class BasePipeline(ABC, LogMixin):
         return {}
 
     @property
-    def config(self) -> Optional[Dict[str, Any]]:
+    def config(self) -> dict[str, Any] | None:
         """
         The pipeline static configuration.
         """
@@ -107,7 +107,7 @@ class BasePipeline(ABC, LogMixin):
         """
         return self.__class__.__name__
 
-    def run_import(self, data_dir: Path, source_path: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]) -> None:
+    def run_import(self, data_dir: Path, source_path: Path, config: dict[str, Any], **kwargs: dict[str, Any]) -> None:
         """
         Public interface for the import command. Delegate to the private implementation method `_import`.
 
@@ -121,17 +121,17 @@ class BasePipeline(ABC, LogMixin):
         """
         self.logger.debug(
             f"Running {format_command('import')} command for pipeline {format_entity(self.class_name)} with args: "
-            f"{data_dir=}, {source_path=}, {config=}, {kwargs=}"
+            f"{data_dir=}, {source_path=}, {config=}, {kwargs=}",
         )
 
         # Check for the existence of the source_path directory
         if not source_path.is_dir():
-            self.logger.error(f"Source path {source_path} is not a directory")
-            return
+            self.logger.exception(f"Source path {source_path} is not a directory")
+            return None
 
         return self._import(data_dir, source_path, config, **kwargs)
 
-    def run_process(self, data_dir: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]) -> None:
+    def run_process(self, data_dir: Path, config: dict[str, Any], **kwargs: dict[str, Any]) -> None:
         """
         Public interface for the process command. Delegate to the private implementation method `_process`.
 
@@ -144,13 +144,13 @@ class BasePipeline(ABC, LogMixin):
         """
         self.logger.debug(
             f"Running {format_command('process')} command for pipeline {format_entity(self.class_name)} with args: "
-            f"{data_dir=}, {config=}, {kwargs=}"
+            f"{data_dir=}, {config=}, {kwargs=}",
         )
         return self._process(data_dir, config, **kwargs)
 
     def run_package(
-        self, data_dir: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]
-    ) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
+        self, data_dir: Path, config: dict[str, Any], **kwargs: dict[str, Any],
+    ) -> dict[Path, tuple[Path, ImageData | None, dict[str, Any] | None]]:
         """
         Package a dataset from the given data directories and their corresponding collection configurations.
 
@@ -168,39 +168,39 @@ class BasePipeline(ABC, LogMixin):
         """
         self.logger.debug(
             f"Running {format_command('package')} command for pipeline {format_entity(self.class_name)} with args: "
-            f"{data_dir=}, {config=}, {kwargs=}"
+            f"{data_dir=}, {config=}, {kwargs=}",
         )
         return self._package(data_dir, config, **kwargs)
 
-    def _import(self, data_dir: Path, source_path: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]) -> None:
+    def _import(self, data_dir: Path, source_path: Path, config: dict[str, Any], **kwargs: dict[str, Any]) -> None:
         """
         `run_import` implementation; override this to implement the import command.
 
-        TODO: Add docs on how to implement this method.
+        TODO @<cjackett>: Add docs on how to implement this method.
         """
         self.logger.warning(
             f"There is no Marimba {format_command('import')} command implemented for pipeline "
-            f"{format_entity(self.class_name)}"
+            f"{format_entity(self.class_name)}",
         )
 
-    def _process(self, data_dir: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]) -> None:
+    def _process(self, data_dir: Path, config: dict[str, Any], **kwargs: dict[str, Any]) -> None:
         """
         `run_process` implementation; override this to implement the process command.
 
-        TODO: Add docs on how to implement this method.
+        TODO @<cjackett>: Add docs on how to implement this method.
         """
         self.logger.warning(
             f"There is no Marimba {format_command('process')} command implemented for pipeline "
-            f"{format_entity(self.class_name)}"
+            f"{format_entity(self.class_name)}",
         )
 
     @abstractmethod
     def _package(
-        self, data_dir: Path, config: Dict[str, Any], **kwargs: Dict[str, Any]
-    ) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
+        self, data_dir: Path, config: dict[str, Any], **kwargs: dict[str, Any],
+    ) -> dict[Path, tuple[Path, ImageData | None, dict[str, Any] | None]]:
         """
         `run_compose` implementation; override this.
 
-        TODO: Add docs on how to implement this method.
+        TODO @<cjackett>: Add docs on how to implement this method.
         """
         raise NotImplementedError

@@ -27,14 +27,12 @@ Classes:
         - InvalidStructureError: Exception raised when the project file structure is invalid.
         - InstallError: Exception raised when there is an error installing pipeline dependencies.
 """
-
-import logging
 import shutil
 import subprocess
 import sys
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
-from typing import Any, Dict, Optional, Type, Union
+from typing import TYPE_CHECKING, Any
 
 from git import Repo
 
@@ -44,6 +42,9 @@ from marimba.core.utils.config import load_config, save_config
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.prompt import prompt_schema
 
+# Type-checking imports
+if TYPE_CHECKING:
+    import logging
 
 class PipelineWrapper(LogMixin):
     """
@@ -60,19 +61,20 @@ class PipelineWrapper(LogMixin):
         Raised when there is an error installing pipeline dependencies.
         """
 
-    def __init__(self, root_dir: Union[str, Path], dry_run: bool = False):
+    def __init__(self, root_dir: str | Path, *, dry_run: bool = False) -> None:
         """
         Initialise the class instance.
 
         Args:
             root_dir: A string or Path object representing the root directory.
             dry_run: A boolean indicating whether the method should be executed in a dry run mode.
+
         """
         self._root_dir = Path(root_dir)
         self._dry_run = dry_run
 
-        self._file_handler: Optional[logging.FileHandler] = None
-        self._pipeline_class: Optional[Type[BasePipeline]] = None
+        self._file_handler: logging.FileHandler | None = None
+        self._pipeline_class: type[BasePipeline] | None = None
 
         self._check_file_structure()
         self._setup_logging()
@@ -132,6 +134,7 @@ class PipelineWrapper(LogMixin):
 
         Raises:
             PipelineDirectory.InvalidStructureError: If the pipeline file structure is invalid.
+
         """
 
         def check_dir_exists(path: Path) -> None:
@@ -157,7 +160,7 @@ class PipelineWrapper(LogMixin):
         self.logger.addHandler(self._file_handler)
 
     @classmethod
-    def create(cls, root_dir: Union[str, Path], url: str, dry_run: bool = False) -> "PipelineWrapper":
+    def create(cls, root_dir: str | Path, url: str, *, dry_run: bool = False) -> "PipelineWrapper":
         """
         Create a new pipeline directory from a remote git repository.
 
@@ -168,6 +171,7 @@ class PipelineWrapper(LogMixin):
 
         Raises:
             FileExistsError: If the pipeline root directory already exists.
+
         """
         root_dir = Path(root_dir)
 
@@ -188,21 +192,23 @@ class PipelineWrapper(LogMixin):
 
         return cls(root_dir, dry_run=dry_run)
 
-    def load_config(self) -> Dict[str, Any]:
+    def load_config(self) -> dict[str, Any]:
         """
         Load the pipeline configuration.
 
         Returns:
             The pipeline configuration.
+
         """
         return load_config(self.config_path)
 
-    def save_config(self, config: Optional[Dict[Any, Any]]) -> None:
+    def save_config(self, config: dict[Any, Any] | None) -> None:
         """
         Save the pipeline configuration.
 
         Args:
             config: The pipeline configuration.
+
         """
         if config:
             save_config(self.config_path, config)
@@ -216,15 +222,14 @@ class PipelineWrapper(LogMixin):
 
         Returns:
             BasePipeline: The pipeline instance.
+
         """
         # Use the standalone function to load the pipeline instance
-        pipeline_instance = load_pipeline_instance(
-            self.root_dir, self.repo_dir, self.name, self.config_path, self.dry_run
+        return load_pipeline_instance(
+            self.root_dir, self.repo_dir, self.name, self.config_path, self.dry_run,
         )
 
-        return pipeline_instance
-
-    def get_pipeline_class(self) -> Optional[Type[BasePipeline]]:
+    def get_pipeline_class(self) -> type[BasePipeline] | None:
         """
         Get the pipeline class.
 
@@ -238,6 +243,7 @@ class PipelineWrapper(LogMixin):
                 If the pipeline implementation file cannot be found, or if there are multiple pipeline implementation
                 files.
             ImportError: If the pipeline implementation file cannot be imported.
+
         """
         if self._pipeline_class is None:
             # Find files that end with .pipeline.py in the repository
@@ -249,7 +255,7 @@ class PipelineWrapper(LogMixin):
 
             if len(pipeline_module_paths) > 1:
                 raise FileNotFoundError(
-                    f'Multiple pipeline implementations found in "{self.repo_dir}": {pipeline_module_paths}.'
+                    f'Multiple pipeline implementations found in "{self.repo_dir}": {pipeline_module_paths}.',
                 )
             pipeline_module_path = pipeline_module_paths[0]
 
@@ -279,7 +285,7 @@ class PipelineWrapper(LogMixin):
             sys.path.pop(0)
 
             # Find any BasePipeline implementations
-            for _, obj in pipeline_module.__dict__.items():
+            for obj in pipeline_module.__dict__.values():
                 if isinstance(obj, type) and issubclass(obj, BasePipeline) and obj is not BasePipeline:
                     self._pipeline_class = obj
                     break
@@ -288,24 +294,26 @@ class PipelineWrapper(LogMixin):
 
     def prompt_pipeline_config(
         self,
-        config: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        """Prompt for and process pipeline configuration.
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Prompt for and process pipeline configuration.
 
         This function prompts for pipeline configuration based on the provided schema and any existing configuration.
         It merges the existing configuration (if provided) with additional user input for missing configuration items.
 
         Args:
-            - config (Optional[Dict]): Existing pipeline configuration. If provided, it will be used to pre-fill
-              the configuration dictionary.
+            config (Optional[Dict]): Existing pipeline configuration. If provided, it will be used to pre-fill
+            the configuration dictionary.
 
         Returns:
             Dict[Any, Any]: A dictionary containing the final pipeline configuration after merging existing config
             and user input.
 
         Raises:
-            - ValueError: If the pipeline instance or configuration schema cannot be retrieved.
-            - TypeError: If the provided config is not a dictionary.
+            ValueError: If the pipeline instance or configuration schema cannot be retrieved.
+            TypeError: If the provided config is not a dictionary.
+
         """
         pipeline = self.get_instance()
         pipeline_config_schema = pipeline.get_pipeline_config_schema()
@@ -335,6 +343,49 @@ class PipelineWrapper(LogMixin):
         repo = Repo(self.repo_dir)
         repo.remotes.origin.pull()
 
+    def _handle_pip_error(self, returncode: int) -> None:
+        """
+        Handle pip installation errors by raising appropriate exceptions.
+
+        Args:
+            returncode: The return code from pip installation process
+
+        Raises:
+            PipelineWrapper.InstallError: If pip installation fails
+        """
+        if returncode != 0:
+            raise PipelineWrapper.InstallError(
+                f"pip install had a non-zero return code: {returncode}",
+            )
+
+    def _validate_requirements(self, requirements_path: str) -> None:
+        """
+        Validate that the requirements file exists and is accessible.
+
+        Args:
+            requirements_path: Path to the requirements.txt file
+
+        Raises:
+            PipelineWrapper.InstallError: If requirements file is not found
+        """
+        if not Path(requirements_path).is_file():
+            raise PipelineWrapper.InstallError(f"Requirements file not found: {requirements_path}")
+
+    def _validate_pip(self) -> str:
+        """
+        Validate that pip is available in the system PATH.
+
+        Returns:
+            str: Path to pip executable
+
+        Raises:
+            PipelineWrapper.InstallError: If pip is not found
+        """
+        pip_path = shutil.which("pip")
+        if pip_path is None:
+            raise PipelineWrapper.InstallError("pip executable not found in PATH")
+        return pip_path
+
     def install(self) -> None:
         """
         Install the pipeline dependencies as provided in a requirements.txt file, if present.
@@ -342,39 +393,33 @@ class PipelineWrapper(LogMixin):
         Raises:
             PipelineWrapper.InstallError: If there is an error installing pipeline dependencies.
         """
-        if self.requirements_path.is_file():
-            self.logger.info(f"Installing pipeline dependencies from {self.requirements_path}...")
-            try:
-                # Ensure the requirements path is an absolute path and exists
-                requirements_path = str(self.requirements_path.absolute())
-                if not Path(requirements_path).is_file():
-                    raise PipelineWrapper.InstallError(f"Requirements file not found: {requirements_path}")
+        if not self.requirements_path.is_file():
+            self.logger.exception(f"Requirements file does not exist: {self.requirements_path}")
+            raise PipelineWrapper.InstallError(f"Requirements file does not exist: {self.requirements_path}")
 
-                # Find the full path to the pip executable
-                pip_path = shutil.which("pip")
-                if pip_path is None:
-                    raise PipelineWrapper.InstallError("pip executable not found in PATH")
+        self.logger.info(f"Installing pipeline dependencies from {self.requirements_path}...")
+        try:
+            # Ensure the requirements path is an absolute path and exists
+            requirements_path = str(self.requirements_path.absolute())
+            self._validate_requirements(requirements_path)
 
-                with subprocess.Popen(
+            # Find and validate pip executable
+            pip_path = self._validate_pip()
+
+            with subprocess.Popen(
                     [pip_path, "install", "--no-input", "-r", requirements_path],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
-                ) as process:
-                    output, error = process.communicate()
-                    if output:
-                        self.logger.debug(output.decode("utf-8"))
-                    if error:
-                        self.logger.warning(error.decode("utf-8"))
+            ) as process:
+                output, error = process.communicate()
+                if output:
+                    self.logger.debug(output.decode("utf-8"))
+                if error:
+                    self.logger.warning(error.decode("utf-8"))
 
-                    if process.returncode != 0:
-                        raise PipelineWrapper.InstallError(
-                            f"pip install had a non-zero return code: {process.returncode}"
-                        )
+                self._handle_pip_error(process.returncode)
 
-                self.logger.info("Pipeline dependencies installed successfully.")
-            except Exception as e:
-                self.logger.error(f"Error installing pipeline dependencies: {e}")
-                raise PipelineWrapper.InstallError from e
-        else:
-            self.logger.error(f"Requirements file does not exist: {self.requirements_path}")
-            raise PipelineWrapper.InstallError(f"Requirements file does not exist: {self.requirements_path}")
+            self.logger.info("Pipeline dependencies installed successfully.")
+        except Exception as e:
+            self.logger.exception(f"Error installing pipeline dependencies: {e}")
+            raise PipelineWrapper.InstallError from e

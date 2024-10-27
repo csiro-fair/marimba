@@ -17,7 +17,7 @@ Classes:
 """
 
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any
 
 from marimba.core.utils.config import load_config, save_config
 
@@ -37,7 +37,7 @@ class CollectionWrapper:
         Raised when a pipeline is not found.
         """
 
-    def __init__(self, root_dir: Union[str, Path]):
+    def __init__(self, root_dir: str | Path) -> None:
         """
         Initialise the class instance.
 
@@ -49,7 +49,7 @@ class CollectionWrapper:
         self._check_file_structure()
 
     @classmethod
-    def create(cls, root_dir: Union[str, Path], config: Dict[str, Any]) -> "CollectionWrapper":
+    def create(cls, root_dir: str | Path, config: dict[str, Any]) -> "CollectionWrapper":
         """
         Create a new collection directory.
 
@@ -110,13 +110,13 @@ class CollectionWrapper:
         check_dir_exists(self.root_dir)
         check_file_exists(self.config_path)
 
-    def load_config(self) -> Dict[str, Any]:
+    def load_config(self) -> dict[str, Any]:
         """
         Load the collection configuration. Reads `collection.yml` from the collection root directory.
         """
         return load_config(self.config_path)
 
-    def save_config(self, config: Dict[str, Any]) -> None:
+    def save_config(self, config: dict[str, Any]) -> None:
         """
         Save a new collection configuration to `collection.yml` in the collection root directory.
         """

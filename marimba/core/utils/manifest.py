@@ -19,9 +19,9 @@ Classes:
 """
 
 import hashlib
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, Optional
 
 from distlib.util import Progress
 from ifdo.models import ImageData
@@ -36,7 +36,7 @@ class Manifest:
     Dataset manifest. Used to validate datasets to check if the underlying data has been corrupted or modified.
     """
 
-    hashes: Dict[Path, bytes]
+    hashes: dict[Path, bytes]
 
     @staticmethod
     def compute_hash(path: Path) -> bytes:
@@ -67,10 +67,10 @@ class Manifest:
     def from_dir(
         cls,
         directory: Path,
-        exclude_paths: Optional[Iterable[Path]] = None,
-        image_set_items: Optional[Dict[str, ImageData]] = None,
-        progress: Optional[Progress] = None,
-        task: Optional[TaskID] = None,
+        exclude_paths: Iterable[Path] | None = None,
+        image_set_items: dict[str, ImageData] | None = None,
+        progress: Progress | None = None,
+        task: TaskID | None = None,
     ) -> "Manifest":
         """
         Create a manifest from a directory.
@@ -83,7 +83,7 @@ class Manifest:
         Returns:
             A manifest.
         """
-        hashes: Dict[Path, bytes] = {}
+        hashes: dict[Path, bytes] = {}
         exclude_paths = set(exclude_paths) if exclude_paths is not None else set()
         globbed_files = list(directory.glob("**/*"))
 
@@ -93,11 +93,11 @@ class Manifest:
             thread_num: str,
             item: Path,
             directory: Path,
-            exclude_paths: Optional[Iterable[Path]],
-            hashes: Dict[Path, bytes],
-            image_set_items: Optional[Dict[str, ImageData]] = None,
-            progress: Optional[Progress] = None,
-            task: Optional[TaskID] = None,
+            exclude_paths: Iterable[Path] | None,
+            hashes: dict[Path, bytes],
+            image_set_items: dict[str, ImageData] | None = None,
+            progress: Progress | None = None,
+            task: TaskID | None = None,
         ) -> None:
             if progress and task is not None:
                 progress.advance(task)
@@ -130,9 +130,9 @@ class Manifest:
     def validate(
         self,
         directory: Path,
-        exclude_paths: Optional[Iterable[Path]] = None,
-        progress: Optional[Progress] = None,
-        task: Optional[TaskID] = None,
+        exclude_paths: Iterable[Path] | None = None,
+        progress: Progress | None = None,
+        task: TaskID | None = None,
     ) -> bool:
         """
         Validate a directory against the manifest.

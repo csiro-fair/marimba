@@ -1,4 +1,5 @@
-"""Loads a pipeline instance from a repository directory.
+"""
+Loads a pipeline instance from a repository directory.
 
 This module provides functionality to load a pipeline instance from a given repository directory. It searches for a
 pipeline implementation file (ending with .pipeline.py) within the repository, imports the pipeline module, and
@@ -20,7 +21,6 @@ Functions:
 import sys
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
-from typing import Optional, Type
 
 from marimba.core.pipeline import BasePipeline
 from marimba.core.utils.config import load_config
@@ -33,7 +33,7 @@ def load_pipeline_instance(
     pipeline_name: str,
     config_path: Path,
     dry_run: bool,
-    log_string_prefix: Optional[str] = None,
+    log_string_prefix: str | None = None,
 ) -> BasePipeline:
     """
     Load the pipeline instance from the given repository directory.
@@ -88,7 +88,7 @@ def load_pipeline_instance(
     sys.path.pop(0)
 
     # Find any BasePipeline implementations
-    pipeline_class: Optional[Type[BasePipeline]] = None
+    pipeline_class: type[BasePipeline] | None = None
     for _, obj in pipeline_module.__dict__.items():
         if isinstance(obj, type) and issubclass(obj, BasePipeline) and obj is not BasePipeline:
             pipeline_class = obj

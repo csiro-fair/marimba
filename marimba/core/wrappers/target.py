@@ -27,7 +27,7 @@ Functions:
 from inspect import getfullargspec, isclass
 from pathlib import Path
 from types import FunctionType
-from typing import Any, Dict, Optional, Tuple, Union, cast
+from typing import Any, ClassVar, cast
 
 from rich.prompt import Prompt
 
@@ -54,7 +54,7 @@ class DistributionTargetWrapper:
 
     """
 
-    CLASS_MAP = {
+    CLASS_MAP: ClassVar[dict[str, type]] = {
         "s3": S3DistributionTarget,
         "dap": CSIRODapDistributionTarget,
     }
@@ -64,7 +64,7 @@ class DistributionTargetWrapper:
         Raised when the configuration file is invalid.
         """
 
-    def __init__(self, config_path: Union[str, Path]):
+    def __init__(self, config_path: str | Path) -> None:
         """
         Initialise the class instance.
 
@@ -72,14 +72,14 @@ class DistributionTargetWrapper:
             config_path (Union[str, Path]): The path to the configuration file.
         """
         self._config_path = Path(config_path)
-        self._config: Dict[str, Any] = {}
+        self._config: dict[str, Any] = {}
 
         self._load_config()
         self._check_config()
 
     @classmethod
     def create(
-        cls, config_path: Union[str, Path], target_type: str, target_args: Dict[str, Any]
+        cls, config_path: str | Path, target_type: str, target_args: dict[str, Any],
     ) -> "DistributionTargetWrapper":
         """
         Create a distribution target at the specified path with the specified type and arguments.
@@ -111,7 +111,7 @@ class DistributionTargetWrapper:
         return cls(config_path)
 
     @staticmethod
-    def prompt_target() -> Tuple[str, Dict[str, Any]]:
+    def prompt_target() -> tuple[str, dict[str, Any]]:
         """
         Use Rich to prompt for a distribution target configuration.
 
@@ -138,7 +138,7 @@ class DistributionTargetWrapper:
             raise TypeError(f"Target class {target_type} does not have an __init__ method")
 
         # Ensure that target_class.__init__ is a method
-        if not isinstance(target_class.__init__, FunctionType):  # type: ignore
+        if not isinstance(target_class.__init__, FunctionType):  # type: ignore[attr-defined]
             raise TypeError(f"__init__ of target class {target_type} is not a method")
 
         # Get the distribution target __init__ positional and keyword arguments
@@ -148,7 +148,7 @@ class DistributionTargetWrapper:
         defaults = arg_spec.defaults if arg_spec.defaults else []
 
         # Prepare the default values for the keyword arguments
-        keyword_defaults = dict(zip(keyword_args[::-1], defaults[::-1]))
+        keyword_defaults = dict(zip(keyword_args[::-1], defaults[::-1], strict=False))
 
         def map_arg_name(arg_name: str) -> str:
             """
@@ -184,19 +184,19 @@ class DistributionTargetWrapper:
         target_type = self.config.get("type", None)
         if target_type is None:
             raise DistributionTargetWrapper.InvalidConfigError(
-                "The distribution target configuration must specify a 'type'."
+                "The distribution target configuration must specify a 'type'.",
             )
 
         if target_type not in DistributionTargetWrapper.CLASS_MAP:
             raise DistributionTargetWrapper.InvalidConfigError(
                 f"Invalid distribution target type: {target_type}. Must be one of: "
-                f"{', '.join(DistributionTargetWrapper.CLASS_MAP.keys())}"
+                f"{', '.join(DistributionTargetWrapper.CLASS_MAP.keys())}",
             )
 
         target_args = self.config.get("config", None)
         if target_args is None:
             raise DistributionTargetWrapper.InvalidConfigError(
-                "The distribution target configuration must specify a 'config'."
+                "The distribution target configuration must specify a 'config'.",
             )
 
     def _load_config(self) -> None:
@@ -213,13 +213,13 @@ class DistributionTargetWrapper:
         return self._config_path
 
     @property
-    def config(self) -> Dict[str, Any]:
+    def config(self) -> dict[str, Any]:
         """
         The distribution target configuration.
         """
         return self._config
 
-    def get_instance(self) -> Optional[DistributionTargetBase]:
+    def get_instance(self) -> DistributionTargetBase | None:
         """
         Get an instance of the distribution target as specified by the config.
 

@@ -35,7 +35,7 @@ Functions:
 
 from pathlib import Path
 from shutil import copy2
-from typing import Iterable, Optional, Tuple, Union, cast
+from typing import Iterable, Optional, Tuple, Union, cast, Literal
 
 import cv2
 import numpy as np

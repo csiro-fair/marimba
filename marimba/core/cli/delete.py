@@ -33,15 +33,20 @@ Functions:
 """
 
 from pathlib import Path
-from typing import Optional
 
 import typer
-from rich import print  # noqa: A004
+from rich import print
 
 from marimba.core.utils.constants import PROJECT_DIR_HELP
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.paths import find_project_dir_or_exit
-from marimba.core.utils.rich import MARIMBA, error_panel, format_command, format_entity, success_panel
+from marimba.core.utils.rich import (
+    MARIMBA,
+    error_panel,
+    format_command,
+    format_entity,
+    success_panel,
+)
 from marimba.core.wrappers.project import ProjectWrapper
 
 logger = get_logger(__name__)
@@ -54,7 +59,7 @@ app = typer.Typer(
 
 @app.command()
 def project(
-    project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
+    project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP),
     dry_run: bool = typer.Option(
         False,
         help="Execute the command and print logging to the terminal, but do not change any files.",
@@ -73,7 +78,7 @@ def project(
         logger.info(f'Project Deleted {MARIMBA} {format_entity("project")} "{project_wrapper.root_dir}"')
     except ProjectWrapper.InvalidStructureError:
         error_message = f'A {MARIMBA} {format_entity("project")} not valid project: "{project_dir}"'
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit(code=1)
     print(success_panel(f'Deleted {MARIMBA} {format_entity("project")} "{root_path}"'))
@@ -82,9 +87,9 @@ def project(
 @app.command()
 def pipeline(
     pipeline_name: str = typer.Argument(..., help="Name of the pipeline."),
-    project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
+    project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP),
     dry_run: bool = typer.Option(
-        False, help="Execute the command and print logging to the terminal, but do not change any files."
+        False, help="Execute the command and print logging to the terminal, but do not change any files.",
     ),
 ) -> None:
     """
@@ -99,12 +104,12 @@ def pipeline(
         root_path = project_wrapper.delete_pipeline(pipeline_name, dry_run=dry_run)
     except ProjectWrapper.InvalidNameError as e:
         error_message = f"Invalid pipeline name: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit(code=1)
     except Exception as e:
         error_message = f"Could not delete pipeline: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit(code=1)
     print(success_panel(f'Deleted {MARIMBA} {format_entity("pipeline")} "{pipeline_name}" at: "{root_path}"'))
@@ -115,7 +120,7 @@ def collection(
     collection_name: str = typer.Argument(..., help="Name of the collection to delete"),
     project_dir: Path = typer.Option(None, help=PROJECT_DIR_HELP),
     dry_run: bool = typer.Option(
-        False, help="Execute the command and print logging to the terminal, but do not change any files."
+        False, help="Execute the command and print logging to the terminal, but do not change any files.",
     ),
 ) -> None:
     """
@@ -129,20 +134,20 @@ def collection(
         project_wrapper = ProjectWrapper(project_dir)
         root_path = project_wrapper.delete_collection(collection_name, dry_run=dry_run)
     except ProjectWrapper.InvalidNameError as e:
-        logger.error(e)
+        logger.exception(e)
         print(error_panel(f"Invalid collection name: {e}"))
         raise typer.Exit(code=1)
     except ProjectWrapper.NoSuchCollectionError as e:
-        logger.error(e)
+        logger.exception(e)
         print(error_panel(f"No such parent collection: {e}"))
         raise typer.Exit(code=1)
     except Exception as e:
         error_message = f"Could not delete collection: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit(code=1)
 
-    print(success_panel(f'Deleted {MARIMBA} {format_entity("collection")} "{collection_name}" at: ' f'"{root_path}"'))
+    print(success_panel(f'Deleted {MARIMBA} {format_entity("collection")} "{collection_name}" at: "{root_path}"'))
 
 
 @app.command()
@@ -163,22 +168,22 @@ def target(
         project_wrapper.delete_target(target_name)
     except ProjectWrapper.InvalidNameError as e:
         error_message = f"Invalid target name: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit(code=1)
     except FileExistsError:
         error_message = f'A {MARIMBA} {format_entity("target")} not found: "{project_dir / target_name}"'
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit(code=1)
     except Exception as e:
         error_message = f"Could not delete target: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit(code=1)
 
     print(
         success_panel(
-            f'Deleted {MARIMBA} {format_entity("target")} "{target_name}" at: ' f'"{project_wrapper.targets_dir}"'
-        )
+            f'Deleted {MARIMBA} {format_entity("target")} "{target_name}" at: "{project_wrapper.targets_dir}"',
+        ),
     )

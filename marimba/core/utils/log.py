@@ -28,7 +28,7 @@ Functions:
 import logging
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -138,7 +138,7 @@ def get_rich_handler() -> DryRunRichHandler:
 
 
 def get_file_handler(
-    output_dir: Union[str, Path], name: str, dry_run: bool, level: int = logging.DEBUG
+    output_dir: str | Path, name: str, dry_run: bool, level: int = logging.DEBUG,
 ) -> logging.FileHandler:
     """
     Get a file handler for a given output directory and name.
@@ -178,7 +178,7 @@ class NoRichFileHandler(logging.FileHandler):
     """
 
     def __init__(
-        self, filename: str, mode: str = "a", encoding: Optional[str] = None, delay: bool = False, dry_run: bool = False
+        self, filename: str, mode: str = "a", encoding: str | None = None, delay: bool = False, dry_run: bool = False,
     ) -> None:
         """
         Initialise the class instance.
