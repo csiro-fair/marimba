@@ -120,11 +120,11 @@ def project(
     # Try to create the new project
     try:
         project_wrapper = ProjectWrapper.create(project_dir)
-    except FileExistsError:
+    except FileExistsError as e:
         error_message = f'A {MARIMBA} {format_entity("project")} already exists at: "{project_dir}"'
         logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     print(success_panel(f'Created new {MARIMBA} {format_entity("project")} at: "{project_wrapper.root_dir}"'))
 
@@ -150,7 +150,7 @@ def pipeline(
         error_message = f"Error parsing configuration JSON: {e}"
         logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from e
 
     project_dir = find_project_dir_or_exit(project_dir)
 
@@ -166,12 +166,12 @@ def pipeline(
         error_message = f"Invalid pipeline name: {e}"
         logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         error_message = f"Could not create pipeline: {e}"
         logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     # Configure the pipeline from the command line
     pipeline_config = pipeline_wrapper.prompt_pipeline_config(config_dict)
@@ -204,7 +204,7 @@ def collection(
         error_message = f"Error parsing configuration JSON: {e}"
         logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from e
 
     project_dir = find_project_dir_or_exit(project_dir)
 
@@ -225,20 +225,20 @@ def collection(
     except ProjectWrapper.InvalidNameError as e:
         logger.exception(e)
         print(error_panel(f"Invalid collection name: {e}"))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except ProjectWrapper.NoSuchCollectionError as e:
         logger.exception(e)
         print(error_panel(f"No such parent collection: {e}"))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except ProjectWrapper.CreateCollectionError as e:
         logger.exception(e)
         print(error_panel(f"Could not create collection: {e}"))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         error_message = f"Could not create collection: {e}"
         logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     print(
         success_panel(
@@ -273,17 +273,17 @@ def target(
         error_message = f"Invalid target name: {e}"
         logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
-    except FileExistsError:
+        raise typer.Exit(code=1) from e
+    except FileExistsError as e:
         error_message = f'A {MARIMBA} {format_entity("target")} already exists at: "{project_dir / target_name}"'
         logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         error_message = f"Could not create target: {e}"
         logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     print(
         success_panel(

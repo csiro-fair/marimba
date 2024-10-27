@@ -36,21 +36,25 @@ def load_pipeline_instance(
     log_string_prefix: str | None = None,
 ) -> BasePipeline:
     """
-    Load the pipeline instance from the given repository directory.
+    Load a pipeline instance from a given repository directory.
+
+    This function searches for a pipeline implementation file in the specified repository directory, imports the module,
+    and instantiates the pipeline class. It also configures logging for the pipeline instance.
 
     Args:
-        repo_dir: The repository directory of the pipeline.
+        root_dir: The root directory for the pipeline.
+        repo_dir: The repository directory containing the pipeline implementation.
+        pipeline_name: The name of the pipeline.
         config_path: The path to the pipeline configuration file.
-        dry_run: Whether to run in dry-run mode.
-        primary_log_string: The index of the process.
-        secondary_log_string: The index of the source path.
+        dry_run: Boolean flag indicating whether to run in dry-run mode.
+        log_string_prefix: Optional prefix for log messages.
 
     Returns:
-        The pipeline instance.
+        BasePipeline: An instance of the pipeline class.
 
     Raises:
-        FileNotFoundError: If the pipeline implementation file cannot be found.
-        ImportError: If the pipeline implementation file cannot be imported.
+        FileNotFoundError: If no pipeline implementation file is found or if multiple implementations are found.
+        ImportError: If the pipeline module or class cannot be imported or instantiated.
     """
     # Find files that end with .pipeline.py in the repository
     pipeline_module_paths = list(repo_dir.glob("**/*.pipeline.py"))
@@ -89,7 +93,7 @@ def load_pipeline_instance(
 
     # Find any BasePipeline implementations
     pipeline_class: type[BasePipeline] | None = None
-    for _, obj in pipeline_module.__dict__.items():
+    for obj in pipeline_module.__dict__.values():
         if isinstance(obj, type) and issubclass(obj, BasePipeline) and obj is not BasePipeline:
             pipeline_class = obj
             break

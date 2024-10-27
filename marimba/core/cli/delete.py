@@ -76,11 +76,11 @@ def project(
         project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
         root_path = project_wrapper.delete_project()
         logger.info(f'Project Deleted {MARIMBA} {format_entity("project")} "{project_wrapper.root_dir}"')
-    except ProjectWrapper.InvalidStructureError:
+    except ProjectWrapper.InvalidStructureError as e:
         error_message = f'A {MARIMBA} {format_entity("project")} not valid project: "{project_dir}"'
         logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     print(success_panel(f'Deleted {MARIMBA} {format_entity("project")} "{root_path}"'))
 
 
@@ -106,12 +106,12 @@ def pipeline(
         error_message = f"Invalid pipeline name: {e}"
         logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         error_message = f"Could not delete pipeline: {e}"
         logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     print(success_panel(f'Deleted {MARIMBA} {format_entity("pipeline")} "{pipeline_name}" at: "{root_path}"'))
 
 
@@ -136,16 +136,16 @@ def collection(
     except ProjectWrapper.InvalidNameError as e:
         logger.exception(e)
         print(error_panel(f"Invalid collection name: {e}"))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except ProjectWrapper.NoSuchCollectionError as e:
         logger.exception(e)
         print(error_panel(f"No such parent collection: {e}"))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         error_message = f"Could not delete collection: {e}"
         logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     print(success_panel(f'Deleted {MARIMBA} {format_entity("collection")} "{collection_name}" at: "{root_path}"'))
 
@@ -170,17 +170,17 @@ def target(
         error_message = f"Invalid target name: {e}"
         logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
-    except FileExistsError:
+        raise typer.Exit(code=1) from e
+    except FileExistsError as e:
         error_message = f'A {MARIMBA} {format_entity("target")} not found: "{project_dir / target_name}"'
         logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         error_message = f"Could not delete target: {e}"
         logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     print(
         success_panel(

@@ -36,7 +36,7 @@ def load_config(config_path: str | Path) -> dict[str, Any]:
     """
     config_path = Path(config_path)
 
-    with open(config_path, encoding="utf-8") as file:
+    with Path.open(config_path, encoding="utf-8") as file:
         data = yaml.safe_load(file)
 
         if not isinstance(data, dict):

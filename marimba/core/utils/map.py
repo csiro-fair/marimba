@@ -137,7 +137,7 @@ def make_summary_map(
         image = cast(Image.Image, m.render(zoom=zoom))
 
     except requests.exceptions.ConnectionError:
-        raise NetworkConnectionError("Unable to render the map.")
+        raise NetworkConnectionError("Unable to render the map.") from None
 
     # Add coordinate axes
     draw = ImageDraw.Draw(image)

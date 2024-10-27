@@ -66,4 +66,6 @@ lint.ignore = [
     # TRY - tryceratops
     "TRY003", # Long exception messages should be wrapped in parentheses
     "TRY401", # Unnecessary exception handler
+
+    "UP022",
 ]

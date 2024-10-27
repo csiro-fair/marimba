@@ -73,7 +73,7 @@ def find_project_dir_or_exit(project_dir: str | Path | None = None) -> Path:
     if found_project_dir is None:
         error_message = f"Could not find a {MARIMBA} project."
         logger.exception(error_message)
-        print(error_panel(error_message))
+        print(error_panel(error_message))  # noqa: T201
         raise typer.Exit(code=1)
 
     return found_project_dir
@@ -95,8 +95,8 @@ def remove_directory_tree(directory: str | Path, entity: str, dry_run: bool) -> 
     if not dir_path.is_dir():
         error_message = f"Invalid directory: {dir_path}"
         logger.exception(error_message)
-        print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        print(error_panel(error_message))  # noqa: T201
+        raise typer.Exit(code=1) from None
 
     try:
         if not dry_run:
@@ -106,8 +106,8 @@ def remove_directory_tree(directory: str | Path, entity: str, dry_run: bool) -> 
     except Exception as e:
         error_message = f"Error occurred while deleting the directory: {e}"
         logger.exception(error_message)
-        print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        print(error_panel(error_message))  # noqa: T201
+        raise typer.Exit(code=1) from e
 
     logger.info("Successfully deleted directory.")
 

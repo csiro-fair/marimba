@@ -43,8 +43,13 @@ class S3DistributionTarget(DistributionTargetBase):
     """
 
     def __init__(
-        self, bucket_name: str, endpoint_url: str, access_key_id: str, secret_access_key: str, base_prefix: str = "",
-    ):
+            self,
+            bucket_name: str,
+            endpoint_url: str,
+            access_key_id: str,
+            secret_access_key: str,
+            base_prefix: str = "",
+    ) -> None:
         """
         Initialise the class instance.
 
@@ -69,7 +74,7 @@ class S3DistributionTarget(DistributionTargetBase):
             multipart_threshold=100 * 1024 * 1024,
         )
 
-        # self._check_bucket()
+        self._check_bucket()
 
     def _check_bucket(self) -> None:
         """
@@ -105,11 +110,8 @@ class S3DistributionTarget(DistributionTargetBase):
                 An S3 key.
             """
             rel_path = path.relative_to(dataset_wrapper.root_dir)
-
-            parts = (self._base_prefix,) + rel_path.parts
-            key = "/".join(parts)
-
-            return key
+            parts = (self._base_prefix, *rel_path.parts)
+            return "/".join(parts)
 
         # Iterate over all files in the dataset
         for path in dataset_wrapper.root_dir.glob("**/*"):

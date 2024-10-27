@@ -32,7 +32,7 @@ class CSIRODapDistributionTarget(S3DistributionTarget):
     CSIRO DAP (Data Access Portal) distribution target. Convenience class for specifying parameters DAP-style.
     """
 
-    def __init__(self, endpoint_url: str, access_key: str, secret_access_key: str, remote_directory: str):
+    def __init__(self, endpoint_url: str, access_key: str, secret_access_key: str, remote_directory: str) -> None:
         """
         Initialise the class instance.
 
@@ -61,11 +61,8 @@ class CSIRODapDistributionTarget(S3DistributionTarget):
 
             """
             rel_path = path.relative_to(dataset_wrapper.root_dir.parent)
-
-            parts = (self._base_prefix,) + rel_path.parts
-            key = "/".join(parts)
-
-            return key
+            parts = (self._base_prefix, *rel_path.parts)
+            return "/".join(parts)
 
         # Iterate over all files in the dataset
         for path in dataset_wrapper.root_dir.glob("**/*"):

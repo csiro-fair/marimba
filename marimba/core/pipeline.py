@@ -34,7 +34,13 @@ class BasePipeline(ABC, LogMixin):
     Marimba pipeline abstract base class. All pipelines should inherit from this class.
     """
 
-    def __init__(self, root_path: str | Path, config: dict[str, Any] | None = None, dry_run: bool = False):
+    def __init__(
+            self,
+            root_path: str | Path,
+            config: dict[str, Any] | None = None,
+            *,
+            dry_run: bool = False,
+    ) -> None:
         """
         Initialise the class instance.
 
@@ -172,22 +178,29 @@ class BasePipeline(ABC, LogMixin):
         )
         return self._package(data_dir, config, **kwargs)
 
-    def _import(self, data_dir: Path, source_path: Path, config: dict[str, Any], **kwargs: dict[str, Any]) -> None:
+    def _import(
+        self,
+        data_dir: Path,  # noqa: ARG002
+        source_path: Path,  # noqa: ARG002
+        config: dict[str, Any],  # noqa: ARG002
+        **kwargs: dict[str, Any],  # noqa: ARG002
+    ) -> None:
         """
         `run_import` implementation; override this to implement the import command.
-
-        TODO @<cjackett>: Add docs on how to implement this method.
         """
         self.logger.warning(
             f"There is no Marimba {format_command('import')} command implemented for pipeline "
             f"{format_entity(self.class_name)}",
         )
 
-    def _process(self, data_dir: Path, config: dict[str, Any], **kwargs: dict[str, Any]) -> None:
+    def _process(
+            self,
+            data_dir: Path,  # noqa: ARG002
+            config: dict[str, Any],  # noqa: ARG002
+            **kwargs: dict[str, Any],  # noqa: ARG002
+    ) -> None:
         """
         `run_process` implementation; override this to implement the process command.
-
-        TODO @<cjackett>: Add docs on how to implement this method.
         """
         self.logger.warning(
             f"There is no Marimba {format_command('process')} command implemented for pipeline "

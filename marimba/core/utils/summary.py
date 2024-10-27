@@ -28,13 +28,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from ifdo.models import ImageData
 from PIL import Image
 from tabulate import tabulate
 
+from marimba.core.utils.log import get_logger
+
 if TYPE_CHECKING:
+    from ifdo.models import ImageData
+
     from marimba.core.wrappers.dataset import DatasetWrapper
 
+logger = get_logger(__name__)
 
 @dataclass
 class ImagerySummary:
@@ -92,22 +96,23 @@ class ImagerySummary:
         """
         Format a number of bytes as a human-readable size string.
 
-        This function takes a number representing bytes and converts it to a human-readable string format using
-        binary prefixes (Ki, Mi, Gi, etc.). It iterates through unit prefixes, dividing the number by 1024 until it
-        finds an appropriate scale. The result is rounded to one decimal place.
+        This function takes a number representing bytes and converts it to a human-readable string format
+        with standard size units (KB, MB, GB, etc.). The result is rounded to one decimal place.
 
         Args:
             num: The number of bytes to format.
             suffix: The suffix to append to the formatted string. Defaults to "B".
 
         Returns:
-            A formatted string representing the size with an appropriate unit prefix.
+            A formatted string representing the size (e.g., "1.5 KB", "2.0 MB", "1.0 GB").
         """
-        for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
-            if abs(num) < 1024:
+        bytes_per_unit = 1024
+
+        for unit in ["", "K", "M", "G", "T", "P", "E", "Z"]:
+            if abs(num) < bytes_per_unit:
                 return f"{num:.1f} {unit}{suffix}"
-            num /= 1024
-        return f"{num:.1f} Yi{suffix}"
+            num /= bytes_per_unit
+        return f"{num:.1f} Y{suffix}"
 
     @staticmethod
     def is_video_corrupt_quick(video_path: str) -> bool:
@@ -149,11 +154,11 @@ class ImagerySummary:
                 seek_result = subprocess.run(seek_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
                 if seek_result.returncode != 0:
                     return True
-
-            return False
         except Exception as e:
-            print(f"Error checking video {video_path}: {e}")
+            logger.exception(f"Error checking video {video_path}: {e}")
             return True
+        else:
+            return False
 
     @staticmethod
     def get_image_properties(image_list: list[Path]) -> dict[str, Any]:
@@ -174,16 +179,24 @@ class ImagerySummary:
             color_depths: A set of integers representing unique color depths.
             corrupt_images: An integer count of images that could not be opened.
         """
+
+        def process_single_image(path: Path) -> tuple[tuple[int, int] | None, int | None]:
+            try:
+                with Image.open(path) as img:
+                    return img.size, len(img.getbands()) * 8
+            except (Image.UnidentifiedImageError, OSError, ValueError, AttributeError):
+                return None, None
+
         resolutions = set()
         color_depths = set()
         corrupt_images = 0
 
         for path in image_list:
-            try:
-                with Image.open(path) as img:
-                    resolutions.add(img.size)
-                    color_depths.add(len(img.getbands()) * 8)
-            except Exception:
+            size, depth = process_single_image(path)
+            if size is not None and depth is not None:
+                resolutions.add(size)
+                color_depths.add(depth)
+            else:
                 corrupt_images += 1
 
         return {"resolutions": resolutions, "color_depths": color_depths, "corrupt_images": corrupt_images}
