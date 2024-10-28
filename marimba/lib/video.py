@@ -5,23 +5,22 @@ for video processing and Pillow for image handling. The generated thumbnails are
 with customizable naming conventions.
 
 Imports:
-    - logging: Provides a flexible framework for generating log messages.
-    - pathlib: Offers classes representing filesystem paths with semantics appropriate for different operating systems.
-    - typing: Provides support for type hints.
-    - av: A Pythonic binding for FFmpeg libraries.
-    - PIL: Python Imaging Library (Pillow fork) for opening, manipulating, and saving image files.
+    logging: Provides a flexible framework for generating log messages.
+    pathlib: Offers classes representing filesystem paths with semantics appropriate for different operating systems.
+    typing: Provides support for type hints.
+    av: A Pythonic binding for FFmpeg libraries.
+    PIL: Python Imaging Library (Pillow fork) for opening, manipulating, and saving image files.
 
 Functions:
-    - get_stream_properties: Extracts key properties from a video stream.
-    - generate_potential_filenames: Creates potential filenames for video frames.
-    - filter_existing_thumbnails: Identifies and filters existing thumbnail files.
-    - save_thumbnail: Converts a video frame to a thumbnail image and saves it.
-    - generate_video_thumbnails: Creates thumbnail images from a video file at specified intervals.
+    get_stream_properties: Extracts key properties from a video stream.
+    generate_potential_filenames: Creates potential filenames for video frames.
+    filter_existing_thumbnails: Identifies and filters existing thumbnail files.
+    save_thumbnail: Converts a video frame to a thumbnail image and saves it.
+    generate_video_thumbnails: Creates thumbnail images from a video file at specified intervals.
 """
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import av
 from PIL import Image
@@ -29,23 +28,23 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 
-def get_stream_properties(stream: av.video.stream.VideoStream) -> Tuple[float, float, int]:
+def get_stream_properties(stream: av.video.stream.VideoStream) -> tuple[float, float, int]:
     """Get properties of a video stream.
 
     This function extracts key properties from an av.video.stream.VideoStream object, including the frame rate,
     time base, and total number of frames. It performs validation to ensure that frame rate and time base are not None.
 
     Args:
-        - stream (av.video.stream.VideoStream): The video stream object to extract properties from.
+        stream (av.video.stream.VideoStream): The video stream object to extract properties from.
 
     Returns:
         Tuple[float, float, int]: A tuple containing:
-            - frame_rate (float): The average frame rate of the video stream.
-            - time_base (float): The time base of the video stream.
-            - total_frames (int): The total number of frames in the video stream.
+            frame_rate (float): The average frame rate of the video stream.
+            time_base (float): The time base of the video stream.
+            total_frames (int): The total number of frames in the video stream.
 
     Raises:
-        - ValueError: If either the frame rate or time base is None.
+        ValueError: If either the frame rate or time base is None.
     """
     frame_rate = stream.average_rate
     time_base = stream.time_base
@@ -58,26 +57,30 @@ def get_stream_properties(stream: av.video.stream.VideoStream) -> Tuple[float, f
 
 
 def generate_potential_filenames(
-    video: Path, output_directory: Path, total_frames: int, frame_interval: int, suffix: str
-) -> Dict[int, Path]:
+    video: Path,
+    output_directory: Path,
+    total_frames: int,
+    frame_interval: int,
+    suffix: str,
+) -> dict[int, Path]:
     """Generate potential filenames for video frames.
 
     This function creates a dictionary of potential filenames for frames extracted from a video. It generates filenames
     based on the video's name, frame numbers, and a specified interval, using zero-padding for consistent naming.
 
     Args:
-        - video: Path object representing the input video file.
-        - output_directory: A Path object representing the directory where the thumbnails will be saved.
-        - total_frames: Total number of frames in the video.
-        - frame_interval: Interval between frames to generate filenames for.
-        - suffix: String to append to the filename before the extension.
+        video: Path object representing the input video file.
+        output_directory: A Path object representing the directory where the thumbnails will be saved.
+        total_frames: Total number of frames in the video.
+        frame_interval: Interval between frames to generate filenames for.
+        suffix: String to append to the filename before the extension.
 
     Returns:
         A dictionary where keys are frame numbers and values are Path objects representing potential output filenames.
 
     Raises:
-        - ValueError: If total_frames or frame_interval is less than or equal to 0.
-        - TypeError: If video is not a Path object, or if total_frames or frame_interval is not an integer.
+        ValueError: If total_frames or frame_interval is less than or equal to 0.
+        TypeError: If video is not a Path object, or if total_frames or frame_interval is not an integer.
     """
     padding_width = len(str(total_frames))
     potential_filenames = {}
@@ -91,7 +94,7 @@ def generate_potential_filenames(
     return potential_filenames
 
 
-def filter_existing_thumbnails(potential_filenames: Dict[int, Path], overwrite: bool) -> List[Path]:
+def filter_existing_thumbnails(potential_filenames: dict[int, Path], overwrite: bool) -> list[Path]:
     """Filter existing thumbnails and return their paths.
 
     This function checks for existing thumbnail files based on the provided potential filenames. If the overwrite flag
@@ -99,15 +102,15 @@ def filter_existing_thumbnails(potential_filenames: Dict[int, Path], overwrite: 
     dictionary. The function returns a list of paths for existing thumbnails.
 
     Args:
-        - potential_filenames: A dictionary mapping frame numbers (int) to potential thumbnail file paths (Path).
-        - overwrite: A boolean flag indicating whether existing thumbnails should be overwritten.
+        potential_filenames: A dictionary mapping frame numbers (int) to potential thumbnail file paths (Path).
+        overwrite: A boolean flag indicating whether existing thumbnails should be overwritten.
 
     Returns:
         A list of Path objects representing existing thumbnail files.
 
     Raises:
-        - IOError: If there are issues accessing the file system.
-        - TypeError: If the input types are incorrect.
+        IOError: If there are issues accessing the file system.
+        TypeError: If the input types are incorrect.
     """
     thumbnail_paths = []
 
@@ -135,8 +138,8 @@ def save_thumbnail(frame: av.video.frame.VideoFrame, output_path: Path) -> None:
         None
 
     Raises:
-        - IOError: If there's an issue saving the image to the specified output path.
-        - TypeError: If the input frame is not of the expected type.
+        IOError: If there's an issue saving the image to the specified output path.
+        TypeError: If the input frame is not of the expected type.
     """
     img = frame.to_image()
     max_size = (300, 300)
@@ -145,8 +148,13 @@ def save_thumbnail(frame: av.video.frame.VideoFrame, output_path: Path) -> None:
 
 
 def generate_video_thumbnails(
-    video: Path, output_directory: Path, interval: int = 10, suffix: str = "_THUMB", overwrite: bool = False
-) -> Tuple[Path, List[Path]]:
+    video: Path,
+    output_directory: Path,
+    interval: int = 10,
+    suffix: str = "_THUMB",
+    *,
+    overwrite: bool = False,
+) -> tuple[Path, list[Path]]:
     """
     Generate thumbnail images for a video file at specified intervals using PyAV.
 
@@ -161,7 +169,7 @@ def generate_video_thumbnails(
         A tuple containing the input video path and a list of generated thumbnail paths.
     """
     output_directory.mkdir(parents=True, exist_ok=True)
-    container = av.open(str(video))  # type: ignore
+    container = av.open(str(video))  # type: ignore[attr-defined]
     stream = container.streams.video[0]
 
     frame_rate, time_base, total_frames = get_stream_properties(stream)

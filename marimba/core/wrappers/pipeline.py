@@ -27,6 +27,7 @@ Classes:
         - InvalidStructureError: Exception raised when the project file structure is invalid.
         - InstallError: Exception raised when there is an error installing pipeline dependencies.
 """
+
 import shutil
 import subprocess
 import sys
@@ -45,6 +46,7 @@ from marimba.core.utils.prompt import prompt_schema
 # Type-checking imports
 if TYPE_CHECKING:
     import logging
+
 
 class PipelineWrapper(LogMixin):
     """
@@ -226,7 +228,11 @@ class PipelineWrapper(LogMixin):
         """
         # Use the standalone function to load the pipeline instance
         return load_pipeline_instance(
-            self.root_dir, self.repo_dir, self.name, self.config_path, self.dry_run,
+            self.root_dir,
+            self.repo_dir,
+            self.name,
+            self.config_path,
+            self.dry_run,
         )
 
     def get_pipeline_class(self) -> type[BasePipeline] | None:
@@ -407,9 +413,9 @@ class PipelineWrapper(LogMixin):
             pip_path = self._validate_pip()
 
             with subprocess.Popen(
-                    [pip_path, "install", "--no-input", "-r", requirements_path],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                [pip_path, "install", "--no-input", "-r", requirements_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             ) as process:
                 output, error = process.communicate()
                 if output:

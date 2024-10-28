@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+
 @dataclass
 class ImagerySummary:
     """
@@ -184,7 +185,8 @@ class ImagerySummary:
             try:
                 with Image.open(path) as img:
                     return img.size, len(img.getbands()) * 8
-            except (Image.UnidentifiedImageError, OSError, ValueError, AttributeError):
+            except Exception as e:
+                logger.exception(f"Error processing image {path}: {e!s}")
                 return None, None
 
         resolutions = set()
@@ -636,7 +638,9 @@ class ImagerySummary:
 
     @classmethod
     def from_dataset(
-        cls, dataset_wrapper: "DatasetWrapper", image_set_items: dict[str, "ImageData"],
+        cls,
+        dataset_wrapper: "DatasetWrapper",
+        image_set_items: dict[str, "ImageData"],
     ) -> "ImagerySummary":
         """
         Create an ImagerySummary object from a dataset and image set items.
@@ -739,7 +743,9 @@ class ImagerySummary:
 
     @classmethod
     def _process_files(
-        cls, dataset_wrapper: "DatasetWrapper", image_set_items: dict[str, list["ImageData"]],
+        cls,
+        dataset_wrapper: "DatasetWrapper",
+        image_set_items: dict[str, list["ImageData"]],
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
         image_data: dict[str, Any] = {"files": [], "context": set(), "contributors": set(), "licenses": set()}
         video_data: dict[str, Any] = {"files": [], "context": set(), "contributors": set(), "licenses": set()}
@@ -810,7 +816,9 @@ class ImagerySummary:
 
     @staticmethod
     def _calculate_file_stats(
-        image_data: dict[str, Any], video_data: dict[str, Any], other_data: dict[str, Any],
+        image_data: dict[str, Any],
+        video_data: dict[str, Any],
+        other_data: dict[str, Any],
     ) -> dict[str, Any]:
         return {
             "image_num": len(image_data["files"]),
@@ -828,7 +836,10 @@ class ImagerySummary:
 
     @classmethod
     def _set_dataset_properties(
-        cls, summary: "ImagerySummary", image_data: dict[str, Any], video_data: dict[str, Any],
+        cls,
+        summary: "ImagerySummary",
+        image_data: dict[str, Any],
+        video_data: dict[str, Any],
     ) -> None:
         summary.context = summary.context_to_text(list(image_data["context"] | video_data["context"]))
         summary.contributors = summary.contributors_to_text(
@@ -842,7 +853,8 @@ class ImagerySummary:
         summary.image_resolution = cls.calculate_image_resolution(image_props["resolutions"])
         summary.image_color_depth = cls.calculate_image_color_depth(image_props["color_depths"])
         summary.image_data_quality = cls.calculate_image_data_quality(
-            len(image_data["files"]), image_props["corrupt_images"],
+            len(image_data["files"]),
+            image_props["corrupt_images"],
         )
         summary.image_average_file_size = summary.calculate_image_average_file_size()
         summary.image_licenses = summary.list_to_text(list(image_data["licenses"]))
@@ -857,7 +869,8 @@ class ImagerySummary:
         summary.video_color_depth = cls.calculate_video_color_depth(video_props["color_depths"])
         summary.video_average_file_size = summary.calculate_video_average_file_size()
         summary.video_data_quality = cls.calculate_video_data_quality(
-            len(video_data["files"]), video_props["corrupt_videos"],
+            len(video_data["files"]),
+            video_props["corrupt_videos"],
         )
         summary.video_licenses = summary.list_to_text(list(video_data["licenses"]))
 
@@ -867,7 +880,9 @@ class ImagerySummary:
 
     @staticmethod
     def _set_geographical_temporal_extents(
-        summary: "ImagerySummary", image_data: dict[str, Any], video_data: dict[str, Any],
+        summary: "ImagerySummary",
+        image_data: dict[str, Any],
+        video_data: dict[str, Any],
     ) -> None:
         for data_type in ["image", "video"]:
             data = image_data if data_type == "image" else video_data
@@ -963,7 +978,7 @@ class ImagerySummary:
             ["File Types", other_file_types_str],
         ]
 
-        def _format_section(title: str, data: list, show: bool) -> str:
+        def _format_section(title: str, data: list[list[str]], show: bool) -> str:
             if not show:
                 return ""
             return f"\n\n## {title}\n{tabulate(data, headers=['Attribute', 'Description'], tablefmt='github')}"

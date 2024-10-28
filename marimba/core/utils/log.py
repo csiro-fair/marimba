@@ -28,7 +28,7 @@ Functions:
 import logging
 from enum import Enum
 from pathlib import Path
-from typing_extensions import Never
+from typing import Any
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -55,7 +55,7 @@ class DryRunRichHandler(RichHandler):
             Sets the dry_run attribute to the specified boolean value.
     """
 
-    def __init__(self, dry_run: bool, *args: Never, **kwargs: Never) -> None:
+    def __init__(self, dry_run: bool, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
         """
         Initialise the __init__ method.
 
@@ -139,7 +139,10 @@ def get_rich_handler() -> DryRunRichHandler:
 
 
 def get_file_handler(
-    output_dir: str | Path, name: str, dry_run: bool, level: int = logging.DEBUG,
+    output_dir: str | Path,
+    name: str,
+    dry_run: bool,
+    level: int = logging.DEBUG,
 ) -> logging.FileHandler:
     """
     Get a file handler for a given output directory and name.
@@ -179,13 +182,13 @@ class NoRichFileHandler(logging.FileHandler):
     """
 
     def __init__(
-            self,
-            filename: str,
-            mode: str = "a",
-            encoding: str | None = None,
-            *,
-            delay: bool = False,
-            dry_run: bool = False,
+        self,
+        filename: str,
+        mode: str = "a",
+        encoding: str | None = None,
+        *,
+        delay: bool = False,
+        dry_run: bool = False,
     ) -> None:
         """
         Initialise the class instance.

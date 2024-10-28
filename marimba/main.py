@@ -100,7 +100,8 @@ def import_command(
     collection_name: str = typer.Argument(..., help="Marimba collection name for targeted processing."),
     source_paths: list[Path] = typer.Argument(..., help="Paths to source files/directories to provide for import."),
     parent_collection_name: str | None = typer.Option(
-        None, help="Name of the parent collection. If unspecified, use the last collection.",
+        None,
+        help="Name of the parent collection. If unspecified, use the last collection.",
     ),
     pipeline_name: list[str] | None = typer.Option(
         None,
@@ -110,11 +111,13 @@ def import_command(
     project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP),
     overwrite: bool = typer.Option(False, help="Overwrite an existing collection with the same name."),
     config: str = typer.Option(
-        None, help="A custom configuration in JSON format to be merged with the prompted collection configuration.",
+        None,
+        help="A custom configuration in JSON format to be merged with the prompted collection configuration.",
     ),
     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(
-        False, help="Execute the command and print logging to the terminal, but do not change any files.",
+        False,
+        help="Execute the command and print logging to the terminal, but do not change any files.",
     ),
 ) -> None:
     """
@@ -160,7 +163,11 @@ def import_command(
     # Run the import
     try:
         project_wrapper.run_import(
-            collection_name, source_paths, pipeline_names, extra_args=extra, operation=operation.__dict__,
+            collection_name,
+            source_paths,
+            pipeline_names,
+            extra_args=extra,
+            operation=operation.__dict__,
         )
     except Exception as e:
         error_message = f"Error during import: {e}"
@@ -194,12 +201,14 @@ def package_command(
     version: str | None = typer.Option("1.0", help="Version of the packaged dataset."),
     contact_name: str | None = typer.Option(None, help="Full name of the contact person for the packaged dataset."),
     contact_email: str | None = typer.Option(
-        None, help="Email address of the contact person for the packaged dataset.",
+        None,
+        help="Email address of the contact person for the packaged dataset.",
     ),
     zoom: int | None = typer.Option(None, help="Zoom level for the packaged dataset map."),
     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(
-        False, help="Execute the command and print logging to the terminal, but do not change any files.",
+        False,
+        help="Execute the command and print logging to the terminal, but do not change any files.",
     ),
 ) -> None:
     """
@@ -279,7 +288,8 @@ def process_command(
     project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP),
     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(
-        False, help="Execute the command and print logging to the terminal, but do not change any files.",
+        False,
+        help="Execute the command and print logging to the terminal, but do not change any files.",
     ),
 ) -> None:
     """
@@ -328,7 +338,8 @@ def distribute_command(
     target_name: str = typer.Argument(..., help="Marimba distribution target name."),
     project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP),
     dry_run: bool = typer.Option(
-        False, help="Execute the command and print logging to the terminal, but do not change any files.",
+        False,
+        help="Execute the command and print logging to the terminal, but do not change any files.",
     ),
 ) -> None:
     """

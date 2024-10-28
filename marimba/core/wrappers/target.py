@@ -79,7 +79,10 @@ class DistributionTargetWrapper:
 
     @classmethod
     def create(
-        cls, config_path: str | Path, target_type: str, target_args: dict[str, Any],
+        cls,
+        config_path: str | Path,
+        target_type: str,
+        target_args: dict[str, Any],
     ) -> "DistributionTargetWrapper":
         """
         Create a distribution target at the specified path with the specified type and arguments.

@@ -89,7 +89,8 @@ def pipeline(
     pipeline_name: str = typer.Argument(..., help="Name of the pipeline."),
     project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP),
     dry_run: bool = typer.Option(
-        False, help="Execute the command and print logging to the terminal, but do not change any files.",
+        False,
+        help="Execute the command and print logging to the terminal, but do not change any files.",
     ),
 ) -> None:
     """
@@ -120,7 +121,8 @@ def collection(
     collection_name: str = typer.Argument(..., help="Name of the collection to delete"),
     project_dir: Path = typer.Option(None, help=PROJECT_DIR_HELP),
     dry_run: bool = typer.Option(
-        False, help="Execute the command and print logging to the terminal, but do not change any files.",
+        False,
+        help="Execute the command and print logging to the terminal, but do not change any files.",
     ),
 ) -> None:
     """

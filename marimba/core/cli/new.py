@@ -138,7 +138,8 @@ def pipeline(
         help=PROJECT_DIR_HELP,
     ),
     config: str = typer.Option(
-        None, help="A custom configuration in JSON format to be merged with the prompted pipeline configuration.",
+        None,
+        help="A custom configuration in JSON format to be merged with the prompted pipeline configuration.",
     ),
 ) -> None:
     """
@@ -188,11 +189,13 @@ def pipeline(
 def collection(
     collection_name: str = typer.Argument(..., help="Name of the collection."),
     parent_collection_name: str | None = typer.Argument(
-        None, help="Name of the parent collection. If unspecified, use the last collection.",
+        None,
+        help="Name of the parent collection. If unspecified, use the last collection.",
     ),
     project_dir: Path = typer.Option(None, help=PROJECT_DIR_HELP),
     config: str = typer.Option(
-        None, help="A custom configuration in JSON format to be merged with the prompted collection configuration.",
+        None,
+        help="A custom configuration in JSON format to be merged with the prompted collection configuration.",
     ),
 ) -> None:
     """

@@ -18,7 +18,6 @@ Functions:
     - get_default_columns: Returns a tuple of default progress columns.
 """
 
-
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,

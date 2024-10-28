@@ -43,12 +43,12 @@ class S3DistributionTarget(DistributionTargetBase):
     """
 
     def __init__(
-            self,
-            bucket_name: str,
-            endpoint_url: str,
-            access_key_id: str,
-            secret_access_key: str,
-            base_prefix: str = "",
+        self,
+        bucket_name: str,
+        endpoint_url: str,
+        access_key_id: str,
+        secret_access_key: str,
+        base_prefix: str = "",
     ) -> None:
         """
         Initialise the class instance.
@@ -65,7 +65,10 @@ class S3DistributionTarget(DistributionTargetBase):
 
         # Create S3 resource and Bucket
         self._s3 = resource(
-            "s3", endpoint_url=endpoint_url, aws_access_key_id=access_key_id, aws_secret_access_key=secret_access_key,
+            "s3",
+            endpoint_url=endpoint_url,
+            aws_access_key_id=access_key_id,
+            aws_secret_access_key=secret_access_key,
         )
         self._bucket = self._s3.Bucket(self._bucket_name)
 

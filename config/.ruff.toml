@@ -1,9 +1,6 @@
 # Line Length
 line-length = 120
 
-# Enable all rules by default
-lint.select = ["ALL"]
-
 # Target Python Version
 target-version = "py310"
 
@@ -15,9 +12,10 @@ exclude = [
     "dist",
     "temp",
     "tests",
-    "move_files.py",
-    "template.pipeline.py",
 ]
+
+# Enable all rules by default
+lint.select = ["ALL"]
 
 # McCabe complexity configuration
 lint.mccabe.max-complexity = 10
@@ -67,5 +65,6 @@ lint.ignore = [
     "TRY003", # Long exception messages should be wrapped in parentheses
     "TRY401", # Unnecessary exception handler
 
-    "UP022",
+    # UP - pyupgrade
+    "UP022",  # Prefer `capture_output` over sending `stdout` and `stderr` to `PIPE` for subprocess.run() calls
 ]

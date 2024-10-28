@@ -1,7 +1,7 @@
 import tempfile
 from pathlib import Path
 from shutil import rmtree
-from typing import Any, Dict
+from typing import Any
 from unittest import TestCase, mock
 
 import pytest
@@ -50,8 +50,8 @@ class TestDatasetWrapper(TestCase):
             DatasetWrapper.InvalidDatasetMappingError: If the dataset mapping is invalid.
         """
         # Test that an invalid dataset mapping raises an error
-        dataset_mapping: Dict[Any, Any] = {
-            "test": {Path("nonexistent_file.txt"): (Path("destination.txt"), None, None)}
+        dataset_mapping: dict[Any, Any] = {
+            "test": {Path("nonexistent_file.txt"): (Path("destination.txt"), None, None)},
         }
         with self.assertRaises(DatasetWrapper.InvalidDatasetMappingError):
             self.dataset_wrapper.check_dataset_mapping(dataset_mapping)
@@ -67,7 +67,7 @@ class TestDatasetWrapper(TestCase):
                     Path("file1.txt"): (Path("destination1.txt"), None, None),
                     Path("file2.txt"): (Path("destination2.txt"), None, None),
                     Path("some_dir/../file1.txt"): (Path("destination3.txt"), None, None),
-                }
+                },
             }
             with self.assertRaises(DatasetWrapper.InvalidDatasetMappingError):
                 self.dataset_wrapper.check_dataset_mapping(dataset_mapping)
@@ -82,7 +82,7 @@ class TestDatasetWrapper(TestCase):
                 "test": {
                     Path("file1.txt"): (Path("destination.txt"), None, None),
                     Path("file2.txt"): (Path("destination.txt"), None, None),
-                }
+                },
             }
             with self.assertRaises(DatasetWrapper.InvalidDatasetMappingError):
                 self.dataset_wrapper.check_dataset_mapping(dataset_mapping)

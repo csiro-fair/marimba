@@ -35,11 +35,11 @@ class BasePipeline(ABC, LogMixin):
     """
 
     def __init__(
-            self,
-            root_path: str | Path,
-            config: dict[str, Any] | None = None,
-            *,
-            dry_run: bool = False,
+        self,
+        root_path: str | Path,
+        config: dict[str, Any] | None = None,
+        *,
+        dry_run: bool = False,
     ) -> None:
         """
         Initialise the class instance.
@@ -155,7 +155,10 @@ class BasePipeline(ABC, LogMixin):
         return self._process(data_dir, config, **kwargs)
 
     def run_package(
-        self, data_dir: Path, config: dict[str, Any], **kwargs: dict[str, Any],
+        self,
+        data_dir: Path,
+        config: dict[str, Any],
+        **kwargs: dict[str, Any],
     ) -> dict[Path, tuple[Path, ImageData | None, dict[str, Any] | None]]:
         """
         Package a dataset from the given data directories and their corresponding collection configurations.
@@ -194,10 +197,10 @@ class BasePipeline(ABC, LogMixin):
         )
 
     def _process(
-            self,
-            data_dir: Path,  # noqa: ARG002
-            config: dict[str, Any],  # noqa: ARG002
-            **kwargs: dict[str, Any],  # noqa: ARG002
+        self,
+        data_dir: Path,  # noqa: ARG002
+        config: dict[str, Any],  # noqa: ARG002
+        **kwargs: dict[str, Any],  # noqa: ARG002
     ) -> None:
         """
         `run_process` implementation; override this to implement the process command.
@@ -209,7 +212,10 @@ class BasePipeline(ABC, LogMixin):
 
     @abstractmethod
     def _package(
-        self, data_dir: Path, config: dict[str, Any], **kwargs: dict[str, Any],
+        self,
+        data_dir: Path,
+        config: dict[str, Any],
+        **kwargs: dict[str, Any],
     ) -> dict[Path, tuple[Path, ImageData | None, dict[str, Any] | None]]:
         """
         `run_compose` implementation; override this.
