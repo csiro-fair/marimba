@@ -40,15 +40,15 @@ import io
 import json
 import os
 from collections import OrderedDict
+from collections.abc import Iterable
 from datetime import timezone
 from fractions import Fraction
 from math import isnan
 from pathlib import Path
 from shutil import copy2, copytree, ignore_patterns
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any
 from uuid import uuid4
 
-# import exiftool
 import piexif
 from ifdo.models import ImageData, ImageSetHeader, iFDO
 from PIL import Image
@@ -87,12 +87,13 @@ class DatasetWrapper(LogMixin):
 
     def __init__(
         self,
-        root_dir: Union[str, Path],
-        version: Optional[str] = "1.0",
-        contact_name: Optional[str] = None,
-        contact_email: Optional[str] = None,
+        root_dir: str | Path,
+        version: str | None = "1.0",
+        contact_name: str | None = None,
+        contact_email: str | None = None,
+        *,
         dry_run: bool = False,
-    ):
+    ) -> None:
         """
         Initialize a new instance of the class.
 
@@ -101,11 +102,11 @@ class DatasetWrapper(LogMixin):
         without making actual changes.
 
         Args:
-            - root_dir (Union[str, Path]): The root directory where the files will be processed.
-            - version (Optional[str]): The version number. Defaults to "1.0".
-            - contact_name (Optional[str]): The name of the contact person. Defaults to None.
-            - contact_email (Optional[str]): The email address of the contact person. Defaults to None.
-            - dry_run (bool): If True, the method runs in dry-run mode without making any changes. Defaults to False.
+            root_dir (Union[str, Path]): The root directory where the files will be processed.
+            version (Optional[str]): The version number. Defaults to "1.0".
+            contact_name (Optional[str]): The name of the contact person. Defaults to None.
+            contact_email (Optional[str]): The email address of the contact person. Defaults to None.
+            dry_run (bool): If True, the method runs in dry-run mode without making any changes. Defaults to False.
 
         Returns:
             None
@@ -126,33 +127,37 @@ class DatasetWrapper(LogMixin):
     @classmethod
     def create(
         cls,
-        root_dir: Union[str, Path],
-        version: Optional[str] = "1.0",
-        contact_name: Optional[str] = None,
-        contact_email: Optional[str] = None,
+        root_dir: str | Path,
+        version: str | None = "1.0",
+        contact_name: str | None = None,
+        contact_email: str | None = None,
+        *,
         dry_run: bool = False,
     ) -> "DatasetWrapper":
         """
         Create a new dataset from an iFDO.
 
+        This class method creates a new dataset structure based on the provided parameters. It sets up the necessary
+        directory structure and returns a DatasetWrapper instance.
+
         Args:
-            root_dir: The root directory of the dataset.
-            dry_run: Whether to perform a dry run.
+            root_dir: The root directory where the dataset will be created.
+            version: The version of the dataset. Defaults to '1.0'.
+            contact_name: The name of the contact person for the dataset. Optional.
+            contact_email: The email of the contact person for the dataset. Optional.
+            dry_run: If True, simulates the creation without actually creating directories. Defaults to False.
 
         Returns:
-            A dataset wrapper instance.
+            A DatasetWrapper instance representing the newly created dataset.
 
         Raises:
-            FileExistsError: If the root directory already exists.
+            - FileExistsError: If the root directory already exists and dry_run is False.
         """
         # Define the dataset directory structure
         root_dir = Path(root_dir)
         data_dir = root_dir / "data"
         logs_dir = root_dir / "logs"
         pipeline_logs_dir = logs_dir / "pipelines"
-        version = version
-        contact_name = contact_name
-        contact_email = contact_email
 
         # Create the file structure
         if not dry_run:
@@ -186,7 +191,7 @@ class DatasetWrapper(LogMixin):
         check_dir_exists(self.logs_dir)
         check_dir_exists(self.pipeline_logs_dir)
 
-    def validate(self, dataset_name: str, progress: Optional[Progress] = None, task: Optional[TaskID] = None) -> None:
+    def validate(self, dataset_name: str, progress: Progress | None = None, task: TaskID | None = None) -> None:
         """
         Validate the dataset. If the dataset is inconsistent with its manifest (if present), raise a ManifestError.
 
@@ -226,7 +231,7 @@ class DatasetWrapper(LogMixin):
         """
         return self.data_dir / pipeline_name
 
-    def _apply_ifdo_exif_tags(self, metadata_mapping: Dict[Path, Tuple[ImageData, Optional[Dict[str, Any]]]]) -> None:
+    def _apply_ifdo_exif_tags(self, metadata_mapping: dict[Path, tuple[ImageData, dict[str, Any] | None]]) -> None:
         """
         Apply metadata from iFDO to the provided paths.
 
@@ -238,27 +243,27 @@ class DatasetWrapper(LogMixin):
         def process_file(
             self: DatasetWrapper,
             thread_num: str,
-            item: Tuple[Path, Tuple[ImageData, Optional[Dict[str, Any]]]],
-            progress: Optional[Progress] = None,
-            task: Optional[TaskID] = None,
+            item: tuple[Path, tuple[ImageData, dict[str, Any] | None]],
+            progress: Progress | None = None,
+            task: TaskID | None = None,
         ) -> None:
             path, (image_data, ancillary_data) = item
             if path.suffix.lower() in {".jpg", ".jpeg", ".png"}:
                 self._process_image_file(path, image_data, ancillary_data, thread_num)
-            # TODO: Cleanup required
-            # Note: Removed adding metadata to mp4 files to remove dependency on pyexiftool (GPLv3)
-            # elif path.suffix.lower() == ".mp4":
-            #     self._process_video_file(path, image_data, ancillary_data, thread_num)
 
             if progress and task is not None:
                 progress.advance(task)
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             task = progress.add_task("[green]Applying iFDO metadata to files (4/11)", total=len(metadata_mapping))
-            process_file(self, items=metadata_mapping.items(), progress=progress, task=task)  # type: ignore
+            process_file(self, items=metadata_mapping.items(), progress=progress, task=task)  # type: ignore[call-arg]
 
     def _process_image_file(
-        self, path: Path, image_data: ImageData, ancillary_data: Optional[Dict[str, Any]], thread_num: str
+        self,
+        path: Path,
+        image_data: ImageData,
+        ancillary_data: dict[str, Any] | None,
+        thread_num: str,
     ) -> None:
         try:
             exif_dict = piexif.load(str(path))
@@ -279,21 +284,7 @@ class DatasetWrapper(LogMixin):
         except piexif.InvalidImageDataError:
             self.logger.warning(f"Failed to write EXIF metadata to {path}")
 
-    # def _process_video_file(
-    #     self, path: Path, image_data: ImageData, ancillary_data: Optional[Dict[str, Any]], thread_num: str
-    # ) -> None:
-    #     try:
-    #         # Prepare metadata
-    #         metadata = self._prepare_metadata(image_data, ancillary_data)
-    #
-    #         # Inject metadata using ExifTool
-    #         self._inject_metadata_exiftool(path, metadata)
-    #
-    #         self.logger.debug(f"Thread {thread_num} - Applied iFDO metadata to MP4 file {path}")
-    #     except Exception as e:
-    #         self.logger.warning(f"Failed to write MP4 metadata to {path}: {e}")
-
-    def _prepare_metadata(self, image_data: ImageData, ancillary_data: Optional[Dict[str, Any]]) -> Dict[str, str]:
+    def _prepare_metadata(self, image_data: ImageData, ancillary_data: dict[str, Any] | None) -> dict[str, str]:
         metadata = {}
 
         if image_data.image_datetime is not None:
@@ -314,19 +305,8 @@ class DatasetWrapper(LogMixin):
 
         return metadata
 
-    # def _inject_metadata_exiftool(self, path: Path, metadata: Dict[str, Any]) -> None:
-    #     with exiftool.ExifTool() as et:
-    #         # Build the arguments for exiftool
-    #         args = []
-    #         for key, value in metadata.items():
-    #             args.append(f"-{key}={value}")
-    #         args.append(str(path))
-    #
-    #         # Run ExifTool with the arguments
-    #         et.execute(*args)
-
     @staticmethod
-    def _inject_datetime(image_data: ImageData, exif_dict: Dict[str, Any]) -> None:
+    def _inject_datetime(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
         """
         Inject datetime information into EXIF metadata.
 
@@ -356,7 +336,7 @@ class DatasetWrapper(LogMixin):
                 ifd_exif[piexif.ExifIFD.OffsetTimeOriginal] = offset_str
 
     @staticmethod
-    def _inject_gps_coordinates(image_data: ImageData, exif_dict: Dict[str, Any]) -> None:
+    def _inject_gps_coordinates(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
         """
         Inject GPS coordinates into EXIF metadata.
 
@@ -381,7 +361,7 @@ class DatasetWrapper(LogMixin):
             ifd_gps[piexif.GPSIFD.GPSAltitudeRef] = 0 if image_data.image_altitude >= 0 else 1
 
     @staticmethod
-    def _add_thumbnail(path: Path, exif_dict: Dict[str, Any]) -> Image.Image:
+    def _add_thumbnail(path: Path, exif_dict: dict[str, Any]) -> Image.Image:
         """
         Add a thumbnail to the EXIF metadata.
 
@@ -412,7 +392,9 @@ class DatasetWrapper(LogMixin):
 
     @staticmethod
     def _burn_in_exif_metadata(
-        image_data: ImageData, ancillary_data: Optional[Dict[str, Any]], exif_dict: Dict[str, Any]
+        image_data: ImageData,
+        ancillary_data: dict[str, Any] | None,
+        exif_dict: dict[str, Any],
     ) -> None:
         """
         Add a user comment with iFDO metadata to the EXIF metadata.
@@ -431,26 +413,35 @@ class DatasetWrapper(LogMixin):
     def populate(
         self,
         dataset_name: str,
-        dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]]],
+        dataset_mapping: dict[str, dict[Path, tuple[Path, list[ImageData] | None, dict[str, Any] | None]]],
         project_pipelines_dir: Path,
         project_log_path: Path,
         pipeline_log_paths: Iterable[Path],
         operation: Operation = Operation.copy,
-        zoom: Optional[int] = None,
+        zoom: int | None = None,
     ) -> None:
         """
         Populate the dataset with files from the given dataset mapping.
 
+        This function creates a new dataset by populating it with files from the provided dataset mapping. It performs
+        various operations such as copying or moving files, applying EXIF metadata, generating IFDO, dataset summary,
+        dataset map, copying pipelines and logs, and generating a manifest.
+
         Args:
-            dataset_name: The name of the dataset.
-            dataset_mapping: A dict mapping pipeline name -> { output file path -> (input file path, image data) }
+            dataset_name: The name of the dataset to be created.
+            dataset_mapping: A dictionary mapping pipeline names to output file paths and their corresponding input
+              file paths, image data, and additional information.
             project_pipelines_dir: The path to the project pipelines directory.
             project_log_path: The path to the project log file.
-            pipeline_log_paths: The paths to the pipeline log files.
-            copy: Whether to copy (True) or move (False) the files.
+            pipeline_log_paths: An iterable of paths to the pipeline log files.
+            operation: The operation to perform on the files (copy or move). Defaults to Operation.copy.
+            zoom: The zoom level for generating the dataset map. Defaults to None.
+
+        Returns:
+            None
 
         Raises:
-            DatasetWrapper.InvalidPathMappingError: If the path mapping is invalid.
+            - DatasetWrapper.InvalidPathMappingError: If the provided dataset mapping is invalid.
         """
         pipeline_label = "pipeline" if len(dataset_mapping) == 1 else "pipelines"
         self.logger.debug(f'Creating dataset "{dataset_name}" containing {len(dataset_mapping)} {pipeline_label}')
@@ -467,9 +458,9 @@ class DatasetWrapper(LogMixin):
 
     def _populate_files(
         self,
-        dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]]],
+        dataset_mapping: dict[str, dict[Path, tuple[Path, list[ImageData] | None, dict[str, Any] | None]]],
         operation: Operation,
-    ) -> Dict[str, ImageData]:
+    ) -> dict[str, ImageData]:
         """
         Copy or move files from the dataset mapping to the destination directory.
 
@@ -484,13 +475,13 @@ class DatasetWrapper(LogMixin):
         @multithreaded()
         def process_file(
             self: DatasetWrapper,
-            item: Tuple[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]],
+            item: tuple[Path, tuple[Path, list[ImageData] | None, dict[str, Any] | None]],
             thread_num: str,
             pipeline_name: str,
             operation: Operation,
-            image_set_items: Dict[str, List[ImageData]],
-            progress: Optional[Progress] = None,
-            tasks_by_pipeline_name: Optional[Dict[str, Any]] = None,
+            image_set_items: dict[str, list[ImageData]],
+            progress: Progress | None = None,
+            tasks_by_pipeline_name: dict[str, Any] | None = None,
         ) -> None:
             src, (relative_dst, image_data_list, _) = item
             dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
@@ -514,11 +505,12 @@ class DatasetWrapper(LogMixin):
             if progress and tasks_by_pipeline_name:
                 progress.advance(tasks_by_pipeline_name[pipeline_name])
 
-        image_set_items: Dict[str, List[ImageData]] = {}
+        image_set_items: dict[str, list[ImageData]] = {}
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             tasks_by_pipeline_name = {
                 pipeline_name: progress.add_task(
-                    f"[green]Populating data for {pipeline_name} pipeline (3/11)", total=len(pipeline_data_mapping)
+                    f"[green]Populating data for {pipeline_name} pipeline (3/11)",
+                    total=len(pipeline_data_mapping),
                 )
                 for pipeline_name, pipeline_data_mapping in dataset_mapping.items()
                 if len(pipeline_data_mapping) > 0
@@ -528,19 +520,19 @@ class DatasetWrapper(LogMixin):
                 self.logger.debug(f"Populating data for {pipeline_name} pipeline")
                 process_file(
                     self,
-                    items=[(src, data) for src, data in pipeline_data_mapping.items()],
+                    items=list(pipeline_data_mapping.items()),
                     pipeline_name=pipeline_name,
                     operation=operation,
                     image_set_items=image_set_items,
                     progress=progress,
                     tasks_by_pipeline_name=tasks_by_pipeline_name,
-                )  # type: ignore
+                )  # type: ignore[call-arg]
 
         return image_set_items
 
     def _apply_exif_metadata(
         self,
-        dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]]],
+        dataset_mapping: dict[str, dict[Path, tuple[Path, list[ImageData] | None, dict[str, Any] | None]]],
     ) -> None:
         """
         Apply EXIF metadata to the images in the dataset.
@@ -551,7 +543,7 @@ class DatasetWrapper(LogMixin):
         metadata_mapping = {}
 
         for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-            for _, (relative_dst, image_data_list, ancillary_data) in pipeline_data_mapping.items():
+            for relative_dst, image_data_list, ancillary_data in pipeline_data_mapping.values():
                 dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
                 if not image_data_list:
                     continue
@@ -561,17 +553,24 @@ class DatasetWrapper(LogMixin):
             self._apply_ifdo_exif_tags(metadata_mapping)
         self.logger.debug(f"Applied iFDO EXIF tags to {len(metadata_mapping)} files")
 
-    def generate_ifdo(self, dataset_name: str, image_set_items: Dict[str, ImageData], progress: bool = True) -> None:
-        """Generate the iFDO for the dataset.
+    def generate_ifdo(
+        self,
+        dataset_name: str,
+        image_set_items: dict[str, ImageData],
+        *,
+        progress: bool = True,
+    ) -> None:
+        """
+        Generate the iFDO for the dataset.
 
         This function creates an iFDO metadata file for a given dataset. It processes the provided image set items,
         calculates SHA256 hashes for each image, and generates an iFDO object. The function can optionally display
         a progress bar during execution.
 
         Args:
-            - dataset_name: A string representing the name of the dataset.
-            - image_set_items: A dictionary mapping image paths to ImageData objects containing metadata for each image.
-            - progress: A boolean indicating whether to display a progress bar during execution. Defaults to True.
+            dataset_name: A string representing the name of the dataset.
+            image_set_items: A dictionary mapping image paths to ImageData objects containing metadata for each image.
+            progress: A boolean indicating whether to display a progress bar during execution. Defaults to True.
 
         Returns:
             None
@@ -584,10 +583,10 @@ class DatasetWrapper(LogMixin):
         @multithreaded()
         def hash_image(
             self: DatasetWrapper,
-            thread_num: str,
-            item: Tuple[str, ImageData],
-            progress: Optional[Progress] = None,
-            task: Optional[TaskID] = None,
+            thread_num: str,  # noqa: ARG001
+            item: tuple[str, ImageData],
+            progress: Progress | None = None,
+            task: TaskID | None = None,
         ) -> None:
             image_path, image_data = item
             image_data_path = Path(self.data_dir) / image_path
@@ -606,12 +605,14 @@ class DatasetWrapper(LogMixin):
                 progress.advance(task)
 
         def _process_items(
-            image_set_items: Dict[str, ImageData], progress: Optional[Progress] = None, task: Optional[TaskID] = None
-        ) -> (Dict)[str, ImageData]:
+            image_set_items: dict[str, ImageData],
+            progress: Progress | None = None,
+            task: TaskID | None = None,
+        ) -> (dict)[str, ImageData]:
             items = [
                 (Path(self.data_dir) / image_path, image_data) for image_path, image_data in image_set_items.items()
             ]
-            hash_image(self, items=items, progress=progress, task=task)  # type: ignore
+            hash_image(self, items=items, progress=progress, task=task)  # type: ignore[call-arg]
             return OrderedDict(sorted(image_set_items.items(), key=lambda item: item[0]))
 
         if progress:
@@ -629,19 +630,24 @@ class DatasetWrapper(LogMixin):
         item_label = "item" if item_count == 1 else "items"
         self.logger.debug(f"Generated iFDO containing {item_count} image set {item_label} at {self.metadata_path}")
 
-    def _create_ifdo(self, dataset_name: str, image_set_items: Dict[str, ImageData]) -> iFDO:
+    def _create_ifdo(self, dataset_name: str, image_set_items: dict[str, ImageData]) -> iFDO:
         if not self.dry_run:
             ifdo = iFDO(
                 image_set_header=ImageSetHeader(
                     image_set_name=dataset_name,
                     image_set_uuid=str(uuid4()),
-                    image_set_handle="",  # TODO: Populate this from the distribution target URL
+                    image_set_handle="",  # TODO @<cjackett>: Populate this from the distribution target URL
                 ),
                 image_set_items=image_set_items,
             )
             ifdo.save(self.metadata_path)
 
-    def generate_dataset_summary(self, image_set_items: Dict[str, ImageData], progress: bool = True) -> None:
+    def generate_dataset_summary(
+        self,
+        image_set_items: dict[str, ImageData],
+        *,
+        progress: bool = True,
+    ) -> None:
         """
         Generate a summary of the dataset.
 
@@ -665,7 +671,7 @@ class DatasetWrapper(LogMixin):
             generate_summary()
 
     @staticmethod
-    def _is_valid_coordinate(value: Optional[float], min_value: float, max_value: float) -> bool:
+    def _is_valid_coordinate(value: float | None, min_value: float, max_value: float) -> bool:
         """
         Validate if a coordinate is a valid real number within the given range.
 
@@ -679,7 +685,7 @@ class DatasetWrapper(LogMixin):
         """
         return value is not None and min_value <= value <= max_value and not isnan(value)
 
-    def _validate_geolocations(self, lat: Optional[float], lon: Optional[float]) -> bool:
+    def _validate_geolocations(self, lat: float | None, lon: float | None) -> bool:
         """
         Validate latitude and longitude values to ensure they are within acceptable ranges.
 
@@ -698,7 +704,7 @@ class DatasetWrapper(LogMixin):
         valid_longitude = self._is_valid_coordinate(lon, -180.0, 180.0) or self._is_valid_coordinate(lon, 0.0, 360.0)
         return valid_latitude and valid_longitude
 
-    def _generate_dataset_map(self, image_set_items: Dict[str, ImageData], zoom: Optional[int] = None) -> None:
+    def _generate_dataset_map(self, image_set_items: dict[str, ImageData], zoom: int | None = None) -> None:
         """
         Generate a summary of the dataset, including a map of geolocations if available.
 
@@ -724,7 +730,7 @@ class DatasetWrapper(LogMixin):
                         summary_map.save(map_path)
                     coordinate_label = "spatial coordinate" if len(geolocations) == 1 else "spatial coordinates"
                     self.logger.debug(
-                        f"Generated summary map containing {len(geolocations)} {coordinate_label} at {map_path}"
+                        f"Generated summary map containing {len(geolocations)} {coordinate_label} at {map_path}",
                     )
             progress.advance(task)
 
@@ -768,7 +774,7 @@ class DatasetWrapper(LogMixin):
             self.logger.debug(f"Copied project pipelines to {self.pipelines_dir}")
             progress.advance(task)
 
-    def _generate_manifest(self, image_set_items: Dict[str, ImageData]) -> None:
+    def _generate_manifest(self, image_set_items: dict[str, ImageData]) -> None:
         """
         Generate and save the manifest for the dataset, excluding certain paths.
 
@@ -788,7 +794,7 @@ class DatasetWrapper(LogMixin):
                 manifest.save(self.manifest_path)
             self.logger.debug(f"Generated manifest for {len(globbed_files)} files and paths at {self.manifest_path}")
 
-    def summarise(self, image_set_items: Dict[str, ImageData]) -> ImagerySummary:
+    def summarise(self, image_set_items: dict[str, ImageData]) -> ImagerySummary:
         """
         Create an imagery summary for this dataset.
 
@@ -908,21 +914,21 @@ class DatasetWrapper(LogMixin):
         return self.logs_dir / "pipelines"
 
     @property
-    def version(self) -> Optional[str]:
+    def version(self) -> str | None:
         """
         Version of the dataset.
         """
         return self._version
 
     @property
-    def contact_name(self) -> Optional[str]:
+    def contact_name(self) -> str | None:
         """
         Full name of the contact person for the packaged dataset.
         """
         return self._contact_name
 
     @property
-    def contact_email(self) -> Optional[str]:
+    def contact_email(self) -> str | None:
         """
         Email address of the contact person for the packaged dataset.
         """
@@ -943,7 +949,8 @@ class DatasetWrapper(LogMixin):
         self._dry_run = value
 
     def check_dataset_mapping(
-        self, dataset_mapping: Dict[str, Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]]]
+        self,
+        dataset_mapping: dict[str, dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]]],
     ) -> None:
         """
         Verify that the given dataset mapping is valid.
@@ -961,7 +968,7 @@ class DatasetWrapper(LogMixin):
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             task = progress.add_task("[green]Checking dataset mapping (2/11)", total=total_tasks)
 
-            for _, pipeline_data_mapping in dataset_mapping.items():
+            for pipeline_data_mapping in dataset_mapping.values():
                 self._verify_source_paths_exist(pipeline_data_mapping, progress, task)
                 self._verify_unique_source_resolutions(pipeline_data_mapping, progress, task)
                 self._verify_relative_destination_paths(pipeline_data_mapping, progress, task)
@@ -971,17 +978,17 @@ class DatasetWrapper(LogMixin):
 
     def _verify_source_paths_exist(
         self,
-        pipeline_data_mapping: Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]],
+        pipeline_data_mapping: dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
         progress: Progress,
         task: TaskID,
     ) -> None:
         @multithreaded()
         def verify_path(
-            self: DatasetWrapper,
-            thread_num: str,
+            self: DatasetWrapper,  # noqa: ARG001
+            thread_num: str,  # noqa: ARG001
             item: Path,
-            progress: Optional[Progress] = None,
-            task: Optional[TaskID] = None,
+            progress: Progress | None = None,
+            task: TaskID | None = None,
         ) -> None:
             if not item.exists():
                 raise DatasetWrapper.InvalidDatasetMappingError(f"Source path {item} does not exist")
@@ -993,29 +1000,29 @@ class DatasetWrapper(LogMixin):
             items=list(pipeline_data_mapping.keys()),
             progress=progress,
             task=task,
-        )  # type: ignore
+        )  # type: ignore[call-arg]
 
     def _verify_unique_source_resolutions(
         self,
-        pipeline_data_mapping: Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]],
+        pipeline_data_mapping: dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
         progress: Progress,
         task: TaskID,
     ) -> None:
-        reverse_src_resolution: Dict[Path, Path] = {}
+        reverse_src_resolution: dict[Path, Path] = {}
 
         @multithreaded()
         def verify_resolution(
-            self: DatasetWrapper,
-            thread_num: str,
+            self: DatasetWrapper,  # noqa: ARG001
+            thread_num: str,  # noqa: ARG001
             item: Path,
-            reverse_src_resolution: Dict[Path, Path],
-            progress: Optional[Progress] = None,
-            task: Optional[TaskID] = None,
+            reverse_src_resolution: dict[Path, Path],
+            progress: Progress | None = None,
+            task: TaskID | None = None,
         ) -> None:
             resolved = item.resolve().absolute()
             if resolved in reverse_src_resolution:
                 raise DatasetWrapper.InvalidDatasetMappingError(
-                    f"Source paths {item} and {reverse_src_resolution[resolved]} both resolve to {resolved}"
+                    f"Source paths {item} and {reverse_src_resolution[resolved]} both resolve to {resolved}",
                 )
             reverse_src_resolution[resolved] = item
             if progress and task is not None:
@@ -1027,11 +1034,11 @@ class DatasetWrapper(LogMixin):
             reverse_src_resolution=reverse_src_resolution,
             progress=progress,
             task=task,
-        )  # type: ignore
+        )  # type: ignore[call-arg]
 
     def _verify_relative_destination_paths(
         self,
-        pipeline_data_mapping: Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]],
+        pipeline_data_mapping: dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
         progress: Progress,
         task: TaskID,
     ) -> None:
@@ -1039,11 +1046,11 @@ class DatasetWrapper(LogMixin):
 
         @multithreaded()
         def verify_destination_path(
-            self: DatasetWrapper,
-            thread_num: str,
+            self: DatasetWrapper,  # noqa: ARG001
+            thread_num: str,  # noqa: ARG001
             item: Path,
-            progress: Optional[Progress] = None,
-            task: Optional[TaskID] = None,
+            progress: Progress | None = None,
+            task: TaskID | None = None,
         ) -> None:
             if item.is_absolute():
                 raise DatasetWrapper.InvalidDatasetMappingError(f"Destination path {item} must be relative")
@@ -1055,33 +1062,33 @@ class DatasetWrapper(LogMixin):
             items=destinations,
             progress=progress,
             task=task,
-        )  # type: ignore
+        )  # type: ignore[call-arg]
 
     def _verify_no_destination_collisions(
         self,
-        pipeline_data_mapping: Dict[Path, Tuple[Path, Optional[List[Any]], Optional[Dict[str, Any]]]],
+        pipeline_data_mapping: dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
         progress: Progress,
         task: TaskID,
     ) -> None:
-        reverse_mapping: Dict[Path, Path] = {
+        reverse_mapping: dict[Path, Path] = {
             dst.resolve(): src for src, (dst, _, _) in pipeline_data_mapping.items() if dst is not None
         }
 
         @multithreaded()
         def verify_no_collision(
-            self: DatasetWrapper,
-            thread_num: str,
-            item: Tuple[Path, Path],
-            reverse_mapping: Dict[Path, Path],
-            progress: Optional[Progress] = None,
-            task: Optional[TaskID] = None,
+            self: DatasetWrapper,  # noqa: ARG001
+            thread_num: str,  # noqa: ARG001
+            item: tuple[Path, Path],
+            reverse_mapping: dict[Path, Path],
+            progress: Progress | None = None,
+            task: TaskID | None = None,
         ) -> None:
             (src, dst) = item
             if dst is not None:
                 src_other = reverse_mapping.get(dst.resolve())
                 if src_other is not None and src.resolve() != src_other.resolve():
                     raise DatasetWrapper.InvalidDatasetMappingError(
-                        f"Resolved destination path {dst.resolve()} is the same for source paths {src} and {src_other}"
+                        f"Resolved destination path {dst.resolve()} is the same for source paths {src} and {src_other}",
                     )
             if progress and task is not None:
                 progress.advance(task)
@@ -1094,4 +1101,4 @@ class DatasetWrapper(LogMixin):
             reverse_mapping=reverse_mapping,
             progress=progress,
             task=task,
-        )  # type: ignore
+        )  # type: ignore[call-arg]

@@ -23,8 +23,8 @@ Classes:
     - S3DistributionTarget: Represents an S3 bucket distribution target for datasets.
 """
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Tuple
 
 from boto3 import resource
 from boto3.exceptions import S3UploadFailedError
@@ -43,8 +43,13 @@ class S3DistributionTarget(DistributionTargetBase):
     """
 
     def __init__(
-        self, bucket_name: str, endpoint_url: str, access_key_id: str, secret_access_key: str, base_prefix: str = ""
-    ):
+        self,
+        bucket_name: str,
+        endpoint_url: str,
+        access_key_id: str,
+        secret_access_key: str,
+        base_prefix: str = "",
+    ) -> None:
         """
         Initialise the class instance.
 
@@ -60,7 +65,10 @@ class S3DistributionTarget(DistributionTargetBase):
 
         # Create S3 resource and Bucket
         self._s3 = resource(
-            "s3", endpoint_url=endpoint_url, aws_access_key_id=access_key_id, aws_secret_access_key=secret_access_key
+            "s3",
+            endpoint_url=endpoint_url,
+            aws_access_key_id=access_key_id,
+            aws_secret_access_key=secret_access_key,
         )
         self._bucket = self._s3.Bucket(self._bucket_name)
 
@@ -69,7 +77,7 @@ class S3DistributionTarget(DistributionTargetBase):
             multipart_threshold=100 * 1024 * 1024,
         )
 
-        # self._check_bucket()
+        self._check_bucket()
 
     def _check_bucket(self) -> None:
         """
@@ -83,7 +91,7 @@ class S3DistributionTarget(DistributionTargetBase):
         """
         self._s3.meta.client.head_bucket(Bucket=self._bucket_name)
 
-    def _iterate_dataset_wrapper(self, dataset_wrapper: DatasetWrapper) -> Iterable[Tuple[Path, str]]:
+    def _iterate_dataset_wrapper(self, dataset_wrapper: DatasetWrapper) -> Iterable[tuple[Path, str]]:
         """
         Iterate over a dataset structure and generate (path, key) tuples.
 
@@ -105,11 +113,8 @@ class S3DistributionTarget(DistributionTargetBase):
                 An S3 key.
             """
             rel_path = path.relative_to(dataset_wrapper.root_dir)
-
-            parts = (self._base_prefix,) + rel_path.parts
-            key = "/".join(parts)
-
-            return key
+            parts = (self._base_prefix, *rel_path.parts)
+            return "/".join(parts)
 
         # Iterate over all files in the dataset
         for path in dataset_wrapper.root_dir.glob("**/*"):
@@ -141,11 +146,11 @@ class S3DistributionTarget(DistributionTargetBase):
                     self._upload(path, key)
                 except S3UploadFailedError as e:
                     raise DistributionTargetBase.DistributionError(
-                        f"S3 upload failed while uploading {path} to {key}:\n{e}"
+                        f"S3 upload failed while uploading {path} to {key}:\n{e}",
                     ) from e
                 except ClientError as e:
                     raise DistributionTargetBase.DistributionError(
-                        f"AWS client error while uploading {path} to {key}:\n{e}"
+                        f"AWS client error while uploading {path} to {key}:\n{e}",
                     ) from e
                 except Exception as e:
                     raise DistributionTargetBase.DistributionError(f"Failed to upload {path} to {key}:\n{e}") from e

@@ -17,7 +17,8 @@ PROJECT_DIR_HELP = (
 
 
 class Operation(str, Enum):
-    """Define an enumeration of file operations.
+    """
+    Define an enumeration of file operations.
 
     This class represents different types of file operations as an enumeration. It inherits from both str and Enum,
     allowing for string comparison and enumeration functionality. The class provides three predefined operations:

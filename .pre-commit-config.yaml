@@ -5,12 +5,13 @@ repos:
   - repo: local
 
     hooks:
-      - id: bandit
-        name: Bandit
-        entry: poetry run bandit
+      - id: ruff
+        name: Ruff
+        entry: poetry run ruff check
         language: system
         types: [ python ]
-        args: [ '--config', 'config/bandit.yml', '--severity-level', 'medium' ]
+        args: [ "--fix", "--config=./config/.ruff.toml" ]
+        exclude: ^tests/.*$
 
       - id: black
         name: Black
@@ -19,19 +20,12 @@ repos:
         types: [ python ]
         args: [ "--line-length", "120" ]
 
-      - id: flake8
-        name: Flake8
-        entry: poetry run flake8
-        language: system
-        types: [ python ]
-        args: [ '--config=config/.flake8' ]
-
-      - id: isort
-        name: isort
-        entry: poetry run isort
-        language: system
-        types: [ python ]
-        args: [ '--settings-path=config/.isort.cfg' ]
+#      - id: isort
+#        name: isort
+#        entry: poetry run isort
+#        language: system
+#        types: [ python ]
+#        args: [ '--settings-path=config/.isort.cfg' ]
 
       - id: mypy
         name: Mypy
@@ -40,19 +34,33 @@ repos:
         types: [ python ]
         args: [ '--config-file', 'config/mypy.ini' ]
 
-      - id: pydocstyle
-        name: Pydocstyle
-        entry: poetry run pydocstyle
+#      - id: flake8
+#        name: Flake8
+#        entry: poetry run flake8
+#        language: system
+#        types: [ python ]
+#        args: [ '--config=config/.flake8' ]
+
+#      - id: pylint
+#        name: Pylint
+#        entry: poetry run pylint
+#        language: system
+#        types: [python]
+#        args: ['--rcfile=config/.pylintrc']
+
+#      - id: pydocstyle
+#        name: Pydocstyle
+#        entry: poetry run pydocstyle
+#        language: system
+#        types: [ python ]
+#        args: [ '--config=config/.pydocstyle' ]
+
+      - id: bandit
+        name: Bandit
+        entry: poetry run bandit
         language: system
         types: [ python ]
-        args: [ '--config=config/.pydocstyle' ]
-
-      #      - id: pylint
-      #        name: Pylint
-      #        entry: poetry run pylint
-      #        language: system
-      #        types: [python]
-      #        args: ['--rcfile=config/.pylintrc']
+        args: [ '--config', 'config/bandit.yml', '--severity-level', 'medium' ]
 
       # Note: The confcutdir argument doesn't appear to work, requiring the tests directory to be specified here
       - id: pytest

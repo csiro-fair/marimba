@@ -15,12 +15,12 @@ Functions:
 """
 
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any
 
 import yaml
 
 
-def load_config(config_path: Union[str, Path]) -> Dict[str, Any]:
+def load_config(config_path: str | Path) -> dict[str, Any]:
     """
     Load a YAML config file.
 
@@ -36,7 +36,7 @@ def load_config(config_path: Union[str, Path]) -> Dict[str, Any]:
     """
     config_path = Path(config_path)
 
-    with open(config_path, "r", encoding="utf-8") as file:
+    with Path.open(config_path, encoding="utf-8") as file:
         data = yaml.safe_load(file)
 
         if not isinstance(data, dict):
@@ -45,7 +45,7 @@ def load_config(config_path: Union[str, Path]) -> Dict[str, Any]:
     return data
 
 
-def save_config(config_path: Union[str, Path], config_data: Dict[Any, Any]) -> None:
+def save_config(config_path: str | Path, config_data: dict[Any, Any]) -> None:
     """
     Save a YAML config file.
 

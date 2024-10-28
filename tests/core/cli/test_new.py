@@ -345,7 +345,8 @@ def test_project_creates_new_project(setup_test_directory: Path) -> None:
     project_dir = setup_test_directory / "new_project"
 
     with patch(
-        "marimba.core.wrappers.project.ProjectWrapper.create", return_value=MagicMock(root_dir=project_dir)
+        "marimba.core.wrappers.project.ProjectWrapper.create",
+        return_value=MagicMock(root_dir=project_dir),
     ) as mock_create:
         result = runner.invoke(marimba_cli, ["new", "project", str(project_dir)])
         print(result.output)
@@ -483,7 +484,8 @@ def test_pipeline_creates_new_pipeline(setup_test_directory: Path) -> None:
 
     with (
         patch(
-            "marimba.core.wrappers.project.ProjectWrapper.create_pipeline", return_value=MagicMock()
+            "marimba.core.wrappers.project.ProjectWrapper.create_pipeline",
+            return_value=MagicMock(),
         ) as mock_create_pipeline,
         patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
         patch("marimba.core.wrappers.project.ProjectWrapper.create", return_value=MagicMock()),
@@ -590,7 +592,8 @@ def test_collection_creates_new_collection(setup_test_directory: Path) -> None:
 
     with (
         patch(
-            "marimba.core.wrappers.project.ProjectWrapper.create_collection", return_value=MagicMock()
+            "marimba.core.wrappers.project.ProjectWrapper.create_collection",
+            return_value=MagicMock(),
         ) as mock_create_collection,
         patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
         patch("marimba.core.wrappers.project.ProjectWrapper.prompt_collection_config", return_value=MagicMock()),
@@ -755,7 +758,8 @@ def test_target_creates_new_target(setup_test_directory: Path) -> None:
 
     with (
         patch(
-            "marimba.core.wrappers.project.ProjectWrapper.create_target", return_value=MagicMock()
+            "marimba.core.wrappers.project.ProjectWrapper.create_target",
+            return_value=MagicMock(),
         ) as mock_create_target,
         patch("marimba.core.cli.new.find_project_dir_or_exit", return_value=project_dir),
         patch(

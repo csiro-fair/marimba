@@ -18,8 +18,6 @@ Functions:
     - get_default_columns: Returns a tuple of default progress columns.
 """
 
-from typing import Tuple
-
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
@@ -87,7 +85,7 @@ def format_entity(entity_name: str) -> str:
     return f"[light_pink3]{entity_name}[/light_pink3]"
 
 
-def get_default_columns() -> Tuple[ProgressColumn, ...]:
+def get_default_columns() -> tuple[ProgressColumn, ...]:
     """
     Get the default progress columns.
 
