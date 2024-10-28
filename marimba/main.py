@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Marimba: A Python framework for structuring, managing and processing FAIR scientific image datasets.
 
@@ -35,10 +36,9 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import List, Optional
 
 import typer
-from rich import print  # noqa: A004
+from rich import print
 
 from marimba.core.cli import delete, new
 from marimba.core.distribution.bases import DistributionTargetBase
@@ -98,23 +98,26 @@ def global_options(
 @marimba_cli.command("import")
 def import_command(
     collection_name: str = typer.Argument(..., help="Marimba collection name for targeted processing."),
-    source_paths: List[Path] = typer.Argument(..., help="Paths to source files/directories to provide for import."),
-    parent_collection_name: Optional[str] = typer.Option(
-        None, help="Name of the parent collection. If unspecified, use the last collection."
+    source_paths: list[Path] = typer.Argument(..., help="Paths to source files/directories to provide for import."),
+    parent_collection_name: str | None = typer.Option(
+        None,
+        help="Name of the parent collection. If unspecified, use the last collection.",
     ),
-    pipeline_name: Optional[List[str]] = typer.Option(
+    pipeline_name: list[str] | None = typer.Option(
         None,
         help="Marimba pipeline name for targeted processing. If none are specified, all pipelines will be processed.",
     ),
     operation: Operation = typer.Option(Operation.copy, help="Operation to perform: copy, move, or link"),
-    project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
+    project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP),
     overwrite: bool = typer.Option(False, help="Overwrite an existing collection with the same name."),
     config: str = typer.Option(
-        None, help="A custom configuration in JSON format to be merged with the prompted collection configuration."
+        None,
+        help="A custom configuration in JSON format to be merged with the prompted collection configuration.",
     ),
-    extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+    extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(
-        False, help="Execute the command and print logging to the terminal, but do not change any files."
+        False,
+        help="Execute the command and print logging to the terminal, but do not change any files.",
     ),
 ) -> None:
     """
@@ -126,9 +129,9 @@ def import_command(
         config_dict = json.loads(config) if config else {}
     except json.JSONDecodeError as e:
         error_message = f"Error parsing configuration JSON: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from None
 
     project_dir = new.find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
@@ -145,61 +148,67 @@ def import_command(
             project_wrapper.create_collection(collection_name, collection_config)
         except ProjectWrapper.InvalidNameError as e:
             error_message = f"Invalid collection name: {e}"
-            logger.error(error_message)
+            logger.exception(error_message)
             print(error_panel(error_message))
-            raise typer.Exit()
+            raise typer.Exit from None
     elif not overwrite:
         error_message = f"Collection {collection_name} already exists, and the overwrite flag is not set."
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from None
 
     # If no pipeline names are specified, process all pipelines
-    pipeline_names = pipeline_name if pipeline_name else list(project_wrapper._pipeline_wrappers.keys())
+    pipeline_names = pipeline_name if pipeline_name else list(project_wrapper.pipeline_wrappers.keys())
 
     # Run the import
     try:
         project_wrapper.run_import(
-            collection_name, source_paths, pipeline_names, extra_args=extra, operation=operation.__dict__
+            collection_name,
+            source_paths,
+            pipeline_names,
+            extra_args=extra,
+            operation=operation.__dict__,
         )
     except Exception as e:
         error_message = f"Error during import: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from None
 
     pretty_source_paths = "\n".join([f"  - {source_path.resolve().absolute()}" for source_path in source_paths])
     elapsed_time = time.time() - start_time
     print(
         success_panel(
             f'Imported data into collection "{format_entity(collection_name)}" from the following source paths in '
-            f"{elapsed_time:.2f} seconds:\n{pretty_source_paths}"
-        )
+            f"{elapsed_time:.2f} seconds:\n{pretty_source_paths}",
+        ),
     )
 
 
 @marimba_cli.command("package")
 def package_command(
     dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
-    collection_name: Optional[List[str]] = typer.Option(
+    collection_name: list[str] | None = typer.Option(
         None,
         help="Marimba collection names to package. If none are specified, all collections will be packaged together.",
     ),
-    pipeline_name: Optional[List[str]] = typer.Option(
+    pipeline_name: list[str] | None = typer.Option(
         None,
         help="Marimba pipeline name to package. If none are specified, all pipelines will be packaged together.",
     ),
-    project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
+    project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP),
     operation: Operation = typer.Option(Operation.copy, help="Operation to perform: copy, move, or link"),
-    version: Optional[str] = typer.Option("1.0", help="Version of the packaged dataset."),
-    contact_name: Optional[str] = typer.Option(None, help="Full name of the contact person for the packaged dataset."),
-    contact_email: Optional[str] = typer.Option(
-        None, help="Email address of the contact person for the packaged dataset."
+    version: str | None = typer.Option("1.0", help="Version of the packaged dataset."),
+    contact_name: str | None = typer.Option(None, help="Full name of the contact person for the packaged dataset."),
+    contact_email: str | None = typer.Option(
+        None,
+        help="Email address of the contact person for the packaged dataset.",
     ),
-    zoom: Optional[int] = typer.Option(None, help="Zoom level for the packaged dataset map."),
-    extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+    zoom: int | None = typer.Option(None, help="Zoom level for the packaged dataset map."),
+    extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(
-        False, help="Execute the command and print logging to the terminal, but do not change any files."
+        False,
+        help="Execute the command and print logging to the terminal, but do not change any files.",
     ),
 ) -> None:
     """
@@ -212,7 +221,7 @@ def package_command(
 
     # If no collection and pipeline names are specified, package all collections and pipelines
     collection_names = collection_name if collection_name else list(project_wrapper.collection_wrappers.keys())
-    pipeline_names = pipeline_name if pipeline_name else list(project_wrapper._pipeline_wrappers.keys())
+    pipeline_names = pipeline_name if pipeline_name else list(project_wrapper.pipeline_wrappers.keys())
 
     try:
         # Compose the dataset
@@ -229,57 +238,58 @@ def package_command(
             zoom=zoom,
         )
     except ProjectWrapper.CompositionError as e:
-        logger.error(e)
+        logger.exception(e)
         print(error_panel(str(e)))
-        raise typer.Exit()
+        raise typer.Exit from None
     except ProjectWrapper.NoSuchPipelineError as e:
         error_message = f"No such pipeline: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from None
     except ProjectWrapper.NoSuchCollectionError as e:
         error_message = f"No such collection: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from None
     except DatasetWrapper.ManifestError as e:
         error_message = f"Dataset is inconsistent with manifest at {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from None
     except FileExistsError as e:
         error_message = f"Dataset already exists: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from None
     except Exception as e:
-        logger.error(e)
+        logger.exception(e)
         print(error_panel(f"Could not package collection: {e}"))
-        raise typer.Exit()
+        raise typer.Exit from None
 
     elapsed_time = time.time() - start_time
     print(
         success_panel(
             f'Packaged dataset "{format_entity(dataset_name)}" at {dataset_wrapper.root_dir} in '
-            f"{elapsed_time:.2f} seconds"
-        )
+            f"{elapsed_time:.2f} seconds",
+        ),
     )
 
 
 @marimba_cli.command("process")
 def process_command(
-    collection_name: Optional[List[str]] = typer.Option(
+    collection_name: list[str] | None = typer.Option(
         None,
         help="Marimba collection name for targeted processing.",
     ),
-    pipeline_name: Optional[List[str]] = typer.Option(
+    pipeline_name: list[str] | None = typer.Option(
         None,
         help="Marimba pipeline name for targeted processing.",
     ),
-    project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
-    extra: List[str] = typer.Option([], help="Extra key-value pass-through arguments."),
+    project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP),
+    extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(
-        False, help="Execute the command and print logging to the terminal, but do not change any files."
+        False,
+        help="Execute the command and print logging to the terminal, but do not change any files.",
     ),
 ) -> None:
     """
@@ -292,24 +302,24 @@ def process_command(
 
     # If no collection and pipeline names are specified, package all collections and pipelines
     collection_names = collection_name if collection_name else list(project_wrapper.collection_wrappers.keys())
-    pipeline_names = pipeline_name if pipeline_name else list(project_wrapper._pipeline_wrappers.keys())
+    pipeline_names = pipeline_name if pipeline_name else list(project_wrapper.pipeline_wrappers.keys())
 
     # Run the processing
     try:
         project_wrapper.run_process(collection_names, pipeline_names, extra)
     except NetworkConnectionError as e:
         error_message = f"No internet connection: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from None
     except Exception as e:
         error_message = f"Error during processing: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from None
 
-    pretty_pipelines = ", ".join(f'"{str(p)}"' for p in pipeline_names)
-    pretty_collections = ", ".join(f'"{str(c)}"' for c in collection_names)
+    pretty_pipelines = ", ".join(f'"{p!s}"' for p in pipeline_names)
+    pretty_collections = ", ".join(f'"{c!s}"' for c in collection_names)
     pipeline_label = "pipeline" if len(pipeline_names) == 1 else "pipelines"
     collection_label = "collection" if len(collection_names) == 1 else "collections"
 
@@ -317,8 +327,8 @@ def process_command(
     print(
         success_panel(
             f"Processed data for {pipeline_label} {pretty_pipelines} and {collection_label} {pretty_collections} in "
-            f"{elapsed_time:.2f} seconds"
-        )
+            f"{elapsed_time:.2f} seconds",
+        ),
     )
 
 
@@ -326,9 +336,10 @@ def process_command(
 def distribute_command(
     dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
     target_name: str = typer.Argument(..., help="Marimba distribution target name."),
-    project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP),
+    project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP),
     dry_run: bool = typer.Option(
-        False, help="Execute the command and print logging to the terminal, but do not change any files."
+        False,
+        help="Execute the command and print logging to the terminal, but do not change any files.",
     ),
 ) -> None:
     """
@@ -343,35 +354,35 @@ def distribute_command(
         project_wrapper.distribute(dataset_name, target_name)
     except ProjectWrapper.NoSuchDatasetError as e:
         error_message = f"No such dataset: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from None
     except ProjectWrapper.NoSuchTargetError as e:
         error_message = f"No such target: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from None
     except DatasetWrapper.ManifestError as e:
         error_message = f"Dataset is inconsistent with manifest at {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from None
     except DistributionTargetBase.DistributionError as e:
         error_message = f"Could not distribute dataset: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from None
     except Exception as e:
-        logger.error(e)
+        logger.exception(e)
         print(error_panel(f"Could not distribute dataset: {e}"))
-        raise typer.Exit()
+        raise typer.Exit from None
 
     elapsed_time = time.time() - start_time
     print(success_panel(f"Successfully distributed dataset {dataset_name} in {elapsed_time:.2f} seconds"))
 
 
 @marimba_cli.command("update")
-def update_command(project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP)) -> None:
+def update_command(project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP)) -> None:
     """
     Update (pull) all Marimba pipelines.
     """
@@ -381,13 +392,13 @@ def update_command(project_dir: Optional[Path] = typer.Option(None, help=PROJECT
     try:
         project_wrapper.update_pipelines()
     except Exception as e:
-        logger.error(e)
+        logger.exception(e)
         print(error_panel(f"Could not update pipelines: {e}"))
-        raise typer.Exit()
+        raise typer.Exit from None
 
 
 @marimba_cli.command("install")
-def install_command(project_dir: Optional[Path] = typer.Option(None, help=PROJECT_DIR_HELP)) -> None:
+def install_command(project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP)) -> None:
     """
     Install Python dependencies from requirements.txt files defined by a project's pipelines.
     """
@@ -397,9 +408,9 @@ def install_command(project_dir: Optional[Path] = typer.Option(None, help=PROJEC
     try:
         project_wrapper.install_pipelines()
     except Exception as e:
-        logger.error(e)
+        logger.exception(e)
         print(error_panel(f"Could not install pipelines: {e}"))
-        raise typer.Exit()
+        raise typer.Exit from None
 
 
 if __name__ == "__main__":

@@ -2,7 +2,8 @@
 Marimba Map Utilities.
 """
 
-from typing import Iterable, Optional, Tuple, cast
+from collections.abc import Iterable
+from typing import cast
 
 import requests
 from PIL import Image, ImageDraw, ImageFont
@@ -45,7 +46,7 @@ def add_axes(
     margin_y = 40  # Margin to prevent grid lines from running into the labels on y-axis
 
     # Drawing lat/lon grid lines
-    def draw_dashed_line(start: Tuple[int, int], end: Tuple[int, int], dash_length: int = 5) -> None:
+    def draw_dashed_line(start: tuple[int, int], end: tuple[int, int], dash_length: int = 5) -> None:
         x1, y1 = start
         x2, y2 = end
         total_length = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
@@ -90,15 +91,15 @@ def add_axes(
 
 
 def make_summary_map(
-    geolocations: Iterable[Tuple[float, float]],
+    geolocations: Iterable[tuple[float, float]],
     width: int = 1920,
     height: int = 1080,
     marker_color: str = "red",
     marker_size: int = 10,
     num_x_lines: int = 5,
     num_y_lines: int = 5,
-    zoom: Optional[int] = None,
-) -> Optional[Image.Image]:
+    zoom: int | None = None,
+) -> Image.Image | None:
     """
     Make a summary map of the given geolocations.
 
@@ -136,7 +137,7 @@ def make_summary_map(
         image = cast(Image.Image, m.render(zoom=zoom))
 
     except requests.exceptions.ConnectionError:
-        raise NetworkConnectionError("Unable to render the map.")
+        raise NetworkConnectionError("Unable to render the map.") from None
 
     # Add coordinate axes
     draw = ImageDraw.Draw(image)

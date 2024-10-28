@@ -6,22 +6,22 @@ manifest from a directory, validation of a directory against a manifest, and sav
 The module uses SHA-256 hashing to ensure data integrity and supports multithreaded processing for improved performance.
 
 Imports:
-    - hashlib: Provides cryptographic hash functions.
-    - dataclasses: Offers decorator and functions for automatically adding generated special methods to classes.
-    - pathlib: Offers classes representing filesystem paths.
-    - typing: Provides support for type hints.
-    - distlib.util: Utilities for distribution-related operations.
-    - rich.progress: Offers rich text and beautiful formatting in the terminal.
-    - marimba.lib.decorators: Custom decorators for the marimba library.
+    hashlib: Provides cryptographic hash functions.
+    dataclasses: Offers decorator and functions for automatically adding generated special methods to classes.
+    pathlib: Offers classes representing filesystem paths.
+    typing: Provides support for type hints.
+    distlib.util: Utilities for distribution-related operations.
+    rich.progress: Offers rich text and beautiful formatting in the terminal.
+    marimba.lib.decorators: Custom decorators for the marimba library.
 
 Classes:
-    - Manifest: Represents a dataset manifest for validation and integrity checking.
+    Manifest: Represents a dataset manifest for validation and integrity checking.
 """
 
 import hashlib
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, Optional
 
 from distlib.util import Progress
 from ifdo.models import ImageData
@@ -36,7 +36,7 @@ class Manifest:
     Dataset manifest. Used to validate datasets to check if the underlying data has been corrupted or modified.
     """
 
-    hashes: Dict[Path, bytes]
+    hashes: dict[Path, bytes]
 
     @staticmethod
     def compute_hash(path: Path) -> bytes:
@@ -67,37 +67,47 @@ class Manifest:
     def from_dir(
         cls,
         directory: Path,
-        exclude_paths: Optional[Iterable[Path]] = None,
-        image_set_items: Optional[Dict[str, ImageData]] = None,
-        progress: Optional[Progress] = None,
-        task: Optional[TaskID] = None,
+        exclude_paths: Iterable[Path] | None = None,
+        image_set_items: dict[str, ImageData] | None = None,
+        progress: Progress | None = None,
+        task: TaskID | None = None,
     ) -> "Manifest":
         """
         Create a manifest from a directory.
 
+        This class method generates a manifest by processing files in the specified directory. It computes hashes for
+        each file, excluding specified paths and utilizing pre-computed hashes for image set items if provided. The
+        method supports multithreaded processing and can display progress using a progress bar.
+
         Args:
-            directory: The directory.
-            exclude_paths: Paths to exclude from the manifest.
-            progress: A progress bar to monitor the manifest generation
+            directory (Path): The root directory to create the manifest from.
+            exclude_paths (Iterable[Path] | None): An iterable of paths to exclude from the manifest. Defaults to None.
+            image_set_items (dict[str, ImageData] | None): A dictionary of pre-computed image data. Defaults to None.
+            progress (Progress | None): A progress bar object to monitor the manifest generation. Defaults to None.
+            task (TaskID | None): A task ID associated with the progress bar. Defaults to None.
 
         Returns:
-            A manifest.
+            Manifest: A new Manifest object containing the processed files and their hashes.
+
+        Raises:
+            OSError: If there are issues accessing files or directories.
+            ValueError: If the provided directory is invalid or doesn't exist.
         """
-        hashes: Dict[Path, bytes] = {}
+        hashes: dict[Path, bytes] = {}
         exclude_paths = set(exclude_paths) if exclude_paths is not None else set()
         globbed_files = list(directory.glob("**/*"))
 
         @multithreaded()
         def process_file(
-            self: None,
-            thread_num: str,
+            self: None,  # noqa: ARG001
+            thread_num: str,  # noqa: ARG001
             item: Path,
             directory: Path,
-            exclude_paths: Optional[Iterable[Path]],
-            hashes: Dict[Path, bytes],
-            image_set_items: Optional[Dict[str, ImageData]] = None,
-            progress: Optional[Progress] = None,
-            task: Optional[TaskID] = None,
+            exclude_paths: Iterable[Path] | None,
+            hashes: dict[Path, bytes],
+            image_set_items: dict[str, ImageData] | None = None,
+            progress: Progress | None = None,
+            task: TaskID | None = None,
         ) -> None:
             if progress and task is not None:
                 progress.advance(task)
@@ -123,26 +133,35 @@ class Manifest:
             image_set_items=image_set_items,
             progress=progress,
             task=task,
-        )  # type: ignore
+        )  # type: ignore[call-arg]
 
         return cls(dict(sorted(hashes.items(), key=lambda item: item[0])))
 
     def validate(
         self,
         directory: Path,
-        exclude_paths: Optional[Iterable[Path]] = None,
-        progress: Optional[Progress] = None,
-        task: Optional[TaskID] = None,
+        exclude_paths: Iterable[Path] | None = None,
+        progress: Progress | None = None,
+        task: TaskID | None = None,
     ) -> bool:
         """
         Validate a directory against the manifest.
 
+        This function compares the contents of a given directory with the current manifest. It creates a new manifest
+        from the specified directory and compares it with the existing manifest to determine if the directory is valid.
+
         Args:
-            directory: The directory.
-            exclude_paths: Paths to exclude from the manifest.
+            directory: A Path object representing the directory to validate.
+            exclude_paths: An optional iterable of Path objects representing paths to exclude from the manifest.
+            progress: An optional Progress object for tracking the validation process.
+            task: An optional TaskID object for associating the validation with a specific task.
 
         Returns:
-            True if the directory is valid, False otherwise.
+            A boolean value indicating whether the directory is valid (True) or not (False).
+
+        Raises:
+            FileNotFoundError: If the specified directory does not exist.
+            PermissionError: If there are insufficient permissions to access the directory or its contents.
         """
         # Create a manifest from the directory
         manifest = Manifest.from_dir(
@@ -170,11 +189,7 @@ class Manifest:
         if len(self.hashes) != len(other.hashes):
             return False
 
-        for path, file_hash in self.hashes.items():
-            if file_hash != other.hashes.get(path):
-                return False
-
-        return True
+        return all(file_hash == other.hashes.get(path) for path, file_hash in self.hashes.items())
 
     def save(self, path: Path) -> None:
         """

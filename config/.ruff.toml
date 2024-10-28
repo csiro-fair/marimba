@@ -1,0 +1,70 @@
+# Line Length
+line-length = 120
+
+# Target Python Version
+target-version = "py310"
+
+# Exclude directories and files
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "temp",
+    "tests",
+]
+
+# Enable all rules by default
+lint.select = ["ALL"]
+
+# McCabe complexity configuration
+lint.mccabe.max-complexity = 10
+
+# Pydocstyle configuration
+lint.pydocstyle.convention = "google"
+
+# Ignore specific rules with explanations
+lint.ignore = [
+    # B - flake8-bugbear
+    "B008",   # Do not perform function calls in argument defaults
+
+    # D - pydocstyle
+    "D104",  # Missing docstring in public package
+    "D105",  # Missing docstring in magic method
+    "D200",  # One-line docstring should fit on one line with quotes
+    "D203",  # 1 blank line required before class docstring
+    "D212",  # Multi-line docstring summary should start at the first line
+    "D406",  # Section name should end with a newline
+    "D407",  # Missing dashed underline after section
+    "D413",  # Missing blank line after last section
+
+    # EM - flake8-errmsg
+    "EM101",  # Exception must not use a string literal, assign to variable first
+    "EM102",  # Exception must not use an f-string literal, assign to variable first
+
+    # FBT - flake8-boolean-trap
+    "FBT001", # Boolean positional arg in function call
+    "FBT003", # Boolean positional arg in function definition
+
+    # FIX - flake8-fixme
+    "FIX002", # Line contains TODO
+
+    # G - flake8-logging-format
+    "G004",   # Logging statement uses f-string
+
+    # PLR - Pylint refactor
+    "PLR0913", # Too many arguments in function definition
+
+    # S - flake8-bandit
+    "S603",   # `subprocess` call: check for execution of untrusted input
+
+    # TD - flake8-todos
+    "TD003",  # Missing issue link on TODO
+
+    # TRY - tryceratops
+    "TRY003", # Long exception messages should be wrapped in parentheses
+    "TRY401", # Unnecessary exception handler
+
+    # UP - pyupgrade
+    "UP022",  # Prefer `capture_output` over sending `stdout` and `stderr` to `PIPE` for subprocess.run() calls
+]

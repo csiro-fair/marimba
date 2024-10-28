@@ -37,14 +37,19 @@ Functions:
 import json
 from os import R_OK, access
 from pathlib import Path
-from typing import Optional, Union
 
 import typer
-from rich import print  # noqa: A004
+from rich import print
 
 from marimba.core.utils.constants import PROJECT_DIR_HELP
 from marimba.core.utils.log import get_logger
-from marimba.core.utils.rich import MARIMBA, error_panel, format_command, format_entity, success_panel
+from marimba.core.utils.rich import (
+    MARIMBA,
+    error_panel,
+    format_command,
+    format_entity,
+    success_panel,
+)
 from marimba.core.wrappers.project import ProjectWrapper
 from marimba.core.wrappers.target import DistributionTargetWrapper
 
@@ -56,7 +61,7 @@ app = typer.Typer(
 )
 
 
-def find_project_dir(path: Union[str, Path]) -> Optional[Path]:
+def find_project_dir(path: str | Path) -> Path | None:
     """
     Find the project root directory from a given path.
 
@@ -74,7 +79,7 @@ def find_project_dir(path: Union[str, Path]) -> Optional[Path]:
     return None
 
 
-def find_project_dir_or_exit(project_dir: Optional[Union[str, Path]] = None) -> Path:
+def find_project_dir_or_exit(project_dir: str | Path | None = None) -> Path:
     """
     Find the project root directory from a given path, or exit with an error if no project root directory was found.
 
@@ -96,7 +101,7 @@ def find_project_dir_or_exit(project_dir: Optional[Union[str, Path]] = None) -> 
     # Check if a project directory was found
     if found_project_dir is None:
         error_message = f"Could not find a {MARIMBA} project."
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit(code=1)
 
@@ -115,11 +120,11 @@ def project(
     # Try to create the new project
     try:
         project_wrapper = ProjectWrapper.create(project_dir)
-    except FileExistsError:
+    except FileExistsError as e:
         error_message = f'A {MARIMBA} {format_entity("project")} already exists at: "{project_dir}"'
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     print(success_panel(f'Created new {MARIMBA} {format_entity("project")} at: "{project_wrapper.root_dir}"'))
 
@@ -133,7 +138,8 @@ def pipeline(
         help=PROJECT_DIR_HELP,
     ),
     config: str = typer.Option(
-        None, help="A custom configuration in JSON format to be merged with the prompted pipeline configuration."
+        None,
+        help="A custom configuration in JSON format to be merged with the prompted pipeline configuration.",
     ),
 ) -> None:
     """
@@ -143,9 +149,9 @@ def pipeline(
         config_dict = json.loads(config) if config else {}
     except json.JSONDecodeError as e:
         error_message = f"Error parsing configuration JSON: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from e
 
     project_dir = find_project_dir_or_exit(project_dir)
 
@@ -159,14 +165,14 @@ def pipeline(
         pipeline_wrapper = project_wrapper.create_pipeline(pipeline_name, url)
     except ProjectWrapper.InvalidNameError as e:
         error_message = f"Invalid pipeline name: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         error_message = f"Could not create pipeline: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     # Configure the pipeline from the command line
     pipeline_config = pipeline_wrapper.prompt_pipeline_config(config_dict)
@@ -174,20 +180,22 @@ def pipeline(
 
     print(
         success_panel(
-            f'Created new {MARIMBA} {format_entity("pipeline")} "{pipeline_name}" at: "{pipeline_wrapper.root_dir}"'
-        )
+            f'Created new {MARIMBA} {format_entity("pipeline")} "{pipeline_name}" at: "{pipeline_wrapper.root_dir}"',
+        ),
     )
 
 
 @app.command()
 def collection(
     collection_name: str = typer.Argument(..., help="Name of the collection."),
-    parent_collection_name: Optional[str] = typer.Argument(
-        None, help="Name of the parent collection. If unspecified, use the last collection."
+    parent_collection_name: str | None = typer.Argument(
+        None,
+        help="Name of the parent collection. If unspecified, use the last collection.",
     ),
     project_dir: Path = typer.Option(None, help=PROJECT_DIR_HELP),
     config: str = typer.Option(
-        None, help="A custom configuration in JSON format to be merged with the prompted collection configuration."
+        None,
+        help="A custom configuration in JSON format to be merged with the prompted collection configuration.",
     ),
 ) -> None:
     """
@@ -197,9 +205,9 @@ def collection(
         config_dict = json.loads(config) if config else {}
     except json.JSONDecodeError as e:
         error_message = f"Error parsing configuration JSON: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit()
+        raise typer.Exit from e
 
     project_dir = find_project_dir_or_exit(project_dir)
 
@@ -218,28 +226,28 @@ def collection(
         # Create the collection
         collection_wrapper = project_wrapper.create_collection(collection_name, collection_config)
     except ProjectWrapper.InvalidNameError as e:
-        logger.error(e)
+        logger.exception(e)
         print(error_panel(f"Invalid collection name: {e}"))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except ProjectWrapper.NoSuchCollectionError as e:
-        logger.error(e)
+        logger.exception(e)
         print(error_panel(f"No such parent collection: {e}"))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except ProjectWrapper.CreateCollectionError as e:
-        logger.error(e)
+        logger.exception(e)
         print(error_panel(f"Could not create collection: {e}"))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         error_message = f"Could not create collection: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     print(
         success_panel(
             f'Created new {MARIMBA} {format_entity("collection")} "{collection_name}" at: '
-            f'"{collection_wrapper.root_dir}"'
-        )
+            f'"{collection_wrapper.root_dir}"',
+        ),
     )
 
 
@@ -266,23 +274,23 @@ def target(
         distribution_target_wrapper = project_wrapper.create_target(target_name, target_type, target_config)
     except ProjectWrapper.InvalidNameError as e:
         error_message = f"Invalid target name: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
-    except FileExistsError:
+        raise typer.Exit(code=1) from e
+    except FileExistsError as e:
         error_message = f'A {MARIMBA} {format_entity("target")} already exists at: "{project_dir / target_name}"'
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         error_message = f"Could not create target: {e}"
-        logger.error(error_message)
+        logger.exception(error_message)
         print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     print(
         success_panel(
             f'Created new {MARIMBA} {format_entity("target")} "{target_name}" at: '
-            f'"{distribution_target_wrapper.config_path}"'
-        )
+            f'"{distribution_target_wrapper.config_path}"',
+        ),
     )

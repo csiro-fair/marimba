@@ -26,14 +26,19 @@ import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from ifdo.models import ImageData
 from PIL import Image
 from tabulate import tabulate
 
+from marimba.core.utils.log import get_logger
+
 if TYPE_CHECKING:
+    from ifdo.models import ImageData
+
     from marimba.core.wrappers.dataset import DatasetWrapper
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -45,14 +50,14 @@ class ImagerySummary:
     dataset_name: str = ""
     context: str = ""
     contributors: str = ""
-    version: Optional[str] = ""
+    version: str | None = ""
     licenses: str = ""
-    contact: Optional[str] = None
+    contact: str | None = None
 
     image_num: int = 0
     image_size_bytes: int = 0
     image_average_file_size: str = ""
-    image_file_types: List[str] = field(default_factory=list)
+    image_file_types: list[str] = field(default_factory=list)
     image_resolution: str = ""
     image_color_depth: str = ""
     image_latitude_extent: str = ""
@@ -66,7 +71,7 @@ class ImagerySummary:
     video_size_bytes: int = 0
     video_average_file_size: str = ""
     video_total_duration: str = ""
-    video_file_types: List[str] = field(default_factory=list)
+    video_file_types: list[str] = field(default_factory=list)
     video_resolution: str = ""
     video_color_depth: str = ""
     video_frame_rate: str = ""
@@ -81,32 +86,39 @@ class ImagerySummary:
     other_num: int = 0
     other_size_bytes: int = 0
     other_average_file_size: str = ""
-    other_file_types: List[str] = field(default_factory=list)
+    other_file_types: list[str] = field(default_factory=list)
+
+    # Add class constants for time units
+    SECONDS_PER_HOUR: ClassVar[int] = 3600
+    SECONDS_PER_MINUTE: ClassVar[int] = 60
 
     @staticmethod
     def sizeof_fmt(num: float, suffix: str = "B") -> str:
-        """Format a number of bytes as a human-readable size string.
+        """
+        Format a number of bytes as a human-readable size string.
 
-        This function takes a number representing bytes and converts it to a human-readable string format using
-        binary prefixes (Ki, Mi, Gi, etc.). It iterates through unit prefixes, dividing the number by 1024 until it
-        finds an appropriate scale. The result is rounded to one decimal place.
+        This function takes a number representing bytes and converts it to a human-readable string format
+        with standard size units (KB, MB, GB, etc.). The result is rounded to one decimal place.
 
         Args:
             num: The number of bytes to format.
             suffix: The suffix to append to the formatted string. Defaults to "B".
 
         Returns:
-            A formatted string representing the size with an appropriate unit prefix.
+            A formatted string representing the size (e.g., "1.5 KB", "2.0 MB", "1.0 GB").
         """
-        for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
-            if abs(num) < 1024:
+        bytes_per_unit = 1024
+
+        for unit in ["", "K", "M", "G", "T", "P", "E", "Z"]:
+            if abs(num) < bytes_per_unit:
                 return f"{num:.1f} {unit}{suffix}"
-            num /= 1024
-        return f"{num:.1f} Yi{suffix}"
+            num /= bytes_per_unit
+        return f"{num:.1f} Y{suffix}"
 
     @staticmethod
     def is_video_corrupt_quick(video_path: str) -> bool:
-        """Quickly check if a video file is corrupt.
+        """
+        Quickly check if a video file is corrupt.
 
         This function performs a quick check to determine if the given video file is corrupt. It uses ffprobe to
         check the video metadata and ffmpeg to perform seek tests at the start, middle, and end of the video. The
@@ -130,7 +142,7 @@ class ImagerySummary:
                 "default=noprint_wrappers=1:nokey=1",
                 video_path,
             ]
-            probe_result = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            probe_result = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
             if probe_result.returncode != 0:
                 return True
 
@@ -140,17 +152,17 @@ class ImagerySummary:
             seek_times = [0, duration / 2, duration - 1]
             for seek_time in seek_times:
                 seek_cmd = ["ffmpeg", "-ss", str(seek_time), "-i", video_path, "-vframes", "1", "-f", "null", "-"]
-                seek_result = subprocess.run(seek_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                seek_result = subprocess.run(seek_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
                 if seek_result.returncode != 0:
                     return True
-
-            return False
         except Exception as e:
-            print(f"Error checking video {video_path}: {e}")
+            logger.exception(f"Error checking video {video_path}: {e}")
             return True
+        else:
+            return False
 
     @staticmethod
-    def get_image_properties(image_list: List[Path]) -> Dict[str, Any]:
+    def get_image_properties(image_list: list[Path]) -> dict[str, Any]:
         """
         Get image properties from a list of image file paths.
 
@@ -160,30 +172,39 @@ class ImagerySummary:
         corrupt.
 
         Args:
-            - image_list: A list of Path objects representing image file paths.
+            image_list: A list of Path objects representing image file paths.
 
         Returns:
             A dictionary containing:
-            - resolutions: A set of tuples representing unique image resolutions.
-            - color_depths: A set of integers representing unique color depths.
-            - corrupt_images: An integer count of images that could not be opened.
+            resolutions: A set of tuples representing unique image resolutions.
+            color_depths: A set of integers representing unique color depths.
+            corrupt_images: An integer count of images that could not be opened.
         """
+
+        def process_single_image(path: Path) -> tuple[tuple[int, int] | None, int | None]:
+            try:
+                with Image.open(path) as img:
+                    return img.size, len(img.getbands()) * 8
+            except Exception as e:
+                logger.exception(f"Error processing image {path}: {e!s}")
+                return None, None
+
         resolutions = set()
         color_depths = set()
         corrupt_images = 0
 
         for path in image_list:
-            try:
-                with Image.open(path) as img:
-                    resolutions.add(img.size)
-                    color_depths.add(len(img.getbands()) * 8)
-            except Exception:
+            size, depth = process_single_image(path)
+            if size is not None and depth is not None:
+                resolutions.add(size)
+                color_depths.add(depth)
+            else:
                 corrupt_images += 1
 
         return {"resolutions": resolutions, "color_depths": color_depths, "corrupt_images": corrupt_images}
 
     @staticmethod
-    def calculate_image_resolution(resolutions: Set[Tuple[int, int]]) -> str:
+    def calculate_image_resolution(resolutions: set[tuple[int, int]]) -> str:
         """
         Calculate and format image resolution from a set of resolutions.
 
@@ -202,14 +223,14 @@ class ImagerySummary:
         if len(resolutions) == 1:
             width, height = resolutions.pop()
             return f"{width}x{height}"
-        elif resolutions:
+        if resolutions:
             min_res = min(resolutions, key=lambda x: x[0] * x[1])
             max_res = max(resolutions, key=lambda x: x[0] * x[1])
             return f"{min_res[0]}x{min_res[1]} to {max_res[0]}x{max_res[1]}"
         return "N/A"
 
     @staticmethod
-    def calculate_image_color_depth(color_depths: Set[int]) -> str:
+    def calculate_image_color_depth(color_depths: set[int]) -> str:
         """
         Determine the color depth range of an image.
 
@@ -227,7 +248,7 @@ class ImagerySummary:
         """
         if len(color_depths) == 1:
             return f"{color_depths.pop()}-bit"
-        elif color_depths:
+        if color_depths:
             return f"{min(color_depths)}-bit to {max(color_depths)}-bit"
         return "N/A"
 
@@ -246,7 +267,7 @@ class ImagerySummary:
         return self.sizeof_fmt(average_size)
 
     @staticmethod
-    def contributors_to_text(names: List[str]) -> str:
+    def contributors_to_text(names: list[str]) -> str:
         """
         Convert a list of contributor names to a formatted string.
 
@@ -268,8 +289,9 @@ class ImagerySummary:
         )
 
     @staticmethod
-    def context_to_text(contexts: List[str]) -> str:
-        """Convert a list of strings into a comma-separated text string.
+    def context_to_text(contexts: list[str]) -> str:
+        """
+        Convert a list of strings into a comma-separated text string.
 
         This function takes a list of strings and joins them into a single string, separating each item with a comma
         and a space. If the input list is empty, it returns 'N/A'.
@@ -291,7 +313,7 @@ class ImagerySummary:
         return "<br/>".join(numbered_list)
 
     @staticmethod
-    def list_to_text(items: List[str]) -> str:
+    def list_to_text(items: list[str]) -> str:
         """
         Convert a list of strings to a comma-separated text string.
 
@@ -299,10 +321,10 @@ class ImagerySummary:
         and a space. If the input list is empty, it returns "N/A" instead.
 
         Args:
-            - items: A list of strings to be joined.
+            items: A list of strings to be joined.
 
         Returns:
-            - A string containing the joined items or "N/A" if the list is empty.
+            A string containing the joined items or "N/A" if the list is empty.
         """
         return ", ".join(items) if items else "N/A"
 
@@ -328,7 +350,7 @@ class ImagerySummary:
         return f"{complete_percentage:.1f}% complete, {corrupt_percentage:.1f}% corrupt"
 
     @staticmethod
-    def run_ffmpeg_command(command: List[str]) -> Dict[str, Any]:
+    def run_ffmpeg_command(command: list[str]) -> dict[str, Any]:
         """
         Execute an FFmpeg command and returns the JSON output.
 
@@ -336,22 +358,23 @@ class ImagerySummary:
         parsed JSON dictionary. If the command fails, it raises a RuntimeError with the error message.
 
         Args:
-            - command: A list of strings representing the FFmpeg command and its arguments.
+            command: A list of strings representing the FFmpeg command and its arguments.
 
         Returns:
             A dictionary containing the parsed JSON output from the FFmpeg command.
 
         Raises:
-            - RuntimeError: If the FFmpeg command fails to execute successfully.
+            RuntimeError: If the FFmpeg command fails to execute successfully.
         """
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
         if result.returncode != 0:
             raise RuntimeError(f"FFmpeg command failed with error: {result.stderr}")
-        return cast(Dict[str, Any], json.loads(result.stdout))
+        return cast(dict[str, Any], json.loads(result.stdout))
 
     @staticmethod
-    def get_video_properties(video_list: List[Path]) -> Dict[str, Any]:
-        """Get video properties from a list of video files.
+    def get_video_properties(video_list: list[Path]) -> dict[str, Any]:
+        """
+        Get video properties from a list of video files.
 
         This function analyzes a list of video files using ffprobe to extract various properties such as duration,
         resolution, codec, frame rate, and color depth. It also checks for corrupt videos. The function aggregates
@@ -362,12 +385,12 @@ class ImagerySummary:
 
         Returns:
             A dictionary containing the following keys:
-            - total_seconds: Total duration of all videos in seconds.
-            - resolutions: Set of unique resolutions (width, height) tuples.
-            - codecs: Set of unique video codecs.
-            - frame_rates: Set of unique frame rates.
-            - color_depths: Set of unique color depths.
-            - corrupt_videos: Number of corrupt videos detected.
+            total_seconds: Total duration of all videos in seconds.
+            resolutions: Set of unique resolutions (width, height) tuples.
+            codecs: Set of unique video codecs.
+            frame_rates: Set of unique frame rates.
+            color_depths: Set of unique color depths.
+            corrupt_videos: Number of corrupt videos detected.
         """
         total_seconds: float = 0.0
         resolutions = set()
@@ -412,7 +435,7 @@ class ImagerySummary:
         }
 
     @staticmethod
-    def get_other_properties(video_list: List[Path]) -> Dict[str, Any]:
+    def get_other_properties(video_list: list[Path]) -> dict[str, Any]:
         """Get video properties from a list of other files."""
         total_seconds: float = 0.0
         resolutions = set()
@@ -471,17 +494,16 @@ class ImagerySummary:
         Returns:
             A string representing the formatted duration in hours, minutes, or seconds, with two decimal places.
         """
-        if total_seconds >= 3600:
-            total_hours = total_seconds / 3600
+        if total_seconds >= ImagerySummary.SECONDS_PER_HOUR:
+            total_hours = total_seconds / ImagerySummary.SECONDS_PER_HOUR
             return f"{total_hours:.2f} Hours"
-        elif total_seconds >= 60:
-            total_minutes = total_seconds / 60
+        if total_seconds >= ImagerySummary.SECONDS_PER_MINUTE:
+            total_minutes = total_seconds / ImagerySummary.SECONDS_PER_MINUTE
             return f"{total_minutes:.2f} Minutes"
-        else:
-            return f"{total_seconds:.2f} Seconds"
+        return f"{total_seconds:.2f} Seconds"
 
     @staticmethod
-    def calculate_video_resolution(resolutions: Set[Tuple[int, int]]) -> str:
+    def calculate_video_resolution(resolutions: set[tuple[int, int]]) -> str:
         """
         Determine the video resolution range based on a set of resolutions.
 
@@ -500,14 +522,14 @@ class ImagerySummary:
         if len(resolutions) == 1:
             width, height = resolutions.pop()
             return f"{width}x{height}"
-        elif resolutions:
+        if resolutions:
             min_res = min(resolutions, key=lambda x: x[0] * x[1])
             max_res = max(resolutions, key=lambda x: x[0] * x[1])
             return f"{min_res[0]}x{min_res[1]} to {max_res[0]}x{max_res[1]}"
         return "N/A"
 
     @staticmethod
-    def calculate_video_encoding_details(codecs: Set[str]) -> str:
+    def calculate_video_encoding_details(codecs: set[str]) -> str:
         """
         Format a set of video codecs into a comma-separated string.
 
@@ -515,7 +537,7 @@ class ImagerySummary:
         with commas. If the input set is empty, it returns "N/A" to indicate that no codecs are available.
 
         Args:
-            - codecs: A set of strings representing video codec names.
+            codecs: A set of strings representing video codec names.
 
         Returns:
             A string containing the comma-separated list of codecs or "N/A" if empty.
@@ -523,7 +545,7 @@ class ImagerySummary:
         return ", ".join(codecs) if codecs else "N/A"
 
     @staticmethod
-    def calculate_video_frame_rate(frame_rates: Set[str]) -> str:
+    def calculate_video_frame_rate(frame_rates: set[str]) -> str:
         """
         Calculate and formats the video frame rate based on a set of frame rates.
 
@@ -532,19 +554,19 @@ class ImagerySummary:
         it returns a range from the minimum to the maximum. If the set is empty, it returns 'N/A'.
 
         Args:
-            - frame_rates: A set of strings representing frame rates.
+            frame_rates: A set of strings representing frame rates.
 
         Returns:
             A formatted string representing the frame rate or range of frame rates.
         """
         if len(frame_rates) == 1:
             return f"{frame_rates.pop():.2f} fps"
-        elif frame_rates:
+        if frame_rates:
             return f"{min(frame_rates):.2f} fps to {max(frame_rates):.2f} fps"
         return "N/A"
 
     @staticmethod
-    def calculate_video_color_depth(color_depths: Set[str]) -> str:
+    def calculate_video_color_depth(color_depths: set[str]) -> str:
         """
         Calculate and format the color depth range for video content.
 
@@ -562,12 +584,13 @@ class ImagerySummary:
         """
         if len(color_depths) == 1:
             return f"{color_depths.pop()}-bit"
-        elif color_depths:
+        if color_depths:
             return f"{min(color_depths)}-bit to {max(color_depths)}-bit"
         return "N/A"
 
     def calculate_video_average_file_size(self) -> str:
-        """Calculate and format the average file size of videos.
+        """
+        Calculate and format the average file size of videos.
 
         This function calculates the average file size of videos by dividing the total video size by the number of
         videos. If there are no videos, it returns 0. The result is then formatted into a human-readable string
@@ -588,8 +611,8 @@ class ImagerySummary:
         corrupt videos. The function returns a formatted string with the calculated percentages.
 
         Args:
-            - total_videos: The total number of videos in the dataset.
-            - corrupt_videos: The number of corrupt videos in the dataset.
+            total_videos: The total number of videos in the dataset.
+            corrupt_videos: The number of corrupt videos in the dataset.
 
         Returns:
             A formatted string containing the percentage of complete videos and the percentage of corrupt videos, both
@@ -600,7 +623,8 @@ class ImagerySummary:
         return f"{complete_percentage:.1f}% complete, {corrupt_percentage:.1f}% corrupt"
 
     def calculate_other_average_file_size(self) -> str:
-        """Calculate and format the average file size for 'other' files.
+        """
+        Calculate and format the average file size for 'other' files.
 
         This method computes the average file size for files categorized as 'other' by dividing the total size of
         'other' files by the number of 'other' files. If there are no 'other' files, it returns 0. The result is
@@ -614,9 +638,12 @@ class ImagerySummary:
 
     @classmethod
     def from_dataset(
-        cls, dataset_wrapper: "DatasetWrapper", image_set_items: Dict[str, "ImageData"]
+        cls,
+        dataset_wrapper: "DatasetWrapper",
+        image_set_items: dict[str, "ImageData"],
     ) -> "ImagerySummary":
-        """Create an ImagerySummary object from a dataset and image set items.
+        """
+        Create an ImagerySummary object from a dataset and image set items.
 
         This class method processes a dataset wrapper and a dictionary of image set items to create an ImagerySummary
         object. It calculates various statistics and metadata for images, videos, and other files in the dataset.
@@ -628,7 +655,8 @@ class ImagerySummary:
         Returns:
             An ImagerySummary object containing comprehensive statistics and metadata about the dataset's imagery.
 
-        TODO: Implement multithreading for this method
+        TODO @<cjackett>: Implement multithreading for this method
+
         """
         dataset_info = cls._extract_dataset_info(dataset_wrapper)
         image_data, video_data, other_data = cls._process_files(dataset_wrapper, image_set_items)
@@ -679,16 +707,15 @@ class ImagerySummary:
         }
 
         # Convert or default None values
-        for key, types in expected_types.items():
-            if not isinstance(types, tuple):
-                types = (types,)
-            value = complete_data.get(key, None)
-            if value is None or not isinstance(value, types):
-                if str in types:
+        for key, expected_type in expected_types.items():
+            type_tuple = (expected_type,) if not isinstance(expected_type, tuple) else expected_type
+            value = complete_data.get(key)
+            if value is None or not isinstance(value, type_tuple):
+                if str in type_tuple:
                     complete_data[key] = ""
-                elif int in types:
+                elif int in type_tuple:
                     complete_data[key] = 0
-                elif list in types:
+                elif list in type_tuple:
                     complete_data[key] = []
 
         # Pass the validated and type-corrected data to the constructor
@@ -703,7 +730,7 @@ class ImagerySummary:
         return summary
 
     @staticmethod
-    def _extract_dataset_info(dataset_wrapper: "DatasetWrapper") -> Dict[str, Optional[str]]:
+    def _extract_dataset_info(dataset_wrapper: "DatasetWrapper") -> dict[str, str | None]:
         return {
             "dataset_name": dataset_wrapper.name,
             "version": dataset_wrapper.version,
@@ -716,11 +743,13 @@ class ImagerySummary:
 
     @classmethod
     def _process_files(
-        cls, dataset_wrapper: "DatasetWrapper", image_set_items: Dict[str, List["ImageData"]]
-    ) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
-        image_data: Dict[str, Any] = {"files": [], "context": set(), "contributors": set(), "licenses": set()}
-        video_data: Dict[str, Any] = {"files": [], "context": set(), "contributors": set(), "licenses": set()}
-        other_data: Dict[str, List[str]] = {"files": []}
+        cls,
+        dataset_wrapper: "DatasetWrapper",
+        image_set_items: dict[str, list["ImageData"]],
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        image_data: dict[str, Any] = {"files": [], "context": set(), "contributors": set(), "licenses": set()}
+        video_data: dict[str, Any] = {"files": [], "context": set(), "contributors": set(), "licenses": set()}
+        other_data: dict[str, list[str]] = {"files": []}
 
         for path_str, image_data_list in image_set_items.items():
             path = dataset_wrapper.data_dir / path_str
@@ -740,13 +769,13 @@ class ImagerySummary:
         return image_data, video_data, other_data
 
     @staticmethod
-    def _update_common_data(data: Dict[str, Any], image_info: "ImageData") -> None:
+    def _update_common_data(data: dict[str, Any], image_info: "ImageData") -> None:
         data["context"].add(image_info.image_context)
         data["licenses"].add(image_info.image_license)
         data["contributors"].update(contributor.name for contributor in image_info.image_creators)
 
     @classmethod
-    def _process_image(cls, image_data: Dict[str, Any], path: Path, image_info: "ImageData") -> None:
+    def _process_image(cls, image_data: dict[str, Any], path: Path, image_info: "ImageData") -> None:
         image_data["files"].append(
             {
                 "path": path,
@@ -756,11 +785,11 @@ class ImagerySummary:
                 "lon": image_info.image_longitude,
                 "datetime": image_info.image_datetime,
                 "directory": path.parent,
-            }
+            },
         )
 
     @classmethod
-    def _process_video(cls, video_data: Dict[str, Any], path: Path, image_info: "ImageData") -> None:
+    def _process_video(cls, video_data: dict[str, Any], path: Path, image_info: "ImageData") -> None:
         video_data["files"].append(
             {
                 "path": path,
@@ -771,24 +800,26 @@ class ImagerySummary:
                 "datetime": image_info.image_datetime,
                 "directory": path.parent,
                 "is_corrupt": cls.is_video_corrupt_quick(str(path)),
-            }
+            },
         )
 
     @staticmethod
-    def _process_other_files(dataset_wrapper: "DatasetWrapper", other_data: Dict[str, Any]) -> None:
+    def _process_other_files(dataset_wrapper: "DatasetWrapper", other_data: dict[str, Any]) -> None:
         for path in dataset_wrapper.root_dir.glob("**/*"):
             if (
                 path.is_file()
                 and path.suffix.lower() not in ImagerySummary.IMAGE_EXTENSIONS | ImagerySummary.VIDEO_EXTENSIONS
             ):
                 other_data["files"].append(
-                    {"path": path, "size": path.stat().st_size, "type": path.suffix.lower().replace(".", "")}
+                    {"path": path, "size": path.stat().st_size, "type": path.suffix.lower().replace(".", "")},
                 )
 
     @staticmethod
     def _calculate_file_stats(
-        image_data: Dict[str, Any], video_data: Dict[str, Any], other_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        image_data: dict[str, Any],
+        video_data: dict[str, Any],
+        other_data: dict[str, Any],
+    ) -> dict[str, Any]:
         return {
             "image_num": len(image_data["files"]),
             "image_size_bytes": sum(file["size"] for file in image_data["files"]),
@@ -805,27 +836,31 @@ class ImagerySummary:
 
     @classmethod
     def _set_dataset_properties(
-        cls, summary: "ImagerySummary", image_data: Dict[str, Any], video_data: Dict[str, Any]
+        cls,
+        summary: "ImagerySummary",
+        image_data: dict[str, Any],
+        video_data: dict[str, Any],
     ) -> None:
         summary.context = summary.context_to_text(list(image_data["context"] | video_data["context"]))
         summary.contributors = summary.contributors_to_text(
-            list(image_data["contributors"] | video_data["contributors"])
+            list(image_data["contributors"] | video_data["contributors"]),
         )
         summary.licenses = summary.list_to_text(list(image_data["licenses"] | video_data["licenses"]))
 
     @classmethod
-    def _set_image_properties(cls, summary: "ImagerySummary", image_data: Dict[str, Any]) -> None:
+    def _set_image_properties(cls, summary: "ImagerySummary", image_data: dict[str, Any]) -> None:
         image_props = cls.get_image_properties([file["path"] for file in image_data["files"]])
         summary.image_resolution = cls.calculate_image_resolution(image_props["resolutions"])
         summary.image_color_depth = cls.calculate_image_color_depth(image_props["color_depths"])
         summary.image_data_quality = cls.calculate_image_data_quality(
-            len(image_data["files"]), image_props["corrupt_images"]
+            len(image_data["files"]),
+            image_props["corrupt_images"],
         )
         summary.image_average_file_size = summary.calculate_image_average_file_size()
         summary.image_licenses = summary.list_to_text(list(image_data["licenses"]))
 
     @classmethod
-    def _set_video_properties(cls, summary: "ImagerySummary", video_data: Dict[str, Any]) -> None:
+    def _set_video_properties(cls, summary: "ImagerySummary", video_data: dict[str, Any]) -> None:
         video_props = cls.get_video_properties([file["path"] for file in video_data["files"]])
         summary.video_total_duration = cls.calculate_video_total_duration(video_props["total_seconds"])
         summary.video_resolution = cls.calculate_video_resolution(video_props["resolutions"])
@@ -834,7 +869,8 @@ class ImagerySummary:
         summary.video_color_depth = cls.calculate_video_color_depth(video_props["color_depths"])
         summary.video_average_file_size = summary.calculate_video_average_file_size()
         summary.video_data_quality = cls.calculate_video_data_quality(
-            len(video_data["files"]), video_props["corrupt_videos"]
+            len(video_data["files"]),
+            video_props["corrupt_videos"],
         )
         summary.video_licenses = summary.list_to_text(list(video_data["licenses"]))
 
@@ -844,7 +880,9 @@ class ImagerySummary:
 
     @staticmethod
     def _set_geographical_temporal_extents(
-        summary: "ImagerySummary", image_data: Dict[str, Any], video_data: Dict[str, Any]
+        summary: "ImagerySummary",
+        image_data: dict[str, Any],
+        video_data: dict[str, Any],
     ) -> None:
         for data_type in ["image", "video"]:
             data = image_data if data_type == "image" else video_data
@@ -864,13 +902,14 @@ class ImagerySummary:
                 ),
             )
 
-    IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif"}
-    VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".wmv", ".flv", ".mkv", ".webm"}
+    IMAGE_EXTENSIONS: ClassVar[set[str]] = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif"}
+    VIDEO_EXTENSIONS: ClassVar[set[str]] = {".mp4", ".mov", ".avi", ".wmv", ".flv", ".mkv", ".webm"}
 
     def __str__(self) -> str:
-        dataset_metadata: List[List[str]] = [
+        local_timezone = datetime.now().astimezone().tzinfo
+        dataset_metadata: list[list[str]] = [
             ["Dataset Name", self.dataset_name],
-            ["Creation Date", datetime.now().strftime("%d %B %Y")],
+            ["Creation Date", datetime.now(tz=local_timezone).strftime("%d %B %Y")],
             ["Contributors", self.contributors],
             ["License" if "," not in self.licenses else "Licenses", self.licenses],
         ]
@@ -889,7 +928,7 @@ class ImagerySummary:
         )
         image_licenses_label = "License" if "," not in self.image_licenses else "Licenses"
 
-        image_files_summary: List[List[str]] = [
+        image_files_summary: list[list[str]] = [
             ["Total Number of Images", str(self.image_num)],
             ["Total Disk Space Used", self.sizeof_fmt(self.image_size_bytes)],
             ["Average Image File Size", self.image_average_file_size],
@@ -912,7 +951,7 @@ class ImagerySummary:
         video_licenses_label = "License" if "," not in self.video_licenses else "Licenses"
         video_frame_rate_label = "Video Frame Rate" if "to" not in self.video_frame_rate else "Video Frame Rate Range"
 
-        video_files_summary: List[List[str]] = [
+        video_files_summary: list[list[str]] = [
             ["Total Number of Videos", str(self.video_num)],
             ["Total Disk Space Used", self.sizeof_fmt(self.video_size_bytes)],
             ["Average Video File Size", self.video_average_file_size],
@@ -932,28 +971,23 @@ class ImagerySummary:
 
         other_file_types_str = ", ".join(sorted(self.other_file_types)).upper() if self.other_file_types else "N/A"
 
-        other_files_summary: List[List[str]] = [
+        other_files_summary: list[list[str]] = [
             ["Total Number of Files", str(self.other_num)],
             ["Total Disk Space Used", self.sizeof_fmt(self.other_size_bytes)],
             ["Average File Size", self.other_average_file_size],
             ["File Types", other_file_types_str],
         ]
 
-        return f"# {self.dataset_name} Dataset Summary\n\n" "## Dataset Metadata\n" + tabulate(
-            dataset_metadata, headers=["Attribute", "Description"], tablefmt="github"
-        ) + (
-            "\n\n## Image Files Summary\n"
-            + tabulate(image_files_summary, headers=["Attribute", "Description"], tablefmt="github")
-            if self.image_num > 1
-            else ""
-        ) + (
-            "\n\n## Video Files Summary\n"
-            + tabulate(video_files_summary, headers=["Attribute", "Description"], tablefmt="github")
-            if self.video_num > 1
-            else ""
-        ) + (
-            "\n\n## Other Files Summary\n"
-            + tabulate(other_files_summary, headers=["Attribute", "Description"], tablefmt="github")
-            if self.other_num > 1
-            else ""
+        def _format_section(title: str, data: list[list[str]], show: bool) -> str:
+            if not show:
+                return ""
+            return f"\n\n## {title}\n{tabulate(data, headers=['Attribute', 'Description'], tablefmt='github')}"
+
+        return (
+            f"# {self.dataset_name} Dataset Summary\n\n"
+            f"## Dataset Metadata\n"
+            f"{tabulate(dataset_metadata, headers=['Attribute', 'Description'], tablefmt='github')}"
+            f"{_format_section('Image Files Summary', image_files_summary, self.image_num > 1)}"
+            f"{_format_section('Video Files Summary', video_files_summary, self.video_num > 1)}"
+            f"{_format_section('Other Files Summary', other_files_summary, self.other_num > 1)}"
         )

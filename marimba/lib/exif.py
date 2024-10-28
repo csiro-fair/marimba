@@ -17,12 +17,12 @@ Functions:
 """
 
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 import piexif
 
 
-def get_dict(path: Union[str, Path]) -> Any:
+def get_dict(path: str | Path) -> Any:  # noqa: ANN401
     """
     Get the EXIF data from a path.
 
@@ -33,7 +33,6 @@ def get_dict(path: Union[str, Path]) -> Any:
         The EXIF data from the image, or None if there is no EXIF data.
     """
     try:
-        exif_dict = piexif.load(str(path))
-        return exif_dict
+        return piexif.load(str(path))
     except piexif.InvalidImageDataError:
         return None

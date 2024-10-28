@@ -23,7 +23,6 @@ Functions:
 import shutil
 from os import R_OK, access
 from pathlib import Path
-from typing import Optional, Union
 
 import typer
 
@@ -33,7 +32,7 @@ from marimba.core.utils.rich import MARIMBA, error_panel, format_entity
 logger = get_logger(__name__)
 
 
-def find_project_dir(path: Union[str, Path]) -> Optional[Path]:
+def find_project_dir(path: str | Path) -> Path | None:
     """
     Locate the project root directory starting from a specified path.
 
@@ -51,7 +50,7 @@ def find_project_dir(path: Union[str, Path]) -> Optional[Path]:
     return None
 
 
-def find_project_dir_or_exit(project_dir: Optional[Union[str, Path]] = None) -> Path:
+def find_project_dir_or_exit(project_dir: str | Path | None = None) -> Path:
     """
     Find the project root directory from a given path, or exit with an error if no project root directory was found.
 
@@ -73,14 +72,14 @@ def find_project_dir_or_exit(project_dir: Optional[Union[str, Path]] = None) -> 
     # Check if a project directory was found
     if found_project_dir is None:
         error_message = f"Could not find a {MARIMBA} project."
-        logger.error(error_message)
-        print(error_panel(error_message))
+        logger.exception(error_message)
+        print(error_panel(error_message))  # noqa: T201
         raise typer.Exit(code=1)
 
     return found_project_dir
 
 
-def remove_directory_tree(directory: Union[str, Path], entity: str, dry_run: bool) -> None:
+def remove_directory_tree(directory: str | Path, entity: str, dry_run: bool) -> None:
     """
     Recursively delete the provided directory and all of its contents.
 
@@ -95,9 +94,9 @@ def remove_directory_tree(directory: Union[str, Path], entity: str, dry_run: boo
     dir_path = Path(directory)
     if not dir_path.is_dir():
         error_message = f"Invalid directory: {dir_path}"
-        logger.error(error_message)
-        print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        logger.exception(error_message)
+        print(error_panel(error_message))  # noqa: T201
+        raise typer.Exit(code=1) from None
 
     try:
         if not dry_run:
@@ -106,9 +105,9 @@ def remove_directory_tree(directory: Union[str, Path], entity: str, dry_run: boo
 
     except Exception as e:
         error_message = f"Error occurred while deleting the directory: {e}"
-        logger.error(error_message)
-        print(error_panel(error_message))
-        raise typer.Exit(code=1)
+        logger.exception(error_message)
+        print(error_panel(error_message))  # noqa: T201
+        raise typer.Exit(code=1) from e
 
     logger.info("Successfully deleted directory.")
 
@@ -131,7 +130,7 @@ def hardlink_path(src_path: Path, dest_path: Path, dry_run: bool) -> None:
     """
     # Ensure the source path is valid and is a directory
     if not src_path.exists() or not src_path.is_dir():
-        logger.error(f"Source path '{src_path}' is not a valid directory.")
+        logger.exception(f"Source path '{src_path}' is not a valid directory.")
         raise typer.Exit(1)
 
     # Ensure the destination directory exists
@@ -156,4 +155,4 @@ def hardlink_path(src_path: Path, dest_path: Path, dry_run: bool) -> None:
                     destination.hardlink_to(src_file)
                     logger.info(f"Created hard link: {destination} -> {src_file}")
                 except OSError as e:
-                    logger.error(f"Failed to create hard link: {destination} -> {src_file}: {e}")
+                    logger.exception(f"Failed to create hard link: {destination} -> {src_file}: {e}")
