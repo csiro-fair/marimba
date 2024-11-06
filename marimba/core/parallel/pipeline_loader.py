@@ -94,9 +94,12 @@ def load_pipeline_instance(
     # Find any BasePipeline implementations
     pipeline_class: type[BasePipeline] | None = None
     for obj in pipeline_module.__dict__.values():
-        if isinstance(obj, type) and issubclass(obj, BasePipeline) and obj is not BasePipeline:
-            pipeline_class = obj
-            break
+        try:
+            if isinstance(obj, type) and issubclass(obj, BasePipeline) and obj is not BasePipeline:
+                pipeline_class = obj
+                break
+        except TypeError:
+            continue
 
     if pipeline_class is None:
         raise ImportError("Pipeline class has not been set or could not be found.")
