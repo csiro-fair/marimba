@@ -546,7 +546,11 @@ class ProjectWrapper(LogMixin):
 
         return pipeline_wrapper
 
-    def delete_pipeline(self, name: str, dry_run: bool) -> Path:
+    def delete_pipeline(
+        self,
+        name: str,
+        dry_run: bool,
+    ) -> Path:
         """
         Delete a pipeline.
 
@@ -613,7 +617,11 @@ class ProjectWrapper(LogMixin):
 
         return collection_wrapper
 
-    def delete_collection(self, name: str, dry_run: bool) -> Path:
+    def delete_collection(
+        self,
+        name: str,
+        dry_run: bool,
+    ) -> Path:
         """
         Delete a collection.
 
@@ -1049,12 +1057,14 @@ class ProjectWrapper(LogMixin):
     def delete_dataset(
         self,
         dataset_name: str,
+        dry_run: bool,
     ) -> Path:
         """
         Delete a Marimba dataset.
 
         Args:
             dataset_name: The name of the dataset.
+            dry_run: Whether to run in dry-run mode.
 
         Raises:
             ProjectWrapper.NameError: If the name is invalid.
@@ -1067,7 +1077,7 @@ class ProjectWrapper(LogMixin):
         dataset_root_dir = self.datasets_dir / dataset_name
         if dataset_root_dir.exists():
             if not self.dry_run:
-                remove_directory_tree(dataset_root_dir, "dataset", dry_run=self.dry_run)
+                remove_directory_tree(dataset_root_dir, "dataset", dry_run)
         else:
             raise FileExistsError(f'"{dataset_root_dir}" dataset does not exist.')
         return dataset_root_dir
@@ -1111,12 +1121,17 @@ class ProjectWrapper(LogMixin):
 
         return target_wrapper
 
-    def delete_target(self, target_name: str) -> Path:
+    def delete_target(
+        self,
+        target_name: str,
+        dry_run: bool,
+    ) -> Path:
         """
         Delete a Marimba distribution target file.
 
         Args:
             target_name: The name of the distribution target to delete.
+            dry_run: Whether to run in dry-run mode.
 
         Raises:
             ProjectWrapper.NameError: If the name is invalid.
@@ -1126,7 +1141,7 @@ class ProjectWrapper(LogMixin):
         ProjectWrapper.check_name(target_name)
         target_config_path = self.targets_dir / f"{target_name}.yml"
         if target_config_path.exists():
-            if not self.dry_run:
+            if not dry_run:
                 target_config_path.unlink()
         else:
             raise FileExistsError(f'"{target_config_path}"target does not exist.')
