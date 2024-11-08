@@ -42,10 +42,6 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from marimba.core.utils.log import get_logger
-
-logger = get_logger(__name__)
-
 
 def generate_image_thumbnail(image: Path, output_directory: Path, suffix: str = "_THUMB") -> Path:
     """
@@ -64,7 +60,6 @@ def generate_image_thumbnail(image: Path, output_directory: Path, suffix: str = 
     output_filename = image.stem + suffix + image.suffix
     output_path = output_directory / output_filename
     if not output_path.exists():
-        logger.info(f"Generating image thumbnail at: {output_path}")
         resize_fit(image, 300, 300, output_path)
     return output_path
 
@@ -431,8 +426,6 @@ def create_grid_image(
     """
     if not paths or Path(destination).exists():
         return
-
-    logger.info(f"Creating thumbnail overview image: {destination!s}")
 
     paths = [Path(p) for p in paths]
     destination = Path(destination)
