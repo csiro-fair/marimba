@@ -719,9 +719,9 @@ class ProjectWrapper(LogMixin):
                 padded_collection_index = f"{collection_index:0{collection_padding_length}}"
 
                 log_string_prefix = (
-                    f"Process {padded_process_index}: "
+                    f"Process {padded_process_index} | "
                     f'Pipeline {padded_pipeline_index} "{run_pipeline_name}" | '
-                    f'Collection {padded_collection_index} "{run_collection_name}"'
+                    f'Collection {padded_collection_index} "{run_collection_name}" | '
                 )
 
                 futures[
@@ -862,9 +862,9 @@ class ProjectWrapper(LogMixin):
                     padded_collection_index = f"{collection_index:0{collection_padding_length}}"
 
                     log_string_prefix = (
-                        f"Process {padded_process_index}: "
+                        f"Process {padded_process_index} | "
                         f'Pipeline {padded_pipeline_index} "{pipeline_name}" | '
-                        f'Collection {padded_collection_index} "{collection_name}"'
+                        f'Collection {padded_collection_index} "{collection_name}" | '
                     )
 
                     futures[
@@ -1272,9 +1272,9 @@ class ProjectWrapper(LogMixin):
                         padded_source_index = f"{source_index:0{source_padding_length}}"
 
                         log_string_prefix = (
-                            f"Process {padded_process_index}: "
+                            f"Process {padded_process_index} | "
                             f'Pipeline {padded_pipeline_index} "{pipeline_name}" | '
-                            f"Source {padded_source_index}"
+                            f"Source {padded_source_index} | "
                         )
 
                         futures[

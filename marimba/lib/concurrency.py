@@ -58,7 +58,7 @@ def multithreaded_generate_image_thumbnails(
     @multithreaded(max_workers=max_workers)
     def generate_thumbnail_task(self: BasePipeline, thread_num: str, item: Path) -> None:
         thumbnail_path = generate_image_thumbnail(item, output_directory)
-        self.logger.debug(f"Thread {thread_num} Generated thumbnail for image {item}")
+        self.logger.debug(f"Thread {thread_num} | Generated thumbnail for image {item}")
         if thumbnail_path:
             with list_lock:
                 video_thumbnail_list.append(thumbnail_path)
@@ -119,7 +119,7 @@ def multithreaded_generate_video_thumbnails(
             suffix,
             overwrite=overwrite,
         )
-        self.logger.info(f"Thread {thread_num} Generated thumbnails for video {item}")
+        self.logger.info(f"Thread {thread_num} | Generated thumbnails for video {item}")
         if video_path and thumbnail_paths:
             with list_lock:
                 thumbnail_path_list.append((video_path, thumbnail_paths))

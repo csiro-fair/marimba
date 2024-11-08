@@ -280,7 +280,7 @@ class DatasetWrapper(LogMixin):
         try:
             exif_bytes = piexif.dump(exif_dict)
             piexif.insert(exif_bytes, str(path))
-            self.logger.debug(f"Thread {thread_num} - Applied iFDO metadata to EXIF tags for image {path}")
+            self.logger.debug(f"Thread {thread_num} | Applied iFDO metadata to EXIF tags for image {path}")
         except piexif.InvalidImageDataError:
             self.logger.warning(f"Failed to write EXIF metadata to {path}")
 
@@ -494,13 +494,13 @@ class DatasetWrapper(LogMixin):
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 if operation == Operation.copy:
                     copy2(src, dst)
-                    self.logger.debug(f"Thread {thread_num} - Copying file {src.absolute()} -> {dst}")
+                    self.logger.debug(f"Thread {thread_num} | Copying file {src.absolute()} -> {dst}")
                 elif operation == Operation.move:
                     src.rename(dst)
-                    self.logger.debug(f"Thread {thread_num} - Moving file {src.absolute()} -> {dst}")
+                    self.logger.debug(f"Thread {thread_num} | Moving file {src.absolute()} -> {dst}")
                 elif operation == Operation.link:
                     os.link(src, dst)
-                    self.logger.debug(f"Thread {thread_num} - Linking file {src.absolute()} -> {dst}")
+                    self.logger.debug(f"Thread {thread_num} | Linking file {src.absolute()} -> {dst}")
 
             if progress and tasks_by_pipeline_name:
                 progress.advance(tasks_by_pipeline_name[pipeline_name])
