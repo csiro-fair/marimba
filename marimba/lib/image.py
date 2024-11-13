@@ -33,6 +33,7 @@ Functions:
     - get_average_image_color: Calculate the average color of an image.
 """
 
+import math
 from collections.abc import Iterable
 from pathlib import Path
 from shutil import copy2
@@ -414,56 +415,93 @@ def create_grid_image(
     destination: str | Path,
     columns: int = 5,
     column_width: int = 300,
-) -> None:
+    max_height: int = 65000,
+) -> list[Path]:
     """
-    Create an image that represents a grid of images.
+    Create one or more images that represent a grid of images, splitting into multiple files if needed.
 
     Args:
         paths: The paths to the images to include in the grid.
-        destination: The path to save the grid image to.
+        destination: The base path to save the grid images to (without extension).
         columns: The number of columns in the grid.
         column_width: The width in pixels of each column in the grid.
+        max_height: Maximum allowed height for a single image.
+
+    Returns:
+        List of paths to the created grid images.
     """
-    if not paths or Path(destination).exists():
-        return
+    paths_list = sorted([Path(p) for p in paths], key=lambda x: x.name)
+    if not paths_list:
+        return []
 
-    paths = [Path(p) for p in paths]
     destination = Path(destination)
+    base_path = destination.parent / destination.stem
+    extension = destination.suffix or ".jpg"
 
-    # Calculate the number of rows in the grid
-    rows = len(paths) // columns
-    if len(paths) % columns > 0:
-        rows += 1
-
-    # Compute the optimal row height to remove whitespace
+    # Calculate the optimal row height
     row_height = column_width
-    for path in paths:
+    for path in paths_list:
         img = cast(Image.Image, Image.open(path))
         img_width, img_height = img.size
         ratio = img_width / img_height
         row_height = min(row_height, int(column_width / ratio))
+        img.close()
 
-    # Create the grid image
-    grid_image = Image.new("RGB", (column_width * columns, row_height * rows))
-    for i, path in enumerate(paths):
-        # Calculate the coordinates of the image in the grid
-        x = (i % columns) * column_width
-        y = (i // columns) * row_height
+    # Calculate total rows and how many rows we can fit per image
+    total_rows = math.ceil(len(paths_list) / columns)
+    rows_per_image = max_height // row_height
 
-        # Resize the image to fit in the grid
-        img = cast(Image.Image, Image.open(path))
-        img = _resize_fit(img, column_width, row_height)
+    # Calculate how many images we'll need
+    num_images = math.ceil(total_rows / rows_per_image)
 
-        # Center the image in the grid tile
-        img_width, img_height = img.size
-        x += (column_width - img_width) // 2
-        y += (row_height - img_height) // 2
+    # Calculate the number of digits needed for padding
+    padding_digits = len(str(num_images))
 
-        # Paste the image into the grid
-        grid_image.paste(img, (x, y))
+    created_files = []
 
-    # Save the grid image
-    grid_image.save(destination)
+    for img_num in range(num_images):
+        # Calculate which rows belong in this image
+        start_row = img_num * rows_per_image
+        end_row = min((img_num + 1) * rows_per_image, total_rows)
+        current_rows = end_row - start_row
+
+        # Calculate which images belong in these rows
+        start_idx = start_row * columns
+        end_idx = min(len(paths_list), end_row * columns)
+        current_paths = paths_list[start_idx:end_idx]
+
+        # Create the grid image for this section
+        grid_image = Image.new("RGB", (column_width * columns, row_height * current_rows))
+
+        for i, path in enumerate(current_paths):
+            # Calculate the coordinates of the image in the grid
+            x = (i % columns) * column_width
+            y = (i // columns) * row_height
+
+            # Resize the image to fit in the grid
+            img = cast(Image.Image, Image.open(path))
+            img = _resize_fit(img, column_width, row_height)
+
+            # Center the image in the grid tile
+            img_width, img_height = img.size
+            x += (column_width - img_width) // 2
+            y += (row_height - img_height) // 2
+
+            # Paste the image into the grid
+            grid_image.paste(img, (x, y))
+            img.close()
+
+        # Determine the output path based on number of images
+        if num_images == 1:
+            output_path = base_path.parent / f"{base_path.name}{extension}"
+        else:
+            output_path = base_path.parent / f"{base_path.name}_{img_num + 1:0{padding_digits}d}{extension}"
+
+        grid_image.save(output_path)
+        created_files.append(output_path)
+        grid_image.close()
+
+    return created_files
 
 
 def get_shannon_entropy(image_data: Image.Image) -> float:
