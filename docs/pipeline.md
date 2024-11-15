@@ -444,21 +444,26 @@ from pathlib import Path
 from shutil import copy2
 from typing import Any, Dict
 
-def _import(
-        self,
-        data_dir: Path,
-        source_path: Path,
-        config: Dict[str, Any],
-        **kwargs: dict,
-    ) -> None:
+from marimba.core.pipeline import BasePipeline
+
+
+class MyPipeline(BasePipeline):
     
-    self.logger.info(f"Importing data from {source_path} to {data_dir}")
-    
-    for source_file in source_path.rglob("*"):
-        if source_file.is_file() and source_file.suffix.lower() in [".csv", ".jpg", ".mp4"]:
-            if not self.dry_run:
-                copy2(source_file, data_dir)
-            self.logger.debug(f"Copied {source_file.resolve().absolute()} -> {data_dir}")
+    def _import(
+            self,
+            data_dir: Path,
+            source_path: Path,
+            config: Dict[str, Any],
+            **kwargs: dict,
+        ) -> None:
+        
+        self.logger.info(f"Importing data from {source_path} to {data_dir}")
+        
+        for source_file in source_path.rglob("*"):
+            if source_file.is_file() and source_file.suffix.lower() in [".csv", ".jpg", ".mp4"]:
+                if not self.dry_run:
+                    copy2(source_file, data_dir)
+                self.logger.debug(f"Copied {source_file.resolve().absolute()} -> {data_dir}")
 ```
 
 In this example, the method begins by logging the start of the import process, noting both the source and destination 
@@ -502,30 +507,35 @@ from shutil import copy2, move
 import os
 from typing import Any, Dict
 
-def _import(
-        self,
-        data_dir: Path,
-        source_path: Path,
-        config: Dict[str, Any],
-        **kwargs: dict,
-    ) -> None:
+from marimba.core.pipeline import BasePipeline
+
+
+class MyPipeline(BasePipeline):
     
-    operation = kwargs.get('operation', 'copy')
-    self.logger.info(f"Starting import from {source_path} to {data_dir} using {operation} operation.")
-    
-    for source_file in source_path.rglob("*"):
-        if source_file.is_file() and source_file.suffix.lower() in [".csv", ".jpg", ".mp4"]:
-            target_file = data_dir / source_file.name
-            if not self.dry_run:
-                if operation == 'copy':
-                    copy2(source_file, target_file)
-                    self.logger.debug(f"Copied {source_file} to {target_file}")
-                elif operation == 'move':
-                    move(source_file, target_file)
-                    self.logger.debug(f"Moved {source_file} to {target_file}")
-                elif operation == 'link':
-                    os.link(source_file, target_file)
-                    self.logger.debug(f"Linked {source_file} to {target_file}")
+    def _import(
+            self,
+            data_dir: Path,
+            source_path: Path,
+            config: Dict[str, Any],
+            **kwargs: dict,
+        ) -> None:
+        
+        operation = kwargs.get('operation', 'copy')
+        self.logger.info(f"Starting import from {source_path} to {data_dir} using {operation} operation.")
+        
+        for source_file in source_path.rglob("*"):
+            if source_file.is_file() and source_file.suffix.lower() in [".csv", ".jpg", ".mp4"]:
+                target_file = data_dir / source_file.name
+                if not self.dry_run:
+                    if operation == 'copy':
+                        copy2(source_file, target_file)
+                        self.logger.debug(f"Copied {source_file} to {target_file}")
+                    elif operation == 'move':
+                        move(source_file, target_file)
+                        self.logger.debug(f"Moved {source_file} to {target_file}")
+                    elif operation == 'link':
+                        os.link(source_file, target_file)
+                        self.logger.debug(f"Linked {source_file} to {target_file}")
 ```
 
 This revised version of the `_import` method now includes logic to handle `copy`, `move`, and `link` operations based 
@@ -643,26 +653,31 @@ from pathlib import Path
 from shutil import copy2
 from typing import Any, Dict
 
-def _import(
-        self,
-        data_dir: Path,
-        source_path: Path,
-        config: Dict[str, Any],
-        **kwargs: dict,
-    ) -> None:
+from marimba.core.pipeline import BasePipeline
+
+
+class MyPipeline(BasePipeline):
     
-    self.logger.info(f"Importing data from {source_path} to {data_dir}")
-    
-    # Merge default file types with those provided in kwargs
-    default_types = [".csv", ".jpg", ".mp4"]
-    extra_types = kwargs.get('file_types', '').split(',')
-    file_types = default_types + [ftype for ftype in extra_types if ftype not in default_types]
-    
-    for source_file in source_path.rglob("*"):
-        if source_file.is_file() and source_file.suffix.lower() in file_types:
-            if not self.dry_run:
-                copy2(source_file, data_dir)
-            self.logger.debug(f"Copied {source_file.resolve().absolute()} -> {data_dir}")
+    def _import(
+            self,
+            data_dir: Path,
+            source_path: Path,
+            config: Dict[str, Any],
+            **kwargs: dict,
+        ) -> None:
+        
+        self.logger.info(f"Importing data from {source_path} to {data_dir}")
+        
+        # Merge default file types with those provided in kwargs
+        default_types = [".csv", ".jpg", ".mp4"]
+        extra_types = kwargs.get('file_types', '').split(',')
+        file_types = default_types + [ftype for ftype in extra_types if ftype not in default_types]
+        
+        for source_file in source_path.rglob("*"):
+            if source_file.is_file() and source_file.suffix.lower() in file_types:
+                if not self.dry_run:
+                    copy2(source_file, data_dir)
+                self.logger.debug(f"Copied {source_file.resolve().absolute()} -> {data_dir}")
 ```
 
 In this updated `_import` method, the `file_types` are extracted from `kwargs` and merged in with the default file 
@@ -687,43 +702,47 @@ method, the data should be prepared and ready for the final packaging stage.
 from pathlib import Path
 from typing import Any, Dict
 
+from marimba.core.pipeline import BasePipeline
 from marimba.lib import image
 
-def process(data_dir: Path, config: Dict[str, Any], **kwargs: dict):
+
+class MyPipeline(BasePipeline):
     
-    self.logger.info(f"Processing data in {data_dir}")
-
-    # Create directories for different file types
-    csv_dir = data_dir / "data"
-    jpg_dir = data_dir / "images"
-    thumbs_dir = data_dir / "thumbnails"
-    mp4_dir = data_dir / "videos"
+    def process(data_dir: Path, config: Dict[str, Any], **kwargs: dict):
+        
+        self.logger.info(f"Processing data in {data_dir}")
     
-    csv_dir.mkdir(exist_ok=True)
-    jpg_dir.mkdir(exist_ok=True)
-    thumbs_dir.mkdir(exist_ok=True)
-    mp4_dir.mkdir(exist_ok=True)
-
-    # Move files into their respective directories
-    for file_path in data_dir.rglob("*"):
-        if file_path.is_file():
-            if file_path.suffix.lower() == ".csv":
-                file_path.rename(csv_dir / file_path.name)
-            elif file_path.suffix.lower() == ".jpg":
-                file_path.rename(jpg_dir / file_path.name)
-            elif file_path.suffix.lower() == ".mp4":
-                file_path.rename(mp4_dir / file_path.name)
-
-    # Generate thumbnails for each jpg
-    thumbnails = []
-    for jpg_file in jpg_dir.glob("*.jpg"):
-        thumbnail_path = thumbs_dir / f"{jpg_file.stem}_thumbnail{jpg_file.suffix}"
-        image.resize_fit(jpg_file, 300, 300, thumbnail_path)
-        thumbnails.append(thumbnail_path)
-
-    # Create an tiled overview image from the thumbnails
-    overview_path = data_dir / "overview.jpg"
-    image.create_grid_image(thumbnails, overview_path)
+        # Create directories for different file types
+        csv_dir = data_dir / "data"
+        jpg_dir = data_dir / "images"
+        thumbs_dir = data_dir / "thumbnails"
+        mp4_dir = data_dir / "videos"
+        
+        csv_dir.mkdir(exist_ok=True)
+        jpg_dir.mkdir(exist_ok=True)
+        thumbs_dir.mkdir(exist_ok=True)
+        mp4_dir.mkdir(exist_ok=True)
+    
+        # Move files into their respective directories
+        for file_path in data_dir.rglob("*"):
+            if file_path.is_file():
+                if file_path.suffix.lower() == ".csv":
+                    file_path.rename(csv_dir / file_path.name)
+                elif file_path.suffix.lower() == ".jpg":
+                    file_path.rename(jpg_dir / file_path.name)
+                elif file_path.suffix.lower() == ".mp4":
+                    file_path.rename(mp4_dir / file_path.name)
+    
+        # Generate thumbnails for each jpg
+        thumbnails = []
+        for jpg_file in jpg_dir.glob("*.jpg"):
+            thumbnail_path = thumbs_dir / f"{jpg_file.stem}_thumbnail{jpg_file.suffix}"
+            image.resize_fit(jpg_file, 300, 300, thumbnail_path)
+            thumbnails.append(thumbnail_path)
+    
+        # Create an tiled overview image from the thumbnails
+        overview_path = data_dir / "overview.jpg"
+        image.create_grid_image(thumbnails, overview_path)
 ```
 
 This example organizes and processes various file types previously imported into a Marimba Collection. It begins by 
@@ -788,11 +807,10 @@ from typing import Any, Dict
 
 from marimba.core.pipeline import BasePipeline
 from marimba.lib import image
-from marimba.lib.concurrency import multithreaded_generate_thumbnails
+from marimba.lib.concurrency import multithreaded_generate_image_thumbnails
+
 
 class MyPipeline(BasePipeline):
-
-  ...
 
   def _process(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
       
@@ -814,7 +832,7 @@ class MyPipeline(BasePipeline):
                   image_list.append(jpg_dir / file_path.name)
 
       # Generate thumbnails using multi-threading
-      thumbnails = multithreaded_generate_thumbnails(
+      thumbnails = multithreaded_generate_image_thumbnails(
           self,
           image_list=image_list,
           output_directory=thumbs_dir,
@@ -868,118 +886,121 @@ from ifdo.models import (
     ImageSpectralResolution,
 )
 
+from marimba.core.pipeline import BasePipeline
 from marimba.main import __version__
 
 
-def _package(
-    self,
-    data_dir: Path,
-    config: Dict[str, Any],
-    **kwargs: Dict[str, Any],
-) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
+class MyPipeline(BasePipeline):
+
+    def _package(
+        self,
+        data_dir: Path,
+        config: Dict[str, Any],
+        **kwargs: Dict[str, Any],
+    ) -> Dict[Path, Tuple[Path, Optional[ImageData], Optional[Dict[str, Any]]]]:
+        
+        # Create the empty data mapping structure
+        data_mapping: Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]] = {}
+        
+        # Safely attempt to load the image reference data into a Pandas dataframe
+        try:
+            image_reference_df = pd.read_csv(next(data_dir.glob("data/*.csv")))
+        except FileNotFoundError:
+            print("Reference CSV not found in the data directory.")
+            return data_mapping
     
-    # Create the empty data mapping structure
-    data_mapping: Dict[Path, Tuple[Path, Optional[List[ImageData]], Optional[Dict[str, Any]]]] = {}
+        # Find all ancillary files (non-image files) and add them to the data mapping
+        ancillary_files = [f for f in data_dir.rglob("*") if f.suffix.lower() != ".jpg" and f.is_file()]
+        for file_path in ancillary_files:
+            data_mapping[file_path] = (file_path.relative_to(data_dir), None, None)
     
-    # Safely attempt to load the image reference data into a Pandas dataframe
-    try:
-        image_reference_df = pd.read_csv(next(data_dir.glob("data/*.csv")))
-    except FileNotFoundError:
-        print("Reference CSV not found in the data directory.")
+        # Loop through each image in the Collection
+        for index, row in image_reference_df.iterrows():
+    
+            # Check the file exists
+            file_path = data_dir / "images" / row["filename"]
+            if file_path.is_file():
+                
+                # Construct the ImageData list item
+                image_data = ImageData(
+                    # iFDO core
+                    image_datetime=datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S.%f"),
+                    image_latitude=float(row["latitude"]),
+                    image_longitude=float(row["longitude"]),
+                    image_altitude=float(row["depth"]),
+                    image_coordinate_reference_system="EPSG:4326",
+                    image_coordinate_uncertainty_meters=None,
+                    image_context=row["image_context"],
+                    image_project=row["image_project"],
+                    image_event=row["image_event"],
+                    image_platform=row["image_platform"],
+                    image_sensor=row["image_sensor"],
+                    image_uuid=str(uuid4()),
+                    image_pi=ImagePI(name="Keiko Abe", orcid="0000-0000-0000-0000"),
+                    image_creators=[ImagePI(name="Keiko Abe", orcid="0000-0000-0000-0000")],
+                    image_license="CC BY 4.0",
+                    image_copyright="My Organisation",
+                    image_abstract=row["image_abstract"],
+                    # Note: Marimba automatically calculates and injects the SHA256 hash during packaging
+                    # image_hash_sha256=image_hash_sha256,
+    
+                    # # iFDO capture (optional)
+                    image_acquisition=ImageAcquisition.SLIDE,
+                    image_quality=ImageQuality.PRODUCT,
+                    image_deployment=ImageDeployment.SURVEY,
+                    image_navigation=ImageNavigation.RECONSTRUCTED,
+                    image_scale_reference=ImageScaleReference.NONE,
+                    image_illumination=ImageIllumination.ARTIFICIAL_LIGHT,
+                    image_pixel_mag=ImagePixelMagnitude.CM,
+                    image_marine_zone=ImageMarineZone.SEAFLOOR,
+                    image_spectral_resolution=ImageSpectralResolution.RGB,
+                    image_capture_mode=ImageCaptureMode.MANUAL,
+                    image_fauna_attraction=ImageFaunaAttraction.NONE,
+                    # image_area_square_meter=None,
+                    # image_meters_above_ground=None,
+                    # image_acquisition_settings=None,
+                    # image_camera_yaw_degrees=None,
+                    # image_camera_pitch_degrees=None,
+                    # image_camera_roll_degrees=None,
+                    # image_overlap_fraction=0,
+                    image_datetime_format="%Y-%m-%d %H:%M:%S.%f",
+                    # image_camera_pose=None,
+                    # image_camera_housing_viewport=None,
+                    # image_flatport_parameters=None,
+                    # image_domeport_parameters=None,
+                    # image_camera_calibration_model=None,
+                    # image_photometric_calibration=None,
+                    # image_objective=None,
+                    image_target_environment="Benthic habitat",
+                    # image_target_timescale=None,
+                    # image_spatial_constraints=None,
+                    # image_temporal_constraints=None,
+                    # image_time_synchronization=None,
+                    image_item_identification_scheme="<filename_field_1>_<filename_field_2>_<filename_field_3>.<ext>",
+                    image_curation_protocol=f"Processed with Marimba v{__version__}",
+    
+                    # # iFDO content (optional)
+                    # Note: Marimba automatically calculates and injects image_entropy and image_average_color during packaging
+                    # image_entropy=0.0,
+                    # image_particle_count=None,
+                    # image_average_color=[0, 0, 0],
+                    # image_mpeg7_colorlayout=None,
+                    # image_mpeg7_colorstatistics=None,
+                    # image_mpeg7_colorstructure=None,
+                    # image_mpeg7_dominantcolor=None,
+                    # image_mpeg7_edgehistogram=None,
+                    # image_mpeg7_homogenoustexture=None,
+                    # image_mpeg7_stablecolor=None,
+                    # image_annotation_labels=None,
+                    # image_annotation_creators=None,
+                    # image_annotations=None,
+                )
+    
+                # Add the image file, iFDO and ancillary metadata to the data mapping
+                data_mapping[file_path] = (file_path.relative_to(data_dir), [image_data], row.to_dict())
+    
+        # Return the complete data mapping to Marimba
         return data_mapping
-
-    # Find all ancillary files (non-image files) and add them to the data mapping
-    ancillary_files = [f for f in data_dir.rglob("*") if f.suffix.lower() != ".jpg" and f.is_file()]
-    for file_path in ancillary_files:
-        data_mapping[file_path] = (file_path.relative_to(data_dir), None, None)
-
-    # Loop through each image in the Collection
-    for index, row in image_reference_df.iterrows():
-
-        # Check the file exists
-        file_path = data_dir / "images" / row["filename"]
-        if file_path.is_file():
-            
-            # Construct the ImageData list item
-            image_data = ImageData(
-                # iFDO core
-                image_datetime=datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S.%f"),
-                image_latitude=float(row["latitude"]),
-                image_longitude=float(row["longitude"]),
-                image_altitude=float(row["depth"]),
-                image_coordinate_reference_system="EPSG:4326",
-                image_coordinate_uncertainty_meters=None,
-                image_context=row["image_context"],
-                image_project=row["image_project"],
-                image_event=row["image_event"],
-                image_platform=row["image_platform"],
-                image_sensor=row["image_sensor"],
-                image_uuid=str(uuid4()),
-                image_pi=ImagePI(name="Keiko Abe", orcid="0000-0000-0000-0000"),
-                image_creators=[ImagePI(name="Keiko Abe", orcid="0000-0000-0000-0000")],
-                image_license="CC BY 4.0",
-                image_copyright="My Organisation",
-                image_abstract=row["image_abstract"],
-                # Note: Marimba automatically calculates and injects the SHA256 hash during packaging
-                # image_hash_sha256=image_hash_sha256,
-
-                # # iFDO capture (optional)
-                image_acquisition=ImageAcquisition.SLIDE,
-                image_quality=ImageQuality.PRODUCT,
-                image_deployment=ImageDeployment.SURVEY,
-                image_navigation=ImageNavigation.RECONSTRUCTED,
-                image_scale_reference=ImageScaleReference.NONE,
-                image_illumination=ImageIllumination.ARTIFICIAL_LIGHT,
-                image_pixel_mag=ImagePixelMagnitude.CM,
-                image_marine_zone=ImageMarineZone.SEAFLOOR,
-                image_spectral_resolution=ImageSpectralResolution.RGB,
-                image_capture_mode=ImageCaptureMode.MANUAL,
-                image_fauna_attraction=ImageFaunaAttraction.NONE,
-                # image_area_square_meter=None,
-                # image_meters_above_ground=None,
-                # image_acquisition_settings=None,
-                # image_camera_yaw_degrees=None,
-                # image_camera_pitch_degrees=None,
-                # image_camera_roll_degrees=None,
-                # image_overlap_fraction=0,
-                image_datetime_format="%Y-%m-%d %H:%M:%S.%f",
-                # image_camera_pose=None,
-                # image_camera_housing_viewport=None,
-                # image_flatport_parameters=None,
-                # image_domeport_parameters=None,
-                # image_camera_calibration_model=None,
-                # image_photometric_calibration=None,
-                # image_objective=None,
-                image_target_environment="Benthic habitat",
-                # image_target_timescale=None,
-                # image_spatial_constraints=None,
-                # image_temporal_constraints=None,
-                # image_time_synchronization=None,
-                image_item_identification_scheme="<filename_field_1>_<filename_field_2>_<filename_field_3>.<ext>",
-                image_curation_protocol=f"Processed with Marimba v{__version__}",
-
-                # # iFDO content (optional)
-                # Note: Marimba automatically calculates and injects image_entropy and image_average_color during packaging
-                # image_entropy=0.0,
-                # image_particle_count=None,
-                # image_average_color=[0, 0, 0],
-                # image_mpeg7_colorlayout=None,
-                # image_mpeg7_colorstatistics=None,
-                # image_mpeg7_colorstructure=None,
-                # image_mpeg7_dominantcolor=None,
-                # image_mpeg7_edgehistogram=None,
-                # image_mpeg7_homogenoustexture=None,
-                # image_mpeg7_stablecolor=None,
-                # image_annotation_labels=None,
-                # image_annotation_creators=None,
-                # image_annotations=None,
-            )
-
-            # Add the image file, iFDO and ancillary metadata to the data mapping
-            data_mapping[file_path] = (file_path.relative_to(data_dir), [image_data], row.to_dict())
-
-    # Return the complete data mapping to Marimba
-    return data_mapping
 ```
 
 In this example, the `_package` method systematically processes the files in a Marimba Collection. It first attempts to 
