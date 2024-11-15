@@ -786,38 +786,43 @@ especially on systems with multiple cores:
 from pathlib import Path
 from typing import Any, Dict
 
+from marimba.core.pipeline import BasePipeline
 from marimba.lib import image
-from marimba.lib.parallel import multithreaded_generate_thumbnails
+from marimba.lib.concurrency import multithreaded_generate_thumbnails
 
-def process(data_dir: Path, config: Dict[str, Any], **kwargs: dict):
-    
-    self.logger.info(f"Processing data in {data_dir}")
+class MyPipeline(BasePipeline):
 
-    # Create directories for different file types
-    jpg_dir = data_dir / "images"
-    thumbs_dir = data_dir / "thumbnails"
-    
-    jpg_dir.mkdir(exist_ok=True)
-    thumbs_dir.mkdir(exist_ok=True)
+  ...
 
-    # Move files into their respective directories
-    image_list = []
-    for file_path in data_dir.rglob("*"):
-        if file_path.is_file():
-            if file_path.suffix.lower() == ".jpg":
-                file_path.rename(jpg_dir / file_path.name)
-                image_list.append(jpg_dir / file_path.name)
+  def _process(self, data_dir: Path, config: Dict[str, Any], **kwargs: dict):
+      
+      self.logger.info(f"Processing data in {data_dir}")
 
-    # Generate thumbnails using multi-threading
-    thumbnails = multithreaded_generate_thumbnails(
-        self,
-        image_list=image_list,
-        output_directory=data_dir / "thumbnails",
-    )
+      # Create directories for different file types
+      jpg_dir = data_dir / "images"
+      thumbs_dir = data_dir / "thumbnails"
+      
+      jpg_dir.mkdir(exist_ok=True)
+      thumbs_dir.mkdir(exist_ok=True)
 
-    # Create an overview image from the thumbnails
-    thumbnail_overview_path = data_dir / "OVERVIEW.JPG"
-    image.create_grid_image(thumbnails, thumbnail_overview_path)
+      # Move files into their respective directories
+      image_list = []
+      for file_path in data_dir.rglob("*"):
+          if file_path.is_file():
+              if file_path.suffix.lower() == ".jpg":
+                  file_path.rename(jpg_dir / file_path.name)
+                  image_list.append(jpg_dir / file_path.name)
+
+      # Generate thumbnails using multi-threading
+      thumbnails = multithreaded_generate_thumbnails(
+          self,
+          image_list=image_list,
+          output_directory=thumbs_dir,
+      )
+
+      # Create an overview image from the thumbnails
+      thumbnail_overview_path = data_dir / "OVERVIEW.JPG"
+      image.create_grid_image(thumbnails, thumbnail_overview_path)
 ```
 
 This example demonstrates how to use the multi-threading capabilities provided by the Marimba standard library to 
