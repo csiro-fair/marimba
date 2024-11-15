@@ -12,7 +12,8 @@ Imports:
     generate_thumbnail: Function to create a thumbnail from an image
 
 Functions:
-    multithreaded_generate_thumbnails: Generates thumbnails for multiple images concurrently
+    multithreaded_generate_image_thumbnails: Generates thumbnails for multiple images concurrently.
+    multithreaded_generate_video_thumbnails: Generates thumbnails for multiple videos concurrently.
 """
 
 from pathlib import Path
