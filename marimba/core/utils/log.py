@@ -270,7 +270,7 @@ class LogPrefixFilter(logging.Filter):
         Returns:
             bool: Always returns True to ensure the record is not filtered out.
         """
-        record.msg = f"{self.prefix} - {record.msg}"
+        record.msg = f"{self.prefix} {record.msg}"
         return True
 
 
