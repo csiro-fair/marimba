@@ -167,7 +167,7 @@ def import_command(
             source_paths,
             pipeline_names,
             extra_args=extra,
-            operation=operation.__dict__,
+            operation=operation,
         )
     except Exception as e:
         error_message = f"Error during import: {e}"
