@@ -354,11 +354,11 @@ class DatasetWrapper(LogMixin):
             d_lon, m_lon, s_lon = convert_degrees_to_gps_coordinate(image_data.image_longitude)
             ifd_gps[piexif.GPSIFD.GPSLongitude] = ((d_lon, 1), (m_lon, 1), (s_lon, 1))
             ifd_gps[piexif.GPSIFD.GPSLongitudeRef] = "E" if image_data.image_longitude > 0 else "W"
-        if image_data.image_altitude is not None:
-            altitude_fraction = Fraction(abs(float(image_data.image_altitude))).limit_denominator()
+        if image_data.image_altitude_meters is not None:
+            altitude_fraction = Fraction(abs(float(image_data.image_altitude_meters))).limit_denominator()
             altitude_rational = (altitude_fraction.numerator, altitude_fraction.denominator)
             ifd_gps[piexif.GPSIFD.GPSAltitude] = altitude_rational
-            ifd_gps[piexif.GPSIFD.GPSAltitudeRef] = 0 if image_data.image_altitude >= 0 else 1
+            ifd_gps[piexif.GPSIFD.GPSAltitudeRef] = 0 if image_data.image_altitude_meters >= 0 else 1
 
     @staticmethod
     def _add_thumbnail(path: Path, exif_dict: dict[str, Any]) -> Image.Image:
