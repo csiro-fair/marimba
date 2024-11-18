@@ -771,7 +771,7 @@ class ImagerySummary:
     @staticmethod
     def _update_common_data(data: dict[str, Any], image_info: "ImageData") -> None:
         data["context"].add(image_info.image_context)
-        data["licenses"].add(image_info.image_license)
+        data["licenses"].add(image_info.image_license.name)
         data["contributors"].update(contributor.name for contributor in image_info.image_creators)
 
     @classmethod
