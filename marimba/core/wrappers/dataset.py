@@ -434,7 +434,7 @@ class DatasetWrapper(LogMixin):
             project_pipelines_dir: The path to the project pipelines directory.
             project_log_path: The path to the project log file.
             pipeline_log_paths: An iterable of paths to the pipeline log files.
-            operation: The operation to perform on the files (copy or move). Defaults to Operation.copy.
+            operation: The operation to perform on files (copy, move or link). Defaults to Operation.copy.
             zoom: The zoom level for generating the dataset map. Defaults to None.
 
         Returns:

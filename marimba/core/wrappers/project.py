@@ -1004,7 +1004,7 @@ class ProjectWrapper(LogMixin):
         Args:
             dataset_name: The name of the dataset to be created.
             dataset_mapping: A dictionary containing the dataset mapping information.
-            operation: The operation to perform on files (copy or move). Defaults to Operation.copy.
+            operation: The operation to perform on files (copy, move or link). Defaults to Operation.copy.
             version: The version of the dataset. Defaults to '1.0'.
             contact_name: The name of the contact person for the dataset. Defaults to None.
             contact_email: The email of the contact person for the dataset. Defaults to None.
@@ -1194,7 +1194,7 @@ class ProjectWrapper(LogMixin):
         source_paths: list[Path],
         pipeline_names: list[str],
         extra_args: list[str] | None = None,
-        **kwargs: dict[str, Any],
+        operation: Operation = Operation.copy,
     ) -> None:
         """
         Run the import command to populate a collection from a source data directory.
@@ -1206,12 +1206,13 @@ class ProjectWrapper(LogMixin):
             source_paths: The source paths to import from.
             pipeline_names: Names of the pipelines to run
             extra_args: Any extra CLI arguments to pass to the command.
-            kwargs: Any keyword arguments to pass to the command.
+            operation: The operation to perform on files (copy, move or link). Defaults to Operation.copy.
 
         Raises:
             ProjectWrapper.NoSuchCollectionError: If the collection does not exist in the project.
         """
-        merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
+        operation_dict = {"operation": operation.value}
+        merged_kwargs = get_merged_keyword_args(operation_dict, extra_args, self.logger)
 
         # Get the collection wrapper
         collection_wrapper = self.collection_wrappers.get(collection_name, None)
