@@ -1,13 +1,26 @@
 """
-Marimba configuration utilities.
+Marimba Configuration Utilities.
+
+This module provides functions for loading and saving YAML configuration files. It includes utilities for handling
+file paths and converting YAML data to Python dictionaries.
+
+Imports:
+    - pathlib: Provides classes for handling file system paths.
+    - typing: Provides support for type hints.
+    - yaml: Provides YAML parsing and dumping functionality.
+
+Functions:
+    - load_config: Load a YAML config file and return its contents as a dictionary.
+    - save_config: Save a dictionary as a YAML config file.
 """
+
 from pathlib import Path
-from typing import Union
+from typing import Any
 
 import yaml
 
 
-def load_config(config_path: Union[str, Path]) -> dict:
+def load_config(config_path: str | Path) -> dict[str, Any]:
     """
     Load a YAML config file.
 
@@ -23,13 +36,16 @@ def load_config(config_path: Union[str, Path]) -> dict:
     """
     config_path = Path(config_path)
 
-    with config_path.open() as f:
-        config_data = yaml.safe_load(f)
+    with Path.open(config_path, encoding="utf-8") as file:
+        data = yaml.safe_load(file)
 
-    return config_data
+        if not isinstance(data, dict):
+            raise TypeError("Configuration data must be a dictionary")
+
+    return data
 
 
-def save_config(config_path: Union[str, Path], config_data: dict):
+def save_config(config_path: str | Path, config_data: dict[Any, Any]) -> None:
     """
     Save a YAML config file.
 
@@ -39,5 +55,5 @@ def save_config(config_path: Union[str, Path], config_data: dict):
     """
     config_path = Path(config_path)
 
-    with config_path.open("w") as f:
+    with config_path.open("w", encoding="utf-8") as f:
         yaml.safe_dump(config_data, f)

@@ -1,0 +1,41 @@
+[pydocstyle]
+
+convention = google
+
+add-ignore = D104,D105,D200,D203,D212,D406,D407
+# D104: Missing docstring in public package (init file)
+# D105: Missing docstring in magic method
+# D200: One-line docstring should fit on one line with quotes
+# D203: 1 blank line required before class docstring
+# D212: Multi-line docstring summary should start at the first line
+# D406: Section name should end with a newline
+# D407: Missing dashed underline after section
+
+add-select = D100,D101,D102,D103,D201,D202,D204,D205,D206,D207,D208,D209,D210,D300,D301,D400,D401,D402,D403,D404,D405,D408,D409,D410
+# D100: Missing docstring in public module
+# D101: Missing docstring in public class
+# D102: Missing docstring in public method
+# D103: Missing docstring in public function
+# D201: No blank lines allowed before function docstring
+# D202: No blank lines allowed after function docstring
+# D204: 1 blank line required after class docstring
+# D205: 1 blank line required between summary line and description
+# D206: Docstring should be indented with spaces, not tabs
+# D207: Docstring is under-indented
+# D208: Docstring is over-indented
+# D209: Multi-line docstring closing quotes should be on a separate line
+# D210: No whitespaces allowed surrounding docstring text
+# D300: Triple quotes should be used for docstrings
+# D301: Use r""" if any backslashes are present in a docstring
+# D400: First line should end with a period
+# D401: First line should be in imperative mood
+# D402: First line should not be the function's "signature"
+# D403: First word of the first line should be properly capitalized
+# D404: First word of the docstring should not be `This`
+# D405: Section name should be properly capitalized
+# D408: Section underline should match the length of its name
+# D409: Section underline should be in the line following the section's name
+# D410: Missing blank line after section
+
+match = (?!test_).*\.py
+match-dir = (?!tests|temp).*

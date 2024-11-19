@@ -1,13 +1,25 @@
 """
-iFDO utilities.
+Marimba iFDO Utilities.
+
+This module provides functions for loading and saving iFDO files. It simplifies the process of working with iFDO
+objects by abstracting the file operations.
+
+Imports:
+    - pathlib: Provides the Path class for handling file system paths.
+    - typing: Provides type hinting support.
+    - ifdo: Contains the iFDO class for working with iFDO objects.
+
+Functions:
+    - load_ifdo: Loads an iFDO file from a given path.
+    - save_ifdo: Saves an iFDO object to a specified path.
 """
+
 from pathlib import Path
-from typing import Union
 
 from ifdo import iFDO
 
 
-def load_ifdo(path: Union[str, Path]) -> iFDO:
+def load_ifdo(path: str | Path) -> iFDO:
     """
     Load an iFDO file from a path.
 
@@ -20,7 +32,7 @@ def load_ifdo(path: Union[str, Path]) -> iFDO:
     return iFDO.load(path)
 
 
-def save_ifdo(ifdo: iFDO, path: Union[str, Path]):
+def save_ifdo(ifdo: iFDO, path: str | Path) -> None:
     """
     Save an iFDO file to a path.
 

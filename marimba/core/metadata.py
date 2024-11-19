@@ -1,22 +1,28 @@
+"""
+Marimba Metadata Abstract Base Class Module.
+"""
+
 from abc import ABC
+from typing import TYPE_CHECKING
 
-from ifdo.models import ImageData
+if TYPE_CHECKING:
+    from ifdo.models import ImageData
+else:
+    from ifdo.models import ImageData
 
 
-class BaseMetadata(ABC):
+class BaseMetadata(ABC):  # noqa: B024
     """
     Base metadata class. All metadata classes should inherit from this class.
     """
 
-    pass  # TODO: Determine the required interface
+    # TODO(@cjackett): Determine the required interface
 
 
-class iFDOMetadata(BaseMetadata, ImageData):
+class iFDOMetadata(BaseMetadata, ImageData):  # type: ignore[misc]  # noqa: N801
     """
     iFDO image metadata class. Inherits from `ifdo.models.ImageData` and `BaseMetadata` to unify the interfaces.
     """
-
-    pass
 
 
 class EXIFMetadata(BaseMetadata):
@@ -24,12 +30,8 @@ class EXIFMetadata(BaseMetadata):
     EXIF metadata class.
     """
 
-    pass
-
 
 class DarwinCoreMetadata(BaseMetadata):
     """
     Darwin Core metadata class.
     """
-
-    pass

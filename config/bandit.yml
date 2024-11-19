@@ -1,0 +1,10 @@
+# Bandit configuration file
+exclude_dirs:
+  - .env
+  - .venv
+  - .git
+  - .mypy_cache
+  - build
+  - dist
+  - temp
+  - tests
