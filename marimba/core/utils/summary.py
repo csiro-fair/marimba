@@ -86,7 +86,9 @@ class ImagerySummary:
     other_average_file_size: str = ""
     other_file_types: list[str] = field(default_factory=list)
 
-    # Add class constants for time units
+    # Add class constants for contributors and time units
+    SINGLE_CONTRIBUTOR: ClassVar[int] = 1
+    PAIR_OF_CONTRIBUTORS: ClassVar[int] = 2
     SECONDS_PER_HOUR: ClassVar[int] = 3600
     SECONDS_PER_MINUTE: ClassVar[int] = 60
 
@@ -271,7 +273,7 @@ class ImagerySummary:
 
         This function takes a list of contributor names and formats them into a single string. If there are multiple
         contributors, it joins them with commas and adds 'and' before the last name. If there's only one contributor,
-        it returns that name. If the list is empty, it returns 'N/A'.
+        it returns that name. If the list is empty, it returns 'N/A'. Maintains the original order of the names.
 
         Args:
             names: A list of strings containing contributor names.
@@ -282,7 +284,13 @@ class ImagerySummary:
         Raises:
             TypeError: If the input is not a list or if any element in the list is not a string.
         """
-        return ", ".join(names[:-1]) + " and " + names[-1] if len(names) > 1 else names[0] if names else "N/A"
+        if not names:
+            return "N/A"
+        if len(names) == ImagerySummary.SINGLE_CONTRIBUTOR:
+            return names[0]
+        if len(names) == ImagerySummary.PAIR_OF_CONTRIBUTORS:
+            return f"{names[0]} and {names[1]}"
+        return ", ".join(names[:-1]) + f" and {names[-1]}"
 
     @staticmethod
     def context_to_text(contexts: list[str]) -> str:
@@ -743,8 +751,8 @@ class ImagerySummary:
         dataset_wrapper: "DatasetWrapper",
         dataset_items: dict[str, list["BaseMetadata"]],
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-        image_data: dict[str, Any] = {"files": [], "context": set(), "contributors": set(), "licenses": set()}
-        video_data: dict[str, Any] = {"files": [], "context": set(), "contributors": set(), "licenses": set()}
+        image_data: dict[str, Any] = {"files": [], "context": set(), "contributors": [], "licenses": set()}
+        video_data: dict[str, Any] = {"files": [], "context": set(), "contributors": [], "licenses": set()}
         other_data: dict[str, list[str]] = {"files": []}
 
         for path_str, dataset_item in dataset_items.items():
@@ -770,7 +778,9 @@ class ImagerySummary:
             data["context"].add(image_info.context)
         if image_info.license:
             data["licenses"].add(image_info.license)
-        data["contributors"].update(image_info.creators)
+        for creator in image_info.creators:
+            if creator not in data["contributors"]:
+                data["contributors"].append(creator)
 
     @classmethod
     def _process_image(cls, image_data: dict[str, Any], path: Path, image_info: "BaseMetadata") -> None:
@@ -840,10 +850,20 @@ class ImagerySummary:
         video_data: dict[str, Any],
     ) -> None:
         summary.context = summary.context_to_text(list(image_data["context"] | video_data["context"]))
-        summary.contributors = summary.contributors_to_text(
-            list(image_data["contributors"] | video_data["contributors"]),
-        )
         summary.licenses = summary.list_to_text(list(image_data["licenses"] | video_data["licenses"]))
+
+        # Merge contributors while maintaining order
+        all_contributors = []
+        # First add image contributors
+        for contributor in image_data.get("contributors", []):
+            if contributor not in all_contributors:
+                all_contributors.append(contributor)
+        # Then add any new video contributors
+        for contributor in video_data.get("contributors", []):
+            if contributor not in all_contributors:
+                all_contributors.append(contributor)
+
+        summary.contributors = summary.contributors_to_text(all_contributors)
 
     @classmethod
     def _set_image_properties(cls, summary: "ImagerySummary", image_data: dict[str, Any]) -> None:
