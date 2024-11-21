@@ -41,7 +41,7 @@ import typer
 from rich import print
 
 from marimba.core.cli import delete, new
-from marimba.core.distribution.bases import DistributionTargetBase
+from marimba.core.distribution.base import DistributionTargetBase
 from marimba.core.utils.constants import PROJECT_DIR_HELP, Operation
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
 from marimba.core.utils.map import NetworkConnectionError

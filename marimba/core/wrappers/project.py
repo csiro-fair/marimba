@@ -10,7 +10,6 @@ Imports:
     - logging: Logging facility for Python.
     - pathlib.Path: Object-oriented filesystem paths.
     - typing: Type hints for function signatures and variables.
-    - ifdo.models.ImageData: Data model for image data.
     - rich.progress.Progress, rich.progress.SpinnerColumn: Utilities for creating progress bars.
     - marimba.core.utils.log.LogMixin, marimba.core.utils.log.get_file_handler:
       Utilities for logging.
@@ -44,8 +43,8 @@ from typing import Any
 
 from rich.progress import Progress, SpinnerColumn
 
-from marimba.core.metadata import BaseMetadata
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
+from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.paths import remove_directory_tree
@@ -348,7 +347,12 @@ class ProjectWrapper(LogMixin):
         Raised when an error occurs within a Marimba process.
         """
 
-    def __init__(self, root_dir: str | Path, *, dry_run: bool = False) -> None:
+    def __init__(
+        self,
+        root_dir: str | Path,
+        *,
+        dry_run: bool = False,
+    ) -> None:
         """
         Initialise the class instance.
 

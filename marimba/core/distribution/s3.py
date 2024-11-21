@@ -32,7 +32,7 @@ from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import ClientError
 from rich.progress import DownloadColumn, Progress, SpinnerColumn
 
-from marimba.core.distribution.bases import DistributionTargetBase
+from marimba.core.distribution.base import DistributionTargetBase
 from marimba.core.utils.rich import get_default_columns
 from marimba.core.wrappers.dataset import DatasetWrapper
 

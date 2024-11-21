@@ -3,11 +3,15 @@ Marimba Map Utilities.
 """
 
 from collections.abc import Iterable
-from typing import cast
+from typing import TypeVar, cast
 
 import requests
 from PIL import Image, ImageDraw, ImageFont
 from staticmap import CircleMarker, StaticMap
+
+# Type variable for comparable types
+T = TypeVar("T", bound="SupportsRichComparison")
+SupportsRichComparison = object
 
 
 class NetworkConnectionError(Exception):
@@ -76,7 +80,7 @@ def add_axes(
         draw_dashed_line((margin_x, y), (width - margin, y))
 
     # Adding lat/lon labels
-    font = ImageFont.load_default(size=16)  # Using the default font
+    font = ImageFont.load_default(size=16)
     for i in range(1, num_x_lines + 1):
         # Longitude labels (bottom)
         lon_label = f"{min_lon + (max_lon - min_lon) * i / (num_x_lines + 1):.2f}°"
@@ -91,7 +95,7 @@ def add_axes(
 
 
 def make_summary_map(
-    geolocations: Iterable[tuple[float, float]],
+    geolocations: Iterable[tuple[float | None, float | None]],
     width: int = 1920,
     height: int = 1080,
     marker_color: str = "red",
@@ -111,26 +115,37 @@ def make_summary_map(
         marker_size: Size of the markers.
         num_x_lines: Number of dashed lines on the x-axis.
         num_y_lines: Number of dashed lines on the y-axis.
-        zoom: Zoom level for the map (lower values zoom out, higher values zoom in). If None, the map will use the
-            default zoom level based on geolocations.
-
+        zoom: Zoom level for the map (lower values zoom out, higher values zoom in).
+            If None, the map will use the default zoom level based on geolocations.
 
     Returns:
         PIL image of the map, or None if no geolocations were given.
+
+    Raises:
+        NetworkConnectionError: If unable to render the map due to network issues.
     """
-    geolocations = list(geolocations)
-    if not geolocations:
+    geolocations_list = list(geolocations)
+    if not geolocations_list:
         return None
 
-    min_lat = min(lat for lat, lon in geolocations)
-    max_lat = max(lat for lat, lon in geolocations)
-    min_lon = min(lon for lat, lon in geolocations)
-    max_lon = max(lon for lat, lon in geolocations)
+    # Filter out None values and get valid coordinates
+    valid_coords = [(lat, lon) for lat, lon in geolocations_list if lat is not None and lon is not None]
+    if not valid_coords:
+        return None
+
+    # Extract latitude and longitude lists
+    lats, lons = zip(*valid_coords, strict=False)
+
+    # Compute bounds
+    min_lat = min(lats)
+    max_lat = max(lats)
+    min_lon = min(lons)
+    max_lon = max(lons)
 
     try:
         m = StaticMap(width, height, url_template="http://a.tile.osm.org/{z}/{x}/{y}.png")
 
-        for lat, lon in geolocations:
+        for lat, lon in valid_coords:
             marker = CircleMarker((lon, lat), marker_color, marker_size)
             m.add_marker(marker)
 
