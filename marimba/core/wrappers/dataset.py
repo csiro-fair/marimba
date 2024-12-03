@@ -205,6 +205,7 @@ class DatasetWrapper(LogMixin):
                 exclude_paths=[self.manifest_path, self.log_path],
                 progress=progress,
                 task=task,
+                logger=self.logger,
             ):
                 raise DatasetWrapper.ManifestError(self.manifest_path)
             self.logger.debug(f'Packaged dataset "{dataset_name}" has been successfully validated against the manifest')
@@ -789,6 +790,7 @@ class DatasetWrapper(LogMixin):
                 image_set_items=image_set_items,
                 progress=progress,
                 task=task,
+                logger=self.logger,
             )
             if not self.dry_run:
                 manifest.save(self.manifest_path)
