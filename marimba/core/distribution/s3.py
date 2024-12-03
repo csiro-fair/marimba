@@ -166,9 +166,6 @@ class S3DistributionTarget(DistributionTargetBase):
 
         Raises:
             DistributionTargetBase.DistributionError: If there is an error during the distribution process.
-
-        Returns:
-            None
         """
         try:
             return self._distribute(dataset_wrapper)

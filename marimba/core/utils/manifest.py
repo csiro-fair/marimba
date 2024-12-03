@@ -74,6 +74,7 @@ class Manifest:
         progress: Progress | None = None,
         task: TaskID | None = None,
         logger: logging.Logger | None = None,
+        max_workers: int | None = None,
     ) -> "Manifest":
         """
         Create a manifest from a directory.
@@ -89,6 +90,7 @@ class Manifest:
             progress (Progress | None): A progress bar object to monitor the manifest generation. Defaults to None.
             task (TaskID | None): A task ID associated with the progress bar. Defaults to None.
             logger (logging.Logger | None): A logger object for logging information. Defaults to None.
+            max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
 
         Returns:
             Manifest: A new Manifest object containing the processed files and their hashes.
@@ -104,7 +106,7 @@ class Manifest:
         # Create instance with the provided logger
         manifest_instance = cls({}, logger=logger)
 
-        @multithreaded()
+        @multithreaded(max_workers=max_workers)
         def process_file(
             self: Manifest,  # noqa: ARG001
             thread_num: str,  # noqa: ARG001

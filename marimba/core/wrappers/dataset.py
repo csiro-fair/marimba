@@ -107,9 +107,6 @@ class DatasetWrapper(LogMixin):
             contact_name (Optional[str]): The name of the contact person. Defaults to None.
             contact_email (Optional[str]): The email address of the contact person. Defaults to None.
             dry_run (bool): If True, the method runs in dry-run mode without making any changes. Defaults to False.
-
-        Returns:
-            None
         """
         self._root_dir = Path(root_dir)
         self._version = version
@@ -177,9 +174,6 @@ class DatasetWrapper(LogMixin):
 
         Raises:
             InvalidStructureError: if any of the required directories do not exist or is not a directory
-
-        Returns:
-            None
         """
 
         def check_dir_exists(path: Path) -> None:
@@ -232,15 +226,20 @@ class DatasetWrapper(LogMixin):
         """
         return self.data_dir / pipeline_name
 
-    def _apply_ifdo_exif_tags(self, metadata_mapping: dict[Path, tuple[ImageData, dict[str, Any] | None]]) -> None:
+    def _apply_ifdo_exif_tags(
+        self,
+        metadata_mapping: dict[Path, tuple[ImageData, dict[str, Any] | None]],
+        max_workers: int | None = None,
+    ) -> None:
         """
         Apply metadata from iFDO to the provided paths.
 
         Args:
             metadata_mapping: A dict mapping file paths to image data.
+            max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
         """
 
-        @multithreaded()
+        @multithreaded(max_workers=max_workers)
         def process_file(
             self: DatasetWrapper,
             thread_num: str,
@@ -420,6 +419,7 @@ class DatasetWrapper(LogMixin):
         pipeline_log_paths: Iterable[Path],
         operation: Operation = Operation.copy,
         zoom: int | None = None,
+        max_workers: int | None = None,
     ) -> None:
         """
         Populate the dataset with files from the given dataset mapping.
@@ -437,9 +437,7 @@ class DatasetWrapper(LogMixin):
             pipeline_log_paths: An iterable of paths to the pipeline log files.
             operation: The operation to perform on files (copy, move or link). Defaults to Operation.copy.
             zoom: The zoom level for generating the dataset map. Defaults to None.
-
-        Returns:
-            None
+            max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
 
         Raises:
             - DatasetWrapper.InvalidPathMappingError: If the provided dataset mapping is invalid.
@@ -447,20 +445,22 @@ class DatasetWrapper(LogMixin):
         pipeline_label = "pipeline" if len(dataset_mapping) == 1 else "pipelines"
         self.logger.debug(f'Creating dataset "{dataset_name}" containing {len(dataset_mapping)} {pipeline_label}')
 
-        self.check_dataset_mapping(dataset_mapping)
-        image_set_items = self._populate_files(dataset_mapping, operation)
-        self._apply_exif_metadata(dataset_mapping)
-        self.generate_ifdo(dataset_name, image_set_items)
+        self.check_dataset_mapping(dataset_mapping, max_workers)
+        image_set_items = self._populate_files(dataset_mapping, operation, max_workers)
+        self._apply_exif_metadata(dataset_mapping, max_workers)
+        self.generate_ifdo(dataset_name, image_set_items, max_workers)
+        # TODO @<cjackett>: Generate summary method currently does not use multithreading
         self.generate_dataset_summary(image_set_items)
         self._generate_dataset_map(image_set_items, zoom)
         self._copy_pipelines(project_pipelines_dir)
         self._copy_logs(project_log_path, pipeline_log_paths)
-        self._generate_manifest(image_set_items)
+        self._generate_manifest(image_set_items, max_workers)
 
     def _populate_files(
         self,
         dataset_mapping: dict[str, dict[Path, tuple[Path, list[ImageData] | None, dict[str, Any] | None]]],
         operation: Operation,
+        max_workers: int | None = None,
     ) -> dict[str, ImageData]:
         """
         Copy or move files from the dataset mapping to the destination directory.
@@ -468,12 +468,13 @@ class DatasetWrapper(LogMixin):
         Args:
             dataset_mapping: The dataset mapping containing source and destination paths.
             operation: The operation to perform (copy, move, link).
+            max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
 
         Returns:
             Dict[str, ImageData]: A dictionary of image set items for further processing.
         """
 
-        @multithreaded()
+        @multithreaded(max_workers=max_workers)
         def process_file(
             self: DatasetWrapper,
             item: tuple[Path, tuple[Path, list[ImageData] | None, dict[str, Any] | None]],
@@ -534,12 +535,14 @@ class DatasetWrapper(LogMixin):
     def _apply_exif_metadata(
         self,
         dataset_mapping: dict[str, dict[Path, tuple[Path, list[ImageData] | None, dict[str, Any] | None]]],
+        max_workers: int | None = None,
     ) -> None:
         """
         Apply EXIF metadata to the images in the dataset.
 
         Args:
             dataset_mapping: The dataset mapping containing source and destination paths.
+            max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
         """
         metadata_mapping = {}
 
@@ -551,13 +554,14 @@ class DatasetWrapper(LogMixin):
                 metadata_mapping[dst] = (image_data_list[0], ancillary_data)
 
         if not self.dry_run:
-            self._apply_ifdo_exif_tags(metadata_mapping)
+            self._apply_ifdo_exif_tags(metadata_mapping, max_workers)
         self.logger.debug(f"Applied iFDO EXIF tags to {len(metadata_mapping)} files")
 
     def generate_ifdo(
         self,
         dataset_name: str,
         image_set_items: dict[str, ImageData],
+        max_workers: int | None = None,
         *,
         progress: bool = True,
     ) -> None:
@@ -571,17 +575,15 @@ class DatasetWrapper(LogMixin):
         Args:
             dataset_name: A string representing the name of the dataset.
             image_set_items: A dictionary mapping image paths to ImageData objects containing metadata for each image.
+            max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
             progress: A boolean indicating whether to display a progress bar during execution. Defaults to True.
-
-        Returns:
-            None
 
         Raises:
             - IOError: If there are issues reading image files or writing the iFDO to disk.
             - ValueError: If the input data is invalid or missing required information.
         """
 
-        @multithreaded()
+        @multithreaded(max_workers=max_workers)
         def hash_image(
             self: DatasetWrapper,
             thread_num: str,  # noqa: ARG001
@@ -775,7 +777,11 @@ class DatasetWrapper(LogMixin):
             self.logger.debug(f"Copied project pipelines to {self.pipelines_dir}")
             progress.advance(task)
 
-    def _generate_manifest(self, image_set_items: dict[str, ImageData]) -> None:
+    def _generate_manifest(
+        self,
+        image_set_items: dict[str, ImageData],
+        max_workers: int | None = None,
+    ) -> None:
         """
         Generate and save the manifest for the dataset, excluding certain paths.
 
@@ -791,6 +797,7 @@ class DatasetWrapper(LogMixin):
                 progress=progress,
                 task=task,
                 logger=self.logger,
+                max_workers=max_workers,
             )
             if not self.dry_run:
                 manifest.save(self.manifest_path)
@@ -953,12 +960,14 @@ class DatasetWrapper(LogMixin):
     def check_dataset_mapping(
         self,
         dataset_mapping: dict[str, dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]]],
+        max_workers: int | None = None,
     ) -> None:
         """
         Verify that the given dataset mapping is valid.
 
         Args:
             dataset_mapping: A mapping from source paths to destination paths and metadata.
+            max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
 
         Raises:
             DatasetWrapper.InvalidDatasetMappingError: If the path mapping is invalid.
@@ -971,10 +980,10 @@ class DatasetWrapper(LogMixin):
             task = progress.add_task("[green]Checking dataset mapping (2/11)", total=total_tasks)
 
             for pipeline_data_mapping in dataset_mapping.values():
-                self._verify_source_paths_exist(pipeline_data_mapping, progress, task)
-                self._verify_unique_source_resolutions(pipeline_data_mapping, progress, task)
-                self._verify_relative_destination_paths(pipeline_data_mapping, progress, task)
-                self._verify_no_destination_collisions(pipeline_data_mapping, progress, task)
+                self._verify_source_paths_exist(pipeline_data_mapping, progress, task, max_workers)
+                self._verify_unique_source_resolutions(pipeline_data_mapping, progress, task, max_workers)
+                self._verify_relative_destination_paths(pipeline_data_mapping, progress, task, max_workers)
+                self._verify_no_destination_collisions(pipeline_data_mapping, progress, task, max_workers)
 
         self.logger.debug("Dataset mapping is valid")
 
@@ -983,8 +992,9 @@ class DatasetWrapper(LogMixin):
         pipeline_data_mapping: dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
         progress: Progress,
         task: TaskID,
+        max_workers: int | None = None,
     ) -> None:
-        @multithreaded()
+        @multithreaded(max_workers=max_workers)
         def verify_path(
             self: DatasetWrapper,  # noqa: ARG001
             thread_num: str,  # noqa: ARG001
@@ -1009,10 +1019,11 @@ class DatasetWrapper(LogMixin):
         pipeline_data_mapping: dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
         progress: Progress,
         task: TaskID,
+        max_workers: int | None = None,
     ) -> None:
         reverse_src_resolution: dict[Path, Path] = {}
 
-        @multithreaded()
+        @multithreaded(max_workers=max_workers)
         def verify_resolution(
             self: DatasetWrapper,  # noqa: ARG001
             thread_num: str,  # noqa: ARG001
@@ -1043,10 +1054,11 @@ class DatasetWrapper(LogMixin):
         pipeline_data_mapping: dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
         progress: Progress,
         task: TaskID,
+        max_workers: int | None = None,
     ) -> None:
         destinations = [dst for dst, _, _ in pipeline_data_mapping.values()]
 
-        @multithreaded()
+        @multithreaded(max_workers=max_workers)
         def verify_destination_path(
             self: DatasetWrapper,  # noqa: ARG001
             thread_num: str,  # noqa: ARG001
@@ -1071,12 +1083,13 @@ class DatasetWrapper(LogMixin):
         pipeline_data_mapping: dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
         progress: Progress,
         task: TaskID,
+        max_workers: int | None = None,
     ) -> None:
         reverse_mapping: dict[Path, Path] = {
             dst.resolve(): src for src, (dst, _, _) in pipeline_data_mapping.items() if dst is not None
         }
 
-        @multithreaded()
+        @multithreaded(max_workers=max_workers)
         def verify_no_collision(
             self: DatasetWrapper,  # noqa: ARG001
             thread_num: str,  # noqa: ARG001
