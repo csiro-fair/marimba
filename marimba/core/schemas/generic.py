@@ -153,13 +153,13 @@ class GenericMetadata(BaseMetadata):
         return cast(list[str], value)
 
     @property
-    def hash_sha256(self) -> bytes | None:
-        """SHA256 hash of the associated file."""
+    def hash_sha256(self) -> str | None:
+        """SHA256 hash of the associated file as a hexadecimal string."""
         value = self._data.get("hash_sha256")
-        return cast(bytes | None, value)
+        return cast(str | None, value)
 
     @hash_sha256.setter
-    def hash_sha256(self, value: bytes) -> None:
+    def hash_sha256(self, value: str | None) -> None:
         """Set the SHA256 hash of the associated file."""
         self._data["hash_sha256"] = value
 
@@ -167,7 +167,7 @@ class GenericMetadata(BaseMetadata):
         """Format the hash value as a hexadecimal string."""
         if self.hash_sha256 is None:
             return None
-        return self.hash_sha256.hex()
+        return self.hash_sha256
 
     @classmethod
     def create_dataset_metadata(

@@ -36,10 +36,10 @@ class Manifest:
     Dataset manifest. Used to validate datasets to check if the underlying data has been corrupted or modified.
     """
 
-    hashes: dict[Path, bytes]
+    hashes: dict[Path, str]
 
     @staticmethod
-    def compute_hash(path: Path) -> bytes:
+    def compute_hash(path: Path) -> str:
         """
         Compute the hash of a path.
 
@@ -61,7 +61,7 @@ class Manifest:
         # Hash the path
         file_hash.update(str(path.as_posix()).encode("utf-8"))
 
-        return file_hash.digest()
+        return file_hash.hexdigest()
 
     @classmethod
     def from_dir(
@@ -93,7 +93,7 @@ class Manifest:
             OSError: If there are issues accessing files or directories.
             ValueError: If the provided directory is invalid or doesn't exist.
         """
-        hashes: dict[Path, bytes] = {}
+        hashes: dict[Path, str] = {}
         exclude_paths = set(exclude_paths) if exclude_paths is not None else set()
         globbed_files = list(directory.glob("**/*"))
 
@@ -104,7 +104,7 @@ class Manifest:
             item: Path,
             directory: Path,
             exclude_paths: Iterable[Path] | None,
-            hashes: dict[Path, bytes],
+            hashes: dict[Path, str],
             dataset_items: dict[str, list[BaseMetadata]] | None = None,
             progress: Progress | None = None,
             task: TaskID | None = None,
@@ -203,7 +203,7 @@ class Manifest:
         """
         with path.open("w") as f:
             for file_path, file_hash in self.hashes.items():
-                f.write(f"{file_path.as_posix()}:{file_hash.hex()}\n")
+                f.write(f"{file_path.as_posix()}:{file_hash}\n")
 
     @classmethod
     def load(cls, path: Path) -> "Manifest":
@@ -220,6 +220,6 @@ class Manifest:
         with path.open("r") as f:
             for line in f:
                 if line:
-                    path_str, hash_str = line.split(":")
-                    hashes[Path(path_str)] = bytes.fromhex(hash_str)
+                    path_str, hash_str = line.strip().split(":")
+                    hashes[Path(path_str)] = hash_str
         return cls(hashes)

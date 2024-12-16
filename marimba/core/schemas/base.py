@@ -60,13 +60,13 @@ class BaseMetadata(ABC):
 
     @property
     @abstractmethod
-    def hash_sha256(self) -> bytes | None:
+    def hash_sha256(self) -> str | None:
         """SHA256 hash of the associated file."""
         raise NotImplementedError
 
     @hash_sha256.setter
     @abstractmethod
-    def hash_sha256(self, value: bytes) -> None:
+    def hash_sha256(self, value: str) -> None:
         """Set the SHA256 hash of the associated file."""
         raise NotImplementedError
 

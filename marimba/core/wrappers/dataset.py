@@ -483,7 +483,7 @@ class DatasetWrapper(LogMixin):
                 dry_run=self.dry_run,
             )
 
-    def _calculate_file_hash(self, file_path: Path) -> bytes:
+    def _calculate_file_hash(self, file_path: Path) -> str:
         """Calculate SHA256 hash for a file."""
         file_hash = hashlib.sha256()
         with file_path.open("rb") as f:
@@ -492,7 +492,7 @@ class DatasetWrapper(LogMixin):
                 if not chunk:
                     break
                 file_hash.update(chunk)
-        return file_hash.digest()
+        return file_hash.hexdigest()
 
     def _update_metadata_hashes(
         self,
