@@ -11,7 +11,8 @@ exclude = [
     "build",
     "dist",
     "temp",
-    "tests",
+    "tests/**/*",
+    "docs/**/*",
 ]
 
 # Enable all rules by default

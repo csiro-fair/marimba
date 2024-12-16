@@ -49,6 +49,7 @@ from marimba.core.utils.rich import (
     format_command,
     format_entity,
     success_panel,
+    warning_panel,
 )
 from marimba.core.wrappers.project import ProjectWrapper
 from marimba.core.wrappers.target import DistributionTargetWrapper
@@ -175,14 +176,25 @@ def pipeline(
         raise typer.Exit(code=1) from e
 
     # Configure the pipeline from the command line
-    pipeline_config = pipeline_wrapper.prompt_pipeline_config(config_dict)
-    pipeline_wrapper.save_config(pipeline_config)
+    pipeline_config = pipeline_wrapper.prompt_pipeline_config(config_dict, allow_empty=True)
+    if pipeline_config is not None:
+        pipeline_wrapper.save_config(pipeline_config)
 
-    print(
-        success_panel(
-            f'Created new {MARIMBA} {format_entity("pipeline")} "{pipeline_name}" at: "{pipeline_wrapper.root_dir}"',
-        ),
-    )
+    # Use warning panel if no pipeline implementation found
+    if pipeline_config is None:
+        print(
+            warning_panel(
+                f'Repository cloned at "{pipeline_wrapper.root_dir}", but no Pipeline implementation found. '
+                f'Add a Pipeline implementation before using "{pipeline_name}" to process data.',
+            ),
+        )
+    else:
+        print(
+            success_panel(
+                f'Created new {MARIMBA} {format_entity("pipeline")} "{pipeline_name}" at: '
+                f'"{pipeline_wrapper.root_dir}"',
+            ),
+        )
 
 
 @app.command()

@@ -215,7 +215,7 @@ class PipelineWrapper(LogMixin):
         if config:
             save_config(self.config_path, config)
 
-    def get_instance(self) -> BasePipeline:
+    def get_instance(self, *, allow_empty: bool = False) -> BasePipeline | None:
         """
         Get the pipeline instance.
 
@@ -233,6 +233,8 @@ class PipelineWrapper(LogMixin):
             self.name,
             self.config_path,
             self.dry_run,
+            log_string_prefix=None,
+            allow_empty=allow_empty,
         )
 
     def get_pipeline_class(self) -> type[BasePipeline] | None:
@@ -301,7 +303,9 @@ class PipelineWrapper(LogMixin):
     def prompt_pipeline_config(
         self,
         config: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+        *,
+        allow_empty: bool = False,
+    ) -> dict[str, Any] | None:
         """
         Prompt for and process pipeline configuration.
 
@@ -310,18 +314,23 @@ class PipelineWrapper(LogMixin):
 
         Args:
             config (Optional[Dict]): Existing pipeline configuration. If provided, it will be used to pre-fill
-            the configuration dictionary.
+             the configuration dictionary.
+            allow_empty: If True, allow empty pipeline repositories and return None instead of raising an error.
 
         Returns:
-            Dict[Any, Any]: A dictionary containing the final pipeline configuration after merging existing config
-            and user input.
+            Dict[Any, Any] or None: A dictionary containing the final pipeline configuration after merging existing
+             config and user input. Returns None if the pipeline is empty and allow_empty is True.
 
         Raises:
             ValueError: If the pipeline instance or configuration schema cannot be retrieved.
             TypeError: If the provided config is not a dictionary.
 
         """
-        pipeline = self.get_instance()
+        pipeline = self.get_instance(allow_empty=allow_empty)
+        if pipeline is None:
+            # Return None for empty pipelines when allow_empty=True
+            return None
+
         pipeline_config_schema = pipeline.get_pipeline_config_schema()
 
         # Prepopulate collection_config with values from provided config

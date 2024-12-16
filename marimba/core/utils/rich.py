@@ -45,6 +45,20 @@ def success_panel(message: str, title: str = "Success") -> Panel:
     return Panel(message, title=title, title_align="left", border_style="green")
 
 
+def warning_panel(message: str, title: str = "Warning") -> Panel:
+    """
+    Create a warning panel.
+
+    Args:
+        message: The message to display.
+        title: The title of the panel.
+
+    Returns:
+        A warning panel with a yellow border.
+    """
+    return Panel(message, title=title, title_align="left", border_style="yellow")
+
+
 def error_panel(message: str, title: str = "Error") -> Panel:
     """
     Create an error panel.

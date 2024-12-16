@@ -112,9 +112,6 @@ def execute_import(
     """
     Execute the import process for a specified pipeline.
 
-    This function loads a pipeline instance, runs the import process, and measures the execution time. It handles
-    various configuration parameters and supports dry run mode for testing purposes.
-
     Args:
         pipeline_name (str): The name of the pipeline to be executed.
         root_dir (Path): The root directory of the pipeline.
@@ -128,12 +125,10 @@ def execute_import(
         merged_kwargs (dict[str, Any]): Additional keyword arguments to be passed to the import process.
 
     Returns:
-        str: A message indicating the completion of the import process and the elapsed time in seconds.
+        str: A message indicating the completion of the import process and the elapsed time.
 
     Raises:
-        ValueError: If any of the required parameters are missing or invalid.
-        ImportError: If the specified pipeline module cannot be loaded.
-        RuntimeError: If an error occurs during the import process.
+        RuntimeError: If pipeline instance cannot be loaded or is invalid.
     """
     start_import_time = time.time()
 
@@ -146,6 +141,9 @@ def execute_import(
         dry_run,
         log_string_prefix,
     )
+
+    if pipeline_instance is None:
+        raise RuntimeError(f"{log_string_prefix} - Failed to load pipeline instance for {pipeline_name}")
 
     # Run the import method
     pipeline_instance.run_import(collection_data_dir, source_path, collection_config, **merged_kwargs)
@@ -179,15 +177,18 @@ def execute_process(
         root_dir (Path): The root directory of the pipeline.
         repo_dir (Path): The directory of the pipeline repository.
         config_path (Path): The configuration file path.
-        dry_run (bool): Flag indicating if the command should be run in dry run mode.
         collection_name (str): The name of the collection.
         collection_data_dir (Path): The directory where collection data will be stored.
-        collection_config (Dict[str, Any]): Additional configuration for the collection process.
+        collection_config (dict[str, Any]): Additional configuration for the collection process.
+        dry_run (bool): Flag indicating if the command should be run in dry run mode.
         log_string_prefix (str): A prefix to be added to log messages for easier identification.
-        merged_kwargs (Dict[str, Any]): Additional keyword arguments to be passed to the command.
+        merged_kwargs (dict[str, Any]): Additional keyword arguments to be passed to the command.
 
     Returns:
-        str: A message indicating the completion of the command execution and the elapsed time in seconds.
+        str: A message indicating the completion of the command execution.
+
+    Raises:
+        RuntimeError: If pipeline instance cannot be loaded or is invalid.
     """
     start_command_time = time.time()
 
@@ -200,6 +201,9 @@ def execute_process(
         dry_run,
         log_string_prefix,
     )
+
+    if pipeline_instance is None:
+        raise RuntimeError(f"{log_string_prefix} - Failed to load pipeline instance for {pipeline_name}")
 
     # Run the process method
     pipeline_instance.run_process(collection_data_dir, collection_config, **merged_kwargs)
@@ -237,11 +241,14 @@ def execute_packaging(
         collection_config: The configuration for the collection.
         config_path: The configuration file path.
         dry_run: Flag indicating if the package should be run in dry run mode.
-        log_string_prefix (str): A prefix to be added to log messages for easier identification.
+        log_string_prefix: A prefix to be added to log messages for easier identification.
         merged_kwargs: Additional keyword arguments to be passed to the package process.
 
     Returns:
-        A dictionary mapping output file paths to tuples of input file paths, image data, and additional data.
+        A tuple containing the pipeline data mapping and a completion message.
+
+    Raises:
+        RuntimeError: If pipeline instance cannot be loaded or is invalid.
     """
     start_package_time = time.time()
 
@@ -254,6 +261,9 @@ def execute_packaging(
         dry_run,
         log_string_prefix,
     )
+
+    if pipeline_instance is None:
+        raise RuntimeError(f"{log_string_prefix} - Failed to load pipeline instance for {pipeline_name}")
 
     # Run the package method
     pipeline_data_mapping = pipeline_instance.run_package(collection_data_dir, collection_config, **merged_kwargs)
@@ -1340,9 +1350,14 @@ class ProjectWrapper(LogMixin):
 
     def _get_unified_collection_schema(self) -> dict[str, Any]:
         """Aggregate collection config schemas from all pipelines in the project."""
-        schema = {}
+        schema: dict[str, Any] = {}
         for pipeline_wrapper in self.pipeline_wrappers.values():
             pipeline = pipeline_wrapper.get_instance()
+            if pipeline is None:
+                raise RuntimeError(
+                    f"Failed to load pipeline instance for '{pipeline_wrapper.name}'. "
+                    "Pipeline may be invalid or empty.",
+                )
             schema.update(pipeline.get_collection_config_schema())
         return schema
 

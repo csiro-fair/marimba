@@ -10,8 +10,8 @@ repos:
         entry: poetry run ruff check
         language: system
         types: [ python ]
-        args: [ "--fix", "--config=./config/.ruff.toml" ]
-        exclude: ^tests/.*$
+        args: [ "--fix", "--config=config/.ruff.toml" ]
+        exclude: ^tests/|^docs/
 
       - id: black
         name: Black
@@ -20,40 +20,12 @@ repos:
         types: [ python ]
         args: [ "--line-length", "120" ]
 
-#      - id: isort
-#        name: isort
-#        entry: poetry run isort
-#        language: system
-#        types: [ python ]
-#        args: [ '--settings-path=config/.isort.cfg' ]
-
       - id: mypy
         name: Mypy
         entry: poetry run mypy
         language: system
         types: [ python ]
         args: [ '--config-file', 'config/mypy.ini' ]
-
-#      - id: flake8
-#        name: Flake8
-#        entry: poetry run flake8
-#        language: system
-#        types: [ python ]
-#        args: [ '--config=config/.flake8' ]
-
-#      - id: pylint
-#        name: Pylint
-#        entry: poetry run pylint
-#        language: system
-#        types: [python]
-#        args: ['--rcfile=config/.pylintrc']
-
-#      - id: pydocstyle
-#        name: Pydocstyle
-#        entry: poetry run pydocstyle
-#        language: system
-#        types: [ python ]
-#        args: [ '--config=config/.pydocstyle' ]
 
       - id: bandit
         name: Bandit
@@ -62,10 +34,10 @@ repos:
         types: [ python ]
         args: [ '--config', 'config/bandit.yml', '--severity-level', 'medium' ]
 
-      # Note: The confcutdir argument doesn't appear to work, requiring the tests directory to be specified here
       - id: pytest
         name: Pytest
         entry: poetry run pytest
         language: system
         types: [ python ]
-        args: [ "--confcutdir=config", "tests" ]
+        pass_filenames: false
+        args: [ '--rootdir', '.', '-c', 'config/pytest.ini' ]
