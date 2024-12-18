@@ -370,10 +370,29 @@ class DatasetWrapper(LogMixin):
             exif_dict: The EXIF metadata dictionary.
         """
         image_file = Image.open(path)
-        thumbnail_size = (320, 240)
-        image_file.thumbnail(thumbnail_size)  # type: ignore[no-untyped-call]
+
+        # Create a copy for the thumbnail to avoid modifying original
+        thumb = image_file.copy()
+
+        # Set max dimension to 300px - aspect ratio will be maintained
+        thumbnail_size = (300, 300)
+
+        # Use LANCZOS resampling for better quality
+        thumb.thumbnail(thumbnail_size, Image.Resampling.LANCZOS)
+
+        # Convert to RGB if not already
+        if thumb.mode != "RGB":
+            thumb = thumb.convert("RGB")
+
         thumbnail_io = io.BytesIO()
-        image_file.save(thumbnail_io, format="JPEG", quality=90)
+        thumb.save(
+            thumbnail_io,
+            format="JPEG",
+            quality=70,
+            optimize=True,
+            progressive=False,
+        )
+
         exif_dict["thumbnail"] = thumbnail_io.getvalue()
         return image_file
 
