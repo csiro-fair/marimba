@@ -60,6 +60,7 @@ class ImagerySummary:
     image_color_depth: str = ""
     image_latitude_extent: str = ""
     image_longitude_extent: str = ""
+    image_depth_extent: str = ""
     image_temporal_extent: str = ""
     image_unique_directories: int = 0
     image_licenses: str = ""
@@ -76,6 +77,7 @@ class ImagerySummary:
     video_encoding_details: str = ""
     video_latitude_extent: str = ""
     video_longitude_extent: str = ""
+    video_depth_extent: str = ""
     video_temporal_extent: str = ""
     video_unique_directories: int = 0
     video_licenses: str = ""
@@ -685,6 +687,7 @@ class ImagerySummary:
             "image_color_depth": str,
             "image_latitude_extent": str,
             "image_longitude_extent": str,
+            "image_depth_extent": str,
             "image_temporal_extent": str,
             "image_unique_directories": int,
             "image_licenses": str,
@@ -700,6 +703,7 @@ class ImagerySummary:
             "video_encoding_details": str,
             "video_latitude_extent": str,
             "video_longitude_extent": str,
+            "video_depth_extent": str,
             "video_temporal_extent": str,
             "video_unique_directories": int,
             "video_licenses": str,
@@ -791,6 +795,7 @@ class ImagerySummary:
                 "type": path.suffix.lower().replace(".", ""),
                 "lat": image_info.latitude,
                 "lon": image_info.longitude,
+                "depth": image_info.altitude,
                 "datetime": image_info.datetime,
                 "directory": path.parent,
             },
@@ -803,8 +808,9 @@ class ImagerySummary:
                 "path": path,
                 "size": path.stat().st_size,
                 "type": path.suffix.lower().replace(".", ""),
-                "lat": getattr(image_info, "image_latitude", None),
-                "lon": getattr(image_info, "image_longitude", None),
+                "lat": image_info.latitude,
+                "lon": image_info.longitude,
+                "depth": image_info.altitude,
                 "datetime": image_info.datetime,
                 "directory": path.parent,
                 "is_corrupt": cls.is_video_corrupt_quick(str(path)),
@@ -906,10 +912,16 @@ class ImagerySummary:
             data = image_data if data_type == "image" else video_data
             lats = [file["lat"] for file in data["files"] if file["lat"] is not None]
             lons = [file["lon"] for file in data["files"] if file["lon"] is not None]
+            depths = [file["depth"] for file in data["files"] if file["depth"] is not None]
             datetimes = [file["datetime"] for file in data["files"] if file["datetime"] is not None]
 
             setattr(summary, f"{data_type}_latitude_extent", f"{min(lats):.3f} to {max(lats):.3f}" if lats else "N/A")
             setattr(summary, f"{data_type}_longitude_extent", f"{min(lons):.3f} to {max(lons):.3f}" if lons else "N/A")
+            setattr(
+                summary,
+                f"{data_type}_depth_extent",
+                f"{min(depths):.1f}m to {max(depths):.1f}m" if depths else "N/A",
+            )
             setattr(
                 summary,
                 f"{data_type}_temporal_extent",
@@ -955,6 +967,7 @@ class ImagerySummary:
             [image_color_depth_label, self.image_color_depth],
             ["Latitude Extent", self.image_latitude_extent],
             ["Longitude Extent", self.image_longitude_extent],
+            ["Depth Extent", self.image_depth_extent],
             ["Temporal Extent", self.image_temporal_extent],
             ["Unique Image Directories", str(self.image_unique_directories)],
             [image_licenses_label, self.image_licenses],
@@ -981,6 +994,7 @@ class ImagerySummary:
             [video_frame_rate_label, self.video_frame_rate],
             ["Latitude Extent", self.video_latitude_extent],
             ["Longitude Extent", self.video_longitude_extent],
+            ["Depth Extent", self.video_depth_extent],
             ["Temporal Extent", self.video_temporal_extent],
             ["Unique Video Directories", str(self.video_unique_directories)],
             [video_licenses_label, self.video_licenses],
