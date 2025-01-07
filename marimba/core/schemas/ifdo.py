@@ -180,6 +180,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
     def process_files(
         cls,
         dataset_mapping: dict[Path, tuple[list["BaseMetadata"], dict[str, Any] | None]],
+        max_workers: int | None = None,
         *,
         dry_run: bool = False,
     ) -> None:
@@ -187,7 +188,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         if dry_run:
             return
 
-        @multithreaded()
+        @multithreaded(max_workers)
         def process_file(
             cls: type["iFDOMetadata"],
             thread_num: str,

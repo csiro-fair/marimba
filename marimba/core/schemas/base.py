@@ -88,6 +88,7 @@ class BaseMetadata(ABC):
     def process_files(
         cls,
         dataset_mapping: dict[Path, tuple[list["BaseMetadata"], dict[str, Any] | None]],
+        max_workers: int | None = None,
         *,
         dry_run: bool = False,
     ) -> None:

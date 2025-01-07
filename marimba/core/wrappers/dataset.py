@@ -18,6 +18,10 @@ Imports:
     - shutil: High-level file operations.
     - textwrap.dedent: Remove any common leading whitespace from every line.
     - typing: Type hints for function signatures and variables.
+    - uuid: Generate unique identifiers.
+    - piexif: Library to insert and extract EXIF metadata from images.
+    - ifdo.models: Data models for images.
+    - PIL.Image: Python Imaging Library for opening, manipulating, and saving image files.
     - rich.progress: Utilities for creating progress bars.
     - marimba.core.utils.log: Utilities for logging.
     - marimba.core.utils.map: Utility for creating summary maps.
@@ -26,18 +30,27 @@ Imports:
     - marimba.lib.gps: Utility for GPS coordinate conversion.
 
 Classes:
+    - ImagerySummary: A summary of an imagery collection.
+    - Manifest: A dataset manifest used to validate datasets for corruption or modification.
     - DatasetWrapper: A wrapper class for handling dataset directories.
 """
 
 import hashlib
+import io
+import json
 import os
 from collections import OrderedDict
 from collections.abc import Iterable
+from datetime import timezone
+from fractions import Fraction
 from math import isnan
 from pathlib import Path
 from shutil import copy2, copytree, ignore_patterns
 from typing import Any
 
+import piexif
+from ifdo.models import ImageData
+from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
@@ -47,7 +60,9 @@ from marimba.core.utils.manifest import Manifest
 from marimba.core.utils.map import make_summary_map
 from marimba.core.utils.rich import get_default_columns
 from marimba.core.utils.summary import ImagerySummary
+from marimba.lib import image
 from marimba.lib.decorators import multithreaded
+from marimba.lib.gps import convert_degrees_to_gps_coordinate
 
 
 class DatasetWrapper(LogMixin):
@@ -92,9 +107,6 @@ class DatasetWrapper(LogMixin):
             contact_name (Optional[str]): The name of the contact person. Defaults to None.
             contact_email (Optional[str]): The email address of the contact person. Defaults to None.
             dry_run (bool): If True, the method runs in dry-run mode without making any changes. Defaults to False.
-
-        Returns:
-            None
         """
         self._root_dir = Path(root_dir)
         self._version = version
@@ -278,9 +290,6 @@ class DatasetWrapper(LogMixin):
 
         Raises:
             InvalidStructureError: if any of the required directories do not exist or is not a directory
-
-        Returns:
-            None
         """
 
         def check_dir_exists(path: Path) -> None:
@@ -306,6 +315,7 @@ class DatasetWrapper(LogMixin):
                 exclude_paths=[self.manifest_path, self.log_path],
                 progress=progress,
                 task=task,
+                logger=self.logger,
             ):
                 raise DatasetWrapper.ManifestError(self.manifest_path)
             self.logger.debug(f'Packaged dataset "{dataset_name}" has been successfully validated against the manifest')
@@ -332,6 +342,209 @@ class DatasetWrapper(LogMixin):
         """
         return self.data_dir / pipeline_name
 
+    def _apply_ifdo_exif_tags(
+        self,
+        metadata_mapping: dict[Path, tuple[ImageData, dict[str, Any] | None]],
+        max_workers: int | None = None,
+    ) -> None:
+        """
+        Apply metadata from iFDO to the provided paths.
+
+        Args:
+            metadata_mapping: A dict mapping file paths to image data.
+            max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
+        """
+
+        @multithreaded(max_workers=max_workers)
+        def process_file(
+            self: DatasetWrapper,
+            thread_num: str,
+            item: tuple[Path, tuple[ImageData, dict[str, Any] | None]],
+            progress: Progress | None = None,
+            task: TaskID | None = None,
+        ) -> None:
+            path, (image_data, ancillary_data) = item
+            if path.suffix.lower() in {".jpg", ".jpeg", ".png"}:
+                self._process_image_file(path, image_data, ancillary_data, thread_num)
+
+            if progress and task is not None:
+                progress.advance(task)
+
+        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
+            task = progress.add_task("[green]Applying iFDO metadata to files (4/11)", total=len(metadata_mapping))
+            process_file(self, items=metadata_mapping.items(), progress=progress, task=task)  # type: ignore[call-arg]
+
+    def _process_image_file(
+        self,
+        path: Path,
+        image_data: ImageData,
+        ancillary_data: dict[str, Any] | None,
+        thread_num: str,
+    ) -> None:
+        try:
+            exif_dict = piexif.load(str(path))
+        except piexif.InvalidImageDataError as e:
+            self.logger.warning(f"Failed to load EXIF metadata from {path}: {e}")
+            return
+
+        self._inject_datetime(image_data, exif_dict)
+        self._inject_gps_coordinates(image_data, exif_dict)
+        image_file = self._add_thumbnail(path, exif_dict)
+        self._extract_image_properties(image_file, image_data)
+        self._burn_in_exif_metadata(image_data, ancillary_data, exif_dict)
+
+        try:
+            exif_bytes = piexif.dump(exif_dict)
+            piexif.insert(exif_bytes, str(path))
+            self.logger.debug(f"Thread {thread_num} | Applied iFDO metadata to EXIF tags for image {path}")
+        except piexif.InvalidImageDataError:
+            self.logger.warning(f"Failed to write EXIF metadata to {path}")
+
+    def _prepare_metadata(self, image_data: ImageData, ancillary_data: dict[str, Any] | None) -> dict[str, str]:
+        metadata = {}
+
+        if image_data.image_datetime is not None:
+            dt = image_data.image_datetime
+            metadata["CreateDate"] = dt.strftime("%Y:%m:%d %H:%M:%S")
+            metadata["ModifyDate"] = dt.strftime("%Y:%m:%d %H:%M:%S")
+
+        if image_data.image_latitude is not None and image_data.image_longitude is not None:
+            metadata["GPSLatitude"] = image_data.image_latitude
+            metadata["GPSLongitude"] = image_data.image_longitude
+            metadata["GPSLatitudeRef"] = "N" if image_data.image_latitude > 0 else "S"
+            metadata["GPSLongitudeRef"] = "E" if image_data.image_longitude > 0 else "W"
+
+        image_data_dict = image_data.to_dict()
+        user_comment_data = {"metadata": {"ifdo": image_data_dict, "ancillary": ancillary_data}}
+        user_comment_json = json.dumps(user_comment_data)
+        metadata["UserComment"] = user_comment_json
+
+        return metadata
+
+    @staticmethod
+    def _inject_datetime(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
+        """
+        Inject datetime information into EXIF metadata.
+
+        Args:
+            image_data: The image data containing datetime information.
+            exif_dict: The EXIF metadata dictionary.
+        """
+        if image_data.image_datetime is not None:
+            dt = image_data.image_datetime
+            offset_str = None
+            if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
+                dt = dt.astimezone(timezone.utc)
+                offset_str = "+00:00"
+
+            datetime_str = dt.strftime("%Y:%m:%d %H:%M:%S")
+            subsec_str = str(dt.microsecond)
+
+            ifd_0th = exif_dict["0th"]
+            ifd_exif = exif_dict["Exif"]
+
+            ifd_0th[piexif.ImageIFD.DateTime] = datetime_str
+            ifd_exif[piexif.ExifIFD.DateTimeOriginal] = datetime_str
+            ifd_exif[piexif.ExifIFD.SubSecTime] = subsec_str
+            ifd_exif[piexif.ExifIFD.SubSecTimeOriginal] = subsec_str
+            if offset_str is not None:
+                ifd_exif[piexif.ExifIFD.OffsetTime] = offset_str
+                ifd_exif[piexif.ExifIFD.OffsetTimeOriginal] = offset_str
+
+    @staticmethod
+    def _inject_gps_coordinates(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
+        """
+        Inject GPS coordinates into EXIF metadata.
+
+        Args:
+            image_data: The image data containing GPS information.
+            exif_dict: The EXIF metadata dictionary.
+        """
+        ifd_gps = exif_dict["GPS"]
+
+        if image_data.image_latitude is not None:
+            d_lat, m_lat, s_lat = convert_degrees_to_gps_coordinate(image_data.image_latitude)
+            ifd_gps[piexif.GPSIFD.GPSLatitude] = ((d_lat, 1), (m_lat, 1), (s_lat, 1000))
+            ifd_gps[piexif.GPSIFD.GPSLatitudeRef] = "N" if image_data.image_latitude > 0 else "S"
+        if image_data.image_longitude is not None:
+            d_lon, m_lon, s_lon = convert_degrees_to_gps_coordinate(image_data.image_longitude)
+            ifd_gps[piexif.GPSIFD.GPSLongitude] = ((d_lon, 1), (m_lon, 1), (s_lon, 1000))
+            ifd_gps[piexif.GPSIFD.GPSLongitudeRef] = "E" if image_data.image_longitude > 0 else "W"
+        if image_data.image_altitude_meters is not None:
+            altitude_fraction = Fraction(abs(float(image_data.image_altitude_meters))).limit_denominator()
+            altitude_rational = (altitude_fraction.numerator, altitude_fraction.denominator)
+            ifd_gps[piexif.GPSIFD.GPSAltitude] = altitude_rational
+            ifd_gps[piexif.GPSIFD.GPSAltitudeRef] = 0 if image_data.image_altitude_meters >= 0 else 1
+
+    @staticmethod
+    def _add_thumbnail(path: Path, exif_dict: dict[str, Any]) -> Image.Image:
+        """
+        Add a thumbnail to the EXIF metadata.
+
+        Args:
+            path: The path to the image file.
+            exif_dict: The EXIF metadata dictionary.
+        """
+        image_file = Image.open(path)
+
+        # Create a copy for the thumbnail to avoid modifying original
+        thumb = image_file.copy()
+
+        # Set max dimension to 300px - aspect ratio will be maintained
+        thumbnail_size = (300, 300)
+
+        # Use LANCZOS resampling for better quality
+        thumb.thumbnail(thumbnail_size, Image.Resampling.LANCZOS)
+
+        # Convert to RGB if not already
+        if thumb.mode != "RGB":
+            thumb = thumb.convert("RGB")
+
+        thumbnail_io = io.BytesIO()
+        thumb.save(
+            thumbnail_io,
+            format="JPEG",
+            quality=70,
+            optimize=True,
+            progressive=False,
+        )
+
+        exif_dict["thumbnail"] = thumbnail_io.getvalue()
+        return image_file
+
+    @staticmethod
+    def _extract_image_properties(image_file: Image.Image, image_data: ImageData) -> None:
+        """
+        Extract image properties and update the image data.
+
+        Args:
+            image_file: The PIL Image object from which to extract properties.
+            image_data: The ImageData object to update with extracted properties.
+        """
+        # Inject the image entropy and average image color into the iFDO
+        image_data.image_entropy = image.get_shannon_entropy(image_file)
+        image_data.image_average_color = image.get_average_image_color(image_file)
+
+    @staticmethod
+    def _burn_in_exif_metadata(
+        image_data: ImageData,
+        ancillary_data: dict[str, Any] | None,
+        exif_dict: dict[str, Any],
+    ) -> None:
+        """
+        Add a user comment with iFDO metadata to the EXIF metadata.
+
+        Args:
+            image_data: The image data to include in the user comment.
+            ancillary_data: Any ancillary data to include in the user comment.
+            exif_dict: The EXIF metadata dictionary.
+        """
+        image_data_dict = image_data.to_dict()
+        user_comment_data = {"metadata": {"ifdo": image_data_dict, "ancillary": ancillary_data}}
+        user_comment_json = json.dumps(user_comment_data)
+        user_comment_bytes = user_comment_json.encode("utf-8")
+        exif_dict["Exif"][piexif.ExifIFD.UserComment] = user_comment_bytes
+
     def populate(
         self,
         dataset_name: str,
@@ -341,6 +554,7 @@ class DatasetWrapper(LogMixin):
         pipeline_log_paths: Iterable[Path],
         operation: Operation = Operation.copy,
         zoom: int | None = None,
+        max_workers: int | None = None,
     ) -> None:
         """
 
@@ -359,6 +573,8 @@ class DatasetWrapper(LogMixin):
             pipeline_log_paths: An iterable of Path objects pointing to individual pipeline log files.
             operation: An Operation enum specifying whether to copy or move files (default: Operation.copy).
             zoom: An optional integer specifying the zoom level for the dataset map generation (default: None).
+            max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
+
 
         Raises:
             ValueError: If the dataset_mapping is empty or contains invalid entries.
@@ -368,20 +584,22 @@ class DatasetWrapper(LogMixin):
         pipeline_label = "pipeline" if len(dataset_mapping) == 1 else "pipelines"
         self.logger.debug(f'Creating dataset "{dataset_name}" containing {len(dataset_mapping)} {pipeline_label}')
 
-        self.check_dataset_mapping(dataset_mapping)
-        dataset_items = self._populate_files(dataset_mapping, operation)
-        self._process_files_with_metadata(dataset_mapping)
-        self.generate_metadata(dataset_name, dataset_items)
+        self.check_dataset_mapping(dataset_mapping, max_workers)
+        dataset_items = self._populate_files(dataset_mapping, operation, max_workers)
+        self._process_files_with_metadata(dataset_mapping, max_workers)
+        self.generate_metadata(dataset_name, dataset_items, max_workers)
         self.generate_dataset_summary(dataset_items)
+        # TODO @<cjackett>: Generate summary method currently does not use multithreading
         self._generate_dataset_map(dataset_items, zoom)
         self._copy_pipelines(project_pipelines_dir)
         self._copy_logs(project_log_path, pipeline_log_paths)
-        self._generate_manifest(dataset_items)
+        self._generate_manifest(dataset_items, max_workers)
 
     def _populate_files(
         self,
         dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
         operation: Operation,
+        max_workers: int | None = None,
     ) -> dict[str, list[BaseMetadata]]:
         """
         Copy or move files from the dataset mapping to the destination directory.
@@ -389,12 +607,13 @@ class DatasetWrapper(LogMixin):
         Args:
             dataset_mapping: The dataset mapping containing source and destination paths.
             operation: The operation to perform (copy, move, link).
+            max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
 
         Returns:
             Dict[str, BaseMetadata]: A dictionary of dataset items for further processing.
         """
 
-        @multithreaded()
+        @multithreaded(max_workers=max_workers)
         def process_file(
             self: DatasetWrapper,
             item: tuple[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
@@ -457,8 +676,15 @@ class DatasetWrapper(LogMixin):
     def _process_files_with_metadata(
         self,
         dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
+        max_workers: int | None = None,
     ) -> None:
-        """Process files with their associated metadata types."""
+        """
+        Process files with their associated metadata types.
+
+        Args:
+            dataset_mapping: The dataset mapping containing source and destination paths.
+            max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
+        """
         # Group files by metadata type
         files_by_type: dict[type, dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]]] = {}
 
@@ -480,6 +706,7 @@ class DatasetWrapper(LogMixin):
         for metadata_type, files in files_by_type.items():
             metadata_type.process_files(
                 dataset_mapping=files,
+                max_workers=max_workers,
                 dry_run=self.dry_run,
             )
 
@@ -511,29 +738,31 @@ class DatasetWrapper(LogMixin):
         if progress and task is not None:
             progress.advance(task)
 
-    @multithreaded()
-    def _process_items_with_hashes(
-        self,
-        thread_num: str,  # noqa: ARG002
-        item: tuple[str, list[BaseMetadata]],
-        progress: Progress | None = None,
-        task: TaskID | None = None,
-    ) -> None:
-        """Process items and calculate their hashes in parallel."""
-        file_path, metadata_items = item
-        self._update_metadata_hashes(file_path, metadata_items, progress, task)
-
     def _process_items(
         self,
         dataset_items: dict[str, list[BaseMetadata]],
         progress: Progress | None = None,
         task: TaskID | None = None,
+        max_workers: int | None = None,
     ) -> dict[str, list[BaseMetadata]]:
         """Process all items and return them sorted by path."""
+
+        @multithreaded(max_workers=max_workers)
+        def process_items_with_hashes(
+            self: DatasetWrapper,
+            thread_num: str,  # noqa: ARG001
+            item: tuple[str, list[BaseMetadata]],
+            progress: Progress | None = None,
+            task: TaskID | None = None,
+        ) -> None:
+            """Process items and calculate their hashes in parallel."""
+            file_path, metadata_items = item
+            self._update_metadata_hashes(file_path, metadata_items, progress, task)
+
         items = [
             (Path(self.data_dir) / file_path, metadata_items) for file_path, metadata_items in dataset_items.items()
         ]
-        self._process_items_with_hashes(items=items, progress=progress, task=task)  # type: ignore[call-arg]
+        process_items_with_hashes(self, items=items, progress=progress, task=task)  # type: ignore[call-arg]
         return OrderedDict(sorted(dataset_items.items(), key=lambda item: item[0]))
 
     def _group_by_metadata_type(
@@ -582,6 +811,7 @@ class DatasetWrapper(LogMixin):
         self,
         dataset_name: str,
         dataset_items: dict[str, list[BaseMetadata]],
+        max_workers: int | None = None,
         *,
         progress: bool = True,
     ) -> None:
@@ -595,6 +825,7 @@ class DatasetWrapper(LogMixin):
             dataset_name: The name of the dataset.
             dataset_items: A dictionary mapping file paths to lists of BaseMetadata objects.
             progress: Whether to display a progress bar. Defaults to True.
+            max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
 
         Raises:
             FileNotFoundError: If a file specified in dataset_items is not found in the data directory.
@@ -606,7 +837,7 @@ class DatasetWrapper(LogMixin):
                 total_tasks = len(dataset_items) + 1
                 task = progress_bar.add_task("[green]Processing metadata (5/11)", total=total_tasks)
 
-                processed_items = self._process_items(dataset_items, progress_bar, task)
+                processed_items = self._process_items(dataset_items, progress_bar, task, max_workers)
                 grouped_items = self._group_by_metadata_type(processed_items)
 
                 progress_bar.update(task, description="[green]Writing metadata files (5/11)")
@@ -751,7 +982,11 @@ class DatasetWrapper(LogMixin):
             self.logger.debug(f"Copied project pipelines to {self.pipelines_dir}")
             progress.advance(task)
 
-    def _generate_manifest(self, dataset_items: dict[str, list[BaseMetadata]]) -> None:
+    def _generate_manifest(
+        self,
+        dataset_items: dict[str, list[BaseMetadata]],
+        max_workers: int | None = None,
+    ) -> None:
         """
         Generate and save the manifest for the dataset, excluding certain paths.
 
@@ -766,6 +1001,8 @@ class DatasetWrapper(LogMixin):
                 dataset_items=dataset_items,
                 progress=progress,
                 task=task,
+                logger=self.logger,
+                max_workers=max_workers,
             )
             if not self.dry_run:
                 manifest.save(self.manifest_path)
@@ -783,12 +1020,14 @@ class DatasetWrapper(LogMixin):
     def check_dataset_mapping(
         self,
         dataset_mapping: dict[str, dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]]],
+        max_workers: int | None = None,
     ) -> None:
         """
         Verify that the given dataset mapping is valid.
 
         Args:
             dataset_mapping: A mapping from source paths to destination paths and metadata.
+            max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
 
         Raises:
             DatasetWrapper.InvalidDatasetMappingError: If the path mapping is invalid.
@@ -801,10 +1040,10 @@ class DatasetWrapper(LogMixin):
             task = progress.add_task("[green]Checking dataset mapping (2/11)", total=total_tasks)
 
             for pipeline_data_mapping in dataset_mapping.values():
-                self._verify_source_paths_exist(pipeline_data_mapping, progress, task)
-                self._verify_unique_source_resolutions(pipeline_data_mapping, progress, task)
-                self._verify_relative_destination_paths(pipeline_data_mapping, progress, task)
-                self._verify_no_destination_collisions(pipeline_data_mapping, progress, task)
+                self._verify_source_paths_exist(pipeline_data_mapping, progress, task, max_workers)
+                self._verify_unique_source_resolutions(pipeline_data_mapping, progress, task, max_workers)
+                self._verify_relative_destination_paths(pipeline_data_mapping, progress, task, max_workers)
+                self._verify_no_destination_collisions(pipeline_data_mapping, progress, task, max_workers)
 
         self.logger.debug("Dataset mapping is valid")
 
@@ -813,8 +1052,9 @@ class DatasetWrapper(LogMixin):
         pipeline_data_mapping: dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
         progress: Progress,
         task: TaskID,
+        max_workers: int | None = None,
     ) -> None:
-        @multithreaded()
+        @multithreaded(max_workers=max_workers)
         def verify_path(
             self: DatasetWrapper,  # noqa: ARG001
             thread_num: str,  # noqa: ARG001
@@ -839,10 +1079,11 @@ class DatasetWrapper(LogMixin):
         pipeline_data_mapping: dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
         progress: Progress,
         task: TaskID,
+        max_workers: int | None = None,
     ) -> None:
         reverse_src_resolution: dict[Path, Path] = {}
 
-        @multithreaded()
+        @multithreaded(max_workers=max_workers)
         def verify_resolution(
             self: DatasetWrapper,  # noqa: ARG001
             thread_num: str,  # noqa: ARG001
@@ -873,10 +1114,11 @@ class DatasetWrapper(LogMixin):
         pipeline_data_mapping: dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
         progress: Progress,
         task: TaskID,
+        max_workers: int | None = None,
     ) -> None:
         destinations = [dst for dst, _, _ in pipeline_data_mapping.values()]
 
-        @multithreaded()
+        @multithreaded(max_workers=max_workers)
         def verify_destination_path(
             self: DatasetWrapper,  # noqa: ARG001
             thread_num: str,  # noqa: ARG001
@@ -901,12 +1143,13 @@ class DatasetWrapper(LogMixin):
         pipeline_data_mapping: dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
         progress: Progress,
         task: TaskID,
+        max_workers: int | None = None,
     ) -> None:
         reverse_mapping: dict[Path, Path] = {
             dst.resolve(): src for src, (dst, _, _) in pipeline_data_mapping.items() if dst is not None
         }
 
-        @multithreaded()
+        @multithreaded(max_workers=max_workers)
         def verify_no_collision(
             self: DatasetWrapper,  # noqa: ARG001
             thread_num: str,  # noqa: ARG001

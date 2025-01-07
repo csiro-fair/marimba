@@ -119,6 +119,10 @@ def import_command(
         False,
         help="Execute the command and print logging to the terminal, but do not change any files.",
     ),
+    max_workers: int | None = typer.Option(
+        None,
+        help="Maximum number of worker processes to use. If None, uses all available CPU cores.",
+    ),
 ) -> None:
     """
     Import data in a source directory into a new or existing Marimba collection.
@@ -168,6 +172,7 @@ def import_command(
             pipeline_names,
             extra_args=extra,
             operation=operation,
+            max_workers=max_workers,
         )
     except Exception as e:
         error_message = f"Error during import: {e}"
@@ -210,6 +215,10 @@ def package_command(
         False,
         help="Execute the command and print logging to the terminal, but do not change any files.",
     ),
+    max_workers: int | None = typer.Option(
+        None,
+        help="Maximum number of worker processes to use. If None, uses all available CPU cores.",
+    ),
 ) -> None:
     """
     Package up a Marimba collection ready for distribution.
@@ -225,7 +234,13 @@ def package_command(
 
     try:
         # Compose the dataset
-        dataset_mapping = project_wrapper.compose(dataset_name, collection_names, pipeline_names, extra)
+        dataset_mapping = project_wrapper.compose(
+            dataset_name,
+            collection_names,
+            pipeline_names,
+            extra,
+            max_workers=max_workers,
+        )
 
         # Package it
         dataset_wrapper = project_wrapper.create_dataset(
@@ -236,6 +251,7 @@ def package_command(
             contact_name=contact_name,
             contact_email=contact_email,
             zoom=zoom,
+            max_workers=max_workers,
         )
     except ProjectWrapper.CompositionError as e:
         logger.exception(e)
@@ -291,6 +307,10 @@ def process_command(
         False,
         help="Execute the command and print logging to the terminal, but do not change any files.",
     ),
+    max_workers: int | None = typer.Option(
+        None,
+        help="Maximum number of worker processes to use. If None, uses all available CPU cores.",
+    ),
 ) -> None:
     """
     Process the Marimba collection based on the pipeline specification.
@@ -306,7 +326,7 @@ def process_command(
 
     # Run the processing
     try:
-        project_wrapper.run_process(collection_names, pipeline_names, extra)
+        project_wrapper.run_process(collection_names, pipeline_names, extra, max_workers=max_workers)
     except NetworkConnectionError as e:
         error_message = f"No internet connection: {e}"
         logger.exception(error_message)

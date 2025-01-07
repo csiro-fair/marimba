@@ -662,7 +662,6 @@ class ImagerySummary:
             An ImagerySummary object containing comprehensive statistics and metadata about the dataset's imagery.
 
         TODO @<cjackett>: Implement multithreading for this method
-
         """
         dataset_info = cls._extract_dataset_info(dataset_wrapper)
         image_data, video_data, other_data = cls._process_files(dataset_wrapper, dataset_items)

@@ -19,6 +19,7 @@ Classes:
 """
 
 import hashlib
+import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,6 +38,7 @@ class Manifest:
     """
 
     hashes: dict[Path, str]
+    logger: logging.Logger | None = None
 
     @staticmethod
     def compute_hash(path: Path) -> str:
@@ -71,6 +73,8 @@ class Manifest:
         dataset_items: dict[str, list[BaseMetadata]] | None = None,
         progress: Progress | None = None,
         task: TaskID | None = None,
+        logger: logging.Logger | None = None,
+        max_workers: int | None = None,
     ) -> "Manifest":
         """
         Create a manifest from a directory.
@@ -85,6 +89,8 @@ class Manifest:
             dataset_items (dict[str, list[BaseMetadata] | None): A dictionary of pre-computed data. Defaults to None.
             progress (Progress | None): A progress bar object to monitor the manifest generation. Defaults to None.
             task (TaskID | None): A task ID associated with the progress bar. Defaults to None.
+            logger (logging.Logger | None): A logger object for logging information. Defaults to None.
+            max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
 
         Returns:
             Manifest: A new Manifest object containing the processed files and their hashes.
@@ -97,9 +103,12 @@ class Manifest:
         exclude_paths = set(exclude_paths) if exclude_paths is not None else set()
         globbed_files = list(directory.glob("**/*"))
 
-        @multithreaded()
+        # Create instance with the provided logger
+        manifest_instance = cls({}, logger=logger)
+
+        @multithreaded(max_workers=max_workers)
         def process_file(
-            self: None,  # noqa: ARG001
+            self: Manifest,  # noqa: ARG001
             thread_num: str,  # noqa: ARG001
             item: Path,
             directory: Path,
@@ -128,7 +137,7 @@ class Manifest:
             hashes[rel_path] = Manifest.compute_hash(item)
 
         process_file(
-            self=None,
+            self=manifest_instance,
             items=globbed_files,
             directory=directory,
             exclude_paths=exclude_paths,
@@ -138,7 +147,10 @@ class Manifest:
             task=task,
         )  # type: ignore[call-arg]
 
-        return cls(dict(sorted(hashes.items(), key=lambda item: item[0])))
+        return cls(
+            dict(sorted(hashes.items(), key=lambda item: item[0])),
+            logger=logger,
+        )
 
     def validate(
         self,
@@ -146,6 +158,7 @@ class Manifest:
         exclude_paths: Iterable[Path] | None = None,
         progress: Progress | None = None,
         task: TaskID | None = None,
+        logger: logging.Logger | None = None,
     ) -> bool:
         """
         Validate a directory against the manifest.
@@ -158,6 +171,7 @@ class Manifest:
             exclude_paths: An optional iterable of Path objects representing paths to exclude from the manifest.
             progress: An optional Progress object for tracking the validation process.
             task: An optional TaskID object for associating the validation with a specific task.
+            logger (logging.Logger | None, optional): A Logger object for logging validation progress and results.
 
         Returns:
             A boolean value indicating whether the directory is valid (True) or not (False).
@@ -172,6 +186,7 @@ class Manifest:
             exclude_paths=exclude_paths,
             progress=progress,
             task=task,
+            logger=logger,
         )
 
         return self == manifest

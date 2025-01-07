@@ -63,9 +63,6 @@ class DryRunRichHandler(RichHandler):
             dry_run (bool): Specifies whether the method should run in dry-run mode.
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
-
-        Returns:
-            None
         """
         super().__init__(*args, **kwargs)
         self.dry_run = dry_run
@@ -76,10 +73,6 @@ class DryRunRichHandler(RichHandler):
 
         Args:
             record (logging.LogRecord): The log record to be emitted.
-
-        Returns:
-            None: This method does not return anything.
-
         """
         if self.dry_run:
             record.msg = f"DRY_RUN - {record.msg}"
@@ -91,9 +84,6 @@ class DryRunRichHandler(RichHandler):
 
         Args:
             dry_run (bool): A boolean value indicating whether to enable dry run mode or not.
-
-        Returns:
-            None
         """
         self.dry_run = dry_run
 
@@ -210,9 +200,6 @@ class NoRichFileHandler(logging.FileHandler):
 
         Args:
             record: A logging.LogRecord object that contains information about the log record being emitted.
-
-        Returns:
-            None
 
         Description:
         This method is called by the logging module's Logger to emit a log record. It is overridden in a subclass
