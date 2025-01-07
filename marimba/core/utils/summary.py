@@ -743,9 +743,12 @@ class ImagerySummary:
             "dataset_name": dataset_wrapper.name,
             "version": dataset_wrapper.version,
             "contact": (
-                f"{dataset_wrapper.contact_name} <{dataset_wrapper.contact_email}>"
+                rf"{dataset_wrapper.contact_name} \<[{dataset_wrapper.contact_email}]"
+                rf"({dataset_wrapper.contact_email})\>"
                 if dataset_wrapper.contact_name and dataset_wrapper.contact_email
-                else dataset_wrapper.contact_name or dataset_wrapper.contact_email or None
+                else dataset_wrapper.contact_name
+                or f"[{dataset_wrapper.contact_email}]({dataset_wrapper.contact_email})"
+                or None
             ),
         }
 
@@ -967,8 +970,8 @@ class ImagerySummary:
             [image_color_depth_label, self.image_color_depth],
             ["Latitude Extent", self.image_latitude_extent],
             ["Longitude Extent", self.image_longitude_extent],
-            ["Depth Extent", self.image_depth_extent],
             ["Temporal Extent", self.image_temporal_extent],
+            ["Depth Extent", self.image_depth_extent],
             ["Unique Image Directories", str(self.image_unique_directories)],
             [image_licenses_label, self.image_licenses],
             ["Image Data Quality", self.image_data_quality],
@@ -994,8 +997,8 @@ class ImagerySummary:
             [video_frame_rate_label, self.video_frame_rate],
             ["Latitude Extent", self.video_latitude_extent],
             ["Longitude Extent", self.video_longitude_extent],
-            ["Depth Extent", self.video_depth_extent],
             ["Temporal Extent", self.video_temporal_extent],
+            ["Depth Extent", self.video_depth_extent],
             ["Unique Video Directories", str(self.video_unique_directories)],
             [video_licenses_label, self.video_licenses],
             ["Video Data Quality", self.video_data_quality],
