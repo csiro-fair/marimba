@@ -10,7 +10,6 @@ Imports:
     - logging: Logging facility for Python.
     - pathlib.Path: Object-oriented filesystem paths.
     - typing: Type hints for function signatures and variables.
-    - ifdo.models.ImageData: Data model for image data.
     - rich.progress.Progress, rich.progress.SpinnerColumn: Utilities for creating progress bars.
     - marimba.core.utils.log.LogMixin, marimba.core.utils.log.get_file_handler:
       Utilities for logging.
@@ -42,10 +41,10 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-from ifdo.models import ImageData
 from rich.progress import Progress, SpinnerColumn
 
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
+from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.paths import remove_directory_tree
@@ -358,7 +357,12 @@ class ProjectWrapper(LogMixin):
         Raised when an error occurs within a Marimba process.
         """
 
-    def __init__(self, root_dir: str | Path, *, dry_run: bool = False) -> None:
+    def __init__(
+        self,
+        root_dir: str | Path,
+        *,
+        dry_run: bool = False,
+    ) -> None:
         """
         Initialise the class instance.
 
@@ -906,7 +910,7 @@ class ProjectWrapper(LogMixin):
         extra_args: list[str] | None = None,
         max_workers: int | None = None,
         **kwargs: dict[str, Any],
-    ) -> dict[str, dict[Path, tuple[Path, ImageData | None, dict[str, Any] | None]]]:
+    ) -> dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]]:
         """
         Compose a dataset for given collections across multiple pipelines.
 
@@ -967,7 +971,7 @@ class ProjectWrapper(LogMixin):
             f"{'s' if len(collection_wrappers) != 1 else ''} per pipeline.",
         )
 
-        dataset_mapping: dict[str, dict[Path, tuple[Path, list[ImageData] | None, dict[str, Any] | None]]] = {}
+        dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]] = {}
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             total_task_length = len(self.pipeline_wrappers) * len(collection_wrappers)
@@ -1005,7 +1009,7 @@ class ProjectWrapper(LogMixin):
     def create_dataset(
         self,
         dataset_name: str,
-        dataset_mapping: dict[str, dict[Path, tuple[Path, list[ImageData] | None, dict[str, Any] | None]]],
+        dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
         operation: Operation = Operation.copy,
         version: str | None = "1.0",
         contact_name: str | None = None,

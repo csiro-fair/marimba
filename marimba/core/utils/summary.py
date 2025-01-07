@@ -12,7 +12,6 @@ Imports:
     - datetime: For handling dates and times.
     - pathlib: For working with file paths.
     - typing: For type annotations.
-    - ifdo.models: For accessing ImageData model.
     - PIL: For image processing.
     - tabulate: For creating formatted tables.
 
@@ -34,8 +33,7 @@ from tabulate import tabulate
 from marimba.core.utils.log import get_logger
 
 if TYPE_CHECKING:
-    from ifdo.models import ImageData
-
+    from marimba.core.schemas.base import BaseMetadata
     from marimba.core.wrappers.dataset import DatasetWrapper
 
 logger = get_logger(__name__)
@@ -62,6 +60,7 @@ class ImagerySummary:
     image_color_depth: str = ""
     image_latitude_extent: str = ""
     image_longitude_extent: str = ""
+    image_depth_extent: str = ""
     image_temporal_extent: str = ""
     image_unique_directories: int = 0
     image_licenses: str = ""
@@ -78,6 +77,7 @@ class ImagerySummary:
     video_encoding_details: str = ""
     video_latitude_extent: str = ""
     video_longitude_extent: str = ""
+    video_depth_extent: str = ""
     video_temporal_extent: str = ""
     video_unique_directories: int = 0
     video_licenses: str = ""
@@ -88,7 +88,9 @@ class ImagerySummary:
     other_average_file_size: str = ""
     other_file_types: list[str] = field(default_factory=list)
 
-    # Add class constants for time units
+    # Add class constants for contributors and time units
+    SINGLE_CONTRIBUTOR: ClassVar[int] = 1
+    PAIR_OF_CONTRIBUTORS: ClassVar[int] = 2
     SECONDS_PER_HOUR: ClassVar[int] = 3600
     SECONDS_PER_MINUTE: ClassVar[int] = 60
 
@@ -269,24 +271,28 @@ class ImagerySummary:
     @staticmethod
     def contributors_to_text(names: list[str]) -> str:
         """
-        Convert a list of contributor names to a formatted string.
+        Convert a list of contributor names into a readable text format.
 
-        This function takes a list of contributor names, sorts them alphabetically by last name, and returns a formatted
-        string. If there are multiple names, they are joined with commas and 'and' before the last name. If there's only
-        one name, it's returned as is. If the list is empty, 'N/A' is returned.
+        This function takes a list of contributor names and formats them into a single string. If there are multiple
+        contributors, it joins them with commas and adds 'and' before the last name. If there's only one contributor,
+        it returns that name. If the list is empty, it returns 'N/A'. Maintains the original order of the names.
 
         Args:
-            names: A list of strings representing contributor names.
+            names: A list of strings containing contributor names.
 
         Returns:
-            A formatted string of contributor names sorted by last name, or 'N/A' if the list is empty.
+            A formatted string of contributor names.
+
+        Raises:
+            TypeError: If the input is not a list or if any element in the list is not a string.
         """
-        sorted_names = sorted(names, key=lambda name: name.split()[-1])
-        return (
-            ", ".join(sorted_names[:-1]) + " and " + sorted_names[-1]
-            if len(sorted_names) > 1
-            else sorted_names[0] if sorted_names else "N/A"
-        )
+        if not names:
+            return "N/A"
+        if len(names) == ImagerySummary.SINGLE_CONTRIBUTOR:
+            return names[0]
+        if len(names) == ImagerySummary.PAIR_OF_CONTRIBUTORS:
+            return f"{names[0]} and {names[1]}"
+        return ", ".join(names[:-1]) + f" and {names[-1]}"
 
     @staticmethod
     def context_to_text(contexts: list[str]) -> str:
@@ -640,7 +646,7 @@ class ImagerySummary:
     def from_dataset(
         cls,
         dataset_wrapper: "DatasetWrapper",
-        image_set_items: dict[str, "ImageData"],
+        dataset_items: dict[str, list["BaseMetadata"]],
     ) -> "ImagerySummary":
         """
         Create an ImagerySummary object from a dataset and image set items.
@@ -650,7 +656,7 @@ class ImagerySummary:
 
         Args:
             dataset_wrapper: A DatasetWrapper object containing dataset information.
-            image_set_items: A dictionary mapping file paths to ImageData objects.
+            dataset_items: The dictionary of dataset items.
 
         Returns:
             An ImagerySummary object containing comprehensive statistics and metadata about the dataset's imagery.
@@ -658,7 +664,7 @@ class ImagerySummary:
         TODO @<cjackett>: Implement multithreading for this method
         """
         dataset_info = cls._extract_dataset_info(dataset_wrapper)
-        image_data, video_data, other_data = cls._process_files(dataset_wrapper, image_set_items)
+        image_data, video_data, other_data = cls._process_files(dataset_wrapper, dataset_items)
         file_stats = cls._calculate_file_stats(image_data, video_data, other_data)
 
         # Ensure all data matches expected types, handle None, and combine data
@@ -680,6 +686,7 @@ class ImagerySummary:
             "image_color_depth": str,
             "image_latitude_extent": str,
             "image_longitude_extent": str,
+            "image_depth_extent": str,
             "image_temporal_extent": str,
             "image_unique_directories": int,
             "image_licenses": str,
@@ -695,6 +702,7 @@ class ImagerySummary:
             "video_encoding_details": str,
             "video_latitude_extent": str,
             "video_longitude_extent": str,
+            "video_depth_extent": str,
             "video_temporal_extent": str,
             "video_unique_directories": int,
             "video_licenses": str,
@@ -734,9 +742,12 @@ class ImagerySummary:
             "dataset_name": dataset_wrapper.name,
             "version": dataset_wrapper.version,
             "contact": (
-                f"{dataset_wrapper.contact_name} <{dataset_wrapper.contact_email}>"
+                rf"{dataset_wrapper.contact_name} \<[{dataset_wrapper.contact_email}]"
+                rf"({dataset_wrapper.contact_email})\>"
                 if dataset_wrapper.contact_name and dataset_wrapper.contact_email
-                else dataset_wrapper.contact_name or dataset_wrapper.contact_email or None
+                else dataset_wrapper.contact_name
+                or f"[{dataset_wrapper.contact_email}]({dataset_wrapper.contact_email})"
+                or None
             ),
         }
 
@@ -744,16 +755,16 @@ class ImagerySummary:
     def _process_files(
         cls,
         dataset_wrapper: "DatasetWrapper",
-        image_set_items: dict[str, list["ImageData"]],
+        dataset_items: dict[str, list["BaseMetadata"]],
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-        image_data: dict[str, Any] = {"files": [], "context": set(), "contributors": set(), "licenses": set()}
-        video_data: dict[str, Any] = {"files": [], "context": set(), "contributors": set(), "licenses": set()}
+        image_data: dict[str, Any] = {"files": [], "context": set(), "contributors": [], "licenses": set()}
+        video_data: dict[str, Any] = {"files": [], "context": set(), "contributors": [], "licenses": set()}
         other_data: dict[str, list[str]] = {"files": []}
 
-        for path_str, image_data_list in image_set_items.items():
+        for path_str, dataset_item in dataset_items.items():
             path = dataset_wrapper.data_dir / path_str
             suffix = path.suffix.lower()
-            image_info = image_data_list[0]
+            image_info = dataset_item[0]
 
             cls._update_common_data(image_data, image_info)
             cls._update_common_data(video_data, image_info)
@@ -768,35 +779,41 @@ class ImagerySummary:
         return image_data, video_data, other_data
 
     @staticmethod
-    def _update_common_data(data: dict[str, Any], image_info: "ImageData") -> None:
-        data["context"].add(image_info.image_context)
-        data["licenses"].add(image_info.image_license.name)
-        data["contributors"].update(contributor.name for contributor in image_info.image_creators)
+    def _update_common_data(data: dict[str, Any], image_info: "BaseMetadata") -> None:
+        if image_info.context:
+            data["context"].add(image_info.context)
+        if image_info.license:
+            data["licenses"].add(image_info.license)
+        for creator in image_info.creators:
+            if creator not in data["contributors"]:
+                data["contributors"].append(creator)
 
     @classmethod
-    def _process_image(cls, image_data: dict[str, Any], path: Path, image_info: "ImageData") -> None:
+    def _process_image(cls, image_data: dict[str, Any], path: Path, image_info: "BaseMetadata") -> None:
         image_data["files"].append(
             {
                 "path": path,
                 "size": path.stat().st_size,
                 "type": path.suffix.lower().replace(".", ""),
-                "lat": image_info.image_latitude,
-                "lon": image_info.image_longitude,
-                "datetime": image_info.image_datetime,
+                "lat": image_info.latitude,
+                "lon": image_info.longitude,
+                "depth": image_info.altitude,
+                "datetime": image_info.datetime,
                 "directory": path.parent,
             },
         )
 
     @classmethod
-    def _process_video(cls, video_data: dict[str, Any], path: Path, image_info: "ImageData") -> None:
+    def _process_video(cls, video_data: dict[str, Any], path: Path, image_info: "BaseMetadata") -> None:
         video_data["files"].append(
             {
                 "path": path,
                 "size": path.stat().st_size,
                 "type": path.suffix.lower().replace(".", ""),
-                "lat": getattr(image_info, "image_latitude", None),
-                "lon": getattr(image_info, "image_longitude", None),
-                "datetime": image_info.image_datetime,
+                "lat": image_info.latitude,
+                "lon": image_info.longitude,
+                "depth": image_info.altitude,
+                "datetime": image_info.datetime,
                 "directory": path.parent,
                 "is_corrupt": cls.is_video_corrupt_quick(str(path)),
             },
@@ -841,10 +858,20 @@ class ImagerySummary:
         video_data: dict[str, Any],
     ) -> None:
         summary.context = summary.context_to_text(list(image_data["context"] | video_data["context"]))
-        summary.contributors = summary.contributors_to_text(
-            list(image_data["contributors"] | video_data["contributors"]),
-        )
         summary.licenses = summary.list_to_text(list(image_data["licenses"] | video_data["licenses"]))
+
+        # Merge contributors while maintaining order
+        all_contributors = []
+        # First add image contributors
+        for contributor in image_data.get("contributors", []):
+            if contributor not in all_contributors:
+                all_contributors.append(contributor)
+        # Then add any new video contributors
+        for contributor in video_data.get("contributors", []):
+            if contributor not in all_contributors:
+                all_contributors.append(contributor)
+
+        summary.contributors = summary.contributors_to_text(all_contributors)
 
     @classmethod
     def _set_image_properties(cls, summary: "ImagerySummary", image_data: dict[str, Any]) -> None:
@@ -887,10 +914,16 @@ class ImagerySummary:
             data = image_data if data_type == "image" else video_data
             lats = [file["lat"] for file in data["files"] if file["lat"] is not None]
             lons = [file["lon"] for file in data["files"] if file["lon"] is not None]
+            depths = [file["depth"] for file in data["files"] if file["depth"] is not None]
             datetimes = [file["datetime"] for file in data["files"] if file["datetime"] is not None]
 
             setattr(summary, f"{data_type}_latitude_extent", f"{min(lats):.3f} to {max(lats):.3f}" if lats else "N/A")
             setattr(summary, f"{data_type}_longitude_extent", f"{min(lons):.3f} to {max(lons):.3f}" if lons else "N/A")
+            setattr(
+                summary,
+                f"{data_type}_depth_extent",
+                f"{min(depths):.1f}m to {max(depths):.1f}m" if depths else "N/A",
+            )
             setattr(
                 summary,
                 f"{data_type}_temporal_extent",
@@ -937,6 +970,7 @@ class ImagerySummary:
             ["Latitude Extent", self.image_latitude_extent],
             ["Longitude Extent", self.image_longitude_extent],
             ["Temporal Extent", self.image_temporal_extent],
+            ["Depth Extent", self.image_depth_extent],
             ["Unique Image Directories", str(self.image_unique_directories)],
             [image_licenses_label, self.image_licenses],
             ["Image Data Quality", self.image_data_quality],
@@ -963,6 +997,7 @@ class ImagerySummary:
             ["Latitude Extent", self.video_latitude_extent],
             ["Longitude Extent", self.video_longitude_extent],
             ["Temporal Extent", self.video_temporal_extent],
+            ["Depth Extent", self.video_depth_extent],
             ["Unique Video Directories", str(self.video_unique_directories)],
             [video_licenses_label, self.video_licenses],
             ["Video Data Quality", self.video_data_quality],

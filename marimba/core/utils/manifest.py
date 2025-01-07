@@ -25,9 +25,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from distlib.util import Progress
-from ifdo.models import ImageData
 from rich.progress import TaskID
 
+from marimba.core.schemas.base import BaseMetadata
 from marimba.lib.decorators import multithreaded
 
 
@@ -37,11 +37,11 @@ class Manifest:
     Dataset manifest. Used to validate datasets to check if the underlying data has been corrupted or modified.
     """
 
-    hashes: dict[Path, bytes]
+    hashes: dict[Path, str]
     logger: logging.Logger | None = None
 
     @staticmethod
-    def compute_hash(path: Path) -> bytes:
+    def compute_hash(path: Path) -> str:
         """
         Compute the hash of a path.
 
@@ -63,14 +63,14 @@ class Manifest:
         # Hash the path
         file_hash.update(str(path.as_posix()).encode("utf-8"))
 
-        return file_hash.digest()
+        return file_hash.hexdigest()
 
     @classmethod
     def from_dir(
         cls,
         directory: Path,
         exclude_paths: Iterable[Path] | None = None,
-        image_set_items: dict[str, ImageData] | None = None,
+        dataset_items: dict[str, list[BaseMetadata]] | None = None,
         progress: Progress | None = None,
         task: TaskID | None = None,
         logger: logging.Logger | None = None,
@@ -86,7 +86,7 @@ class Manifest:
         Args:
             directory (Path): The root directory to create the manifest from.
             exclude_paths (Iterable[Path] | None): An iterable of paths to exclude from the manifest. Defaults to None.
-            image_set_items (dict[str, ImageData] | None): A dictionary of pre-computed image data. Defaults to None.
+            dataset_items (dict[str, list[BaseMetadata] | None): A dictionary of pre-computed data. Defaults to None.
             progress (Progress | None): A progress bar object to monitor the manifest generation. Defaults to None.
             task (TaskID | None): A task ID associated with the progress bar. Defaults to None.
             logger (logging.Logger | None): A logger object for logging information. Defaults to None.
@@ -99,7 +99,7 @@ class Manifest:
             OSError: If there are issues accessing files or directories.
             ValueError: If the provided directory is invalid or doesn't exist.
         """
-        hashes: dict[Path, bytes] = {}
+        hashes: dict[Path, str] = {}
         exclude_paths = set(exclude_paths) if exclude_paths is not None else set()
         globbed_files = list(directory.glob("**/*"))
 
@@ -113,8 +113,8 @@ class Manifest:
             item: Path,
             directory: Path,
             exclude_paths: Iterable[Path] | None,
-            hashes: dict[Path, bytes],
-            image_set_items: dict[str, ImageData] | None = None,
+            hashes: dict[Path, str],
+            dataset_items: dict[str, list[BaseMetadata]] | None = None,
             progress: Progress | None = None,
             task: TaskID | None = None,
         ) -> None:
@@ -124,13 +124,16 @@ class Manifest:
                 return
 
             rel_path = item.resolve().relative_to(directory)
+            rel_path_str = str(rel_path)
 
-            # Check if the relative path as a string exists in image_set_items and return the hash if it does
-            if image_set_items is not None and str(rel_path) in image_set_items:
-                hashes[rel_path] = image_set_items[str(rel_path)].image_hash_sha256
-                return  # Return if hash exists in image_set_items to avoid re-computation
+            # Check if the relative path exists in dataset_items and get hash from first item
+            if dataset_items is not None and rel_path_str in dataset_items:
+                metadata_list = dataset_items[rel_path_str]
+                if metadata_list and metadata_list[0].hash_sha256 is not None:
+                    hashes[rel_path] = metadata_list[0].hash_sha256
+                    return  # Return if hash exists in dataset_items to avoid re-computation
 
-            # Compute the hash if it does not exist in image_set_items
+            # Compute the hash if it does not exist in dataset_items
             hashes[rel_path] = Manifest.compute_hash(item)
 
         process_file(
@@ -139,7 +142,7 @@ class Manifest:
             directory=directory,
             exclude_paths=exclude_paths,
             hashes=hashes,
-            image_set_items=image_set_items,
+            dataset_items=dataset_items,
             progress=progress,
             task=task,
         )  # type: ignore[call-arg]
@@ -215,7 +218,7 @@ class Manifest:
         """
         with path.open("w") as f:
             for file_path, file_hash in self.hashes.items():
-                f.write(f"{file_path.as_posix()}:{file_hash.hex()}\n")
+                f.write(f"{file_path.as_posix()}:{file_hash}\n")
 
     @classmethod
     def load(cls, path: Path) -> "Manifest":
@@ -232,6 +235,6 @@ class Manifest:
         with path.open("r") as f:
             for line in f:
                 if line:
-                    path_str, hash_str = line.split(":")
-                    hashes[Path(path_str)] = bytes.fromhex(hash_str)
+                    path_str, hash_str = line.strip().split(":")
+                    hashes[Path(path_str)] = hash_str
         return cls(hashes)

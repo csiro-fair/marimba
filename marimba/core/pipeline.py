@@ -9,7 +9,6 @@ Imports:
     - abstractmethod: Decorator for declaring abstract methods from the `abc` module.
     - Path: Class for representing file system paths from the `pathlib` module.
     - Any, Dict, List, Optional, Tuple, Union: Type hinting classes from the `typing` module.
-    - ImageData: Class for representing image data from the `ifdo.models` module.
     - LogMixin: Mixin class for logging from the `marimba.core.utils.log` module.
     - format_command, format_entity: Functions for formatting command and entity names from the
       `marimba.core.utils.rich` module.
@@ -23,8 +22,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
-from ifdo.models import ImageData
-
+from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.log import LogMixin
 from marimba.core.utils.rich import format_command, format_entity
 
@@ -38,6 +36,7 @@ class BasePipeline(ABC, LogMixin):
         self,
         root_path: str | Path,
         config: dict[str, Any] | None = None,
+        metadata_class: type[BaseMetadata] = BaseMetadata,
         *,
         dry_run: bool = False,
     ) -> None:
@@ -47,10 +46,12 @@ class BasePipeline(ABC, LogMixin):
         Args:
             root_path (Union[str, Path]): The root path where the object will work.
             config (Optional[Dict[str, Any]]): The configuration settings for the object. Defaults to None.
+            metadata_class (Type[BaseMetadata]): The class to be used for metadata handling. Defaults to BaseMetadata.
             dry_run (bool): Whether to perform a dry run or not. Defaults to False.
         """
         self._root_path = root_path
         self._config = config
+        self._metadata_class = metadata_class
         self._dry_run = dry_run
 
     @staticmethod
@@ -159,13 +160,12 @@ class BasePipeline(ABC, LogMixin):
         data_dir: Path,
         config: dict[str, Any],
         **kwargs: dict[str, Any],
-    ) -> dict[Path, tuple[Path, ImageData | None, dict[str, Any] | None]]:
+    ) -> dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]:
         """
         Package a dataset from the given data directories and their corresponding collection configurations.
 
-        Return an [iFDO](https://marine-imaging.com/fair/ifdos/iFDO-overview/) instance that represents the composed
-        dataset and a dictionary that maps files within the provided data directories to relative paths for the
-        resulting distributable dataset.
+        Return a dataset mapping that represents the composed dataset and a dictionary that maps files within the
+        provided data directories to relative paths for the resulting distributable dataset.
 
         Args:
             data_dir: The data directory to compose.
@@ -173,7 +173,7 @@ class BasePipeline(ABC, LogMixin):
             kwargs: Additional keyword arguments.
 
         Returns:
-            The iFDO and path mapping dict.
+            The pipeline data mapping.
         """
         self.logger.debug(
             f"Running {format_command('package')} command for pipeline {format_entity(self.class_name)} with args: "
@@ -216,7 +216,7 @@ class BasePipeline(ABC, LogMixin):
         data_dir: Path,
         config: dict[str, Any],
         **kwargs: dict[str, Any],
-    ) -> dict[Path, tuple[Path, ImageData | None, dict[str, Any] | None]]:
+    ) -> dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]:
         """
         `run_compose` implementation; override this.
 

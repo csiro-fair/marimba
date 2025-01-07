@@ -31,7 +31,7 @@ from typing import Any, ClassVar, cast
 
 from rich.prompt import Prompt
 
-from marimba.core.distribution.bases import DistributionTargetBase
+from marimba.core.distribution.base import DistributionTargetBase
 from marimba.core.distribution.dap import CSIRODapDistributionTarget
 from marimba.core.distribution.s3 import S3DistributionTarget
 from marimba.core.utils.config import load_config, save_config

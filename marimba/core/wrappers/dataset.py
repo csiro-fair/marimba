@@ -47,13 +47,13 @@ from math import isnan
 from pathlib import Path
 from shutil import copy2, copytree, ignore_patterns
 from typing import Any
-from uuid import uuid4
 
 import piexif
-from ifdo.models import ImageData, ImageSetHeader, iFDO
+from ifdo.models import ImageData
 from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
+from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.manifest import Manifest
@@ -113,13 +113,129 @@ class DatasetWrapper(LogMixin):
         self._contact_name = contact_name
         self._contact_email = contact_email
         self._dry_run = dry_run
-
-        self._metadata_name = "ifdo.yml"
         self._summary_name = "summary.md"
 
         if not dry_run:
             self._check_file_structure()
             self._setup_logging()
+
+    @property
+    def root_dir(self) -> Path:
+        """
+        The root directory.
+        """
+        return self._root_dir
+
+    @property
+    def data_dir(self) -> Path:
+        """
+        The path to the data directory.
+        """
+        return self._root_dir / "data"
+
+    @property
+    def summary_path(self) -> Path:
+        """
+        The path to the dataset summary.
+        """
+        return self._root_dir / self.summary_name
+
+    @property
+    def summary_name(self) -> str:
+        """
+        The name of the dataset summary file.
+        """
+        return self._summary_name
+
+    @summary_name.setter
+    def summary_name(self, filename: str) -> None:
+        """
+        Setter for the name of the dataset summary.
+
+        Args:
+            filename (str): The new filename for the summary.
+        """
+        if filename:
+            self._summary_name = filename if filename.endswith(".summary.md") else f"{filename}.summary.md"
+        else:
+            self._summary_name = "summary.md"
+
+    @property
+    def manifest_path(self) -> Path:
+        """
+        The path to the dataset manifest.
+        """
+        return self._root_dir / "manifest.txt"
+
+    @property
+    def name(self) -> str:
+        """
+        The name of the dataset.
+        """
+        return self._root_dir.name
+
+    @property
+    def logs_dir(self) -> Path:
+        """
+        The path to the logs directory.
+        """
+        return self._root_dir / "logs"
+
+    @property
+    def log_path(self) -> Path:
+        """
+        The path to the dataset log file.
+        """
+        return self.logs_dir / "dataset.log"
+
+    @property
+    def pipelines_dir(self) -> Path:
+        """
+        The path to the pipelines directory.
+        """
+        return self._root_dir / "pipelines"
+
+    @property
+    def pipeline_logs_dir(self) -> Path:
+        """
+        The path to the pipeline logs directory.
+        """
+        return self.logs_dir / "pipelines"
+
+    @property
+    def version(self) -> str | None:
+        """
+        Version of the dataset.
+        """
+        return self._version
+
+    @property
+    def contact_name(self) -> str | None:
+        """
+        Full name of the contact person for the packaged dataset.
+        """
+        return self._contact_name
+
+    @property
+    def contact_email(self) -> str | None:
+        """
+        Email address of the contact person for the packaged dataset.
+        """
+        return self._contact_email
+
+    @property
+    def dry_run(self) -> bool:
+        """
+        Whether the dataset generation should run in dry-run mode.
+        """
+        return self._dry_run
+
+    @dry_run.setter
+    def dry_run(self, value: bool) -> None:
+        """
+        Set the dry-run mode for the dataset generation.
+        """
+        self._dry_run = value
 
     @classmethod
     def create(
@@ -132,7 +248,7 @@ class DatasetWrapper(LogMixin):
         dry_run: bool = False,
     ) -> "DatasetWrapper":
         """
-        Create a new dataset from an iFDO.
+        Create a new dataset.
 
         This class method creates a new dataset structure based on the provided parameters. It sets up the necessary
         directory structure and returns a DatasetWrapper instance.
@@ -432,7 +548,7 @@ class DatasetWrapper(LogMixin):
     def populate(
         self,
         dataset_name: str,
-        dataset_mapping: dict[str, dict[Path, tuple[Path, list[ImageData] | None, dict[str, Any] | None]]],
+        dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
         project_pipelines_dir: Path,
         project_log_path: Path,
         pipeline_log_paths: Iterable[Path],
@@ -441,46 +557,50 @@ class DatasetWrapper(LogMixin):
         max_workers: int | None = None,
     ) -> None:
         """
-        Populate the dataset with files from the given dataset mapping.
 
-        This function creates a new dataset by populating it with files from the provided dataset mapping. It performs
-        various operations such as copying or moving files, applying EXIF metadata, generating IFDO, dataset summary,
-        dataset map, copying pipelines and logs, and generating a manifest.
+        Populate the dataset with files, metadata, and generate necessary artifacts.
+
+        This function populates a dataset with files from multiple pipelines, processes metadata, generates dataset
+        summary and map, copies pipeline files and logs, and creates a manifest. It handles various operations like
+        copying or moving files and can generate a dataset map at a specified zoom l
 
         Args:
             dataset_name: The name of the dataset to be created.
-            dataset_mapping: A dictionary mapping pipeline names to output file paths and their corresponding input
-              file paths, image data, and additional information.
-            project_pipelines_dir: The path to the project pipelines directory.
-            project_log_path: The path to the project log file.
-            pipeline_log_paths: An iterable of paths to the pipeline log files.
-            operation: The operation to perform on files (copy, move or link). Defaults to Operation.copy.
-            zoom: The zoom level for generating the dataset map. Defaults to None.
+            dataset_mapping: A dictionary mapping pipeline names to file information, including source and destination
+                paths, metadata, and additional properties.
+            project_pipelines_dir: A Path object pointing to the directory containing project pipeline files.
+            project_log_path: A Path object pointing to the project log file.
+            pipeline_log_paths: An iterable of Path objects pointing to individual pipeline log files.
+            operation: An Operation enum specifying whether to copy or move files (default: Operation.copy).
+            zoom: An optional integer specifying the zoom level for the dataset map generation (default: None).
             max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
 
+
         Raises:
-            - DatasetWrapper.InvalidPathMappingError: If the provided dataset mapping is invalid.
+            ValueError: If the dataset_mapping is empty or contains invalid entries.
+            IOError: If there are issues reading from or writing to files or directories.
+            MetadataError: If there are problems processing or generating metadata.
         """
         pipeline_label = "pipeline" if len(dataset_mapping) == 1 else "pipelines"
         self.logger.debug(f'Creating dataset "{dataset_name}" containing {len(dataset_mapping)} {pipeline_label}')
 
         self.check_dataset_mapping(dataset_mapping, max_workers)
-        image_set_items = self._populate_files(dataset_mapping, operation, max_workers)
-        self._apply_exif_metadata(dataset_mapping, max_workers)
-        self.generate_ifdo(dataset_name, image_set_items, max_workers)
+        dataset_items = self._populate_files(dataset_mapping, operation, max_workers)
+        self._process_files_with_metadata(dataset_mapping, max_workers)
+        self.generate_metadata(dataset_name, dataset_items, max_workers)
+        self.generate_dataset_summary(dataset_items)
         # TODO @<cjackett>: Generate summary method currently does not use multithreading
-        self.generate_dataset_summary(image_set_items)
-        self._generate_dataset_map(image_set_items, zoom)
+        self._generate_dataset_map(dataset_items, zoom)
         self._copy_pipelines(project_pipelines_dir)
         self._copy_logs(project_log_path, pipeline_log_paths)
-        self._generate_manifest(image_set_items, max_workers)
+        self._generate_manifest(dataset_items, max_workers)
 
     def _populate_files(
         self,
-        dataset_mapping: dict[str, dict[Path, tuple[Path, list[ImageData] | None, dict[str, Any] | None]]],
+        dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
         operation: Operation,
         max_workers: int | None = None,
-    ) -> dict[str, ImageData]:
+    ) -> dict[str, list[BaseMetadata]]:
         """
         Copy or move files from the dataset mapping to the destination directory.
 
@@ -490,26 +610,26 @@ class DatasetWrapper(LogMixin):
             max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
 
         Returns:
-            Dict[str, ImageData]: A dictionary of image set items for further processing.
+            Dict[str, BaseMetadata]: A dictionary of dataset items for further processing.
         """
 
         @multithreaded(max_workers=max_workers)
         def process_file(
             self: DatasetWrapper,
-            item: tuple[Path, tuple[Path, list[ImageData] | None, dict[str, Any] | None]],
+            item: tuple[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
             thread_num: str,
             pipeline_name: str,
             operation: Operation,
-            image_set_items: dict[str, list[ImageData]],
+            dataset_items: dict[str, list[BaseMetadata]],
             progress: Progress | None = None,
             tasks_by_pipeline_name: dict[str, Any] | None = None,
         ) -> None:
-            src, (relative_dst, image_data_list, _) = item
+            src, (relative_dst, data_list, _) = item
             dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
 
-            if image_data_list:
+            if data_list:
                 dst_relative = dst.relative_to(self.data_dir)
-                image_set_items[dst_relative.as_posix()] = image_data_list
+                dataset_items[dst_relative.as_posix()] = data_list
 
             if not self.dry_run:
                 dst.parent.mkdir(parents=True, exist_ok=True)
@@ -519,6 +639,8 @@ class DatasetWrapper(LogMixin):
                 elif operation == Operation.move:
                     src.rename(dst)
                     self.logger.debug(f"Thread {thread_num} | Moving file {src.absolute()} -> {dst}")
+                # TODO(@cjackett): We might need to check here that image files aren't linked to linked files in the
+                #  import process because then EXIF writing might destructively change the original files
                 elif operation == Operation.link:
                     os.link(src, dst)
                     self.logger.debug(f"Thread {thread_num} | Linking file {src.absolute()} -> {dst}")
@@ -526,7 +648,7 @@ class DatasetWrapper(LogMixin):
             if progress and tasks_by_pipeline_name:
                 progress.advance(tasks_by_pipeline_name[pipeline_name])
 
-        image_set_items: dict[str, list[ImageData]] = {}
+        dataset_items: dict[str, list[BaseMetadata]] = {}
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             tasks_by_pipeline_name = {
                 pipeline_name: progress.add_task(
@@ -544,129 +666,193 @@ class DatasetWrapper(LogMixin):
                     items=list(pipeline_data_mapping.items()),
                     pipeline_name=pipeline_name,
                     operation=operation,
-                    image_set_items=image_set_items,
+                    dataset_items=dataset_items,
                     progress=progress,
                     tasks_by_pipeline_name=tasks_by_pipeline_name,
                 )  # type: ignore[call-arg]
 
-        return image_set_items
+        return dataset_items
 
-    def _apply_exif_metadata(
+    def _process_files_with_metadata(
         self,
-        dataset_mapping: dict[str, dict[Path, tuple[Path, list[ImageData] | None, dict[str, Any] | None]]],
+        dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
         max_workers: int | None = None,
     ) -> None:
         """
-        Apply EXIF metadata to the images in the dataset.
+        Process files with their associated metadata types.
 
         Args:
             dataset_mapping: The dataset mapping containing source and destination paths.
             max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
         """
-        metadata_mapping = {}
+        # Group files by metadata type
+        files_by_type: dict[type, dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]]] = {}
 
         for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-            for relative_dst, image_data_list, ancillary_data in pipeline_data_mapping.values():
-                dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
-                if not image_data_list:
+            for relative_dst, metadata_items, ancillary_data in pipeline_data_mapping.values():
+                if not metadata_items:
                     continue
-                metadata_mapping[dst] = (image_data_list[0], ancillary_data)
 
-        if not self.dry_run:
-            self._apply_ifdo_exif_tags(metadata_mapping, max_workers)
-        self.logger.debug(f"Applied iFDO EXIF tags to {len(metadata_mapping)} files")
+                dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
 
-    def generate_ifdo(
+                # Group by the type of the first metadata item
+                metadata_type = type(metadata_items[0])
+                if metadata_type not in files_by_type:
+                    files_by_type[metadata_type] = {}
+
+                files_by_type[metadata_type][dst] = (metadata_items, ancillary_data)
+
+        # Process files for each metadata type
+        for metadata_type, files in files_by_type.items():
+            metadata_type.process_files(
+                dataset_mapping=files,
+                max_workers=max_workers,
+                dry_run=self.dry_run,
+            )
+
+    def _calculate_file_hash(self, file_path: Path) -> str:
+        """Calculate SHA256 hash for a file."""
+        file_hash = hashlib.sha256()
+        with file_path.open("rb") as f:
+            while True:
+                chunk = f.read(4096)
+                if not chunk:
+                    break
+                file_hash.update(chunk)
+        return file_hash.hexdigest()
+
+    def _update_metadata_hashes(
+        self,
+        file_path: str,
+        metadata_items: list[BaseMetadata],
+        progress: Progress | None = None,
+        task: TaskID | None = None,
+    ) -> None:
+        """Update hash values for metadata items."""
+        file_data_path = Path(self.data_dir) / file_path
+        if file_data_path.is_file():
+            file_hash = self._calculate_file_hash(file_data_path)
+            for metadata_item in metadata_items:
+                metadata_item.hash_sha256 = file_hash
+
+        if progress and task is not None:
+            progress.advance(task)
+
+    def _process_items(
+        self,
+        dataset_items: dict[str, list[BaseMetadata]],
+        progress: Progress | None = None,
+        task: TaskID | None = None,
+        max_workers: int | None = None,
+    ) -> dict[str, list[BaseMetadata]]:
+        """Process all items and return them sorted by path."""
+
+        @multithreaded(max_workers=max_workers)
+        def process_items_with_hashes(
+            self: DatasetWrapper,
+            thread_num: str,  # noqa: ARG001
+            item: tuple[str, list[BaseMetadata]],
+            progress: Progress | None = None,
+            task: TaskID | None = None,
+        ) -> None:
+            """Process items and calculate their hashes in parallel."""
+            file_path, metadata_items = item
+            self._update_metadata_hashes(file_path, metadata_items, progress, task)
+
+        items = [
+            (Path(self.data_dir) / file_path, metadata_items) for file_path, metadata_items in dataset_items.items()
+        ]
+        process_items_with_hashes(self, items=items, progress=progress, task=task)  # type: ignore[call-arg]
+        return OrderedDict(sorted(dataset_items.items(), key=lambda item: item[0]))
+
+    def _group_by_metadata_type(
+        self,
+        items: dict[str, list[BaseMetadata]],
+    ) -> dict[type[BaseMetadata], dict[str, list[BaseMetadata]]]:
+        """Group dataset items by their metadata type."""
+        grouped_items: dict[type[BaseMetadata], dict[str, list[BaseMetadata]]] = {}
+
+        for path, metadata_items in items.items():
+            for metadata_item in metadata_items:
+                metadata_type = type(metadata_item)
+                if metadata_type not in grouped_items:
+                    grouped_items[metadata_type] = {}
+                if path not in grouped_items[metadata_type]:
+                    grouped_items[metadata_type][path] = []
+                grouped_items[metadata_type][path].append(metadata_item)
+
+        return grouped_items
+
+    def _create_metadata_files(
         self,
         dataset_name: str,
-        image_set_items: dict[str, ImageData],
+        grouped_items: dict[type[BaseMetadata], dict[str, list[BaseMetadata]]],
+    ) -> None:
+        """Create metadata files for each type."""
+        for metadata_type, type_items in grouped_items.items():
+            metadata_type.create_dataset_metadata(
+                dataset_name=dataset_name,
+                root_dir=self.root_dir,
+                items=type_items,
+                dry_run=self.dry_run,
+            )
+
+    def _log_metadata_summary(
+        self,
+        grouped_items: dict[type[BaseMetadata], dict[str, list[BaseMetadata]]],
+    ) -> None:
+        """Log a summary of the metadata generation."""
+        type_counts = [f"{len(items)} {metadata_type.__name__}" for metadata_type, items in grouped_items.items()]
+        self.logger.debug(
+            f"Generated metadata files containing {', '.join(type_counts)} items",
+        )
+
+    def generate_metadata(
+        self,
+        dataset_name: str,
+        dataset_items: dict[str, list[BaseMetadata]],
         max_workers: int | None = None,
         *,
         progress: bool = True,
     ) -> None:
         """
-        Generate the iFDO for the dataset.
+        Generate metadata for a dataset.
 
-        This function creates an iFDO metadata file for a given dataset. It processes the provided image set items,
-        calculates SHA256 hashes for each image, and generates an iFDO object. The function can optionally display
-        a progress bar during execution.
+        This function processes a dataset, calculates file hashes, groups items by metadata type,
+        and creates dataset metadata files. It can optionally display a progress bar during execution.
 
         Args:
-            dataset_name: A string representing the name of the dataset.
-            image_set_items: A dictionary mapping image paths to ImageData objects containing metadata for each image.
+            dataset_name: The name of the dataset.
+            dataset_items: A dictionary mapping file paths to lists of BaseMetadata objects.
+            progress: Whether to display a progress bar. Defaults to True.
             max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
-            progress: A boolean indicating whether to display a progress bar during execution. Defaults to True.
 
         Raises:
-            - IOError: If there are issues reading image files or writing the iFDO to disk.
-            - ValueError: If the input data is invalid or missing required information.
+            FileNotFoundError: If a file specified in dataset_items is not found in the data directory.
+            PermissionError: If there are insufficient permissions to read files or write metadata.
+            IOError: If there are issues reading files or writing metadata.
         """
-
-        @multithreaded(max_workers=max_workers)
-        def hash_image(
-            self: DatasetWrapper,
-            thread_num: str,  # noqa: ARG001
-            item: tuple[str, ImageData],
-            progress: Progress | None = None,
-            task: TaskID | None = None,
-        ) -> None:
-            image_path, image_data = item
-            image_data_path = Path(self.data_dir) / image_path
-            file_hash = hashlib.sha256()
-            if image_data_path.is_file():
-                with image_data_path.open("rb") as f:
-                    while True:
-                        chunk = f.read(4096)
-                        if not chunk:
-                            break
-                        file_hash.update(chunk)
-                for image_data_item in image_data:
-                    image_data_item.image_hash_sha256 = file_hash.hexdigest()
-
-            if progress and task is not None:
-                progress.advance(task)
-
-        def _process_items(
-            image_set_items: dict[str, ImageData],
-            progress: Progress | None = None,
-            task: TaskID | None = None,
-        ) -> (dict)[str, ImageData]:
-            items = [
-                (Path(self.data_dir) / image_path, image_data) for image_path, image_data in image_set_items.items()
-            ]
-            hash_image(self, items=items, progress=progress, task=task)  # type: ignore[call-arg]
-            return OrderedDict(sorted(image_set_items.items(), key=lambda item: item[0]))
-
         if progress:
             with Progress(SpinnerColumn(), *get_default_columns()) as progress_bar:
-                task = progress_bar.add_task("[green]Generating iFDO (5/11)", total=len(image_set_items) + 1)
-                image_set_items = _process_items(image_set_items, progress_bar, task)
-                progress_bar.update(task, description="[green]Writing iFDO to disk (5/11)")
-                self._create_ifdo(dataset_name, image_set_items)
-                progress_bar.advance(task)  # Advance after creating the iFDO
+                total_tasks = len(dataset_items) + 1
+                task = progress_bar.add_task("[green]Processing metadata (5/11)", total=total_tasks)
+
+                processed_items = self._process_items(dataset_items, progress_bar, task, max_workers)
+                grouped_items = self._group_by_metadata_type(processed_items)
+
+                progress_bar.update(task, description="[green]Writing metadata files (5/11)")
+                self._create_metadata_files(dataset_name, grouped_items)
+                progress_bar.advance(task)
         else:
-            image_set_items = _process_items(image_set_items)
-            self._create_ifdo(dataset_name, image_set_items)
+            processed_items = self._process_items(dataset_items)
+            grouped_items = self._group_by_metadata_type(processed_items)
+            self._create_metadata_files(dataset_name, grouped_items)
 
-        item_count = len(image_set_items)
-        item_label = "item" if item_count == 1 else "items"
-        self.logger.debug(f"Generated iFDO containing {item_count} image set {item_label} at {self.metadata_path}")
-
-    def _create_ifdo(self, dataset_name: str, image_set_items: dict[str, ImageData]) -> iFDO:
-        if not self.dry_run:
-            ifdo = iFDO(
-                image_set_header=ImageSetHeader(
-                    image_set_name=dataset_name,
-                    image_set_uuid=str(uuid4()),
-                    image_set_handle="",  # TODO @<cjackett>: Populate this from the distribution target URL
-                ),
-                image_set_items=image_set_items,
-            )
-            ifdo.save(self.metadata_path)
+        self._log_metadata_summary(grouped_items)
 
     def generate_dataset_summary(
         self,
-        image_set_items: dict[str, ImageData],
+        dataset_items: dict[str, list[BaseMetadata]],
         *,
         progress: bool = True,
     ) -> None:
@@ -674,12 +860,12 @@ class DatasetWrapper(LogMixin):
         Generate a summary of the dataset.
 
         Args:
-            image_set_items: The dictionary of image set items to summarize.
+            dataset_items: The dictionary of dataset items to summarize.
             progress: A flag to indicate whether to show a progress bar.
         """
 
         def generate_summary() -> None:
-            summary = self.summarise(image_set_items)
+            summary = self.summarise(dataset_items)
             if not self.dry_run:
                 self.summary_path.write_text(str(summary))
             self.logger.debug(f"Generated dataset summary at {self.summary_path}")
@@ -726,7 +912,7 @@ class DatasetWrapper(LogMixin):
         valid_longitude = self._is_valid_coordinate(lon, -180.0, 180.0) or self._is_valid_coordinate(lon, 0.0, 360.0)
         return valid_latitude and valid_longitude
 
-    def _generate_dataset_map(self, image_set_items: dict[str, ImageData], zoom: int | None = None) -> None:
+    def _generate_dataset_map(self, image_set_items: dict[str, list[BaseMetadata]], zoom: int | None = None) -> None:
         """
         Generate a summary of the dataset, including a map of geolocations if available.
 
@@ -739,10 +925,10 @@ class DatasetWrapper(LogMixin):
 
             # Check for geolocations
             geolocations = [
-                (image_data.image_latitude, image_data.image_longitude)
+                (image_data.latitude, image_data.longitude)
                 for image_data_list in image_set_items.values()
                 for image_data in image_data_list
-                if self._validate_geolocations(image_data.image_latitude, image_data.image_longitude)
+                if self._validate_geolocations(image_data.latitude, image_data.longitude)
             ]
             if geolocations:
                 summary_map = make_summary_map(geolocations, zoom=zoom)
@@ -798,7 +984,7 @@ class DatasetWrapper(LogMixin):
 
     def _generate_manifest(
         self,
-        image_set_items: dict[str, ImageData],
+        dataset_items: dict[str, list[BaseMetadata]],
         max_workers: int | None = None,
     ) -> None:
         """
@@ -812,7 +998,7 @@ class DatasetWrapper(LogMixin):
             manifest = Manifest.from_dir(
                 self.root_dir,
                 exclude_paths=[self.manifest_path, self.log_path],
-                image_set_items=image_set_items,
+                dataset_items=dataset_items,
                 progress=progress,
                 task=task,
                 logger=self.logger,
@@ -822,159 +1008,14 @@ class DatasetWrapper(LogMixin):
                 manifest.save(self.manifest_path)
             self.logger.debug(f"Generated manifest for {len(globbed_files)} files and paths at {self.manifest_path}")
 
-    def summarise(self, image_set_items: dict[str, ImageData]) -> ImagerySummary:
+    def summarise(self, dataset_items: dict[str, list[BaseMetadata]]) -> ImagerySummary:
         """
         Create an imagery summary for this dataset.
 
         Returns:
             An imagery summary.
         """
-        return ImagerySummary.from_dataset(self, image_set_items)
-
-    @property
-    def root_dir(self) -> Path:
-        """
-        The root directory.
-        """
-        return self._root_dir
-
-    @property
-    def data_dir(self) -> Path:
-        """
-        The path to the data directory.
-        """
-        return self._root_dir / "data"
-
-    @property
-    def metadata_path(self) -> Path:
-        """
-        The path to the iFDO metadata file.
-        """
-        return self._root_dir / self.metadata_name
-
-    @property
-    def metadata_name(self) -> str:
-        """
-        The name of the iFDO metadata file.
-        """
-        return self._metadata_name
-
-    @metadata_name.setter
-    def metadata_name(self, filename: str) -> None:
-        """
-        Setter for the name of the dataset metadata.
-
-        Args:
-            filename (str): The new filename for the metadata.
-        """
-        if filename:
-            self._metadata_name = filename if filename.endswith(".ifdo.yml") else f"{filename}.ifdo.yml"
-        else:
-            self._metadata_name = "ifdo.yml"
-
-    @property
-    def summary_path(self) -> Path:
-        """
-        The path to the dataset summary.
-        """
-        return self._root_dir / self.summary_name
-
-    @property
-    def summary_name(self) -> str:
-        """
-        The name of the dataset summary file.
-        """
-        return self._summary_name
-
-    @summary_name.setter
-    def summary_name(self, filename: str) -> None:
-        """
-        Setter for the name of the dataset summary.
-
-        Args:
-            filename (str): The new filename for the summary.
-        """
-        if filename:
-            self._summary_name = filename if filename.endswith(".summary.md") else f"{filename}.summary.md"
-        else:
-            self._summary_name = "summary.md"
-
-    @property
-    def manifest_path(self) -> Path:
-        """
-        The path to the dataset manifest.
-        """
-        return self._root_dir / "manifest.txt"
-
-    @property
-    def name(self) -> str:
-        """
-        The name of the dataset.
-        """
-        return self._root_dir.name
-
-    @property
-    def logs_dir(self) -> Path:
-        """
-        The path to the logs directory.
-        """
-        return self._root_dir / "logs"
-
-    @property
-    def log_path(self) -> Path:
-        """
-        The path to the dataset log file.
-        """
-        return self.logs_dir / "dataset.log"
-
-    @property
-    def pipelines_dir(self) -> Path:
-        """
-        The path to the pipelines directory.
-        """
-        return self._root_dir / "pipelines"
-
-    @property
-    def pipeline_logs_dir(self) -> Path:
-        """
-        The path to the pipeline logs directory.
-        """
-        return self.logs_dir / "pipelines"
-
-    @property
-    def version(self) -> str | None:
-        """
-        Version of the dataset.
-        """
-        return self._version
-
-    @property
-    def contact_name(self) -> str | None:
-        """
-        Full name of the contact person for the packaged dataset.
-        """
-        return self._contact_name
-
-    @property
-    def contact_email(self) -> str | None:
-        """
-        Email address of the contact person for the packaged dataset.
-        """
-        return self._contact_email
-
-    @property
-    def dry_run(self) -> bool:
-        """
-        Whether the dataset generation should run in dry-run mode.
-        """
-        return self._dry_run
-
-    @dry_run.setter
-    def dry_run(self, value: bool) -> None:
-        """
-        Set the dry-run mode for the dataset generation.
-        """
-        self._dry_run = value
+        return ImagerySummary.from_dataset(self, dataset_items)
 
     def check_dataset_mapping(
         self,
