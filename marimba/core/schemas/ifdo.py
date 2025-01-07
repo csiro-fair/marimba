@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
 import piexif
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
@@ -226,7 +226,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                             f"Non-standard image extension for {file_path}. "
                             f"File appears to be a valid {format_name} image. Proceeding with processing.",
                         )
-                except (Image.UnidentifiedImageError, OSError) as e:
+                except (UnidentifiedImageError, OSError) as e:
                     logger.warning(f"Skipping {file_path}: Not a valid image file ({e!s})")
                     return
 
