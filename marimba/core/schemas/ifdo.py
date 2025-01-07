@@ -188,7 +188,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         if dry_run:
             return
 
-        @multithreaded(max_workers)
+        @multithreaded(max_workers=max_workers)
         def process_file(
             cls: type["iFDOMetadata"],
             thread_num: str,
@@ -198,8 +198,37 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         ) -> None:
             file_path, (metadata_items, ancillary_data) = item
 
-            if file_path.suffix.lower() not in {".jpg", ".jpeg", ".png"}:
-                return
+            # Check if the file appears to be an image based on its extension
+            standard_extensions = {
+                # Standard formats that commonly support EXIF
+                ".jpg",
+                ".jpeg",
+                ".png",
+                ".tiff",
+                ".tif",
+                ".webp",
+                # Additional image formats that might be encountered
+                ".heic",
+                ".heif",
+                ".dng",
+                ".cr2",
+                ".nef",
+                ".arw",
+            }
+            file_extension = file_path.suffix.lower()
+
+            if file_extension not in standard_extensions:
+                try:
+                    # Attempt to open the file as an image to verify it's a valid image file
+                    with Image.open(file_path) as img:
+                        format_name = img.format.lower() if img.format else "unknown"
+                        logger.warning(
+                            f"Non-standard image extension for {file_path}. "
+                            f"File appears to be a valid {format_name} image. Proceeding with processing.",
+                        )
+                except (Image.UnidentifiedImageError, OSError) as e:
+                    logger.warning(f"Skipping {file_path}: Not a valid image file ({e!s})")
+                    return
 
             try:
                 exif_dict = piexif.load(str(file_path))
