@@ -219,40 +219,38 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
             file_extension = file_path.suffix.lower()
 
-            if file_extension not in exif_supported_extensions:
-                logger.warning(f"Skipping {file_path}: File format does not support EXIF metadata")
-                return
+            if file_extension in exif_supported_extensions:
 
-            try:
-                exif_dict = piexif.load(str(file_path))
-            except piexif.InvalidImageDataError as e:
-                logger.warning(f"Failed to load EXIF metadata from {file_path}: {e}")
-                return
+                try:
+                    exif_dict = piexif.load(str(file_path))
+                except piexif.InvalidImageDataError as e:
+                    logger.warning(f"Failed to load EXIF metadata from {file_path}: {e}")
+                    return
 
-            # Get the ImageData from the metadata items
-            image_data_list = [item.image_data for item in metadata_items if isinstance(item, iFDOMetadata)]
+                # Get the ImageData from the metadata items
+                image_data_list = [item.image_data for item in metadata_items if isinstance(item, iFDOMetadata)]
 
-            if not image_data_list:
-                return
+                if not image_data_list:
+                    return
 
-            image_data = image_data_list[0]  # Use first item's metadata
+                image_data = image_data_list[0]  # Use first item's metadata
 
-            # Apply EXIF metadata
-            cls._inject_datetime(image_data, exif_dict)
-            cls._inject_gps_coordinates(image_data, exif_dict)
-            image_file = cls._add_thumbnail(file_path, exif_dict)
-            cls._extract_image_properties(image_file, image_data)
-            cls._embed_exif_metadata(image_data, ancillary_data, exif_dict)
+                # Apply EXIF metadata
+                cls._inject_datetime(image_data, exif_dict)
+                cls._inject_gps_coordinates(image_data, exif_dict)
+                image_file = cls._add_thumbnail(file_path, exif_dict)
+                cls._extract_image_properties(image_file, image_data)
+                cls._embed_exif_metadata(image_data, ancillary_data, exif_dict)
 
-            try:
-                exif_bytes = piexif.dump(exif_dict)
-                piexif.insert(exif_bytes, str(file_path))
-                logger.debug(f"Thread {thread_num} | Applied iFDO metadata to EXIF tags for image {file_path}")
-            except piexif.InvalidImageDataError:
-                logger.warning(f"Failed to write EXIF metadata to {file_path}")
+                try:
+                    exif_bytes = piexif.dump(exif_dict)
+                    piexif.insert(exif_bytes, str(file_path))
+                    logger.debug(f"Thread {thread_num} | Applied iFDO metadata to EXIF tags for image {file_path}")
+                except piexif.InvalidImageDataError:
+                    logger.warning(f"Failed to write EXIF metadata to {file_path}")
 
-            if progress and task is not None:
-                progress.advance(task)
+                if progress and task is not None:
+                    progress.advance(task)
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             task = progress.add_task("[green]Processing files with metadata (4/11)", total=len(dataset_mapping))
