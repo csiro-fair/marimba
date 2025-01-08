@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
 import piexif
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
@@ -198,37 +198,30 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         ) -> None:
             file_path, (metadata_items, ancillary_data) = item
 
-            # Check if the file appears to be an image based on its extension
-            standard_extensions = {
-                # Standard formats that commonly support EXIF
+            # Formats with reliable EXIF support
+            exif_supported_extensions = {
+                # Standard formats with native EXIF support
                 ".jpg",
                 ".jpeg",
-                ".png",
                 ".tiff",
                 ".tif",
-                ".webp",
-                # Additional image formats that might be encountered
-                ".heic",
-                ".heif",
-                ".dng",
-                ".cr2",
-                ".nef",
-                ".arw",
+                # Common RAW formats that support EXIF
+                ".cr2",  # Canon
+                ".cr3",  # Canon
+                ".nef",  # Nikon
+                ".arw",  # Sony
+                ".dng",  # Adobe Digital Negative
+                ".raf",  # Fujifilm
+                ".orf",  # Olympus
+                ".pef",  # Pentax
+                ".rw2",  # Panasonic
             }
+
             file_extension = file_path.suffix.lower()
 
-            if file_extension not in standard_extensions:
-                try:
-                    # Attempt to open the file as an image to verify it's a valid image file
-                    with Image.open(file_path) as img:
-                        format_name = img.format.lower() if img.format else "unknown"
-                        logger.warning(
-                            f"Non-standard image extension for {file_path}. "
-                            f"File appears to be a valid {format_name} image. Proceeding with processing.",
-                        )
-                except (UnidentifiedImageError, OSError) as e:
-                    logger.warning(f"Skipping {file_path}: Not a valid image file ({e!s})")
-                    return
+            if file_extension not in exif_supported_extensions:
+                logger.warning(f"Skipping {file_path}: File format does not support EXIF metadata")
+                return
 
             try:
                 exif_dict = piexif.load(str(file_path))
