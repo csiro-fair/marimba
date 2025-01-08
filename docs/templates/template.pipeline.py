@@ -8,15 +8,42 @@ Rename the PipelineTemplate class to something appropriate for your Pipeline's p
 from pathlib import Path
 from typing import Any
 
-from ifdo.models import ImageData
-
 from marimba.core.pipeline import BasePipeline
+from marimba.core.schemas.base import BaseMetadata
+from marimba.core.schemas.ifdo import iFDOMetadata
 
 
 class PipelineTemplate(BasePipeline):
     """
     Template Pipeline implementation. Rename this class and customize for your needs.
     """
+
+    def __init__(
+        self,
+        root_path: str | Path,
+        config: dict[str, Any] | None = None,
+        *,
+        dry_run: bool = False,
+    ) -> None:
+        """
+        Initialize a new Pipeline instance.
+
+        Args:
+            root_path (str | Path): Base directory path where the pipeline will store its data and configuration files.
+            config (dict[str, Any] | None, optional): Pipeline configuration dictionary. If None, default configuration
+             will be used. Defaults to None.
+            dry_run (bool, optional): If True, prevents any filesystem modifications. Useful for validation and testing.
+             Defaults to False.
+
+        Note:
+            This class inherits from BasePipeline and uses iFDOMetadata as its metadata class.
+        """
+        super().__init__(
+            root_path,
+            config,
+            dry_run=dry_run,
+            metadata_class=iFDOMetadata,
+        )
 
     @staticmethod
     def get_pipeline_config_schema() -> dict[str, Any]:
@@ -84,7 +111,7 @@ class PipelineTemplate(BasePipeline):
         data_dir: Path,
         config: dict[str, Any],
         **kwargs: dict[str, Any],
-    ) -> dict[Path, tuple[Path, ImageData | None, dict[str, Any] | None]]:
+    ) -> dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]:
         """
         Package data from data_dir for distribution.
 
@@ -94,6 +121,7 @@ class PipelineTemplate(BasePipeline):
             kwargs: Additional keyword arguments.
 
         Returns:
-            Dictionary mapping source paths to tuples of (destination path, ImageData, metadata).
+            Dictionary mapping source paths to tuples of (destination path, BaseMetadata list, metadata).
         """
-        return {}
+        data_mapping: dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]] = {}
+        return data_mapping
