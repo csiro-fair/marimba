@@ -93,6 +93,8 @@ class ImagerySummary:
     PAIR_OF_CONTRIBUTORS: ClassVar[int] = 2
     SECONDS_PER_HOUR: ClassVar[int] = 3600
     SECONDS_PER_MINUTE: ClassVar[int] = 60
+    IMAGE_EXTENSIONS: ClassVar[set[str]] = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif"}
+    VIDEO_EXTENSIONS: ClassVar[set[str]] = {".mp4", ".mov", ".avi", ".wmv", ".flv", ".mkv", ".webm"}
 
     @staticmethod
     def sizeof_fmt(num: float, suffix: str = "B") -> str:
@@ -821,7 +823,7 @@ class ImagerySummary:
 
     @staticmethod
     def _process_other_files(dataset_wrapper: "DatasetWrapper", other_data: dict[str, Any]) -> None:
-        for path in dataset_wrapper.root_dir.glob("**/*"):
+        for path in dataset_wrapper.data_dir.glob("**/*"):
             if (
                 path.is_file()
                 and path.suffix.lower() not in ImagerySummary.IMAGE_EXTENSIONS | ImagerySummary.VIDEO_EXTENSIONS
@@ -934,9 +936,6 @@ class ImagerySummary:
                 ),
             )
 
-    IMAGE_EXTENSIONS: ClassVar[set[str]] = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif"}
-    VIDEO_EXTENSIONS: ClassVar[set[str]] = {".mp4", ".mov", ".avi", ".wmv", ".flv", ".mkv", ".webm"}
-
     def __str__(self) -> str:
         local_timezone = datetime.now().astimezone().tzinfo
         dataset_metadata: list[list[str]] = [
@@ -1021,7 +1020,7 @@ class ImagerySummary:
             f"# {self.dataset_name} Dataset Summary\n\n"
             f"## Dataset Metadata\n"
             f"{tabulate(dataset_metadata, headers=['Attribute', 'Description'], tablefmt='github')}"
-            f"{_format_section('Image Files Summary', image_files_summary, self.image_num > 1)}"
-            f"{_format_section('Video Files Summary', video_files_summary, self.video_num > 1)}"
-            f"{_format_section('Other Files Summary', other_files_summary, self.other_num > 1)}"
+            f"{_format_section('Image Files Summary', image_files_summary, self.image_num > 0)}"
+            f"{_format_section('Video Files Summary', video_files_summary, self.video_num > 0)}"
+            f"{_format_section('Other Files Summary', other_files_summary, self.other_num > 0)}"
         )
