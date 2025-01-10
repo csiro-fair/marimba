@@ -193,7 +193,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             cls: type["iFDOMetadata"],
             thread_num: str,
             item: tuple[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
-            progress: Progress | None = None,
+            progress_bar: Progress | None = None,
             task: TaskID | None = None,
         ) -> None:
             file_path, (metadata_items, ancillary_data) = item
@@ -219,42 +219,47 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
             file_extension = file_path.suffix.lower()
 
-            if file_extension in exif_supported_extensions:
+            try:
+                # If it's an EXIF-supported file, process EXIF metadata
+                if file_extension in exif_supported_extensions:
+                    try:
+                        exif_dict = piexif.load(str(file_path))
+                    except piexif.InvalidImageDataError as e:
+                        logger.warning(f"Failed to load EXIF metadata from {file_path}: {e}")
+                    else:
+                        # Get the ImageData from the metadata items
+                        image_data_list = [item.image_data for item in metadata_items if isinstance(item, iFDOMetadata)]
 
-                try:
-                    exif_dict = piexif.load(str(file_path))
-                except piexif.InvalidImageDataError as e:
-                    logger.warning(f"Failed to load EXIF metadata from {file_path}: {e}")
-                    return
+                        if image_data_list:
+                            image_data = image_data_list[0]  # Use first item's metadata
 
-                # Get the ImageData from the metadata items
-                image_data_list = [item.image_data for item in metadata_items if isinstance(item, iFDOMetadata)]
+                            # Apply EXIF metadata
+                            cls._inject_datetime(image_data, exif_dict)
+                            cls._inject_gps_coordinates(image_data, exif_dict)
+                            image_file = cls._add_thumbnail(file_path, exif_dict)
+                            cls._extract_image_properties(image_file, image_data)
+                            cls._embed_exif_metadata(image_data, ancillary_data, exif_dict)
 
-                if not image_data_list:
-                    return
+                            try:
+                                exif_bytes = piexif.dump(exif_dict)
+                                piexif.insert(exif_bytes, str(file_path))
+                                logger.debug(
+                                    f"Thread {thread_num} | Applied iFDO metadata to EXIF tags for image {file_path}",
+                                )
+                            except piexif.InvalidImageDataError:
+                                logger.warning(f"Failed to write EXIF metadata to {file_path}")
+                else:
+                    # For non-EXIF files (like videos), just log that we're skipping EXIF processing
+                    logger.debug(f"Thread {thread_num} | Skipping EXIF processing for non-supported file: {file_path}")
 
-                image_data = image_data_list[0]  # Use first item's metadata
+            finally:
+                # Always increment the progress bar, regardless of file type or processing success
+                if progress_bar and task is not None:
+                    progress_bar.advance(task)
 
-                # Apply EXIF metadata
-                cls._inject_datetime(image_data, exif_dict)
-                cls._inject_gps_coordinates(image_data, exif_dict)
-                image_file = cls._add_thumbnail(file_path, exif_dict)
-                cls._extract_image_properties(image_file, image_data)
-                cls._embed_exif_metadata(image_data, ancillary_data, exif_dict)
-
-                try:
-                    exif_bytes = piexif.dump(exif_dict)
-                    piexif.insert(exif_bytes, str(file_path))
-                    logger.debug(f"Thread {thread_num} | Applied iFDO metadata to EXIF tags for image {file_path}")
-                except piexif.InvalidImageDataError:
-                    logger.warning(f"Failed to write EXIF metadata to {file_path}")
-
-                if progress and task is not None:
-                    progress.advance(task)
-
-        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Processing files with metadata (4/11)", total=len(dataset_mapping))
-            process_file(cls, items=dataset_mapping.items(), progress=progress, task=task)  # type: ignore[call-arg]
+            with Progress(SpinnerColumn(), *get_default_columns()) as progress:
+                task = progress.add_task("[green]Processing files with metadata (4/11)", total=len(dataset_mapping))
+                process_file(cls, items=dataset_mapping.items(), progress_bar=progress, task=task)  # type: ignore[call-arg]
 
     @staticmethod
     def _inject_datetime(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
