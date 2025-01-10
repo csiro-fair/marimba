@@ -193,7 +193,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             cls: type["iFDOMetadata"],
             thread_num: str,
             item: tuple[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
-            progress_bar: Progress | None = None,
+            progress: Progress | None = None,
             task: TaskID | None = None,
         ) -> None:
             file_path, (metadata_items, ancillary_data) = item
@@ -254,12 +254,12 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
             finally:
                 # Always increment the progress bar, regardless of file type or processing success
-                if progress_bar and task is not None:
-                    progress_bar.advance(task)
+                if progress and task is not None:
+                    progress.advance(task)
 
-            with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-                task = progress.add_task("[green]Processing files with metadata (4/11)", total=len(dataset_mapping))
-                process_file(cls, items=dataset_mapping.items(), progress_bar=progress, task=task)  # type: ignore[call-arg]
+        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
+            task = progress.add_task("[green]Processing files with metadata (4/11)", total=len(dataset_mapping))
+            process_file(cls, items=dataset_mapping.items(), progress=progress, task=task)  # type: ignore[call-arg]
 
     @staticmethod
     def _inject_datetime(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
