@@ -110,7 +110,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         """Get the contextual information about the image."""
         if self._image_data.image_context is None:
             return None
-        return cast(str, self._image_data.image_context.uri)
+        return cast(str, self._image_data.image_context.name)
 
     @property
     def license(self) -> str | None:
