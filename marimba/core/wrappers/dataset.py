@@ -817,7 +817,7 @@ class DatasetWrapper(LogMixin):
                 max_workers=max_workers,
             )
             if not self.dry_run:
-                manifest.save(self.manifest_path)
+                manifest.save(self.manifest_path, logger=self.logger)
             self.logger.debug(
                 f"Generated manifest for {len(globbed_files)} "
                 f"files and paths at {format_path_for_logging(self.manifest_path, self._project_dir)}",
