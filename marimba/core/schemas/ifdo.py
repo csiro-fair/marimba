@@ -352,6 +352,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 format="JPEG",
                 quality=90,
                 optimize=True,
+                progressive=False,
             )
 
             exif_dict["thumbnail"] = thumbnail_io.getvalue()
