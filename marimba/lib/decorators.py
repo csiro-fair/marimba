@@ -66,7 +66,7 @@ def multithreaded(max_workers: int | None = None) -> Callable[[T], T]:
                         result = future.result()
                         results.append(result)
                     except Exception as e:
-                        self.logger.exception(f"Error processing {item}: {e}")
+                        logger.exception(f"Error processing {item}: {e}")
             return results
 
         return cast(T, wrapper)
