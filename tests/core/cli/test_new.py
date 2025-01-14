@@ -6,7 +6,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from marimba.core.cli.new import find_project_dir, find_project_dir_or_exit
+from marimba.core.utils.paths import find_project_dir, find_project_dir_or_exit
 from marimba.core.wrappers.project import ProjectWrapper
 from marimba.main import marimba_cli
 
@@ -225,7 +225,7 @@ def test_find_project_dir_or_exit_raises_exit(setup_test_directory_structure: Pa
     non_project_dir = setup_test_directory_structure / "non_project"
     non_project_dir.mkdir()
 
-    with patch("marimba.core.cli.new.find_project_dir", return_value=None):
+    with patch("marimba.core.utils.paths.find_project_dir", return_value=None):
         with pytest.raises(typer.Exit):
             find_project_dir_or_exit(non_project_dir)
 
@@ -268,7 +268,7 @@ def test_find_project_dir_or_exit_with_symlink(tmp_path: Path) -> None:
     symlink_dir = tmp_path / "symlink"
     symlink_dir.symlink_to(subdir)
 
-    with patch("marimba.core.cli.new.find_project_dir", return_value=root_dir):
+    with patch("marimba.core.utils.paths.find_project_dir", return_value=root_dir):
         result = find_project_dir_or_exit(symlink_dir)
         assert result == root_dir
 

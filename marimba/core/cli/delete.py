@@ -135,7 +135,7 @@ def project(
     ),
 ) -> None:
     """Delete a Marimba project."""
-    logger.info(f"Executing the {MARIMBA} {format_command('delete project')} command.")
+    logger.info(f"Executing the {MARIMBA} {format_command('delete project')} command")
 
     try:
         project_dir = find_project_dir_or_exit(project_dir)
@@ -160,7 +160,7 @@ def pipeline(
     ),
 ) -> None:
     """Delete one or more Marimba pipelines from a project."""
-    logger.info(f"Executing the {MARIMBA} {format_command('delete pipeline')} command.")
+    logger.info(f"Executing the {MARIMBA} {format_command('delete pipeline')} command")
     project_dir = find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
@@ -186,7 +186,7 @@ def collection(
 ) -> None:
     """Delete one or more Marimba collections in a project."""
     project_dir = find_project_dir_or_exit(project_dir)
-    logger.info(f"Executing the {MARIMBA} {format_command('delete collection')} command.")
+    logger.info(f"Executing the {MARIMBA} {format_command('delete collection')} command")
     project_wrapper = ProjectWrapper(project_dir)
 
     success_items, errors = batch_delete_operation(
@@ -211,7 +211,7 @@ def target(
 ) -> None:
     """Delete one or more distribution targets from a Marimba project."""
     project_dir = find_project_dir_or_exit(project_dir)
-    logger.info(f"Executing the {MARIMBA} {format_command('delete target')} command.")
+    logger.info(f"Executing the {MARIMBA} {format_command('delete target')} command")
     project_wrapper = ProjectWrapper(project_dir)
 
     success_items, errors = batch_delete_operation(
@@ -236,7 +236,7 @@ def dataset(
 ) -> None:
     """Delete one or more datasets from a Marimba project."""
     project_dir = find_project_dir_or_exit(project_dir)
-    logger.info(f"Executing the {MARIMBA} {format_command('delete dataset')} command.")
+    logger.info(f"Executing the {MARIMBA} {format_command('delete dataset')} command")
     project_wrapper = ProjectWrapper(project_dir)
 
     success_items, errors = batch_delete_operation(

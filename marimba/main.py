@@ -45,6 +45,7 @@ from marimba.core.distribution.base import DistributionTargetBase
 from marimba.core.utils.constants import PROJECT_DIR_HELP, Operation
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
 from marimba.core.utils.map import NetworkConnectionError
+from marimba.core.utils.paths import find_project_dir_or_exit
 from marimba.core.utils.rich import error_panel, format_entity, success_panel
 from marimba.core.wrappers.dataset import DatasetWrapper
 from marimba.core.wrappers.project import ProjectWrapper
@@ -137,7 +138,7 @@ def import_command(
         print(error_panel(error_message))
         raise typer.Exit from None
 
-    project_dir = new.find_project_dir_or_exit(project_dir)
+    project_dir = find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
     get_rich_handler().set_dry_run(dry_run)
 
@@ -224,7 +225,7 @@ def package_command(
     Package up a Marimba collection ready for distribution.
     """
     start_time = time.time()
-    project_dir = new.find_project_dir_or_exit(project_dir)
+    project_dir = find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
     get_rich_handler().set_dry_run(dry_run)
 
@@ -316,7 +317,7 @@ def process_command(
     Process the Marimba collection based on the pipeline specification.
     """
     start_time = time.time()
-    project_dir = new.find_project_dir_or_exit(project_dir)
+    project_dir = find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
     get_rich_handler().set_dry_run(dry_run)
 
@@ -366,7 +367,7 @@ def distribute_command(
     Distribute a Marimba dataset.
     """
     start_time = time.time()
-    project_dir = new.find_project_dir_or_exit(project_dir)
+    project_dir = find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
     get_rich_handler().set_dry_run(dry_run)
 
@@ -406,7 +407,7 @@ def update_command(project_dir: Path | None = typer.Option(None, help=PROJECT_DI
     """
     Update (pull) all Marimba pipelines.
     """
-    project_dir = new.find_project_dir_or_exit(project_dir)
+    project_dir = find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
     try:
@@ -422,7 +423,7 @@ def install_command(project_dir: Path | None = typer.Option(None, help=PROJECT_D
     """
     Install Python dependencies from requirements.txt files defined by a project's pipelines.
     """
-    project_dir = new.find_project_dir_or_exit(project_dir)
+    project_dir = find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir)
 
     try:

@@ -50,7 +50,7 @@ def _find_pipeline_module_path(repo_dir: Path, *, allow_empty: bool = False) -> 
         )
 
     if len(pipeline_module_paths) > 1:
-        raise FileNotFoundError(f'Multiple pipeline implementations found in "{repo_dir}": {pipeline_module_paths}.')
+        raise FileNotFoundError(f'Multiple pipeline implementations found in "{repo_dir}": {pipeline_module_paths}')
 
     return pipeline_module_paths[0]
 
@@ -59,7 +59,7 @@ def _log_empty_repo_warning(repo_dir: Path) -> None:
     """Log warning message for empty repository case."""
     logger = get_logger("marimba.core.pipeline")
     logger.warning(
-        f'Pipeline repository cloned successfully to "{repo_dir}", '
+        f'Pipeline repository cloned to "{repo_dir}", '
         "but no Marimba Pipeline implementation was found.\n\n"
         "To implement your Pipeline:\n"
         "1. Create a file in your Pipeline repository ending in .pipeline.py\n"
@@ -114,7 +114,7 @@ def _find_pipeline_class(module: types.ModuleType) -> type[BasePipeline]:
         if isinstance(obj, type) and _is_valid_pipeline_class(obj):
             return obj  # type: ignore[return-value]  # We know it's a Type[BasePipeline] due to _is_valid_pipeline_class
 
-    raise ImportError("Pipeline class has not been set or could not be found.")
+    raise ImportError("Pipeline class has not been set or could not be found")
 
 
 def _configure_pipeline_logging(
@@ -125,12 +125,18 @@ def _configure_pipeline_logging(
     log_string_prefix: str | None = None,
 ) -> None:
     """Configure logging for the pipeline instance."""
+    # First remove any existing handlers to prevent duplication
+    pipeline_instance.logger.handlers = []
+
     if log_string_prefix:
         prefix_filter = LogPrefixFilter(log_string_prefix)
         pipeline_instance.logger.addFilter(prefix_filter.apply_prefix)
 
+    # Check if this handler already exists before adding
     file_handler = get_file_handler(root_dir, pipeline_name, dry_run)
-    pipeline_instance.logger.addHandler(file_handler)
+    handler_paths = [h.baseFilename for h in pipeline_instance.logger.handlers if hasattr(h, "baseFilename")]
+    if not any(h == file_handler.baseFilename for h in handler_paths):
+        pipeline_instance.logger.addHandler(file_handler)
 
 
 def load_pipeline_instance(

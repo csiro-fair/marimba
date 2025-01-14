@@ -244,13 +244,16 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                                 exif_bytes = piexif.dump(exif_dict)
                                 piexif.insert(exif_bytes, str(file_path))
                                 logger.debug(
-                                    f"Thread {thread_num} | Applied iFDO metadata to EXIF tags for image {file_path}",
+                                    f"Thread {thread_num} - Applied iFDO metadata to EXIF tags for image"
+                                    f" {file_path}",
                                 )
                             except piexif.InvalidImageDataError:
                                 logger.warning(f"Failed to write EXIF metadata to {file_path}")
                 else:
                     # For non-EXIF files (like videos), just log that we're skipping EXIF processing
-                    logger.debug(f"Thread {thread_num} | Skipping EXIF processing for non-supported file: {file_path}")
+                    logger.debug(
+                        f"Thread {thread_num} - Skipping EXIF processing for non-supported file: {file_path}",
+                    )
 
             finally:
                 # Always increment the progress bar, regardless of file type or processing success

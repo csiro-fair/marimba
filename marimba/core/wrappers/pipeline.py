@@ -141,11 +141,11 @@ class PipelineWrapper(LogMixin):
 
         def check_dir_exists(path: Path) -> None:
             if not path.is_dir():
-                raise PipelineWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
+                raise PipelineWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory')
 
         def check_file_exists(path: Path) -> None:
             if not path.is_file():
-                raise PipelineWrapper.InvalidStructureError(f'"{path}" does not exist or is not a file.')
+                raise PipelineWrapper.InvalidStructureError(f'"{path}" does not exist or is not a file')
 
         check_dir_exists(self.root_dir)
         check_dir_exists(self.repo_dir)
@@ -179,7 +179,7 @@ class PipelineWrapper(LogMixin):
 
         # Check that the root directory doesn't already exist
         if root_dir.exists():
-            raise FileExistsError(f'Pipeline root directory "{root_dir}" already exists.')
+            raise FileExistsError(f'Pipeline root directory "{root_dir}" already exists')
 
         # Create the pipeline root directory
         root_dir.mkdir(parents=True)
@@ -259,7 +259,7 @@ class PipelineWrapper(LogMixin):
 
             # Ensure there is one result
             if len(pipeline_module_paths) == 0:
-                raise FileNotFoundError(f'No pipeline implementation found in "{self.repo_dir}".')
+                raise FileNotFoundError(f'No pipeline implementation found in "{self.repo_dir}"')
 
             if len(pipeline_module_paths) > 1:
                 raise FileNotFoundError(
@@ -347,7 +347,7 @@ class PipelineWrapper(LogMixin):
             if additional_config:
                 pipeline_config.update(additional_config)
 
-        self.logger.debug(f"Final prompted pipeline config: {pipeline_config}")
+        self.logger.debug(f"Provided pipeline config={pipeline_config}")
 
         return pipeline_config
 
@@ -412,7 +412,7 @@ class PipelineWrapper(LogMixin):
             self.logger.exception(f"Requirements file does not exist: {self.requirements_path}")
             raise PipelineWrapper.InstallError(f"Requirements file does not exist: {self.requirements_path}")
 
-        self.logger.info(f"Installing pipeline dependencies from {self.requirements_path}...")
+        self.logger.info(f"Started installing pipeline dependencies from {self.requirements_path}")
         try:
             # Ensure the requirements path is an absolute path and exists
             requirements_path = str(self.requirements_path.absolute())
@@ -434,7 +434,7 @@ class PipelineWrapper(LogMixin):
 
                 self._handle_pip_error(process.returncode)
 
-            self.logger.info("Pipeline dependencies installed successfully.")
+            self.logger.info("Pipeline dependencies installed")
         except Exception as e:
             self.logger.exception(f"Error installing pipeline dependencies: {e}")
             raise PipelineWrapper.InstallError from e

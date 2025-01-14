@@ -219,7 +219,7 @@ def turn_clockwise(path: str | Path, turns: int = 1, destination: str | Path | N
 
     # Validate the turns value
     if turns not in [1, 2, 3]:
-        raise ValueError("Turns must be an integer between 1 and 3 inclusive.")
+        raise ValueError("Turns must be an integer between 1 and 3 inclusive")
 
     # Map turns to the corresponding rotation constants
     rotation_constants = {

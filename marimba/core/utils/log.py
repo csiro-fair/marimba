@@ -153,7 +153,7 @@ def get_file_handler(
 
     # Ensure the directory exists
     if not output_dir.is_dir():
-        raise FileNotFoundError(f"Output directory {output_dir} does not exist.")
+        raise FileNotFoundError(f"Output directory {output_dir} does not exist")
 
     # Build the path as `output_dir/name.log`
     path = output_dir / f"{name}.log"
@@ -257,7 +257,7 @@ class LogPrefixFilter(logging.Filter):
         Returns:
             bool: Always returns True to ensure the record is not filtered out.
         """
-        record.msg = f"{self.prefix} {record.msg}"
+        record.msg = f"{self.prefix}{record.msg}"
         return True
 
 

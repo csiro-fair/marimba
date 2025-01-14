@@ -51,7 +51,7 @@ def get_stream_properties(stream: av.video.stream.VideoStream) -> tuple[float, f
     total_frames = stream.frames
 
     if frame_rate is None or time_base is None:
-        raise ValueError("Frame rate or time base is None.")
+        raise ValueError("Frame rate or time base is None")
 
     return float(frame_rate), float(time_base), total_frames
 

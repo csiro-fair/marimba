@@ -20,6 +20,7 @@ from pathlib import Path
 from threading import Lock
 
 from marimba.core.pipeline import BasePipeline
+from marimba.core.utils.paths import format_path_for_logging
 from marimba.lib.decorators import multithreaded
 from marimba.lib.image import generate_image_thumbnail
 from marimba.lib.video import generate_video_thumbnails
@@ -59,7 +60,10 @@ def multithreaded_generate_image_thumbnails(
     @multithreaded(max_workers=max_workers)
     def generate_thumbnail_task(self: BasePipeline, thread_num: str, item: Path) -> None:
         thumbnail_path = generate_image_thumbnail(item, output_directory)
-        self.logger.debug(f"Thread {thread_num} | Generated thumbnail for image {item}")
+        self.logger.debug(
+            f"Thread {thread_num} - Generated thumbnail for image "
+            f"{format_path_for_logging(item, Path(self._root_path).parents[2])}",
+        )
         if thumbnail_path:
             with list_lock:
                 video_thumbnail_list.append(thumbnail_path)
@@ -120,7 +124,10 @@ def multithreaded_generate_video_thumbnails(
             suffix,
             overwrite=overwrite,
         )
-        self.logger.info(f"Thread {thread_num} | Generated thumbnails for video {item}")
+        self.logger.debug(
+            f"Thread {thread_num} - Generated thumbnails for video "
+            f"{format_path_for_logging(item, Path(self._root_path).parents[2])}",
+        )
         if video_path and thumbnail_paths:
             with list_lock:
                 thumbnail_path_list.append((video_path, thumbnail_paths))

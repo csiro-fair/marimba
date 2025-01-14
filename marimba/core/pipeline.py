@@ -24,6 +24,7 @@ from typing import Any
 
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.log import LogMixin
+from marimba.core.utils.paths import format_path_for_logging
 from marimba.core.utils.rich import format_command, format_entity
 
 
@@ -127,16 +128,23 @@ class BasePipeline(ABC, LogMixin):
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
-            f"Running {format_command('import')} command for pipeline {format_entity(self.class_name)} with args: "
-            f"{data_dir=}, {source_path=}, {config=}, {kwargs=}",
+            f"Started {format_command('import')} command for pipeline {format_entity(self.class_name)} with args "
+            f"data_dir={format_path_for_logging(data_dir, Path(self._root_path).parents[2])}, "
+            f"source_path={source_path}, {config=}, {kwargs=}",
         )
 
         # Check for the existence of the source_path directory
         if not source_path.is_dir():
             self.logger.exception(f"Source path {source_path} is not a directory")
-            return None
+            return
 
-        return self._import(data_dir, source_path, config, **kwargs)
+        self._import(data_dir, source_path, config, **kwargs)
+
+        self.logger.debug(
+            f"Completed {format_command('import')} command for pipeline {format_entity(self.class_name)}",
+        )
+
+        return
 
     def run_process(self, data_dir: Path, config: dict[str, Any], **kwargs: dict[str, Any]) -> None:
         """
@@ -150,10 +158,15 @@ class BasePipeline(ABC, LogMixin):
             kwargs: Additional keyword arguments.
         """
         self.logger.debug(
-            f"Running {format_command('process')} command for pipeline {format_entity(self.class_name)} with args: "
-            f"{data_dir=}, {config=}, {kwargs=}",
+            f"Started {format_command('process')} command for pipeline {format_entity(self.class_name)} with args "
+            f"data_dir={format_path_for_logging(data_dir, Path(self._root_path).parents[2])}, {config=}, {kwargs=}",
         )
-        return self._process(data_dir, config, **kwargs)
+
+        self._process(data_dir, config, **kwargs)
+
+        self.logger.debug(
+            f"Completed {format_command('process')} command for pipeline {format_entity(self.class_name)}",
+        )
 
     def run_package(
         self,
@@ -176,10 +189,17 @@ class BasePipeline(ABC, LogMixin):
             The pipeline data mapping.
         """
         self.logger.debug(
-            f"Running {format_command('package')} command for pipeline {format_entity(self.class_name)} with args: "
-            f"{data_dir=}, {config=}, {kwargs=}",
+            f"Started {format_command('package')} command for pipeline {format_entity(self.class_name)} with args "
+            f"data_dir={format_path_for_logging(data_dir, Path(self._root_path).parents[2])}, {config=}, {kwargs=}",
         )
-        return self._package(data_dir, config, **kwargs)
+
+        data_mapping = self._package(data_dir, config, **kwargs)
+
+        self.logger.debug(
+            f"Completed {format_command('package')} command for pipeline {format_entity(self.class_name)}",
+        )
+
+        return data_mapping
 
     def _import(
         self,

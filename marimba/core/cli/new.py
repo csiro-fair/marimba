@@ -26,8 +26,6 @@ Classes:
     - DistributionTargetWrapper: A wrapper class for working with Marimba distribution targets.
 
 Functions:
-    - find_project_dir: Finds the project root directory from a given path.
-    - find_project_dir_or_exit: Finds the project root directory or exits with an error.
     - project: Creates a new Marimba project.
     - pipeline: Creates and configures a new Marimba pipeline in a project.
     - collection: Creates and configures a new Marimba collection in a project.
@@ -35,7 +33,6 @@ Functions:
 """
 
 import json
-from os import R_OK, access
 from pathlib import Path
 
 import typer
@@ -43,6 +40,7 @@ from rich import print
 
 from marimba.core.utils.constants import PROJECT_DIR_HELP
 from marimba.core.utils.log import get_logger
+from marimba.core.utils.paths import find_project_dir_or_exit
 from marimba.core.utils.rich import (
     MARIMBA,
     error_panel,
@@ -62,53 +60,6 @@ app = typer.Typer(
 )
 
 
-def find_project_dir(path: str | Path) -> Path | None:
-    """
-    Find the project root directory from a given path.
-
-    Args:
-        path: The path to start searching from.
-
-    Returns:
-        The project root directory, or None if no project root directory was found.
-    """
-    path = Path(path)
-    while access(path, R_OK) and path != path.parent:
-        if (path / ".marimba").is_dir():
-            return path
-        path = path.parent
-    return None
-
-
-def find_project_dir_or_exit(project_dir: str | Path | None = None) -> Path:
-    """
-    Find the project root directory from a given path, or exit with an error if no project root directory was found.
-
-    Args:
-        project_dir: The path to start searching from. If None, the current working directory will be used.
-
-    Returns:
-        The project root directory.
-
-    Raises:
-        typer.Exit: If no project root directory was found.
-    """
-    # Convert project_dir to Path if it is not None, otherwise use current working directory
-    project_dir = Path(project_dir) if project_dir else Path.cwd()
-
-    # Attempt to find the project directory
-    found_project_dir = find_project_dir(project_dir)
-
-    # Check if a project directory was found
-    if found_project_dir is None:
-        error_message = f"Could not find a {MARIMBA} project."
-        logger.exception(error_message)
-        print(error_panel(error_message))
-        raise typer.Exit(code=1)
-
-    return found_project_dir
-
-
 @app.command()
 def project(
     project_dir: Path = typer.Argument(..., help="Root path to create new Marimba project."),
@@ -116,7 +67,7 @@ def project(
     """
     Create a new Marimba project.
     """
-    logger.info(f"Executing the {MARIMBA} {format_command('new project')} command.")
+    logger.info(f"Executing the {MARIMBA} {format_command('new project')} command")
 
     # Try to create the new project
     try:
@@ -156,7 +107,7 @@ def pipeline(
 
     project_dir = find_project_dir_or_exit(project_dir)
 
-    logger.info(f"Executing the {MARIMBA} {format_command('new pipeline')} command.")
+    logger.info(f"Executing the {MARIMBA} {format_command('new pipeline')} command")
 
     try:
         # Create project wrapper instance
@@ -223,7 +174,7 @@ def collection(
 
     project_dir = find_project_dir_or_exit(project_dir)
 
-    logger.info(f"Executing the {MARIMBA} {format_command('new collection')} command.")
+    logger.info(f"Executing the {MARIMBA} {format_command('new collection')} command")
 
     try:
         # Create project wrapper instance
@@ -273,7 +224,7 @@ def target(
     """
     project_dir = find_project_dir_or_exit(project_dir)
 
-    logger.info(f"Executing the {MARIMBA} {format_command('new target')} command.")
+    logger.info(f"Executing the {MARIMBA} {format_command('new target')} command")
 
     try:
         # Create project wrapper instance

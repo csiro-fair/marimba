@@ -47,7 +47,7 @@ from marimba.core.parallel.pipeline_loader import load_pipeline_instance
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.log import LogMixin, get_file_handler
-from marimba.core.utils.paths import remove_directory_tree
+from marimba.core.utils.paths import format_path_for_logging, remove_directory_tree
 from marimba.core.utils.prompt import prompt_schema
 from marimba.core.utils.rich import get_default_columns
 from marimba.core.wrappers.collection import CollectionWrapper
@@ -142,7 +142,7 @@ def execute_import(
     )
 
     if pipeline_instance is None:
-        raise RuntimeError(f"{log_string_prefix} - Failed to load pipeline instance for {pipeline_name}")
+        raise RuntimeError(f"{log_string_prefix}Failed to load pipeline instance for {pipeline_name}")
 
     # Run the import method
     pipeline_instance.run_import(collection_data_dir, source_path, collection_config, **merged_kwargs)
@@ -202,7 +202,7 @@ def execute_process(
     )
 
     if pipeline_instance is None:
-        raise RuntimeError(f"{log_string_prefix} - Failed to load pipeline instance for {pipeline_name}")
+        raise RuntimeError(f"{log_string_prefix}Failed to load pipeline instance for {pipeline_name}")
 
     # Run the process method
     pipeline_instance.run_process(collection_data_dir, collection_config, **merged_kwargs)
@@ -262,7 +262,7 @@ def execute_packaging(
     )
 
     if pipeline_instance is None:
-        raise RuntimeError(f"{log_string_prefix} - Failed to load pipeline instance for {pipeline_name}")
+        raise RuntimeError(f"{log_string_prefix}Failed to load pipeline instance for {pipeline_name}")
 
     # Run the package method
     pipeline_data_mapping = pipeline_instance.run_package(collection_data_dir, collection_config, **merged_kwargs)
@@ -272,7 +272,7 @@ def execute_packaging(
 
     return (
         pipeline_data_mapping,
-        f'Completed composing data for pipeline "{pipeline_name}" and collection "{collection_name}" in '
+        f'Completed packaging data for pipeline "{pipeline_name}" and collection "{collection_name}" in '
         f"{package_duration:.2f} seconds",
     )
 
@@ -389,12 +389,7 @@ class ProjectWrapper(LogMixin):
         self._load_collections()
         self._load_datasets()
         self._load_targets()
-        self.logger.debug(
-            f"Loaded {len(self.pipeline_wrappers)} pipeline(s), "
-            f"{len(self.collection_wrappers)} collection(s), "
-            f"{len(self.dataset_wrappers)} dataset(s) and "
-            f"{len(self.target_wrappers)} distribution target(s)",
-        )
+        self.logger.debug(self._format_loaded_state())
 
     @classmethod
     def create(cls, root_dir: str | Path, *, dry_run: bool = False) -> "ProjectWrapper":
@@ -417,13 +412,52 @@ class ProjectWrapper(LogMixin):
 
         # Check that the root directory doesn't already exist
         if root_dir.exists():
-            raise FileExistsError(f'"{root_dir}" already exists.')
+            raise FileExistsError(f'"{root_dir}" already exists')
 
         # Create the folder structure
         root_dir.mkdir(parents=True)
         marimba_dir.mkdir()
 
         return cls(root_dir, dry_run=dry_run)
+
+    @staticmethod
+    def _format_count(count: int, singular: str, plural: str | None = None) -> str:
+        """Format count with appropriate pluralization."""
+        if plural is None:
+            plural = f"{singular}s"
+        return f"{count} {singular if count == 1 else plural}"
+
+    def _format_loaded_state(self) -> str:
+        """Format the current loaded state of the project."""
+        parts = [
+            self._format_count(len(self.pipeline_wrappers), "pipeline"),
+            self._format_count(len(self.collection_wrappers), "collection"),
+            self._format_count(len(self.dataset_wrappers), "dataset"),
+            self._format_count(len(self.target_wrappers), "distribution target"),
+        ]
+        return f"Loaded {', '.join(parts)}"
+
+    @staticmethod
+    def _format_multiprocessing_setup(
+        process_count: int,
+        pipeline_count: int,
+        item_count: int,
+        item_name: str,
+    ) -> str:
+        """Format the multiprocessing setup message."""
+        if process_count == 1:
+            return f"Launched single process for {pipeline_count} pipeline with {item_count} {item_name}"
+        return (
+            f"Launched {process_count} parallel processes across {pipeline_count} pipelines "
+            f"with {item_count} {item_name}s each"
+        )
+
+    @staticmethod
+    def _format_kwargs_message(kwargs: dict[str, Any]) -> str:
+        """Format the kwargs message, only if non-empty."""
+        if not kwargs:
+            return ""
+        return f" with kwargs={kwargs}"
 
     def _check_file_structure(self) -> None:
         """
@@ -435,7 +469,7 @@ class ProjectWrapper(LogMixin):
 
         def check_dir_exists(path: Path) -> None:
             if not path.is_dir():
-                raise ProjectWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
+                raise ProjectWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory')
 
         check_dir_exists(self.root_dir)
 
@@ -521,7 +555,11 @@ class ProjectWrapper(LogMixin):
             remove_directory_tree(self.root_dir.resolve(), "project", self.dry_run)
         return self.root_dir
 
-    def create_pipeline(self, name: str, url: str) -> PipelineWrapper:
+    def create_pipeline(
+        self,
+        name: str,
+        url: str,
+    ) -> PipelineWrapper:
         """
         Create a new pipeline.
 
@@ -536,19 +574,17 @@ class ProjectWrapper(LogMixin):
             ProjectWrapper.CreatePipelineError: If the pipeline cannot be created.
             ProjectWrapper.NameError: If the name is invalid.
         """
-        self.logger.debug(f'Creating pipeline "{name}" from {url}')
-
         # Check the name is valid
         ProjectWrapper.check_name(name)
 
         # Check that a pipeline with the same name doesn't already exist
         pipeline_dir = self.pipelines_dir / name
         if pipeline_dir.exists():
-            raise ProjectWrapper.CreatePipelineError(f'A pipeline with the name "{name}" already exists.')
+            raise ProjectWrapper.CreatePipelineError(f'A pipeline with the name "{name}" already exists')
 
         # Show warning if there are already collections in the project
         if len(self.collection_wrappers) > 0:
-            self.logger.warning("Creating a new pipeline in a project with existing collections.")
+            self.logger.warning("Creating a new pipeline in a project with existing collections")
 
         # Create the pipeline directory
         pipeline_wrapper = PipelineWrapper.create(pipeline_dir, url, dry_run=self.dry_run)
@@ -556,7 +592,7 @@ class ProjectWrapper(LogMixin):
         # Add the pipeline to the project
         self._pipeline_wrappers[name] = pipeline_wrapper
 
-        self.logger.debug(f'Created pipeline "{name}" successfully')
+        self.logger.debug(f'Created new pipeline "{name}" at {format_path_for_logging(pipeline_dir, self._root_dir)}')
 
         return pipeline_wrapper
 
@@ -579,8 +615,6 @@ class ProjectWrapper(LogMixin):
             ProjectWrapper.DeletePipelineError: If the pipeline cannot be deleted.
             ProjectWrapper.NameError: If the name is invalid.
         """
-        self.logger.debug(f'Deleting pipeline "{name}"')
-
         # Check the name is valid
         ProjectWrapper.check_name(name)
 
@@ -589,11 +623,18 @@ class ProjectWrapper(LogMixin):
         if pipeline_dir.exists():
             if not dry_run:
                 remove_directory_tree(pipeline_dir, "pipeline", dry_run)
+                self.logger.debug(
+                    f'Deleted pipeline "{name}" at {format_path_for_logging(pipeline_dir, self._root_dir)}',
+                )
         else:
-            raise ProjectWrapper.DeletePipelineError(f'A pipeline with the name "{name}" does not exist.')
+            raise ProjectWrapper.DeletePipelineError(f'A pipeline with the name "{name}" does not exist')
         return pipeline_dir
 
-    def create_collection(self, name: str, config: dict[str, Any]) -> CollectionWrapper:
+    def create_collection(
+        self,
+        name: str,
+        config: dict[str, Any],
+    ) -> CollectionWrapper:
         """
         Create a new collection.
 
@@ -607,15 +648,13 @@ class ProjectWrapper(LogMixin):
         Raises:
             ProjectWrapper.CreateCollectionError: If the collection cannot be created.
         """
-        self.logger.debug(f'Creating collection "{name}"')
-
         # Check the name is valid
         ProjectWrapper.check_name(name)
 
         # Check that a collection with the same name doesn't already exist
         collection_dir = self.collections_dir / name
         if collection_dir.exists():
-            raise ProjectWrapper.CreateCollectionError(f'A collection with the name "{name}" already exists.')
+            raise ProjectWrapper.CreateCollectionError(f'A collection with the name "{name}" already exists')
 
         # Create the collection directory
         collection_wrapper = CollectionWrapper.create(collection_dir, config)
@@ -626,9 +665,9 @@ class ProjectWrapper(LogMixin):
 
         # Add the collection to the project
         self._collection_wrappers[name] = collection_wrapper
-
-        self.logger.debug(f'Created collection "{name}" successfully')
-
+        self.logger.debug(
+            f'Created new collection "{name}" at {format_path_for_logging(collection_dir, self._root_dir)}',
+        )
         return collection_wrapper
 
     def delete_collection(
@@ -649,8 +688,6 @@ class ProjectWrapper(LogMixin):
         Raises:
             ProjectWrapper.CreateCollectionError: If the collection cannot be created.
         """
-        self.logger.debug(f'Deleting collection "{name}"')
-
         # Check the name is valid
         ProjectWrapper.check_name(name)
 
@@ -658,8 +695,11 @@ class ProjectWrapper(LogMixin):
         collection_dir = self.collections_dir / name
         if collection_dir.exists():
             remove_directory_tree(collection_dir, "collection", dry_run)
+            self.logger.debug(
+                f'Deleted collection "{name}" at {format_path_for_logging(collection_dir, self._root_dir)}',
+            )
         else:
-            raise ProjectWrapper.NoSuchCollectionError(f'A collection with the name "{name}" does not exist.')
+            raise ProjectWrapper.NoSuchCollectionError(f'A collection with the name "{name}" does not exist')
         return collection_dir
 
     def _get_wrappers_to_run(
@@ -674,7 +714,7 @@ class ProjectWrapper(LogMixin):
         for pipeline_name in pipeline_names:
             pipeline_wrapper = self._pipeline_wrappers.get(pipeline_name)
             if pipeline_wrapper is None:
-                raise ProjectWrapper.RunCommandError(f'Pipeline "{pipeline_name}" does not exist within the project.')
+                raise ProjectWrapper.RunCommandError(f'Pipeline "{pipeline_name}" does not exist within the project')
             pipeline_wrappers_to_run[pipeline_name] = pipeline_wrapper
 
         # Process collection names
@@ -735,7 +775,7 @@ class ProjectWrapper(LogMixin):
                 log_string_prefix = (
                     f"Process {padded_process_index} | "
                     f'Pipeline {padded_pipeline_index} "{run_pipeline_name}" | '
-                    f'Collection {padded_collection_index} "{run_collection_name}" | '
+                    f'Collection {padded_collection_index} "{run_collection_name}" - '
                 )
 
                 futures[
@@ -783,7 +823,6 @@ class ProjectWrapper(LogMixin):
             ProjectWrapper.RunCommandError: If the command cannot be run.
         """
         merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
-
         pipeline_wrappers_to_run, collection_wrappers_to_run = self._get_wrappers_to_run(
             pipeline_names,
             collection_names,
@@ -794,17 +833,18 @@ class ProjectWrapper(LogMixin):
         pipeline_label = "pipeline" if len(pipeline_wrappers_to_run) == 1 else "pipelines"
         collection_label = "collection" if len(collection_wrappers_to_run) == 1 else "collections"
         self.logger.debug(
-            f"Processing data for {pipeline_label} {pretty_pipelines} and {collection_label} {pretty_collections} "
-            f"with kwargs {merged_kwargs}",
+            f"Started processing data for {pipeline_label} {pretty_pipelines} "
+            f"and {collection_label} {pretty_collections}{self._format_kwargs_message(merged_kwargs)}",
         )
 
         total_processes = len(pipeline_wrappers_to_run) * len(collection_wrappers_to_run)
-
         self.logger.debug(
-            f"Setting up multiprocessing to run {total_processes} independent process"
-            f"{'es' if total_processes != 1 else ''}, made up of {len(pipeline_wrappers_to_run)} pipeline"
-            f"{'s' if len(pipeline_wrappers_to_run) != 1 else ''} and {len(collection_wrappers_to_run)} collection"
-            f"{'s' if len(collection_wrappers_to_run) != 1 else ''} per pipeline.",
+            self._format_multiprocessing_setup(
+                total_processes,
+                len(pipeline_wrappers_to_run),
+                len(collection_wrappers_to_run),
+                "collection",
+            ),
         )
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
@@ -828,11 +868,16 @@ class ProjectWrapper(LogMixin):
                     pipeline_name, log_string_prefix = futures[future]
                     try:
                         message = future.result()
-                        self.logger.debug(f"{log_string_prefix} - {message}")
+                        self.logger.debug(f"{log_string_prefix}{message}")
                     except Exception as e:
-                        raise ProjectWrapper.MarimbaProcessError(f"{log_string_prefix} - {e}") from e
+                        raise ProjectWrapper.MarimbaProcessError(f"{log_string_prefix}{e}") from e
                     finally:
                         progress.advance(tasks_by_pipeline_name[pipeline_name])
+
+        self.logger.debug(
+            f"Completed processing data for {pipeline_label} {pretty_pipelines} "
+            f"and {collection_label} {pretty_collections}",
+        )
 
     def _create_composition_tasks(
         self,
@@ -880,7 +925,7 @@ class ProjectWrapper(LogMixin):
                     log_string_prefix = (
                         f"Process {padded_process_index} | "
                         f'Pipeline {padded_pipeline_index} "{pipeline_name}" | '
-                        f'Collection {padded_collection_index} "{collection_name}" | '
+                        f'Collection {padded_collection_index} "{collection_name}" - '
                     )
 
                     futures[
@@ -958,17 +1003,8 @@ class ProjectWrapper(LogMixin):
         pipeline_label = "pipeline" if len(self.pipeline_wrappers) == 1 else "pipelines"
         collection_label = "collection" if len(collection_wrappers) == 1 else "collections"
         self.logger.debug(
-            f'Packaging dataset "{dataset_name}" for {pipeline_label} {pretty_pipelines} and {collection_label} '
-            f"{pretty_collections} with kwargs {merged_kwargs}",
-        )
-
-        total_processes = len(self.pipeline_wrappers) * len(collection_wrappers)
-
-        self.logger.debug(
-            f"Setting up multiprocessing to run {total_processes} independent process"
-            f"{'es' if total_processes != 1 else ''}, made up of {len(self.pipeline_wrappers)} pipeline"
-            f"{'s' if len(self.pipeline_wrappers) != 1 else ''} and {len(collection_wrappers)} collection"
-            f"{'s' if len(collection_wrappers) != 1 else ''} per pipeline.",
+            f'Started packaging dataset "{dataset_name}" for {pipeline_label} {pretty_pipelines} and '
+            f"{collection_label} {pretty_collections}{self._format_kwargs_message(merged_kwargs)}",
         )
 
         dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]] = {}
@@ -987,22 +1023,37 @@ class ProjectWrapper(LogMixin):
                     merged_kwargs,
                 )
 
+                total_processes = len(self.pipeline_wrappers) * len(collection_wrappers)
+                self.logger.debug(
+                    self._format_multiprocessing_setup(
+                        total_processes,
+                        len(self.pipeline_wrappers),
+                        len(collection_wrappers),
+                        "collection",
+                    ),
+                )
+
                 for future in as_completed(futures):
                     pipeline_name, collection_name, log_string_prefix = futures[future]
                     try:
                         (pipeline_data_mapping, message) = future.result()
-                        self.logger.debug(f"{log_string_prefix} - {message}")
+                        self.logger.debug(f"{log_string_prefix}{message}")
                         if pipeline_name not in dataset_mapping:
                             dataset_mapping[pipeline_name] = {}
                         dataset_mapping[pipeline_name].update(pipeline_data_mapping)
                     except Exception as e:
                         raise ProjectWrapper.CompositionError(
-                            f"{log_string_prefix} - "
+                            f"{log_string_prefix}"
                             f'Pipeline "{pipeline_name}" failed to compose its data for collection '
                             f'"{collection_name}":\n{e}',
                         ) from e
                     finally:
                         progress.advance(task)
+
+        self.logger.debug(
+            f'Completed packaging dataset "{dataset_name}" for {pipeline_label} {pretty_pipelines} and '
+            f"{collection_label} {pretty_collections}{self._format_kwargs_message(merged_kwargs)}",
+        )
 
         return dataset_mapping
 
@@ -1072,7 +1123,6 @@ class ProjectWrapper(LogMixin):
             progress.advance(task)
 
         self._dataset_wrappers[dataset_name] = dataset_wrapper
-
         return dataset_wrapper
 
     def delete_dataset(
@@ -1099,8 +1149,11 @@ class ProjectWrapper(LogMixin):
         if dataset_root_dir.exists():
             if not self.dry_run:
                 remove_directory_tree(dataset_root_dir, "dataset", dry_run)
+                self.logger.debug(
+                    f'Deleted dataset "{dataset_name}" at {format_path_for_logging(dataset_root_dir, self._root_dir)}',
+                )
         else:
-            raise FileExistsError(f'"{dataset_root_dir}" dataset does not exist.')
+            raise FileExistsError(f'"{dataset_root_dir}" dataset does not exist')
         return dataset_root_dir
 
     def create_target(
@@ -1125,8 +1178,6 @@ class ProjectWrapper(LogMixin):
             ProjectWrapper.NameError: If the name is invalid.
             FileExistsError: If the target already exists.
         """
-        self.logger.debug(f'Creating distribution target "{target_name}"')
-
         # Check the name is valid
         ProjectWrapper.check_name(target_name)
 
@@ -1139,6 +1190,7 @@ class ProjectWrapper(LogMixin):
             raise ValueError("Expected a DistributionTargetWrapper instance")
 
         self._target_wrappers[target_name] = target_wrapper
+        self.logger.debug(f'Created new distribution target "{format_path_for_logging(target_name, self._root_dir)}"')
 
         return target_wrapper
 
@@ -1164,9 +1216,12 @@ class ProjectWrapper(LogMixin):
         if target_config_path.exists():
             if not dry_run:
                 target_config_path.unlink()
+                self.logger.debug(
+                    f"Deleted distribution target {target_name}.yml at "
+                    f'"{format_path_for_logging(target_config_path, self._root_dir)}"',
+                )
         else:
-            raise FileExistsError(f'"{target_config_path}"target does not exist.')
-        self.logger.debug(f'Deleting distribution target "{target_name}"')
+            raise FileExistsError(f'"{target_config_path}"target does not exist')
         return target_config_path
 
     def distribute(self, dataset_name: str, target_name: str) -> None:
@@ -1203,7 +1258,7 @@ class ProjectWrapper(LogMixin):
 
         # Check if distribution_target is not None
         if distribution_target is None:
-            self.logger.exception("Failed to get a valid distribution target instance.")
+            self.logger.exception("Failed to get a valid distribution target instance")
             return
 
         # Distribute the dataset
@@ -1243,9 +1298,10 @@ class ProjectWrapper(LogMixin):
             raise ProjectWrapper.NoSuchCollectionError(collection_name)
 
         pretty_paths = ", ".join(str(Path(p).resolve().absolute()) for p in source_paths)
+        source_label = "source path" if len(source_paths) == 1 else "source paths"
         self.logger.debug(
-            f'Importing data for collection "{collection_name}" from source path(s) '
-            f"{pretty_paths} with kwargs {merged_kwargs}",
+            f'Started importing data for collection "{collection_name}" from {source_label} {pretty_paths}'
+            f"{self._format_kwargs_message(merged_kwargs)}",
         )
 
         pipeline_wrappers_to_run, _ = self._get_wrappers_to_run(pipeline_names, [])
@@ -1253,12 +1309,13 @@ class ProjectWrapper(LogMixin):
         num_pipelines = len(pipeline_wrappers_to_run)
         num_sources = len(source_paths)
         total_processes = num_pipelines * num_sources
-
         self.logger.debug(
-            f"Setting up multiprocessing to run {total_processes} independent process"
-            f"{'es' if total_processes != 1 else ''}, made up of {num_pipelines} pipeline"
-            f"{'s' if num_pipelines != 1 else ''} and {num_sources} source"
-            f"{'s' if num_sources != 1 else ''} per pipeline.",
+            self._format_multiprocessing_setup(
+                total_processes,
+                num_pipelines,
+                num_sources,
+                "source",
+            ),
         )
 
         process_padding_length = math.ceil(math.log10(total_processes + 1))
@@ -1298,7 +1355,7 @@ class ProjectWrapper(LogMixin):
                         log_string_prefix = (
                             f"Process {padded_process_index} | "
                             f'Pipeline {padded_pipeline_index} "{pipeline_name}" | '
-                            f"Source {padded_source_index} | "
+                            f"Source {padded_source_index} - "
                         )
 
                         futures[
@@ -1322,11 +1379,15 @@ class ProjectWrapper(LogMixin):
                     pipeline_name, log_string_prefix = futures[future]
                     try:
                         message = future.result()
-                        self.logger.debug(f"{log_string_prefix} - {message}")
+                        self.logger.debug(f"{log_string_prefix}{message}")
                     except Exception as e:
-                        raise ProjectWrapper.MarimbaThreadError(f"{log_string_prefix} - {e}") from e
+                        raise ProjectWrapper.MarimbaThreadError(f"{log_string_prefix}{e}") from e
                     finally:
                         progress.advance(tasks_by_pipeline_name[pipeline_name])
+
+        self.logger.debug(
+            f'Completed importing data for collection "{collection_name}" from {source_label} {pretty_paths}',
+        )
 
     def prompt_collection_config(
         self,
@@ -1407,7 +1468,7 @@ class ProjectWrapper(LogMixin):
             if additional_config:  # Ensure additional_config is not None
                 final_config.update(additional_config)
 
-        self.logger.debug(f"Final prompted collection config: {final_config}")
+        self.logger.debug(f"Provided collection config={final_config}")
         return final_config
 
     def update_pipelines(self) -> None:
@@ -1418,7 +1479,7 @@ class ProjectWrapper(LogMixin):
             self.logger.info(f'Updating pipeline "{pipeline_name}"')
             try:
                 pipeline_wrapper.update()
-                self.logger.info(f'Successfully updated pipeline "{pipeline_name}"')
+                self.logger.info(f'Updated pipeline "{pipeline_name}"')
             # TODO @<cjackett>: Raise these exceptions and handle in marimba.py
             except (OSError, ValueError) as e:
                 self.logger.exception(f'Failed to update pipeline "{pipeline_name}" due to an I/O or value error: {e}')
@@ -1430,12 +1491,21 @@ class ProjectWrapper(LogMixin):
         Install all pipelines dependencies in the project into the current environment.
         """
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
-            self.logger.info(f'Installing pipeline "{pipeline_name}"')
-            try:
-                pipeline_wrapper.install()
-                self.logger.info(f'Successfully installed pipeline "{pipeline_name}"')
-            except PipelineWrapper.InstallError:
-                self.logger.exception(f'Failed to install pipeline "{pipeline_name}"')
+            self._install_single_pipeline(pipeline_name, pipeline_wrapper)
+
+    def _install_single_pipeline(self, pipeline_name: str, pipeline_wrapper: PipelineWrapper) -> None:
+        """
+        Install a single pipeline and log the result.
+
+        Args:
+            pipeline_name: Name of the pipeline to install
+            pipeline_wrapper: Pipeline wrapper instance to install
+        """
+        try:
+            pipeline_wrapper.install()
+            self.logger.info(f'Installed dependencies for pipeline "{pipeline_name}"')
+        except PipelineWrapper.InstallError:
+            self.logger.exception(f'Failed to install dependencies for pipeline "{pipeline_name}"')
 
     @property
     def pipeline_wrappers(self) -> dict[str, PipelineWrapper]:

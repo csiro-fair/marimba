@@ -36,21 +36,14 @@ Classes:
 """
 
 import hashlib
-import io
-import json
 import os
 from collections import OrderedDict
 from collections.abc import Iterable
-from datetime import timezone
-from fractions import Fraction
 from math import isnan
 from pathlib import Path
 from shutil import copy2, copytree, ignore_patterns
 from typing import Any
 
-import piexif
-from ifdo.models import ImageData
-from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
@@ -58,11 +51,10 @@ from marimba.core.utils.constants import Operation
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.manifest import Manifest
 from marimba.core.utils.map import make_summary_map
+from marimba.core.utils.paths import format_path_for_logging
 from marimba.core.utils.rich import get_default_columns
 from marimba.core.utils.summary import ImagerySummary
-from marimba.lib import image
 from marimba.lib.decorators import multithreaded
-from marimba.lib.gps import convert_degrees_to_gps_coordinate
 
 
 class DatasetWrapper(LogMixin):
@@ -109,6 +101,7 @@ class DatasetWrapper(LogMixin):
             dry_run (bool): If True, the method runs in dry-run mode without making any changes. Defaults to False.
         """
         self._root_dir = Path(root_dir)
+        self._project_dir = self._root_dir.parent.parent
         self._version = version
         self._contact_name = contact_name
         self._contact_email = contact_email
@@ -294,7 +287,7 @@ class DatasetWrapper(LogMixin):
 
         def check_dir_exists(path: Path) -> None:
             if not path.is_dir():
-                raise DatasetWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory.')
+                raise DatasetWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory')
 
         check_dir_exists(self.root_dir)
         check_dir_exists(self.data_dir)
@@ -318,7 +311,7 @@ class DatasetWrapper(LogMixin):
                 logger=self.logger,
             ):
                 raise DatasetWrapper.ManifestError(self.manifest_path)
-            self.logger.debug(f'Packaged dataset "{dataset_name}" has been successfully validated against the manifest')
+            self.logger.debug(f'Packaged dataset "{dataset_name}" has been validated against the manifest')
 
     def _setup_logging(self) -> None:
         """
@@ -341,209 +334,6 @@ class DatasetWrapper(LogMixin):
             The absolute path to the pipeline data directory.
         """
         return self.data_dir / pipeline_name
-
-    def _apply_ifdo_exif_tags(
-        self,
-        metadata_mapping: dict[Path, tuple[ImageData, dict[str, Any] | None]],
-        max_workers: int | None = None,
-    ) -> None:
-        """
-        Apply metadata from iFDO to the provided paths.
-
-        Args:
-            metadata_mapping: A dict mapping file paths to image data.
-            max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
-        """
-
-        @multithreaded(max_workers=max_workers)
-        def process_file(
-            self: DatasetWrapper,
-            thread_num: str,
-            item: tuple[Path, tuple[ImageData, dict[str, Any] | None]],
-            progress: Progress | None = None,
-            task: TaskID | None = None,
-        ) -> None:
-            path, (image_data, ancillary_data) = item
-            if path.suffix.lower() in {".jpg", ".jpeg", ".png"}:
-                self._process_image_file(path, image_data, ancillary_data, thread_num)
-
-            if progress and task is not None:
-                progress.advance(task)
-
-        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Applying iFDO metadata to files (4/11)", total=len(metadata_mapping))
-            process_file(self, items=metadata_mapping.items(), progress=progress, task=task)  # type: ignore[call-arg]
-
-    def _process_image_file(
-        self,
-        path: Path,
-        image_data: ImageData,
-        ancillary_data: dict[str, Any] | None,
-        thread_num: str,
-    ) -> None:
-        try:
-            exif_dict = piexif.load(str(path))
-        except piexif.InvalidImageDataError as e:
-            self.logger.warning(f"Failed to load EXIF metadata from {path}: {e}")
-            return
-
-        self._inject_datetime(image_data, exif_dict)
-        self._inject_gps_coordinates(image_data, exif_dict)
-        image_file = self._add_thumbnail(path, exif_dict)
-        self._extract_image_properties(image_file, image_data)
-        self._burn_in_exif_metadata(image_data, ancillary_data, exif_dict)
-
-        try:
-            exif_bytes = piexif.dump(exif_dict)
-            piexif.insert(exif_bytes, str(path))
-            self.logger.debug(f"Thread {thread_num} | Applied iFDO metadata to EXIF tags for image {path}")
-        except piexif.InvalidImageDataError:
-            self.logger.warning(f"Failed to write EXIF metadata to {path}")
-
-    def _prepare_metadata(self, image_data: ImageData, ancillary_data: dict[str, Any] | None) -> dict[str, str]:
-        metadata = {}
-
-        if image_data.image_datetime is not None:
-            dt = image_data.image_datetime
-            metadata["CreateDate"] = dt.strftime("%Y:%m:%d %H:%M:%S")
-            metadata["ModifyDate"] = dt.strftime("%Y:%m:%d %H:%M:%S")
-
-        if image_data.image_latitude is not None and image_data.image_longitude is not None:
-            metadata["GPSLatitude"] = image_data.image_latitude
-            metadata["GPSLongitude"] = image_data.image_longitude
-            metadata["GPSLatitudeRef"] = "N" if image_data.image_latitude > 0 else "S"
-            metadata["GPSLongitudeRef"] = "E" if image_data.image_longitude > 0 else "W"
-
-        image_data_dict = image_data.to_dict()
-        user_comment_data = {"metadata": {"ifdo": image_data_dict, "ancillary": ancillary_data}}
-        user_comment_json = json.dumps(user_comment_data)
-        metadata["UserComment"] = user_comment_json
-
-        return metadata
-
-    @staticmethod
-    def _inject_datetime(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
-        """
-        Inject datetime information into EXIF metadata.
-
-        Args:
-            image_data: The image data containing datetime information.
-            exif_dict: The EXIF metadata dictionary.
-        """
-        if image_data.image_datetime is not None:
-            dt = image_data.image_datetime
-            offset_str = None
-            if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
-                dt = dt.astimezone(timezone.utc)
-                offset_str = "+00:00"
-
-            datetime_str = dt.strftime("%Y:%m:%d %H:%M:%S")
-            subsec_str = str(dt.microsecond)
-
-            ifd_0th = exif_dict["0th"]
-            ifd_exif = exif_dict["Exif"]
-
-            ifd_0th[piexif.ImageIFD.DateTime] = datetime_str
-            ifd_exif[piexif.ExifIFD.DateTimeOriginal] = datetime_str
-            ifd_exif[piexif.ExifIFD.SubSecTime] = subsec_str
-            ifd_exif[piexif.ExifIFD.SubSecTimeOriginal] = subsec_str
-            if offset_str is not None:
-                ifd_exif[piexif.ExifIFD.OffsetTime] = offset_str
-                ifd_exif[piexif.ExifIFD.OffsetTimeOriginal] = offset_str
-
-    @staticmethod
-    def _inject_gps_coordinates(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
-        """
-        Inject GPS coordinates into EXIF metadata.
-
-        Args:
-            image_data: The image data containing GPS information.
-            exif_dict: The EXIF metadata dictionary.
-        """
-        ifd_gps = exif_dict["GPS"]
-
-        if image_data.image_latitude is not None:
-            d_lat, m_lat, s_lat = convert_degrees_to_gps_coordinate(image_data.image_latitude)
-            ifd_gps[piexif.GPSIFD.GPSLatitude] = ((d_lat, 1), (m_lat, 1), (s_lat, 1000))
-            ifd_gps[piexif.GPSIFD.GPSLatitudeRef] = "N" if image_data.image_latitude > 0 else "S"
-        if image_data.image_longitude is not None:
-            d_lon, m_lon, s_lon = convert_degrees_to_gps_coordinate(image_data.image_longitude)
-            ifd_gps[piexif.GPSIFD.GPSLongitude] = ((d_lon, 1), (m_lon, 1), (s_lon, 1000))
-            ifd_gps[piexif.GPSIFD.GPSLongitudeRef] = "E" if image_data.image_longitude > 0 else "W"
-        if image_data.image_altitude_meters is not None:
-            altitude_fraction = Fraction(abs(float(image_data.image_altitude_meters))).limit_denominator()
-            altitude_rational = (altitude_fraction.numerator, altitude_fraction.denominator)
-            ifd_gps[piexif.GPSIFD.GPSAltitude] = altitude_rational
-            ifd_gps[piexif.GPSIFD.GPSAltitudeRef] = 0 if image_data.image_altitude_meters >= 0 else 1
-
-    @staticmethod
-    def _add_thumbnail(path: Path, exif_dict: dict[str, Any]) -> Image.Image:
-        """
-        Add a thumbnail to the EXIF metadata.
-
-        Args:
-            path: The path to the image file.
-            exif_dict: The EXIF metadata dictionary.
-        """
-        image_file = Image.open(path)
-
-        # Create a copy for the thumbnail to avoid modifying original
-        thumb = image_file.copy()
-
-        # Set max dimension to 300px - aspect ratio will be maintained
-        thumbnail_size = (300, 300)
-
-        # Use LANCZOS resampling for better quality
-        thumb.thumbnail(thumbnail_size, Image.Resampling.LANCZOS)
-
-        # Convert to RGB if not already
-        if thumb.mode != "RGB":
-            thumb = thumb.convert("RGB")
-
-        thumbnail_io = io.BytesIO()
-        thumb.save(
-            thumbnail_io,
-            format="JPEG",
-            quality=70,
-            optimize=True,
-            progressive=False,
-        )
-
-        exif_dict["thumbnail"] = thumbnail_io.getvalue()
-        return image_file
-
-    @staticmethod
-    def _extract_image_properties(image_file: Image.Image, image_data: ImageData) -> None:
-        """
-        Extract image properties and update the image data.
-
-        Args:
-            image_file: The PIL Image object from which to extract properties.
-            image_data: The ImageData object to update with extracted properties.
-        """
-        # Inject the image entropy and average image color into the iFDO
-        image_data.image_entropy = image.get_shannon_entropy(image_file)
-        image_data.image_average_color = image.get_average_image_color(image_file)
-
-    @staticmethod
-    def _burn_in_exif_metadata(
-        image_data: ImageData,
-        ancillary_data: dict[str, Any] | None,
-        exif_dict: dict[str, Any],
-    ) -> None:
-        """
-        Add a user comment with iFDO metadata to the EXIF metadata.
-
-        Args:
-            image_data: The image data to include in the user comment.
-            ancillary_data: Any ancillary data to include in the user comment.
-            exif_dict: The EXIF metadata dictionary.
-        """
-        image_data_dict = image_data.to_dict()
-        user_comment_data = {"metadata": {"ifdo": image_data_dict, "ancillary": ancillary_data}}
-        user_comment_json = json.dumps(user_comment_data)
-        user_comment_bytes = user_comment_json.encode("utf-8")
-        exif_dict["Exif"][piexif.ExifIFD.UserComment] = user_comment_bytes
 
     def populate(
         self,
@@ -582,7 +372,9 @@ class DatasetWrapper(LogMixin):
             MetadataError: If there are problems processing or generating metadata.
         """
         pipeline_label = "pipeline" if len(dataset_mapping) == 1 else "pipelines"
-        self.logger.debug(f'Creating dataset "{dataset_name}" containing {len(dataset_mapping)} {pipeline_label}')
+        self.logger.debug(
+            f'Started packaging dataset "{dataset_name}" containing {len(dataset_mapping)} {pipeline_label}',
+        )
 
         self.check_dataset_mapping(dataset_mapping, max_workers)
         dataset_items = self._populate_files(dataset_mapping, operation, max_workers)
@@ -594,6 +386,8 @@ class DatasetWrapper(LogMixin):
         self._copy_pipelines(project_pipelines_dir)
         self._copy_logs(project_log_path, pipeline_log_paths)
         self._generate_manifest(dataset_items, max_workers)
+
+        self.logger.debug(f'Completed packaging dataset "{dataset_name}"')
 
     def _populate_files(
         self,
@@ -635,15 +429,27 @@ class DatasetWrapper(LogMixin):
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 if operation == Operation.copy:
                     copy2(src, dst)
-                    self.logger.debug(f"Thread {thread_num} | Copying file {src.absolute()} -> {dst}")
+                    self.logger.debug(
+                        f"Thread {thread_num} - Copied file "
+                        f"{format_path_for_logging(src, self._project_dir)} to "
+                        f"{format_path_for_logging(dst, self._project_dir)}",
+                    )
                 elif operation == Operation.move:
                     src.rename(dst)
-                    self.logger.debug(f"Thread {thread_num} | Moving file {src.absolute()} -> {dst}")
+                    self.logger.debug(
+                        f"Thread {thread_num} - Moved file "
+                        f"{format_path_for_logging(src, self._project_dir)} to "
+                        f"{format_path_for_logging(dst, self._project_dir)}",
+                    )
                 # TODO(@cjackett): We might need to check here that image files aren't linked to linked files in the
                 #  import process because then EXIF writing might destructively change the original files
                 elif operation == Operation.link:
                     os.link(src, dst)
-                    self.logger.debug(f"Thread {thread_num} | Linking file {src.absolute()} -> {dst}")
+                    self.logger.debug(
+                        f"Thread {thread_num} - Linked file "
+                        f"{format_path_for_logging(src, self._project_dir)} to "
+                        f"{format_path_for_logging(dst, self._project_dir)}",
+                    )
 
             if progress and tasks_by_pipeline_name:
                 progress.advance(tasks_by_pipeline_name[pipeline_name])
@@ -660,7 +466,7 @@ class DatasetWrapper(LogMixin):
             }
 
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-                self.logger.debug(f"Populating data for {pipeline_name} pipeline")
+                self.logger.debug(f'Started populating data for pipeline "{pipeline_name}"')
                 process_file(
                     self,
                     items=list(pipeline_data_mapping.items()),
@@ -670,6 +476,7 @@ class DatasetWrapper(LogMixin):
                     progress=progress,
                     tasks_by_pipeline_name=tasks_by_pipeline_name,
                 )  # type: ignore[call-arg]
+                self.logger.debug(f'Completed populating data for pipeline "{pipeline_name}"')
 
         return dataset_items
 
@@ -804,7 +611,7 @@ class DatasetWrapper(LogMixin):
         """Log a summary of the metadata generation."""
         type_counts = [f"{len(items)} {metadata_type.__name__}" for metadata_type, items in grouped_items.items()]
         self.logger.debug(
-            f"Generated metadata files containing {', '.join(type_counts)} items",
+            f"Generated metadata file containing {', '.join(type_counts)} items",
         )
 
     def generate_metadata(
@@ -868,7 +675,9 @@ class DatasetWrapper(LogMixin):
             summary = self.summarise(dataset_items)
             if not self.dry_run:
                 self.summary_path.write_text(str(summary))
-            self.logger.debug(f"Generated dataset summary at {self.summary_path}")
+            self.logger.debug(
+                f"Generated dataset summary at {format_path_for_logging(self.summary_path, self._project_dir)}",
+            )
 
         if progress:
             with Progress(SpinnerColumn(), *get_default_columns()) as progress_bar:
@@ -938,7 +747,8 @@ class DatasetWrapper(LogMixin):
                         summary_map.save(map_path)
                     coordinate_label = "spatial coordinate" if len(geolocations) == 1 else "spatial coordinates"
                     self.logger.debug(
-                        f"Generated summary map containing {len(geolocations)} {coordinate_label} at {map_path}",
+                        f"Generated summary map containing {len(geolocations)} "
+                        f"{coordinate_label} at {format_path_for_logging(map_path, self._project_dir)}",
                     )
             progress.advance(task)
 
@@ -956,7 +766,7 @@ class DatasetWrapper(LogMixin):
                 copy2(project_log_path, self.logs_dir)
                 for pipeline_log_path in pipeline_log_paths:
                     copy2(pipeline_log_path, self.pipeline_logs_dir)
-            self.logger.debug(f"Copied project logs to {self.logs_dir}")
+            self.logger.debug(f"Copied project logs to {format_path_for_logging(self.logs_dir, self._project_dir)}")
             progress.advance(task)
 
     def _copy_pipelines(self, project_pipelines_dir: Path) -> None:
@@ -979,7 +789,9 @@ class DatasetWrapper(LogMixin):
                     "*.log",
                 )
                 copytree(project_pipelines_dir, self.pipelines_dir, dirs_exist_ok=True, ignore=ignore)
-            self.logger.debug(f"Copied project pipelines to {self.pipelines_dir}")
+            self.logger.debug(
+                f"Copied project pipelines to {format_path_for_logging(self.pipelines_dir, self._project_dir)}",
+            )
             progress.advance(task)
 
     def _generate_manifest(
@@ -1006,7 +818,10 @@ class DatasetWrapper(LogMixin):
             )
             if not self.dry_run:
                 manifest.save(self.manifest_path)
-            self.logger.debug(f"Generated manifest for {len(globbed_files)} files and paths at {self.manifest_path}")
+            self.logger.debug(
+                f"Generated manifest for {len(globbed_files)} "
+                f"files and paths at {format_path_for_logging(self.manifest_path, self._project_dir)}",
+            )
 
     def summarise(self, dataset_items: dict[str, list[BaseMetadata]]) -> ImagerySummary:
         """

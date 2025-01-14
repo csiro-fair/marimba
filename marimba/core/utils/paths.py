@@ -101,15 +101,13 @@ def remove_directory_tree(directory: str | Path, entity: str, dry_run: bool) -> 
     try:
         if not dry_run:
             shutil.rmtree(dir_path)
-        logger.info(f'Deleting {MARIMBA} {format_entity(entity)} at: "{dir_path}"')
+        logger.info(f'Deleted {MARIMBA} {format_entity(entity)} at: "{dir_path}"')
 
     except Exception as e:
         error_message = f"Error occurred while deleting the directory: {e}"
         logger.exception(error_message)
         print(error_panel(error_message))  # noqa: T201
         raise typer.Exit(code=1) from e
-
-    logger.info("Successfully deleted directory.")
 
 
 def hardlink_path(src_path: Path, dest_path: Path, dry_run: bool) -> None:
@@ -130,7 +128,7 @@ def hardlink_path(src_path: Path, dest_path: Path, dry_run: bool) -> None:
     """
     # Ensure the source path is valid and is a directory
     if not src_path.exists() or not src_path.is_dir():
-        logger.exception(f"Source path '{src_path}' is not a valid directory.")
+        logger.exception(f"Source path '{src_path}' is not a valid directory")
         raise typer.Exit(1)
 
     # Ensure the destination directory exists
@@ -156,3 +154,30 @@ def hardlink_path(src_path: Path, dest_path: Path, dry_run: bool) -> None:
                     logger.info(f"Created hard link: {destination} -> {src_file}")
                 except OSError as e:
                     logger.exception(f"Failed to create hard link: {destination} -> {src_file}: {e}")
+
+
+def format_path_for_logging(path: Path | str, project_dir: Path | None = None) -> str:
+    """
+    Convert an absolute path to a path relative to the project root.
+
+    Args:
+        path: The path to convert
+        project_dir: The project root directory. If not provided, will attempt to find it,
+                    but this is less efficient than passing it directly.
+
+    Returns:
+        str: The relative path as a string
+    """
+    path = Path(path).resolve()
+
+    # If no project directory provided, try to find it
+    if project_dir is None:
+        project_dir = find_project_dir(path)
+        if project_dir is None:
+            return str(path)
+
+    try:
+        return str(path.relative_to(project_dir))
+    except ValueError:
+        # If path cannot be made relative, return the original path
+        return str(path)
