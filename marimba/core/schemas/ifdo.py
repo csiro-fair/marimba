@@ -328,13 +328,34 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             path: The path to the image file.
             exif_dict: The EXIF metadata dictionary.
         """
-        image_file = Image.open(path)
-        thumbnail_size = (320, 240)
-        image_file.thumbnail(thumbnail_size)  # type: ignore[no-untyped-call]
-        thumbnail_io = io.BytesIO()
-        image_file.save(thumbnail_io, format="JPEG", quality=90)
-        exif_dict["thumbnail"] = thumbnail_io.getvalue()
-        return image_file
+        try:
+            image_file = Image.open(path)
+        except OSError as err:
+            raise ValueError(f"Unable to open image: {err}") from err
+        else:
+            # Create a copy for the thumbnail to avoid modifying original
+            thumb = image_file.copy()
+
+            # Set max dimension to 240px - aspect ratio will be maintained
+            thumbnail_size = (240, 240)
+
+            # Use LANCZOS resampling for better quality
+            thumb.thumbnail(thumbnail_size, Image.Resampling.LANCZOS)
+
+            # Convert to RGB if not already
+            if thumb.mode != "RGB":
+                thumb = thumb.convert("RGB")
+
+            thumbnail_io = io.BytesIO()
+            thumb.save(
+                thumbnail_io,
+                format="JPEG",
+                quality=90,
+                optimize=True,
+            )
+
+            exif_dict["thumbnail"] = thumbnail_io.getvalue()
+            return image_file
 
     @staticmethod
     def _extract_image_properties(image_file: Image.Image, image_data: ImageData) -> None:
