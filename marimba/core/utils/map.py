@@ -13,11 +13,67 @@ from staticmap import CircleMarker, StaticMap
 T = TypeVar("T", bound="SupportsRichComparison")
 SupportsRichComparison = object
 
+# Constants for coordinate calculations
+MIN_COORDINATE_RANGE = 1e-10  # Minimum valid coordinate range
+DEFAULT_SMALL_RANGE = 0.0001  # About 10m, used when range is too small
+
+# Constants for interval decimal places
+TINY_INTERVAL = 0.0001
+SMALL_INTERVAL = 0.001
+MEDIUM_INTERVAL = 0.01
+
+# Constants for margin calculations
+MIN_DECIMAL_PLACES = 2
+MARGIN_PER_DECIMAL = 12
+
 
 class NetworkConnectionError(Exception):
     """
     Raised when there is a network connection error.
     """
+
+
+def calculate_grid_intervals(min_val: float, max_val: float, num_lines: int) -> tuple[list[float], int]:
+    """
+    Calculate appropriate grid line intervals based on coordinate range.
+
+    Args:
+        min_val: Minimum coordinate value
+        max_val: Maximum coordinate value
+        num_lines: Number of visible grid lines desired
+
+    Returns:
+        Tuple of (grid_positions, decimal_places)
+    """
+    coordinate_range = abs(max_val - min_val)
+
+    # For very small ranges, ensure we don't divide by zero
+    if coordinate_range < MIN_COORDINATE_RANGE:
+        coordinate_range = DEFAULT_SMALL_RANGE
+        center = (min_val + max_val) / 2
+        min_val = center - coordinate_range / 2
+        max_val = center + coordinate_range / 2
+
+    # Calculate interval to get exactly num_lines + 2 lines
+    interval = coordinate_range / (num_lines + 1)  # +1 because we're excluding first and last
+
+    # Calculate positions
+    positions = []
+    for i in range(num_lines + 2):  # +2 for first and last lines
+        pos = min_val + (i * interval)
+        positions.append(pos)
+
+    # Determine decimal places based on interval size
+    if interval < TINY_INTERVAL:
+        decimal_places = 5
+    elif interval < SMALL_INTERVAL:
+        decimal_places = 4
+    elif interval < MEDIUM_INTERVAL:
+        decimal_places = 3
+    else:
+        decimal_places = 2
+
+    return positions, decimal_places
 
 
 def add_axes(
@@ -33,23 +89,19 @@ def add_axes(
 ) -> None:
     """
     Add latitude and longitude axes to the map.
-
-    Args:
-        draw: ImageDraw object to draw on the map.
-        width: Width of the map.
-        height: Height of the map.
-        num_x_lines: Number of dashed lines on the x-axis.
-        num_y_lines: Number of dashed lines on the y-axis.
-        min_lat: Minimum latitude of the geolocations.
-        max_lat: Maximum latitude of the geolocations.
-        min_lon: Minimum longitude of the geolocations.
-        max_lon: Maximum longitude of the geolocations.
     """
     margin = 20
-    margin_x = 60  # Margin to prevent grid lines from running into the labels on x-axis
-    margin_y = 40  # Margin to prevent grid lines from running into the labels on y-axis
+    margin_x = 60
+    margin_y = 40
 
-    # Drawing lat/lon grid lines
+    # Calculate grid intervals and positions
+    lon_positions, lon_decimals = calculate_grid_intervals(min_lon, max_lon, num_x_lines)
+    lat_positions, lat_decimals = calculate_grid_intervals(min_lat, max_lat, num_y_lines)
+
+    # Adjust left margin based on latitude decimal places
+    if lat_decimals > MIN_DECIMAL_PLACES:
+        margin_x += (lat_decimals - MIN_DECIMAL_PLACES) * MARGIN_PER_DECIMAL
+
     def draw_dashed_line(start: tuple[int, int], end: tuple[int, int], dash_length: int = 5) -> None:
         x1, y1 = start
         x2, y2 = end
@@ -67,31 +119,43 @@ def add_axes(
                 width=2,
             )
 
-    # Draw x-axis lines
-    x_interval = width // (num_x_lines + 1)
-    for i in range(1, num_x_lines + 1):
-        x = x_interval * i
-        draw_dashed_line((x, margin), (x, height - margin_y))
+    # Get ranges for positioning (use full range including hidden lines)
+    lon_range = lon_positions[-1] - lon_positions[0]
+    lat_range = lat_positions[-1] - lat_positions[0]
 
-    # Draw y-axis lines
-    y_interval = height // (num_y_lines + 1)
-    for i in range(1, num_y_lines + 1):
-        y = y_interval * i
-        draw_dashed_line((margin_x, y), (width - margin, y))
+    # Skip first and last positions when drawing
+    visible_lon_positions = lon_positions[1:-1]
+    visible_lat_positions = lat_positions[1:-1]
 
-    # Adding lat/lon labels
-    font = ImageFont.load_default(size=16)
-    for i in range(1, num_x_lines + 1):
-        # Longitude labels (bottom)
-        lon_label = f"{min_lon + (max_lon - min_lon) * i / (num_x_lines + 1):.2f}°"
-        x = x_interval * i
-        draw.text((x, height - margin_y + 20), lon_label, fill="black", font=font, anchor="mm")
+    # Draw longitude lines and labels
+    for lon in visible_lon_positions:
+        # Convert longitude to x position using full range
+        x = margin_x + (width - margin_x - margin) * (lon - lon_positions[0]) / lon_range
+        if margin_x <= x <= width - margin:
+            draw_dashed_line((int(x), margin), (int(x), height - margin_y))
+            lon_label = f"{lon:.{lon_decimals}f}°"
+            draw.text(
+                (int(x), height - margin_y + 20),
+                lon_label,
+                fill="black",
+                font=ImageFont.load_default(size=16),
+                anchor="mm",
+            )
 
-    for i in range(1, num_y_lines + 1):
-        # Latitude labels (left)
-        lat_label = f"{max_lat - (max_lat - min_lat) * i / (num_y_lines + 1):.2f}°"
-        y = y_interval * i
-        draw.text((margin_x - 30, y), lat_label, fill="black", font=font, anchor="mm")
+    # Draw latitude lines and labels
+    for lat in visible_lat_positions:
+        # Convert latitude to y position using full range
+        y = margin + (height - margin - margin_y) * (lat_positions[-1] - lat) / lat_range
+        if margin <= y <= height - margin_y:
+            draw_dashed_line((margin_x, int(y)), (width - margin, int(y)))
+            lat_label = f"{lat:.{lat_decimals}f}°"
+            draw.text(
+                (margin_x - 40, int(y)),
+                lat_label,
+                fill="black",
+                font=ImageFont.load_default(size=16),
+                anchor="mm",
+            )
 
 
 def make_summary_map(
@@ -152,7 +216,7 @@ def make_summary_map(
         image = cast(Image.Image, m.render(zoom=zoom))
 
     except requests.exceptions.ConnectionError:
-        raise NetworkConnectionError("Unable to render the map.") from None
+        raise NetworkConnectionError("Unable to render the map") from None
 
     # Add coordinate axes
     draw = ImageDraw.Draw(image)
