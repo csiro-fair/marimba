@@ -492,7 +492,7 @@ def test_pipeline_creates_new_pipeline(setup_test_directory: Path) -> None:
     ):
         result = runner.invoke(marimba_cli, ["new", "pipeline", pipeline_name, url, "--project-dir", str(project_dir)])
         assert result.exit_code == 0
-        mock_create_pipeline.assert_called_once_with(pipeline_name, url)
+        mock_create_pipeline.assert_called_once_with(pipeline_name, url, {})
         assert "Created new Marimba pipeline" in result.output
 
 

@@ -114,7 +114,7 @@ def pipeline(
         project_wrapper = ProjectWrapper(project_dir)
 
         # Create the pipeline
-        pipeline_wrapper = project_wrapper.create_pipeline(pipeline_name, url)
+        pipeline_wrapper = project_wrapper.create_pipeline(pipeline_name, url, config_dict)
     except ProjectWrapper.InvalidNameError as e:
         error_message = f"Invalid pipeline name: {e}"
         logger.exception(error_message)
@@ -126,13 +126,8 @@ def pipeline(
         print(error_panel(error_message))
         raise typer.Exit(code=1) from e
 
-    # Configure the pipeline from the command line
-    pipeline_config = pipeline_wrapper.prompt_pipeline_config(config_dict, allow_empty=True)
-    if pipeline_config is not None:
-        pipeline_wrapper.save_config(pipeline_config)
-
     # Use warning panel if no pipeline implementation found
-    if pipeline_config is None:
+    if pipeline_wrapper is None:
         print(
             warning_panel(
                 f'Repository cloned at "{pipeline_wrapper.root_dir}", but no Pipeline implementation found. '

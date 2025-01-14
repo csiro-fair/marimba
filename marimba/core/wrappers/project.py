@@ -559,6 +559,7 @@ class ProjectWrapper(LogMixin):
         self,
         name: str,
         url: str,
+        config: dict[str, Any],
     ) -> PipelineWrapper:
         """
         Create a new pipeline.
@@ -566,6 +567,7 @@ class ProjectWrapper(LogMixin):
         Args:
             name: The name of the pipeline.
             url: URL of the pipeline git repository.
+            config: The pipeline configuration.
 
         Returns:
             The pipeline directory wrapper.
@@ -591,6 +593,15 @@ class ProjectWrapper(LogMixin):
 
         # Add the pipeline to the project
         self._pipeline_wrappers[name] = pipeline_wrapper
+
+        # Configure the pipeline from the command line
+        pipeline_config = pipeline_wrapper.prompt_pipeline_config(
+            config,
+            project_logger=self.logger,
+            allow_empty=True,
+        )
+        if pipeline_config is not None:
+            pipeline_wrapper.save_config(pipeline_config)
 
         self.logger.debug(f'Created new pipeline "{name}" at {format_path_for_logging(pipeline_dir, self._root_dir)}')
 

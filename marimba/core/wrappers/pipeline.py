@@ -28,12 +28,13 @@ Classes:
         - InstallError: Exception raised when there is an error installing pipeline dependencies.
 """
 
+import logging
 import shutil
 import subprocess
 import sys
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from git import Repo
 
@@ -42,10 +43,6 @@ from marimba.core.pipeline import BasePipeline
 from marimba.core.utils.config import load_config, save_config
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.prompt import prompt_schema
-
-# Type-checking imports
-if TYPE_CHECKING:
-    import logging
 
 
 class PipelineWrapper(LogMixin):
@@ -303,6 +300,7 @@ class PipelineWrapper(LogMixin):
     def prompt_pipeline_config(
         self,
         config: dict[str, Any] | None = None,
+        project_logger: logging.Logger | None = None,
         *,
         allow_empty: bool = False,
     ) -> dict[str, Any] | None:
@@ -313,13 +311,16 @@ class PipelineWrapper(LogMixin):
         It merges the existing configuration (if provided) with additional user input for missing configuration items.
 
         Args:
-            config (Optional[Dict]): Existing pipeline configuration. If provided, it will be used to pre-fill
-             the configuration dictionary.
-            allow_empty: If True, allow empty pipeline repositories and return None instead of raising an error.
+            config (dict[str, Any] | None): Existing pipeline configuration. If provided, it will be used to pre-fill
+                the configuration dictionary. Defaults to None.
+            project_logger (logging.Logger | None): Logger instance to use for logging. If not provided, the default
+                logger will be used. Defaults to None.
+            allow_empty (bool): If True, allow empty pipeline repositories and return None instead of raising an error.
+                Defaults to False.
 
         Returns:
-            Dict[Any, Any] or None: A dictionary containing the final pipeline configuration after merging existing
-             config and user input. Returns None if the pipeline is empty and allow_empty is True.
+            dict[str, Any] | None: A dictionary containing the final pipeline configuration after merging existing
+                config and user input. Returns None if the pipeline is empty and allow_empty is True.
 
         Raises:
             ValueError: If the pipeline instance or configuration schema cannot be retrieved.
@@ -347,7 +348,9 @@ class PipelineWrapper(LogMixin):
             if additional_config:
                 pipeline_config.update(additional_config)
 
-        self.logger.debug(f"Provided pipeline config={pipeline_config}")
+        # Use project logger if provided, otherwise use pipeline logger
+        logger = project_logger if project_logger else self.logger
+        logger.debug(f"Provided pipeline config={pipeline_config}")
 
         return pipeline_config
 
