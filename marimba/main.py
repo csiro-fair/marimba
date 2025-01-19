@@ -129,18 +129,17 @@ def import_command(
     Import data in a source directory into a new or existing Marimba collection.
     """
     start_time = time.time()
+    project_dir = find_project_dir_or_exit(project_dir)
+    project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
+    get_rich_handler().set_dry_run(dry_run)
 
     try:
         config_dict = json.loads(config) if config else {}
     except json.JSONDecodeError as e:
         error_message = f"Error parsing configuration JSON: {e}"
-        logger.exception(error_message)
+        project_wrapper.logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit from None
-
-    project_dir = find_project_dir_or_exit(project_dir)
-    project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
-    get_rich_handler().set_dry_run(dry_run)
 
     # Get the collection (create if appropriate)
     collection_wrapper = project_wrapper.collection_wrappers.get(collection_name, None)
@@ -153,12 +152,12 @@ def import_command(
             project_wrapper.create_collection(collection_name, collection_config)
         except ProjectWrapper.InvalidNameError as e:
             error_message = f"Invalid collection name: {e}"
-            logger.exception(error_message)
+            project_wrapper.logger.exception(error_message)
             print(error_panel(error_message))
             raise typer.Exit from None
     elif not overwrite:
         error_message = f"Collection {collection_name} already exists, and the overwrite flag is not set."
-        logger.exception(error_message)
+        project_wrapper.logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit from None
 
@@ -175,20 +174,20 @@ def import_command(
             operation=operation,
             max_workers=max_workers,
         )
+
+        pretty_source_paths = "\n".join([f"  - {source_path.resolve().absolute()}" for source_path in source_paths])
+        elapsed_time = time.time() - start_time
+        print(
+            success_panel(
+                f'Imported data into collection "{format_entity(collection_name)}" from the following source paths in '
+                f"{elapsed_time:.2f} seconds:\n{pretty_source_paths}",
+            ),
+        )
     except Exception as e:
         error_message = f"Error during import: {e}"
-        logger.exception(error_message)
+        project_wrapper.logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit from None
-
-    pretty_source_paths = "\n".join([f"  - {source_path.resolve().absolute()}" for source_path in source_paths])
-    elapsed_time = time.time() - start_time
-    print(
-        success_panel(
-            f'Imported data into collection "{format_entity(collection_name)}" from the following source paths in '
-            f"{elapsed_time:.2f} seconds:\n{pretty_source_paths}",
-        ),
-    )
 
 
 @marimba_cli.command("package")
@@ -254,42 +253,42 @@ def package_command(
             zoom=zoom,
             max_workers=max_workers,
         )
+
+        elapsed_time = time.time() - start_time
+        print(
+            success_panel(
+                f'Packaged dataset "{format_entity(dataset_name)}" at {dataset_wrapper.root_dir} in '
+                f"{elapsed_time:.2f} seconds",
+            ),
+        )
     except ProjectWrapper.CompositionError as e:
-        logger.exception(e)
+        project_wrapper.logger.exception(e)
         print(error_panel(str(e)))
         raise typer.Exit from None
     except ProjectWrapper.NoSuchPipelineError as e:
         error_message = f"No such pipeline: {e}"
-        logger.exception(error_message)
+        project_wrapper.logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit from None
     except ProjectWrapper.NoSuchCollectionError as e:
         error_message = f"No such collection: {e}"
-        logger.exception(error_message)
+        project_wrapper.logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit from None
     except DatasetWrapper.ManifestError as e:
         error_message = f"Dataset is inconsistent with manifest at {e}"
-        logger.exception(error_message)
+        project_wrapper.logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit from None
     except FileExistsError as e:
         error_message = f"Dataset already exists: {e}"
-        logger.exception(error_message)
+        project_wrapper.logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit from None
     except Exception as e:
-        logger.exception(e)
+        project_wrapper.logger.exception(e)
         print(error_panel(f"Could not package collection: {e}"))
         raise typer.Exit from None
-
-    elapsed_time = time.time() - start_time
-    print(
-        success_panel(
-            f'Packaged dataset "{format_entity(dataset_name)}" at {dataset_wrapper.root_dir} in '
-            f"{elapsed_time:.2f} seconds",
-        ),
-    )
 
 
 @marimba_cli.command("process")
@@ -328,29 +327,29 @@ def process_command(
     # Run the processing
     try:
         project_wrapper.run_process(collection_names, pipeline_names, extra, max_workers=max_workers)
+
+        pretty_pipelines = ", ".join(f'"{p!s}"' for p in pipeline_names)
+        pretty_collections = ", ".join(f'"{c!s}"' for c in collection_names)
+        pipeline_label = "pipeline" if len(pipeline_names) == 1 else "pipelines"
+        collection_label = "collection" if len(collection_names) == 1 else "collections"
+
+        elapsed_time = time.time() - start_time
+        print(
+            success_panel(
+                f"Processed data for {pipeline_label} {pretty_pipelines} and "
+                f"{collection_label} {pretty_collections} in {elapsed_time:.2f} seconds",
+            ),
+        )
     except NetworkConnectionError as e:
         error_message = f"No internet connection: {e}"
-        logger.exception(error_message)
+        project_wrapper.logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit from None
     except Exception as e:
         error_message = f"Error during processing: {e}"
-        logger.exception(error_message)
+        project_wrapper.logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit from None
-
-    pretty_pipelines = ", ".join(f'"{p!s}"' for p in pipeline_names)
-    pretty_collections = ", ".join(f'"{c!s}"' for c in collection_names)
-    pipeline_label = "pipeline" if len(pipeline_names) == 1 else "pipelines"
-    collection_label = "collection" if len(collection_names) == 1 else "collections"
-
-    elapsed_time = time.time() - start_time
-    print(
-        success_panel(
-            f"Processed data for {pipeline_label} {pretty_pipelines} and {collection_label} {pretty_collections} in "
-            f"{elapsed_time:.2f} seconds",
-        ),
-    )
 
 
 @marimba_cli.command("distribute")
@@ -373,33 +372,32 @@ def distribute_command(
 
     try:
         project_wrapper.distribute(dataset_name, target_name)
+        elapsed_time = time.time() - start_time
+        print(success_panel(f"Successfully distributed dataset {dataset_name} in {elapsed_time:.2f} seconds"))
     except ProjectWrapper.NoSuchDatasetError as e:
         error_message = f"No such dataset: {e}"
-        logger.exception(error_message)
+        project_wrapper.logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit from None
     except ProjectWrapper.NoSuchTargetError as e:
         error_message = f"No such target: {e}"
-        logger.exception(error_message)
+        project_wrapper.logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit from None
     except DatasetWrapper.ManifestError as e:
         error_message = f"Dataset is inconsistent with manifest at {e}"
-        logger.exception(error_message)
+        project_wrapper.logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit from None
     except DistributionTargetBase.DistributionError as e:
         error_message = f"Could not distribute dataset: {e}"
-        logger.exception(error_message)
+        project_wrapper.logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit from None
     except Exception as e:
-        logger.exception(e)
+        project_wrapper.logger.exception(e)
         print(error_panel(f"Could not distribute dataset: {e}"))
         raise typer.Exit from None
-
-    elapsed_time = time.time() - start_time
-    print(success_panel(f"Successfully distributed dataset {dataset_name} in {elapsed_time:.2f} seconds"))
 
 
 @marimba_cli.command("update")
@@ -412,8 +410,9 @@ def update_command(project_dir: Path | None = typer.Option(None, help=PROJECT_DI
 
     try:
         project_wrapper.update_pipelines()
+        print(success_panel("Successfully updated (pulled) all pipeline repositories"))
     except Exception as e:
-        logger.exception(e)
+        project_wrapper.logger.exception(e)
         print(error_panel(f"Could not update pipelines: {e}"))
         raise typer.Exit from None
 
@@ -428,8 +427,9 @@ def install_command(project_dir: Path | None = typer.Option(None, help=PROJECT_D
 
     try:
         project_wrapper.install_pipelines()
+        print(success_panel("Successfully installed all pipeline dependencies"))
     except Exception as e:
-        logger.exception(e)
+        project_wrapper.logger.exception(e)
         print(error_panel(f"Could not install pipelines: {e}"))
         raise typer.Exit from None
 
