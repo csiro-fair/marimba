@@ -36,6 +36,7 @@ Classes:
 """
 
 import hashlib
+import logging
 import os
 from collections import OrderedDict
 from collections.abc import Iterable
@@ -48,7 +49,7 @@ from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
-from marimba.core.utils.log import LogMixin, get_file_handler
+from marimba.core.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.core.utils.manifest import Manifest
 from marimba.core.utils.map import make_summary_map
 from marimba.core.utils.paths import format_path_for_logging
@@ -111,6 +112,21 @@ class DatasetWrapper(LogMixin):
         if not dry_run:
             self._check_file_structure()
             self._setup_logging()
+
+    @property
+    def logger(self) -> logging.Logger:
+        """Returns a clean logger instance for this dataset."""
+        if not hasattr(self, "_logger"):
+            # Get the base logger
+            self._logger = get_logger(self.__class__.__name__)
+
+            # Remove any existing handlers
+            for handler in self._logger.handlers[:]:
+                self._logger.removeHandler(handler)
+
+            # Add back just the null handler
+            self._logger.addHandler(logging.NullHandler())
+        return self._logger
 
     @property
     def root_dir(self) -> Path:
@@ -642,12 +658,12 @@ class DatasetWrapper(LogMixin):
         if progress:
             with Progress(SpinnerColumn(), *get_default_columns()) as progress_bar:
                 total_tasks = len(dataset_items) + 1
-                task = progress_bar.add_task("[green]Processing metadata (5/11)", total=total_tasks)
+                task = progress_bar.add_task("[green]Processing dataset metadata (5/11)", total=total_tasks)
 
                 processed_items = self._process_items(dataset_items, progress_bar, task, max_workers)
                 grouped_items = self._group_by_metadata_type(processed_items)
 
-                progress_bar.update(task, description="[green]Writing metadata files (5/11)")
+                progress_bar.update(task, description="[green]Writing dataset metadata (5/11)")
                 self._create_metadata_files(dataset_name, grouped_items)
                 progress_bar.advance(task)
         else:
