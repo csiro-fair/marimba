@@ -740,18 +740,24 @@ class ImagerySummary:
 
     @staticmethod
     def _extract_dataset_info(dataset_wrapper: "DatasetWrapper") -> dict[str, str | None]:
-        return {
+        info = {
             "dataset_name": dataset_wrapper.name,
             "version": dataset_wrapper.version,
-            "contact": (
-                rf"{dataset_wrapper.contact_name} \<[{dataset_wrapper.contact_email}]"
-                rf"({dataset_wrapper.contact_email})\>"
-                if dataset_wrapper.contact_name and dataset_wrapper.contact_email
-                else dataset_wrapper.contact_name
-                or f"[{dataset_wrapper.contact_email}]({dataset_wrapper.contact_email})"
-                or None
-            ),
+            "contact": None,
         }
+
+        # Only set contact if there is valid contact information
+        if dataset_wrapper.contact_name or dataset_wrapper.contact_email:
+            if dataset_wrapper.contact_name and dataset_wrapper.contact_email:
+                contact_name = dataset_wrapper.contact_name
+                contact_email = dataset_wrapper.contact_email
+                info["contact"] = rf"{contact_name} \<[{contact_email}]({contact_email})\>"
+            elif dataset_wrapper.contact_name:
+                info["contact"] = dataset_wrapper.contact_name
+            elif dataset_wrapper.contact_email:
+                info["contact"] = f"[{dataset_wrapper.contact_email}]({dataset_wrapper.contact_email})"
+
+        return info
 
     @classmethod
     def _process_files(
