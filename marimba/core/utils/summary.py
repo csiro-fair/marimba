@@ -60,7 +60,7 @@ class ImagerySummary:
     image_color_depth: str = ""
     image_latitude_extent: str = ""
     image_longitude_extent: str = ""
-    image_depth_extent: str = ""
+    image_altitude_extent: str = ""
     image_temporal_extent: str = ""
     image_unique_directories: int = 0
     image_licenses: str = ""
@@ -77,7 +77,7 @@ class ImagerySummary:
     video_encoding_details: str = ""
     video_latitude_extent: str = ""
     video_longitude_extent: str = ""
-    video_depth_extent: str = ""
+    video_altitude_extent: str = ""
     video_temporal_extent: str = ""
     video_unique_directories: int = 0
     video_licenses: str = ""
@@ -688,7 +688,7 @@ class ImagerySummary:
             "image_color_depth": str,
             "image_latitude_extent": str,
             "image_longitude_extent": str,
-            "image_depth_extent": str,
+            "image_altitude_extent": str,
             "image_temporal_extent": str,
             "image_unique_directories": int,
             "image_licenses": str,
@@ -704,7 +704,7 @@ class ImagerySummary:
             "video_encoding_details": str,
             "video_latitude_extent": str,
             "video_longitude_extent": str,
-            "video_depth_extent": str,
+            "video_altitude_extent": str,
             "video_temporal_extent": str,
             "video_unique_directories": int,
             "video_licenses": str,
@@ -929,7 +929,7 @@ class ImagerySummary:
             setattr(summary, f"{data_type}_longitude_extent", f"{min(lons):.3f} to {max(lons):.3f}" if lons else "N/A")
             setattr(
                 summary,
-                f"{data_type}_depth_extent",
+                f"{data_type}_altitude_extent",
                 f"{min(depths):.1f}m to {max(depths):.1f}m" if depths else "N/A",
             )
             setattr(
@@ -975,7 +975,7 @@ class ImagerySummary:
             ["Latitude Extent", self.image_latitude_extent],
             ["Longitude Extent", self.image_longitude_extent],
             ["Temporal Extent", self.image_temporal_extent],
-            ["Depth Extent", self.image_depth_extent],
+            ["Altitude Extent", self.image_altitude_extent],
             ["Unique Image Directories", str(self.image_unique_directories)],
             [image_licenses_label, self.image_licenses],
             ["Image Data Quality", self.image_data_quality],
@@ -1002,7 +1002,7 @@ class ImagerySummary:
             ["Latitude Extent", self.video_latitude_extent],
             ["Longitude Extent", self.video_longitude_extent],
             ["Temporal Extent", self.video_temporal_extent],
-            ["Depth Extent", self.video_depth_extent],
+            ["Altitude Extent", self.video_altitude_extent],
             ["Unique Video Directories", str(self.video_unique_directories)],
             [video_licenses_label, self.video_licenses],
             ["Video Data Quality", self.video_data_quality],
