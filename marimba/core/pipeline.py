@@ -127,7 +127,7 @@ class BasePipeline(ABC, LogMixin):
             config: The collection configuration.
             kwargs: Additional keyword arguments.
         """
-        self.logger.debug(
+        self.logger.info(
             f"Started {format_command('import')} command for pipeline {format_entity(self.class_name)} with args "
             f"data_dir={format_path_for_logging(data_dir, Path(self._root_path).parents[2])}, "
             f"source_path={source_path}, {config=}, {kwargs=}",
@@ -140,7 +140,7 @@ class BasePipeline(ABC, LogMixin):
 
         self._import(data_dir, source_path, config, **kwargs)
 
-        self.logger.debug(
+        self.logger.info(
             f"Completed {format_command('import')} command for pipeline {format_entity(self.class_name)}",
         )
 
@@ -157,14 +157,14 @@ class BasePipeline(ABC, LogMixin):
             config: The collection configuration.
             kwargs: Additional keyword arguments.
         """
-        self.logger.debug(
+        self.logger.info(
             f"Started {format_command('process')} command for pipeline {format_entity(self.class_name)} with args "
             f"data_dir={format_path_for_logging(data_dir, Path(self._root_path).parents[2])}, {config=}, {kwargs=}",
         )
 
         self._process(data_dir, config, **kwargs)
 
-        self.logger.debug(
+        self.logger.info(
             f"Completed {format_command('process')} command for pipeline {format_entity(self.class_name)}",
         )
 
@@ -188,14 +188,14 @@ class BasePipeline(ABC, LogMixin):
         Returns:
             The pipeline data mapping.
         """
-        self.logger.debug(
+        self.logger.info(
             f"Started {format_command('package')} command for pipeline {format_entity(self.class_name)} with args "
             f"data_dir={format_path_for_logging(data_dir, Path(self._root_path).parents[2])}, {config=}, {kwargs=}",
         )
 
         data_mapping = self._package(data_dir, config, **kwargs)
 
-        self.logger.debug(
+        self.logger.info(
             f"Completed {format_command('package')} command for pipeline {format_entity(self.class_name)}",
         )
 

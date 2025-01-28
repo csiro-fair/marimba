@@ -327,7 +327,7 @@ class DatasetWrapper(LogMixin):
                 logger=self.logger,
             ):
                 raise DatasetWrapper.ManifestError(self.manifest_path)
-            self.logger.debug(f'Packaged dataset "{dataset_name}" has been validated against the manifest')
+            self.logger.info(f'Packaged dataset "{dataset_name}" has been validated against the manifest')
 
     def _setup_logging(self) -> None:
         """
@@ -388,7 +388,7 @@ class DatasetWrapper(LogMixin):
             MetadataError: If there are problems processing or generating metadata.
         """
         pipeline_label = "pipeline" if len(dataset_mapping) == 1 else "pipelines"
-        self.logger.debug(
+        self.logger.info(
             f'Started packaging dataset "{dataset_name}" containing {len(dataset_mapping)} {pipeline_label}',
         )
 
@@ -403,7 +403,7 @@ class DatasetWrapper(LogMixin):
         self._copy_logs(project_log_path, pipeline_log_paths)
         self._generate_manifest(dataset_items, max_workers)
 
-        self.logger.debug(f'Completed packaging dataset "{dataset_name}"')
+        self.logger.info(f'Completed packaging dataset "{dataset_name}"')
 
     def _populate_files(
         self,
@@ -482,7 +482,7 @@ class DatasetWrapper(LogMixin):
             }
 
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-                self.logger.debug(f'Started populating data for pipeline "{pipeline_name}"')
+                self.logger.info(f'Started populating data for pipeline "{pipeline_name}"')
                 process_file(
                     self,
                     items=list(pipeline_data_mapping.items()),
@@ -492,7 +492,7 @@ class DatasetWrapper(LogMixin):
                     progress=progress,
                     tasks_by_pipeline_name=tasks_by_pipeline_name,
                 )  # type: ignore[call-arg]
-                self.logger.debug(f'Completed populating data for pipeline "{pipeline_name}"')
+                self.logger.info(f'Completed populating data for pipeline "{pipeline_name}"')
 
         return dataset_items
 
@@ -532,6 +532,9 @@ class DatasetWrapper(LogMixin):
                 max_workers=max_workers,
                 dry_run=self.dry_run,
             )
+
+        total_files = sum(len(files) for files in files_by_type.values())
+        self.logger.info(f"Processed {total_files} files with metadata")
 
     def _calculate_file_hash(self, file_path: Path) -> str:
         """Calculate SHA256 hash for a file."""
@@ -626,7 +629,7 @@ class DatasetWrapper(LogMixin):
     ) -> None:
         """Log a summary of the metadata generation."""
         type_counts = [f"{len(items)} {metadata_type.__name__}" for metadata_type, items in grouped_items.items()]
-        self.logger.debug(
+        self.logger.info(
             f"Generated metadata file containing {', '.join(type_counts)} items",
         )
 
@@ -658,7 +661,7 @@ class DatasetWrapper(LogMixin):
         if progress:
             with Progress(SpinnerColumn(), *get_default_columns()) as progress_bar:
                 total_tasks = len(dataset_items) + 1
-                task = progress_bar.add_task("[green]Processing dataset metadata (5/11)", total=total_tasks)
+                task = progress_bar.add_task("[green]Generating dataset metadata (5/11)", total=total_tasks)
 
                 processed_items = self._process_items(dataset_items, progress_bar, task, max_workers)
                 grouped_items = self._group_by_metadata_type(processed_items)
@@ -691,7 +694,7 @@ class DatasetWrapper(LogMixin):
             summary = self.summarise(dataset_items)
             if not self.dry_run:
                 self.summary_path.write_text(str(summary))
-            self.logger.debug(
+            self.logger.info(
                 f"Generated dataset summary at {format_path_for_logging(self.summary_path, self._project_dir)}",
             )
 
@@ -762,7 +765,7 @@ class DatasetWrapper(LogMixin):
                     if not self.dry_run:
                         summary_map.save(map_path)
                     coordinate_label = "spatial coordinate" if len(geolocations) == 1 else "spatial coordinates"
-                    self.logger.debug(
+                    self.logger.info(
                         f"Generated summary map containing {len(geolocations)} "
                         f"{coordinate_label} at {format_path_for_logging(map_path, self._project_dir)}",
                     )
@@ -782,7 +785,7 @@ class DatasetWrapper(LogMixin):
                 copy2(project_log_path, self.logs_dir)
                 for pipeline_log_path in pipeline_log_paths:
                     copy2(pipeline_log_path, self.pipeline_logs_dir)
-            self.logger.debug(f"Copied project logs to {format_path_for_logging(self.logs_dir, self._project_dir)}")
+            self.logger.info(f"Copied project logs to {format_path_for_logging(self.logs_dir, self._project_dir)}")
             progress.advance(task)
 
     def _copy_pipelines(self, project_pipelines_dir: Path) -> None:
@@ -805,7 +808,7 @@ class DatasetWrapper(LogMixin):
                     "*.log",
                 )
                 copytree(project_pipelines_dir, self.pipelines_dir, dirs_exist_ok=True, ignore=ignore)
-            self.logger.debug(
+            self.logger.info(
                 f"Copied project pipelines to {format_path_for_logging(self.pipelines_dir, self._project_dir)}",
             )
             progress.advance(task)
@@ -834,7 +837,7 @@ class DatasetWrapper(LogMixin):
             )
             if not self.dry_run:
                 manifest.save(self.manifest_path, logger=self.logger)
-            self.logger.debug(
+            self.logger.info(
                 f"Generated manifest for {len(globbed_files)} "
                 f"files and paths at {format_path_for_logging(self.manifest_path, self._project_dir)}",
             )
@@ -876,7 +879,7 @@ class DatasetWrapper(LogMixin):
                 self._verify_relative_destination_paths(pipeline_data_mapping, progress, task, max_workers)
                 self._verify_no_destination_collisions(pipeline_data_mapping, progress, task, max_workers)
 
-        self.logger.debug("Dataset mapping is valid")
+        self.logger.info("Dataset mapping is valid")
 
     def _verify_source_paths_exist(
         self,

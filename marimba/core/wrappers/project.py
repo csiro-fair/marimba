@@ -603,7 +603,7 @@ class ProjectWrapper(LogMixin):
         if pipeline_config is not None:
             pipeline_wrapper.save_config(pipeline_config)
 
-        self.logger.debug(f'Created new pipeline "{name}" at {format_path_for_logging(pipeline_dir, self._root_dir)}')
+        self.logger.info(f'Created new pipeline "{name}" at {format_path_for_logging(pipeline_dir, self._root_dir)}')
 
         return pipeline_wrapper
 
@@ -634,7 +634,7 @@ class ProjectWrapper(LogMixin):
         if pipeline_dir.exists():
             if not dry_run:
                 remove_directory_tree(pipeline_dir, "pipeline", dry_run)
-                self.logger.debug(
+                self.logger.info(
                     f'Deleted pipeline "{name}" at {format_path_for_logging(pipeline_dir, self._root_dir)}',
                 )
         else:
@@ -676,7 +676,7 @@ class ProjectWrapper(LogMixin):
 
         # Add the collection to the project
         self._collection_wrappers[name] = collection_wrapper
-        self.logger.debug(
+        self.logger.info(
             f'Created new collection "{name}" at {format_path_for_logging(collection_dir, self._root_dir)}',
         )
         return collection_wrapper
@@ -706,7 +706,7 @@ class ProjectWrapper(LogMixin):
         collection_dir = self.collections_dir / name
         if collection_dir.exists():
             remove_directory_tree(collection_dir, "collection", dry_run)
-            self.logger.debug(
+            self.logger.info(
                 f'Deleted collection "{name}" at {format_path_for_logging(collection_dir, self._root_dir)}',
             )
         else:
@@ -843,7 +843,7 @@ class ProjectWrapper(LogMixin):
         pretty_collections = ", ".join(f'"{c!s}"' for c, _ in collection_wrappers_to_run.items())
         pipeline_label = "pipeline" if len(pipeline_wrappers_to_run) == 1 else "pipelines"
         collection_label = "collection" if len(collection_wrappers_to_run) == 1 else "collections"
-        self.logger.debug(
+        self.logger.info(
             f"Started processing data for {pipeline_label} {pretty_pipelines} "
             f"and {collection_label} {pretty_collections}{self._format_kwargs_message(merged_kwargs)}",
         )
@@ -879,13 +879,13 @@ class ProjectWrapper(LogMixin):
                     pipeline_name, log_string_prefix = futures[future]
                     try:
                         message = future.result()
-                        self.logger.debug(f"{log_string_prefix}{message}")
+                        self.logger.info(f"{log_string_prefix}{message}")
                     except Exception as e:
                         raise ProjectWrapper.MarimbaProcessError(f"{log_string_prefix}{e}") from e
                     finally:
                         progress.advance(tasks_by_pipeline_name[pipeline_name])
 
-        self.logger.debug(
+        self.logger.info(
             f"Completed processing data for {pipeline_label} {pretty_pipelines} "
             f"and {collection_label} {pretty_collections}",
         )
@@ -1013,7 +1013,7 @@ class ProjectWrapper(LogMixin):
         pretty_collections = ", ".join(f'"{c!s}"' for c in collection_names)
         pipeline_label = "pipeline" if len(self.pipeline_wrappers) == 1 else "pipelines"
         collection_label = "collection" if len(collection_wrappers) == 1 else "collections"
-        self.logger.debug(
+        self.logger.info(
             f'Started packaging dataset "{dataset_name}" for {pipeline_label} {pretty_pipelines} and '
             f"{collection_label} {pretty_collections}{self._format_kwargs_message(merged_kwargs)}",
         )
@@ -1048,7 +1048,7 @@ class ProjectWrapper(LogMixin):
                     pipeline_name, collection_name, log_string_prefix = futures[future]
                     try:
                         (pipeline_data_mapping, message) = future.result()
-                        self.logger.debug(f"{log_string_prefix}{message}")
+                        self.logger.info(f"{log_string_prefix}{message}")
                         if pipeline_name not in dataset_mapping:
                             dataset_mapping[pipeline_name] = {}
                         dataset_mapping[pipeline_name].update(pipeline_data_mapping)
@@ -1061,7 +1061,7 @@ class ProjectWrapper(LogMixin):
                     finally:
                         progress.advance(task)
 
-        self.logger.debug(
+        self.logger.info(
             f'Completed packaging dataset "{dataset_name}" for {pipeline_label} {pretty_pipelines} and '
             f"{collection_label} {pretty_collections}{self._format_kwargs_message(merged_kwargs)}",
         )
@@ -1160,7 +1160,7 @@ class ProjectWrapper(LogMixin):
         if dataset_root_dir.exists():
             if not self.dry_run:
                 remove_directory_tree(dataset_root_dir, "dataset", dry_run)
-                self.logger.debug(
+                self.logger.info(
                     f'Deleted dataset "{dataset_name}" at {format_path_for_logging(dataset_root_dir, self._root_dir)}',
                 )
         else:
@@ -1201,7 +1201,7 @@ class ProjectWrapper(LogMixin):
             raise ValueError("Expected a DistributionTargetWrapper instance")
 
         self._target_wrappers[target_name] = target_wrapper
-        self.logger.debug(f'Created new distribution target "{format_path_for_logging(target_name, self._root_dir)}"')
+        self.logger.info(f'Created new distribution target "{format_path_for_logging(target_name, self._root_dir)}"')
 
         return target_wrapper
 
@@ -1227,7 +1227,7 @@ class ProjectWrapper(LogMixin):
         if target_config_path.exists():
             if not dry_run:
                 target_config_path.unlink()
-                self.logger.debug(
+                self.logger.info(
                     f"Deleted distribution target {target_name}.yml at "
                     f'"{format_path_for_logging(target_config_path, self._root_dir)}"',
                 )
@@ -1249,7 +1249,7 @@ class ProjectWrapper(LogMixin):
             DatasetWrapper.ManifestError: If the dataset is inconsistent with its manifest.
             DistributionTargetBase.DistributionError: If the dataset cannot be distributed.
         """
-        self.logger.debug(f'Distributing dataset "{dataset_name}" to target "{target_name}"')
+        self.logger.info(f'Started distributing dataset "{dataset_name}" to target "{target_name}"')
 
         # Get the dataset wrapper
         dataset_wrapper = self.dataset_wrappers.get(dataset_name, None)
@@ -1310,7 +1310,7 @@ class ProjectWrapper(LogMixin):
 
         pretty_paths = ", ".join(str(Path(p).resolve().absolute()) for p in source_paths)
         source_label = "source path" if len(source_paths) == 1 else "source paths"
-        self.logger.debug(
+        self.logger.info(
             f'Started importing data for collection "{collection_name}" from {source_label} {pretty_paths}'
             f"{self._format_kwargs_message(merged_kwargs)}",
         )
@@ -1390,13 +1390,13 @@ class ProjectWrapper(LogMixin):
                     pipeline_name, log_string_prefix = futures[future]
                     try:
                         message = future.result()
-                        self.logger.debug(f"{log_string_prefix}{message}")
+                        self.logger.info(f"{log_string_prefix}{message}")
                     except Exception as e:
                         raise ProjectWrapper.MarimbaThreadError(f"{log_string_prefix}{e}") from e
                     finally:
                         progress.advance(tasks_by_pipeline_name[pipeline_name])
 
-        self.logger.debug(
+        self.logger.info(
             f'Completed importing data for collection "{collection_name}" from {source_label} {pretty_paths}',
         )
 
@@ -1459,7 +1459,7 @@ class ProjectWrapper(LogMixin):
                 raise ProjectWrapper.NoSuchCollectionError(parent_collection_name)
             parent_config = parent_wrapper.load_config()
             schema.update(parent_config)
-            self.logger.debug(f'Using parent collection "{parent_collection_name}" with config: {parent_config}')
+            self.logger.info(f'Using parent collection "{parent_collection_name}" with config: {parent_config}')
 
     def _collect_final_config(
         self,
@@ -1479,7 +1479,7 @@ class ProjectWrapper(LogMixin):
             if additional_config:  # Ensure additional_config is not None
                 final_config.update(additional_config)
 
-        self.logger.debug(f"Provided collection config={final_config}")
+        self.logger.info(f"Provided collection config={final_config}")
         return final_config
 
     def update_pipelines(self) -> None:
