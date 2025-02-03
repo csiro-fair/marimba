@@ -2,6 +2,7 @@
 Marimba Map Utilities.
 """
 
+import math
 from collections.abc import Iterable
 from typing import TypeVar, cast
 
@@ -22,15 +23,44 @@ TINY_INTERVAL = 0.0001
 SMALL_INTERVAL = 0.001
 MEDIUM_INTERVAL = 0.01
 
-# Constants for margin calculations
-MIN_DECIMAL_PLACES = 2
-MARGIN_PER_DECIMAL = 12
+# Constants for margin and padding calculations
+BASE_LEFT_MARGIN = 5  # Base margin before label text starts
+LABEL_WIDTH = 10  # Fixed width allocated for latitude labels
+BASE_DASH_PADDING = 60  # Base padding between label and dash
+PADDING_PER_DECIMAL = 8  # Additional padding per decimal place
+MIN_DECIMAL_PLACES = 2  # Minimum number of decimal places
 
 
 class NetworkConnectionError(Exception):
     """
     Raised when there is a network connection error.
     """
+
+
+def lat_to_y(lat: float, zoom: int) -> float:
+    """Convert latitude to y tile coordinate."""
+    lat_rad = math.radians(lat)
+    n = 2.0**zoom
+    return (1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n
+
+
+def y_to_lat(y: float, zoom: int) -> float:
+    """Convert y tile coordinate to latitude."""
+    n = 2.0**zoom
+    lat_rad = math.atan(math.sinh(math.pi * (1 - 2 * y / n)))
+    return math.degrees(lat_rad)
+
+
+def lon_to_x(lon: float, zoom: int) -> float:
+    """Convert longitude to x tile coordinate."""
+    n = 2.0**zoom
+    return (lon + 180.0) / 360.0 * n
+
+
+def x_to_lon(x: float, zoom: int) -> float:
+    """Convert x tile coordinate to longitude."""
+    n = 2.0**zoom
+    return (x / n * 360.0) - 180.0
 
 
 def calculate_grid_intervals(min_val: float, max_val: float, num_lines: int) -> tuple[list[float], int]:
@@ -76,6 +106,45 @@ def calculate_grid_intervals(min_val: float, max_val: float, num_lines: int) -> 
     return positions, decimal_places
 
 
+def calculate_visible_bounds(
+    center_lat: float,
+    center_lon: float,
+    zoom: int,
+    width: int,
+    height: int,
+) -> tuple[float, float, float, float]:
+    """
+    Calculate the visible bounds of the map given the center point, zoom level, and dimensions.
+
+    Returns:
+        Tuple of (min_lat, max_lat, min_lon, max_lon)
+    """
+    # Convert center point to tile coordinates
+    center_x = lon_to_x(center_lon, zoom)
+    center_y = lat_to_y(center_lat, zoom)
+
+    # Calculate pixels per tile
+    pixels_per_tile = 256  # Standard tile size
+
+    # Calculate tile range
+    x_range = width / (2 * pixels_per_tile)
+    y_range = height / (2 * pixels_per_tile)
+
+    # Calculate bounds in tile coordinates
+    min_x = center_x - x_range
+    max_x = center_x + x_range
+    min_y = center_y - y_range
+    max_y = center_y + y_range
+
+    # Convert back to lat/lon
+    min_lat = y_to_lat(max_y, zoom)  # Note: y is inverted
+    max_lat = y_to_lat(min_y, zoom)
+    min_lon = x_to_lon(min_x, zoom)
+    max_lon = x_to_lon(max_x, zoom)
+
+    return min_lat, max_lat, min_lon, max_lon
+
+
 def add_axes(
     draw: ImageDraw.ImageDraw,
     width: int,
@@ -86,23 +155,27 @@ def add_axes(
     max_lat: float,
     min_lon: float,
     max_lon: float,
+    zoom: int,
 ) -> None:
     """
-    Add latitude and longitude axes to the map.
+    Add latitude and longitude axes to the map using the actual map bounds.
     """
-    margin = 20
-    margin_x = 60
+    # Bottom margin for longitude labels
     margin_y = 40
 
-    # Calculate grid intervals and positions
+    # Calculate grid intervals and positions first
     lon_positions, lon_decimals = calculate_grid_intervals(min_lon, max_lon, num_x_lines)
     lat_positions, lat_decimals = calculate_grid_intervals(min_lat, max_lat, num_y_lines)
 
-    # Adjust left margin based on latitude decimal places
-    if lat_decimals > MIN_DECIMAL_PLACES:
-        margin_x += (lat_decimals - MIN_DECIMAL_PLACES) * MARGIN_PER_DECIMAL
+    # Calculate dynamic dash padding based on decimal places in latitude labels
+    extra_padding = max(0, lat_decimals - MIN_DECIMAL_PLACES) * PADDING_PER_DECIMAL
+    total_dash_padding = BASE_DASH_PADDING + extra_padding
+
+    # Calculate total left margin based on fixed label width and dynamic padding
+    total_left_margin = BASE_LEFT_MARGIN + LABEL_WIDTH + total_dash_padding
 
     def draw_dashed_line(start: tuple[int, int], end: tuple[int, int], dash_length: int = 5) -> None:
+        """Draw a dashed line between two points."""
         x1, y1 = start
         x2, y2 = end
         total_length = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
@@ -119,20 +192,16 @@ def add_axes(
                 width=2,
             )
 
-    # Get ranges for positioning (use full range including hidden lines)
-    lon_range = lon_positions[-1] - lon_positions[0]
-    lat_range = lat_positions[-1] - lat_positions[0]
-
-    # Skip first and last positions when drawing
-    visible_lon_positions = lon_positions[1:-1]
-    visible_lat_positions = lat_positions[1:-1]
-
     # Draw longitude lines and labels
-    for lon in visible_lon_positions:
-        # Convert longitude to x position using full range
-        x = margin_x + (width - margin_x - margin) * (lon - lon_positions[0]) / lon_range
-        if margin_x <= x <= width - margin:
-            draw_dashed_line((int(x), margin), (int(x), height - margin_y))
+    for lon in lon_positions[1:-1]:  # Skip first and last positions
+        # Convert longitude to pixel position using web mercator
+        x_tile = lon_to_x(lon, zoom)
+        center_x_tile = lon_to_x((min_lon + max_lon) / 2, zoom)
+        rel_x = (x_tile - center_x_tile) * 256  # 256 pixels per tile
+        x = width / 2 + rel_x
+
+        if total_left_margin <= x <= width - BASE_LEFT_MARGIN:
+            draw_dashed_line((int(x), BASE_LEFT_MARGIN), (int(x), height - margin_y))
             lon_label = f"{lon:.{lon_decimals}f}°"
             draw.text(
                 (int(x), height - margin_y + 20),
@@ -143,19 +212,74 @@ def add_axes(
             )
 
     # Draw latitude lines and labels
-    for lat in visible_lat_positions:
-        # Convert latitude to y position using full range
-        y = margin + (height - margin - margin_y) * (lat_positions[-1] - lat) / lat_range
-        if margin <= y <= height - margin_y:
-            draw_dashed_line((margin_x, int(y)), (width - margin, int(y)))
+    for lat in lat_positions[1:-1]:  # Skip first and last positions
+        # Convert latitude to pixel position using web mercator
+        y_tile = lat_to_y(lat, zoom)
+        center_y_tile = lat_to_y((min_lat + max_lat) / 2, zoom)
+        rel_y = (y_tile - center_y_tile) * 256  # 256 pixels per tile
+        y = height / 2 + rel_y
+
+        if BASE_LEFT_MARGIN <= y <= height - margin_y:
             lat_label = f"{lat:.{lat_decimals}f}°"
+            label_x = BASE_LEFT_MARGIN + LABEL_WIDTH
             draw.text(
-                (margin_x - 40, int(y)),
+                (label_x, int(y)),
                 lat_label,
                 fill="black",
                 font=ImageFont.load_default(size=16),
-                anchor="mm",
+                anchor="lm",
             )
+            draw_dashed_line((total_left_margin, int(y)), (width - BASE_LEFT_MARGIN, int(y)))
+
+
+def calculate_zoom_level(
+    min_lat: float,
+    max_lat: float,
+    min_lon: float,
+    max_lon: float,
+    width: int,
+    height: int,
+) -> int:
+    """
+    Calculate an appropriate zoom level based on coordinate bounds and image dimensions.
+
+    Args:
+        min_lat: Minimum latitude
+        max_lat: Maximum latitude
+        min_lon: Minimum longitude
+        max_lon: Maximum longitude
+        width: Image width in pixels
+        height: Image height in pixels
+
+    Returns:
+        int: Appropriate zoom level (0-19)
+    """
+    # Calculate the ranges
+    lat_range = abs(max_lat - min_lat)
+    lon_range = abs(max_lon - min_lon)
+
+    # Add padding to prevent points being too close to edges
+    padding_factor = 0.2  # 20% padding
+    lat_range = lat_range * (1 + padding_factor)
+    lon_range = lon_range * (1 + padding_factor)
+
+    # Convert to pixels (assuming 256 pixel tiles)
+    pixels_per_tile = 256
+    tiles_y = height / pixels_per_tile
+    tiles_x = width / pixels_per_tile
+
+    # Calculate zoom level needed for each dimension
+    # The 360/170 factor adjusts for the Web Mercator projection distortion
+    lat_zoom = math.log2(tiles_y * (360 / 170) / lat_range)
+    lon_zoom = math.log2(tiles_x * 360 / lon_range)
+
+    # Use the more conservative (smaller) zoom level and add a boost
+    zoom = min(lat_zoom, lon_zoom)
+    zoom_boost = 7
+    zoom += zoom_boost
+
+    # Round down and clamp between 0 and 19 (typical max zoom for tiles)
+    return max(0, min(19, math.floor(zoom)))
 
 
 def make_summary_map(
@@ -173,17 +297,17 @@ def make_summary_map(
 
     Args:
         geolocations: Iterable of (latitude, longitude) tuples.
-        width: Width of the map.
-        height: Height of the map.
+        width: Width of the map in pixels.
+        height: Height of the map in pixels.
         marker_color: Color of the markers.
-        marker_size: Size of the markers.
-        num_x_lines: Number of dashed lines on the x-axis.
-        num_y_lines: Number of dashed lines on the y-axis.
+        marker_size: Size of the markers in pixels.
+        num_x_lines: Number of longitude grid lines.
+        num_y_lines: Number of latitude grid lines.
         zoom: Zoom level for the map (lower values zoom out, higher values zoom in).
-            If None, the map will use the default zoom level based on geolocations.
+            If None, the map will calculate an appropriate zoom level based on the data.
 
     Returns:
-        PIL image of the map, or None if no geolocations were given.
+        PIL image of the map, or None if no valid geolocations were given.
 
     Raises:
         NetworkConnectionError: If unable to render the map due to network issues.
@@ -209,17 +333,46 @@ def make_summary_map(
     try:
         m = StaticMap(width, height, url_template="http://a.tile.osm.org/{z}/{x}/{y}.png")
 
+        # Add markers
         for lat, lon in valid_coords:
             marker = CircleMarker((lon, lat), marker_color, marker_size)
             m.add_marker(marker)
 
-        image = cast(Image.Image, m.render(zoom=zoom))
+        # Calculate zoom level if not provided
+        if zoom is None:
+            zoom = calculate_zoom_level(min_lat, max_lat, min_lon, max_lon, width, height)
 
+        # Calculate center point
+        center_lat = (min_lat + max_lat) / 2
+        center_lon = (min_lon + max_lon) / 2
+
+        # Render the map with calculated zoom and center
+        image = cast(Image.Image, m.render(zoom=zoom, center=[center_lon, center_lat]))
+
+        # Calculate the actual visible bounds based on the zoom level
+        min_lat, max_lat, min_lon, max_lon = calculate_visible_bounds(
+            center_lat,
+            center_lon,
+            zoom,
+            width,
+            height,
+        )
+
+        # Add coordinate axes with the calculated bounds
+        draw = ImageDraw.Draw(image)
+        add_axes(
+            draw,
+            width,
+            height,
+            num_x_lines,
+            num_y_lines,
+            min_lat,
+            max_lat,
+            min_lon,
+            max_lon,
+            zoom,
+        )
     except requests.exceptions.ConnectionError:
         raise NetworkConnectionError("Unable to render the map") from None
-
-    # Add coordinate axes
-    draw = ImageDraw.Draw(image)
-    add_axes(draw, width, height, num_x_lines, num_y_lines, min_lat, max_lat, min_lon, max_lon)
-
-    return image
+    else:
+        return image
