@@ -258,6 +258,11 @@ def calculate_zoom_level(
     lat_range = abs(max_lat - min_lat)
     lon_range = abs(max_lon - min_lon)
 
+    # Handle single point or very close points by setting a minimum range
+    min_range = 0.0001  # About 11 meters at the equator
+    lat_range = max(lat_range, min_range)
+    lon_range = max(lon_range, min_range)
+
     # Add padding to prevent points being too close to edges
     padding_factor = 0.2  # 20% padding
     lat_range = lat_range * (1 + padding_factor)
