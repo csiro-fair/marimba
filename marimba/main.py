@@ -357,6 +357,10 @@ def distribute_command(
     dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
     target_name: str = typer.Argument(..., help="Marimba distribution target name."),
     project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP),
+    validate: bool = typer.Option(
+        True,
+        help="Validate the dataset against its manifest before distribution.",
+    ),
     dry_run: bool = typer.Option(
         False,
         help="Execute the command and print logging to the terminal, but do not change any files.",
@@ -371,7 +375,7 @@ def distribute_command(
     get_rich_handler().set_dry_run(dry_run)
 
     try:
-        project_wrapper.distribute(dataset_name, target_name)
+        project_wrapper.distribute(dataset_name, target_name, validate)
         elapsed_time = time.time() - start_time
         print(success_panel(f"Successfully distributed dataset {dataset_name} in {elapsed_time:.2f} seconds"))
     except ProjectWrapper.NoSuchDatasetError as e:

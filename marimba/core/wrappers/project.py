@@ -1235,13 +1235,23 @@ class ProjectWrapper(LogMixin):
             raise FileExistsError(f'"{target_config_path}"target does not exist')
         return target_config_path
 
-    def distribute(self, dataset_name: str, target_name: str) -> None:
+    def distribute(
+        self,
+        dataset_name: str,
+        target_name: str,
+        validate: bool,
+    ) -> None:
         """
         Distribute a dataset to a distribution target.
+
+        This function takes a dataset and distributes it to a specified target. It first validates the existence of the
+        dataset and target, then optionally validates the dataset's consistency with its manifest. Finally, it
+        distributes the dataset using the appropriate distribution target instance.
 
         Args:
             dataset_name: The name of the dataset to distribute.
             target_name: The name of the distribution target to distribute to.
+            validate: A boolean flag indicating whether to validate the dataset before distribution.
 
         Raises:
             ProjectWrapper.NoSuchDatasetError: If the dataset does not exist in the project.
@@ -1257,7 +1267,12 @@ class ProjectWrapper(LogMixin):
             raise ProjectWrapper.NoSuchDatasetError(dataset_name)
 
         # Validate the dataset
-        dataset_wrapper.validate(dataset_name)
+        if validate:
+            with Progress(SpinnerColumn(), *get_default_columns()) as progress:
+                globbed_files = list(dataset_wrapper.root_dir.glob("**/*"))
+                task = progress.add_task(f"[green]Validating dataset {dataset_name}", total=len(globbed_files))
+                dataset_wrapper.validate(dataset_name, progress, task)
+                progress.advance(task)
 
         # Get the distribution target wrapper
         target_wrapper = self.target_wrappers.get(target_name, None)
