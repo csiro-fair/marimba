@@ -457,7 +457,7 @@ class DatasetWrapper(LogMixin):
                         f"{format_path_for_logging(src, self._project_dir)} to "
                         f"{format_path_for_logging(dst, self._project_dir)}",
                     )
-                # TODO(@cjackett): We might need to check here that image files aren't linked to linked files in the
+                # TODO @<cjackett>: We might need to check here that image files aren't linked to linked files in the
                 #  import process because then EXIF writing might destructively change the original files
                 elif operation == Operation.link:
                     os.link(src, dst)

@@ -162,7 +162,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 image_set_header=ImageSetHeader(
                     image_set_name=dataset_name,
                     image_set_uuid=str(uuid4()),
-                    image_set_handle="",  # TODO(@cjackett): Populate from distribution target URL
+                    image_set_handle="",  # TODO @<cjackett>: Populate from distribution target URL
                 ),
                 image_set_items=image_set_items,
             )

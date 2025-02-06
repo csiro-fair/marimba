@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "marimba"
 version = "1.0.0"
-description = "A Python framework for structuring, managing and processing FAIR scientific image datasets"
+description = "A Python framework for structuring, processing, packaging and distributing FAIR scientific image datasets"
 authors = [
     "Chris Jackett <chris.jackett@csiro.au>",
     "Kevin Barnard <kbarnard@mbari.org>"

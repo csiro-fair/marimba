@@ -77,7 +77,8 @@ class S3DistributionTarget(DistributionTargetBase):
             multipart_threshold=100 * 1024 * 1024,
         )
 
-        self._check_bucket()
+        # TODO @<cjackett>: The _check_bucket() method currently fails on the CSIRO DAP S3
+        # self._check_bucket()  # noqa: ERA001
 
     def _check_bucket(self) -> None:
         """
@@ -132,9 +133,32 @@ class S3DistributionTarget(DistributionTargetBase):
         self._bucket.upload_file(str(path.absolute()), key, Config=self._config)
 
     def _distribute(self, dataset_wrapper: DatasetWrapper) -> None:
-        path_key_tups = list(self._iterate_dataset_wrapper(dataset_wrapper))
 
-        total_bytes = sum(path.stat().st_size for path, _ in path_key_tups)
+        with Progress(SpinnerColumn(), *get_default_columns()) as collection_progress:
+            # Add task for collecting path-key pairs
+            collection_task = collection_progress.add_task("[green]Collecting files to upload", total=None)
+            self.logger.info("Started collecting files for upload")
+
+            path_key_tups = []
+            for path_key in self._iterate_dataset_wrapper(dataset_wrapper):
+                path_key_tups.append(path_key)
+                collection_progress.update(collection_task, advance=1)
+
+            collection_progress.update(collection_task)
+            self.logger.info(f"Found {len(path_key_tups)} files to upload")
+
+        # Calculate total size with progress bar
+        with Progress(SpinnerColumn(), *get_default_columns()) as size_progress:
+            size_task = size_progress.add_task("[green]Calculating total upload size", total=len(path_key_tups))
+            self.logger.info("Started calculating total upload size")
+
+            total_bytes = 0
+            for path, _ in path_key_tups:
+                total_bytes += path.stat().st_size
+                size_progress.update(size_task, advance=1)
+
+            size_progress.update(size_task)
+            self.logger.info(f"Total upload size: {total_bytes / (1024 * 1024):.2f} MB")
 
         with Progress(SpinnerColumn(), *get_default_columns(), DownloadColumn(binary_units=True)) as progress:
             task = progress.add_task("[green]Uploading", total=total_bytes)
