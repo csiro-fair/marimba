@@ -8,7 +8,7 @@
 </figure>
 
 <div style="text-align: center">
-<p><i>A Python framework for structuring, managing and processing FAIR scientific image datasets</i></p>
+<p><i>A Python framework for structuring, processing, packaging and distributing FAIR scientific image datasets</i></p>
 <div>
   <a href="https://github.com/csiro-fair/marimba/stargazers">
     <img src="https://img.shields.io/github/stars/csiro-fair/marimba" alt="Stars Badge"/>

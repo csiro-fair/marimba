@@ -161,7 +161,7 @@ class S3DistributionTarget(DistributionTargetBase):
             self.logger.info(f"Total upload size: {total_bytes / (1024 * 1024):.2f} MB")
 
         with Progress(SpinnerColumn(), *get_default_columns(), DownloadColumn(binary_units=True)) as progress:
-            task = progress.add_task("[green]Uploading", total=total_bytes)
+            task = progress.add_task("[green]Uploading dataset", total=total_bytes)
 
             for path, key in path_key_tups:
                 file_bytes = path.stat().st_size
