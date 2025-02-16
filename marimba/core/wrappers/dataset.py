@@ -438,7 +438,7 @@ class DatasetWrapper(LogMixin):
             dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
 
             if data_list:
-                dst_relative = dst.relative_to(self.data_dir)
+                dst_relative = dst.relative_to(self.root_dir)
                 dataset_items[dst_relative.as_posix()] = data_list
 
             if not self.dry_run:

@@ -770,7 +770,7 @@ class ImagerySummary:
         other_data: dict[str, list[str]] = {"files": []}
 
         for path_str, dataset_item in dataset_items.items():
-            path = dataset_wrapper.data_dir / path_str
+            path = dataset_wrapper.root_dir / path_str
             suffix = path.suffix.lower()
             image_info = dataset_item[0]
 
