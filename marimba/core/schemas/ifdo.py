@@ -127,16 +127,16 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         return [cast(str, creator.name) for creator in self._image_data.image_creators]
 
     @property
-    def hash_sha256(self) -> bytes | None:
+    def hash_sha256(self) -> str | None:
         """Get the SHA256 hash from the underlying ImageData."""
         value = self._image_data.image_hash_sha256
-        if value is None or isinstance(value, bytes):
+        if value is None or isinstance(value, str):
             return value
-        # If the value is not None and not bytes, it's an error
-        raise TypeError(f"Expected bytes or None, got {type(value)}")
+        # If the value is not None and not str, it's an error
+        raise TypeError(f"Expected str or None, got {type(value)}")
 
     @hash_sha256.setter
-    def hash_sha256(self, value: bytes) -> None:
+    def hash_sha256(self, value: str) -> None:
         """Set the SHA256 hash in the underlying ImageData."""
         self._image_data.image_hash_sha256 = value
 

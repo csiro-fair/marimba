@@ -35,7 +35,6 @@ Classes:
     - DatasetWrapper: A wrapper class for handling dataset directories.
 """
 
-import hashlib
 import logging
 import os
 from collections import OrderedDict
@@ -49,6 +48,7 @@ from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
+from marimba.core.utils.hash import compute_hash
 from marimba.core.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.core.utils.manifest import Manifest
 from marimba.core.utils.map import make_summary_map
@@ -536,17 +536,6 @@ class DatasetWrapper(LogMixin):
         total_files = sum(len(files) for files in files_by_type.values())
         self.logger.info(f"Processed {total_files} files with metadata")
 
-    def _calculate_file_hash(self, file_path: Path) -> str:
-        """Calculate SHA256 hash for a file."""
-        file_hash = hashlib.sha256()
-        with file_path.open("rb") as f:
-            while True:
-                chunk = f.read(4096)
-                if not chunk:
-                    break
-                file_hash.update(chunk)
-        return file_hash.hexdigest()
-
     def _update_metadata_hashes(
         self,
         file_path: str,
@@ -557,7 +546,7 @@ class DatasetWrapper(LogMixin):
         """Update hash values for metadata items."""
         file_data_path = Path(self.data_dir) / file_path
         if file_data_path.is_file():
-            file_hash = self._calculate_file_hash(file_data_path)
+            file_hash = compute_hash(file_data_path)
             for metadata_item in metadata_items:
                 metadata_item.hash_sha256 = file_hash
 

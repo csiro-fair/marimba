@@ -18,7 +18,6 @@ Classes:
     Manifest: Represents a dataset manifest for validation and integrity checking.
 """
 
-import hashlib
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -28,6 +27,7 @@ from distlib.util import Progress
 from rich.progress import TaskID
 
 from marimba.core.schemas.base import BaseMetadata
+from marimba.core.utils.hash import compute_hash
 from marimba.lib.decorators import multithreaded
 
 
@@ -39,35 +39,6 @@ class Manifest:
 
     hashes: dict[Path, str]
     logger: logging.Logger | None = None
-
-    @staticmethod
-    def compute_hash(path: Path) -> str:
-        """
-        Compute the hash of a path.
-
-        Args:
-            path: The path.
-
-        Returns:
-            The hash of the path contents.
-        """
-        # SHA-256 hash
-        file_hash = hashlib.sha256()
-
-        if path.is_file():
-            try:
-                with path.open("rb") as f:
-                    for chunk in iter(lambda: f.read(4096), b""):
-                        file_hash.update(chunk)
-            except (OSError, PermissionError) as e:
-                raise OSError(f"Failed to read file {path}: {e!s}") from e
-
-        try:
-            file_hash.update(str(path.as_posix()).encode("utf-8"))
-        except Exception as e:
-            raise OSError(f"Failed to hash path {path}: {e!s}") from e
-
-        return file_hash.hexdigest()
 
     @staticmethod
     def _validate_directory(directory: Path) -> None:
@@ -152,15 +123,17 @@ class Manifest:
             OSError: If there are issues computing the hash.
         """
         try:
+            # Get relative path without the data/ prefix
             rel_path = item.resolve().relative_to(directory)
+            metadata_path = str(rel_path.relative_to("data")) if str(rel_path).startswith("data/") else str(rel_path)
 
             # Try to get hash from metadata first
-            existing_hash = cls._get_hash_from_metadata(str(rel_path), dataset_items)
+            existing_hash = cls._get_hash_from_metadata(metadata_path, dataset_items)
             if existing_hash is not None:
                 return rel_path, existing_hash
 
             # Compute new hash if needed
-            return rel_path, cls.compute_hash(item)
+            return rel_path, compute_hash(item)
         except (OSError, PermissionError) as e:
             if logger:
                 logger.exception(f"Failed to process file {item}: {e!s}")
