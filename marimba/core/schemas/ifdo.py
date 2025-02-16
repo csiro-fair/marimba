@@ -235,6 +235,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
                             # Apply EXIF metadata
                             cls._inject_datetime(image_data, exif_dict)
+                            cls._inject_identifiers(image_data, exif_dict)
                             cls._inject_gps_coordinates(image_data, exif_dict)
                             image_file = cls._add_thumbnail(file_path, exif_dict)
                             cls._extract_image_properties(image_file, image_data)
@@ -293,6 +294,18 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             if offset_str is not None:
                 ifd_exif[piexif.ExifIFD.OffsetTime] = offset_str
                 ifd_exif[piexif.ExifIFD.OffsetTimeOriginal] = offset_str
+
+    @staticmethod
+    def _inject_identifiers(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
+        """
+        Inject identifier information into EXIF metadata.
+
+        Args:
+            image_data: The image data containing identifier information.
+            exif_dict: The EXIF metadata dictionary.
+        """
+        if image_data.image_uuid:
+            exif_dict["Exif"][piexif.ExifIFD.ImageUniqueID] = str(image_data.image_uuid)
 
     @staticmethod
     def _inject_gps_coordinates(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
@@ -388,5 +401,6 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         image_data_dict = image_data.to_dict()
         user_comment_data = {"metadata": {"ifdo": image_data_dict, "ancillary": ancillary_data}}
         user_comment_json = json.dumps(user_comment_data)
-        user_comment_bytes = user_comment_json.encode("utf-8")
+        ascii_encoding = b"ASCII\x00\x00\x00"
+        user_comment_bytes = ascii_encoding + user_comment_json.encode("ascii")
         exif_dict["Exif"][piexif.ExifIFD.UserComment] = user_comment_bytes
