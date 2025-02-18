@@ -133,7 +133,7 @@ class Manifest:
                 return rel_path, existing_hash
 
             # Compute new hash if needed
-            return rel_path, compute_hash(item)
+            return rel_path, compute_hash(item, directory)
         except (OSError, PermissionError) as e:
             if logger:
                 logger.exception(f"Failed to process file {item}: {e!s}")
