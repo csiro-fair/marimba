@@ -1130,7 +1130,8 @@ class ProjectWrapper(LogMixin):
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             globbed_files = list(dataset_wrapper.root_dir.glob("**/*"))
             task = progress.add_task("[green]Validating dataset (11/11)", total=len(globbed_files))
-            dataset_wrapper.validate(dataset_name, progress, task)
+            dataset_wrapper.validate(progress, task)
+            dataset_wrapper.logger.info(f'Packaged dataset "{dataset_name}" has been validated against the manifest')
             progress.advance(task)
 
         self._dataset_wrappers[dataset_name] = dataset_wrapper
@@ -1271,7 +1272,7 @@ class ProjectWrapper(LogMixin):
             with Progress(SpinnerColumn(), *get_default_columns()) as progress:
                 globbed_files = list(dataset_wrapper.root_dir.glob("**/*"))
                 task = progress.add_task(f"[green]Validating dataset {dataset_name}", total=len(globbed_files))
-                dataset_wrapper.validate(dataset_name, progress, task)
+                dataset_wrapper.validate(progress, task)
                 progress.advance(task)
 
         # Get the distribution target wrapper

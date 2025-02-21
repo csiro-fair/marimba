@@ -310,7 +310,7 @@ class DatasetWrapper(LogMixin):
         check_dir_exists(self.logs_dir)
         check_dir_exists(self.pipeline_logs_dir)
 
-    def validate(self, dataset_name: str, progress: Progress | None = None, task: TaskID | None = None) -> None:
+    def validate(self, progress: Progress | None = None, task: TaskID | None = None) -> None:
         """
         Validate the dataset. If the dataset is inconsistent with its manifest (if present), raise a ManifestError.
 
@@ -327,7 +327,6 @@ class DatasetWrapper(LogMixin):
                 logger=self.logger,
             ):
                 raise DatasetWrapper.ManifestError(self.manifest_path)
-            self.logger.info(f'Packaged dataset "{dataset_name}" has been validated against the manifest')
 
     def _setup_logging(self) -> None:
         """
