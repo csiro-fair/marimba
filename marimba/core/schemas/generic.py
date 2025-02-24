@@ -6,12 +6,12 @@ metadata about files. It handles basic metadata attributes like datetime, geoloc
 without the complexity of specialized metadata schemas.
 """
 
-import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Union, cast
+from typing import Any, Union, cast, Callable, Optional
 
 from marimba.core.schemas.base import BaseMetadata
+from marimba.core.utils.metadata_saver import json_saver
 
 
 class GenericMetadata(BaseMetadata):
@@ -26,7 +26,7 @@ class GenericMetadata(BaseMetadata):
         DEFAULT_METADATA_NAME (str): Default filename for metadata files.
     """
 
-    DEFAULT_METADATA_NAME = "metadata.json"
+    DEFAULT_METADATA_NAME = "metadata"
 
     def __init__(
         self,
@@ -178,10 +178,11 @@ class GenericMetadata(BaseMetadata):
         metadata_name: str | None = None,
         *,
         dry_run: bool = False,
+        saver_overwrite: Optional[Callable[[Path, str, dict[str, Any]], None]] = None,
     ) -> None:
         """Create dataset-level metadata by combining all items into a JSON file."""
-        if dry_run:
-            return
+
+        saver = json_saver if saver_overwrite is None else saver_overwrite
 
         dataset_metadata = {
             "dataset_name": dataset_name,
@@ -204,10 +205,9 @@ class GenericMetadata(BaseMetadata):
         }
 
         output_name = metadata_name or cls.DEFAULT_METADATA_NAME
-        output_path = root_dir / output_name
+        if not dry_run:
+            saver(root_dir, output_name, dataset_metadata)
 
-        with Path.open(output_path, "w") as f:
-            json.dump(dataset_metadata, f, indent=2)
 
     @classmethod
     def process_files(

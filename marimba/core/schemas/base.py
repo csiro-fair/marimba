@@ -8,7 +8,9 @@ The BaseMetadata class provides a standard interface that all metadata implement
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Optional
+
+from marimba.core.utils.metadata_saver import yaml_saver
 
 
 class BaseMetadata(ABC):
@@ -79,6 +81,7 @@ class BaseMetadata(ABC):
         items: dict[str, list["BaseMetadata"]],
         *,
         dry_run: bool = False,
+        saver_overwrite: Optional[Callable[[Path, str, dict[str, Any]], None]] = None,
     ) -> None:
         """Create dataset-level metadata from a collection of items."""
         raise NotImplementedError
