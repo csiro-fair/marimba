@@ -243,3 +243,5 @@ fabric.properties
 # Project specific
 /temp/
 /projects/
+
+.idea/

@@ -39,7 +39,7 @@ import math
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Callable
 
 from rich.progress import Progress, SpinnerColumn
 
@@ -1078,6 +1078,7 @@ class ProjectWrapper(LogMixin):
         contact_email: str | None = None,
         zoom: int | None = None,
         max_workers: int | None = None,
+        metadata_saver_overwrite: Optional[Callable[[Path, str, dict[str, Any]], None]] = None
     ) -> DatasetWrapper:
         """
         Create a Marimba dataset from a dataset mapping.
@@ -1091,6 +1092,7 @@ class ProjectWrapper(LogMixin):
             contact_email: The email of the contact person for the dataset. Defaults to None.
             zoom: The zoom level for the dataset. Defaults to None.
             max_workers: The maximum number of worker processes to use. If None, uses all available CPU cores.
+            metadata_saver_overwrite (Optional[Callable[[Path, str, dict[str, Any]], None]]): Saving function overwriting the default metadata saving function. Defaults to None.
 
         Returns:
             A DatasetWrapper instance representing the created dataset.
@@ -1112,6 +1114,7 @@ class ProjectWrapper(LogMixin):
             contact_name=contact_name,
             contact_email=contact_email,
             dry_run=self.dry_run,
+            metadata_saver=metadata_saver_overwrite
         )
 
         # Populate it
