@@ -29,8 +29,6 @@ Classes:
 """
 
 import logging
-import shutil
-import subprocess
 import sys
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -43,6 +41,7 @@ from marimba.core.pipeline import BasePipeline
 from marimba.core.utils.config import load_config, save_config
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.prompt import prompt_schema
+from marimba.core.wrappers.pipeline_installer import PipelineInstaller
 
 
 class PipelineWrapper(LogMixin):
@@ -53,11 +52,6 @@ class PipelineWrapper(LogMixin):
     class InvalidStructureError(Exception):
         """
         Raised when the project file structure is invalid.
-        """
-
-    class InstallError(Exception):
-        """
-        Raised when there is an error installing pipeline dependencies.
         """
 
     def __init__(self, root_dir: str | Path, *, dry_run: bool = False) -> None:
@@ -77,6 +71,8 @@ class PipelineWrapper(LogMixin):
 
         self._check_file_structure()
         self._setup_logging()
+
+        self._pipeline_installer = PipelineInstaller(self.repo_dir, self.logger)
 
     @property
     def root_dir(self) -> Path:
@@ -98,13 +94,6 @@ class PipelineWrapper(LogMixin):
         The path to the pipeline configuration file.
         """
         return self.root_dir / "pipeline.yml"
-
-    @property
-    def requirements_path(self) -> Path:
-        """
-        The path to the pipeline requirements file.
-        """
-        return self.repo_dir / "requirements.txt"
 
     @property
     def log_path(self) -> Path:
@@ -361,83 +350,5 @@ class PipelineWrapper(LogMixin):
         repo = Repo(self.repo_dir)
         repo.remotes.origin.pull()
 
-    def _handle_pip_error(self, returncode: int) -> None:
-        """
-        Handle pip installation errors by raising appropriate exceptions.
-
-        Args:
-            returncode: The return code from pip installation process
-
-        Raises:
-            PipelineWrapper.InstallError: If pip installation fails
-        """
-        if returncode != 0:
-            raise PipelineWrapper.InstallError(
-                f"pip install had a non-zero return code: {returncode}",
-            )
-
-    def _validate_requirements(self, requirements_path: str) -> None:
-        """
-        Validate that the requirements file exists and is accessible.
-
-        Args:
-            requirements_path: Path to the requirements.txt file
-
-        Raises:
-            PipelineWrapper.InstallError: If requirements file is not found
-        """
-        if not Path(requirements_path).is_file():
-            raise PipelineWrapper.InstallError(f"Requirements file not found: {requirements_path}")
-
-    def _validate_pip(self) -> str:
-        """
-        Validate that pip is available in the system PATH.
-
-        Returns:
-            str: Path to pip executable
-
-        Raises:
-            PipelineWrapper.InstallError: If pip is not found
-        """
-        pip_path = shutil.which("pip")
-        if pip_path is None:
-            raise PipelineWrapper.InstallError("pip executable not found in PATH")
-        return pip_path
-
     def install(self) -> None:
-        """
-        Install the pipeline dependencies as provided in a requirements.txt file, if present.
-
-        Raises:
-            PipelineWrapper.InstallError: If there is an error installing pipeline dependencies.
-        """
-        if not self.requirements_path.is_file():
-            self.logger.exception(f"Requirements file does not exist: {self.requirements_path}")
-            raise PipelineWrapper.InstallError(f"Requirements file does not exist: {self.requirements_path}")
-
-        self.logger.info(f"Started installing pipeline dependencies from {self.requirements_path}")
-        try:
-            # Ensure the requirements path is an absolute path and exists
-            requirements_path = str(self.requirements_path.absolute())
-            self._validate_requirements(requirements_path)
-
-            # Find and validate pip executable
-            pip_path = self._validate_pip()
-
-            with subprocess.Popen(
-                [pip_path, "install", "--no-input", "-r", requirements_path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            ) as process:
-                output, error = process.communicate()
-                if output:
-                    self.logger.debug(output.decode("utf-8"))
-                if error:
-                    self.logger.warning(error.decode("utf-8"))
-
-                self._handle_pip_error(process.returncode)
-
-            self.logger.info("Pipeline dependencies installed")
-        except Exception as e:
-            self.logger.exception(f"Error installing pipeline dependencies: {e}")
-            raise PipelineWrapper.InstallError from e
+        self._pipeline_installer()
