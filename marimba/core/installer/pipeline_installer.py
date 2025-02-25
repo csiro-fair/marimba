@@ -8,6 +8,7 @@ from marimba.core.installer.pip_executor import ExecutorResult, PipExecutor
 
 class PipelineInstaller:
     REQUIREMENTS_TXT = "requirements.txt"
+    PY_PROJECT = "pyproject.toml"
 
     class InstallError(Exception):
         """
@@ -29,7 +30,14 @@ class PipelineInstaller:
         """
         The path to the pipeline requirements file.
         """
-        return self._pipeline_path / "requirements.txt"
+        return self._pipeline_path / self.REQUIREMENTS_TXT
+
+    @property
+    def py_project_path(self):
+        """
+        The path to the pipeline python project.
+        """
+        return self._pipeline_path / self.PY_PROJECT
 
     def __call__(self):
         """
@@ -38,28 +46,40 @@ class PipelineInstaller:
         Raises:
             PipelineWrapper.InstallError: If there is an error installing pipeline dependencies.
         """
-        if not self.requirements_path.is_file():
-            self._logger.exception(f"Requirements file does not exist: {self.requirements_path}")
-            raise PipelineInstaller.InstallError(f"Requirements file does not exist: {self.requirements_path}")
-
         self._logger.info(f"Started installing pipeline dependencies from {self.requirements_path}")
+
         try:
-            # Ensure the requirements path is an absolute path and exists
-            requirements_path = str(self.requirements_path.absolute())
-            self._validate_requirements(requirements_path)
+            self._install()
 
-            result = self._executor("install", "--no-input", "-r", requirements_path)
-            if result.output:
-                self._logger.debug(result.output)
-            if result.error:
-                self._logger.warning(result.error)
-
-            self._logger.info("Pipeline dependencies installed")
         except Exception as e:
             self._logger.exception(f"Error installing pipeline dependencies: {e}")
             raise PipelineInstaller.InstallError from e
 
-    def _validate_requirements(self, requirements_path: str) -> None:
+    def _install(self):
+        if self.requirements_path.is_file():
+            abs_path = self.requirements_path.absolute()
+            self._validate_exists(abs_path)
+
+            result = self._executor("install", "--no-input", "-r", str(abs_path))
+        elif self.py_project_path.is_file():
+            abs_path = self.py_project_path.absolute()
+            self._validate_exists(abs_path)
+
+            result = self._executor("install", "--no-input", str(abs_path.parent))
+        else:
+            error_msg = f"Pipeline does not defines dependencies: {self.requirements_path} / {self.py_project_path}"
+            self._logger.exception(error_msg)
+            raise PipelineInstaller.InstallError(error_msg)
+
+        if result.output:
+            self._logger.debug(result.output)
+        if result.error:
+            self._logger.warning(result.error)
+
+        self._logger.info("Pipeline dependencies installed")
+
+    @staticmethod
+    def _validate_exists(requirements_path: Path) -> None:
         """
         Validate that the requirements file exists and is accessible.
 
@@ -69,5 +89,5 @@ class PipelineInstaller:
         Raises:
             PipelineWrapper.InstallError: If requirements file is not found
         """
-        if not Path(requirements_path).is_file():
+        if not requirements_path.is_file():
             raise PipelineInstaller.InstallError(f"Requirements file not found: {requirements_path}")
