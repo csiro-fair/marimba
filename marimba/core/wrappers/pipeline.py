@@ -25,7 +25,6 @@ Imports:
 Classes:
     - PipelineWrapper: Pipeline directory wrapper class for managing pipeline directories.
         - InvalidStructureError: Exception raised when the project file structure is invalid.
-        - InstallError: Exception raised when there is an error installing pipeline dependencies.
 """
 
 import logging
@@ -41,7 +40,7 @@ from marimba.core.pipeline import BasePipeline
 from marimba.core.utils.config import load_config, save_config
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.prompt import prompt_schema
-from marimba.core.wrappers.pipeline_installer import PipelineInstaller
+from marimba.core.installer.pipeline_installer import PipelineInstaller
 
 
 class PipelineWrapper(LogMixin):
@@ -72,7 +71,7 @@ class PipelineWrapper(LogMixin):
         self._check_file_structure()
         self._setup_logging()
 
-        self._pipeline_installer = PipelineInstaller(self.repo_dir, self.logger)
+        self._pipeline_installer = PipelineInstaller.create(self.repo_dir, self.logger)
 
     @property
     def root_dir(self) -> Path:
