@@ -53,6 +53,7 @@ from marimba.core.utils.rich import get_default_columns
 from marimba.core.wrappers.collection import CollectionWrapper
 from marimba.core.wrappers.dataset import DatasetWrapper
 from marimba.core.wrappers.pipeline import PipelineWrapper
+from marimba.core.installer.pipeline_installer import PipelineInstaller
 from marimba.core.wrappers.target import DistributionTargetWrapper
 
 
@@ -1531,7 +1532,7 @@ class ProjectWrapper(LogMixin):
         try:
             pipeline_wrapper.install()
             self.logger.info(f'Installed dependencies for pipeline "{pipeline_name}"')
-        except PipelineWrapper.InstallError:
+        except PipelineInstaller.InstallError:
             self.logger.exception(f'Failed to install dependencies for pipeline "{pipeline_name}"')
 
     @property
