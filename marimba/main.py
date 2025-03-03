@@ -45,7 +45,7 @@ from marimba.core.distribution.base import DistributionTargetBase
 from marimba.core.utils.constants import PROJECT_DIR_HELP, Operation
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
 from marimba.core.utils.map import NetworkConnectionError
-from marimba.core.utils.metadata_saver import MetadataSaverTypes, get_saver
+from marimba.core.utils.metadata import MetadataSaverTypes, get_saver
 from marimba.core.utils.paths import find_project_dir_or_exit
 from marimba.core.utils.rich import error_panel, format_entity, success_panel
 from marimba.core.wrappers.dataset import DatasetWrapper

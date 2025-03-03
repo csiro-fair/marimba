@@ -24,10 +24,11 @@ Classes:
 import io
 import json
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
 from fractions import Fraction
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast, Callable, Optional
+from typing import TYPE_CHECKING, Any, cast
 
 import piexif
 from PIL import Image
@@ -35,7 +36,7 @@ from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.log import get_logger
-from marimba.core.utils.metadata_saver import yaml_saver
+from marimba.core.utils.metadata import yaml_saver
 from marimba.core.utils.rich import get_default_columns
 from marimba.lib import image
 from marimba.lib.decorators import multithreaded
@@ -150,10 +151,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         metadata_name: str | None = None,
         *,
         dry_run: bool = False,
-        saver_overwrite: Optional[Callable[[Path, str, dict[str, Any]], None]] = None,
+        saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
     ) -> None:
         """Create an iFDO from the metadata items."""
-
         saver = yaml_saver if saver_overwrite is None else saver_overwrite
 
         # Convert BaseMetadata items to ImageData for iFDO
@@ -184,7 +184,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
     @classmethod
     def process_files(
         cls,
-        dataset_mapping: dict[Path, tuple[list["BaseMetadata"], dict[str, Any] | None]],
+        dataset_mapping: dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
         max_workers: int | None = None,
         *,
         dry_run: bool = False,
@@ -195,7 +195,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
         @multithreaded(max_workers=max_workers)
         def process_file(
-            cls: type["iFDOMetadata"],
+            cls: type[iFDOMetadata],
             thread_num: str,
             item: tuple[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
             progress: Progress | None = None,

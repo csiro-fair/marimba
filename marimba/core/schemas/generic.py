@@ -6,12 +6,13 @@ metadata about files. It handles basic metadata attributes like datetime, geoloc
 without the complexity of specialized metadata schemas.
 """
 
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Union, cast, Callable, Optional
+from typing import Any, Union, cast
 
 from marimba.core.schemas.base import BaseMetadata
-from marimba.core.utils.metadata_saver import json_saver
+from marimba.core.utils.metadata import json_saver
 
 
 class GenericMetadata(BaseMetadata):
@@ -178,10 +179,9 @@ class GenericMetadata(BaseMetadata):
         metadata_name: str | None = None,
         *,
         dry_run: bool = False,
-        saver_overwrite: Optional[Callable[[Path, str, dict[str, Any]], None]] = None,
+        saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
     ) -> None:
         """Create dataset-level metadata by combining all items into a JSON file."""
-
         saver = json_saver if saver_overwrite is None else saver_overwrite
 
         dataset_metadata = {
@@ -207,7 +207,6 @@ class GenericMetadata(BaseMetadata):
         output_name = metadata_name or cls.DEFAULT_METADATA_NAME
         if not dry_run:
             saver(root_dir, output_name, dataset_metadata)
-
 
     @classmethod
     def process_files(

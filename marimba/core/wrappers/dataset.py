@@ -38,11 +38,11 @@ Classes:
 import logging
 import os
 from collections import OrderedDict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from math import isnan
 from pathlib import Path
 from shutil import copy2, copytree, ignore_patterns
-from typing import Any, Optional, Callable
+from typing import Any
 
 from rich.progress import Progress, SpinnerColumn, TaskID
 
@@ -86,7 +86,7 @@ class DatasetWrapper(LogMixin):
         contact_email: str | None = None,
         *,
         dry_run: bool = False,
-        metadata_saver_overwrite: Optional[Callable[[Path, str, dict[str, Any]], None]] = None,
+        metadata_saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
     ) -> None:
         """
         Initialize a new instance of the class.
@@ -101,7 +101,8 @@ class DatasetWrapper(LogMixin):
             contact_name (Optional[str]): The name of the contact person. Defaults to None.
             contact_email (Optional[str]): The email address of the contact person. Defaults to None.
             dry_run (bool): If True, the method runs in dry-run mode without making any changes. Defaults to False.
-            metadata_saver_overwrite (Optional[Callable[[Path, str, dict[str, Any]], None]]): Saving function overwriting the default metadata saving function. Defaults to None.
+            metadata_saver_overwrite (Optional[Callable[[Path, str, dict[str, Any]], None]]): Saving function
+                overwriting the default metadata saving function. Defaults to None.
         """
         self._root_dir = Path(root_dir)
         self._project_dir = self._root_dir.parent.parent
@@ -258,7 +259,7 @@ class DatasetWrapper(LogMixin):
         contact_email: str | None = None,
         *,
         dry_run: bool = False,
-        metadata_saver: Optional[Callable[[Path, str, dict[str, Any]], None]] = None,
+        metadata_saver: Callable[[Path, str, dict[str, Any]], None] | None = None,
     ) -> "DatasetWrapper":
         """
         Create a new dataset.
@@ -272,6 +273,8 @@ class DatasetWrapper(LogMixin):
             contact_name: The name of the contact person for the dataset. Optional.
             contact_email: The email of the contact person for the dataset. Optional.
             dry_run: If True, simulates the creation without actually creating directories. Defaults to False.
+            metadata_saver: Save function which takes a path, filename without extension and data as
+                json serializable dict. Defaults to None.
 
         Returns:
             A DatasetWrapper instance representing the newly created dataset.
@@ -292,7 +295,14 @@ class DatasetWrapper(LogMixin):
             logs_dir.mkdir()
             pipeline_logs_dir.mkdir()
 
-        return cls(root_dir, version=version, contact_name=contact_name, contact_email=contact_email, dry_run=dry_run, metadata_saver_overwrite=metadata_saver)
+        return cls(
+            root_dir,
+            version=version,
+            contact_name=contact_name,
+            contact_email=contact_email,
+            dry_run=dry_run,
+            metadata_saver_overwrite=metadata_saver,
+        )
 
     def _check_file_structure(self) -> None:
         """
@@ -613,7 +623,7 @@ class DatasetWrapper(LogMixin):
                 root_dir=self.root_dir,
                 items=type_items,
                 dry_run=self.dry_run,
-                saver=self._metadata_saver_overwrite
+                saver_overwrite=self._metadata_saver_overwrite,
             )
 
     def _log_metadata_summary(
