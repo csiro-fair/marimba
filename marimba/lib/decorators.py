@@ -17,6 +17,7 @@ Functions:
     - multithreaded: A decorator to process items in a multithreaded manner.
 """
 
+import logging
 import math
 from collections.abc import Callable, Iterable, Sized
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -27,8 +28,6 @@ from marimba.core.utils.log import get_logger
 
 # Define a generic type variable
 T = TypeVar("T", bound=Callable[..., Any])
-
-logger = get_logger(__name__)
 
 
 def multithreaded(max_workers: int | None = None) -> Callable[[T], T]:
@@ -44,9 +43,19 @@ def multithreaded(max_workers: int | None = None) -> Callable[[T], T]:
 
     def decorator(func: T) -> T:
         @wraps(func)
-        def wrapper(self: Any, *args: Any, items: Iterable[Any], **kwargs: Any) -> list[Any]:  # noqa: ANN401
+        def wrapper(
+            self: Any,  # noqa: ANN401
+            *args: Any,  # noqa: ANN401
+            items: Iterable[Any],
+            logger: logging.Logger | None = None,
+            **kwargs: Any,  # noqa: ANN401
+        ) -> list[Any]:
             if not isinstance(items, Sized):
                 raise TypeError("items must be a Sized iterable")
+
+            # Use the provided logger if available, otherwise use the module logger
+            log = logger or get_logger(__name__)
+
             results = []
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
@@ -56,6 +65,7 @@ def multithreaded(max_workers: int | None = None) -> Callable[[T], T]:
                         *args,
                         item=item,
                         thread_num=f"{i:0{math.ceil(math.log10(len(items) + 1))}}",
+                        logger=log,
                         **kwargs,
                     ): item
                     for i, item in enumerate(items)
@@ -66,7 +76,7 @@ def multithreaded(max_workers: int | None = None) -> Callable[[T], T]:
                         result = future.result()
                         results.append(result)
                     except Exception as e:
-                        logger.exception(f"Error processing {item}: {e}")
+                        log.exception(f"Error processing {item}: {e}")
             return results
 
         return cast(T, wrapper)

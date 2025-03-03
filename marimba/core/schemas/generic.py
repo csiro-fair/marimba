@@ -7,6 +7,7 @@ without the complexity of specialized metadata schemas.
 """
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Union, cast
@@ -214,6 +215,7 @@ class GenericMetadata(BaseMetadata):
         cls,
         dataset_mapping: dict[Path, tuple[list["BaseMetadata"], dict[str, Any] | None]],
         max_workers: int | None = None,
+        logger: logging.Logger | None = None,
         *,
         dry_run: bool = False,
     ) -> None:

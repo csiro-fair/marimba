@@ -182,6 +182,7 @@ class Manifest:
             exclude_paths: set[Path],
             hashes: dict[Path, str],
             dataset_items: dict[str, list[BaseMetadata]] | None = None,
+            logger: logging.Logger | None = None,
             progress: Progress | None = None,
             task: TaskID | None = None,
         ) -> None:
@@ -208,6 +209,7 @@ class Manifest:
             exclude_paths=exclude_paths,
             hashes=hashes,
             dataset_items=dataset_items,
+            logger=logger,
             progress=progress,
             task=task,
         )  # type: ignore[call-arg]
