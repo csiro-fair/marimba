@@ -1,6 +1,7 @@
 import logging
 import tempfile
 from pathlib import Path
+from typing import Generator
 
 import pytest
 
@@ -14,26 +15,34 @@ def temp_dir():
     yield Path(temporary_directory.name)
     temporary_directory.cleanup()
 
+
 @pytest.fixture()
-def temp_dir_with_requirements(temp_dir):
+def temp_dir_with_requirements(temp_dir: Path) -> Generator[Path, None, None]:
     requirements = "\n"
     with open(temp_dir / "requirements.txt", "w") as requirements_file:
         requirements_file.write(requirements)
 
     yield temp_dir
 
-def test_installer_valid(caplog, temp_dir_with_requirements: Path):
+
+def test_installer_valid(caplog: pytest.LogCaptureFixture, temp_dir_with_requirements: Path) -> None:
     logger = logging.Logger("test")
 
     def mock_executor(*args: str) -> ExecutorResult:
-        assert args == ("install", "--no-input", "-r", str(temp_dir_with_requirements / "requirements.txt"))
+        assert args == (
+            "install",
+            "--no-input",
+            "-r",
+            str(temp_dir_with_requirements / "requirements.txt"),
+        )
         return ExecutorResult("", "")
 
     installer = PipelineInstaller(temp_dir_with_requirements, logger, mock_executor)
 
     installer()
 
-def test_installer_missing_requirements_file(caplog, temp_dir: Path):
+
+def test_installer_missing_requirements_file(caplog: pytest.LogCaptureFixture, temp_dir: Path) -> None:
     logger = logging.Logger("test")
 
     def mock_executor(*args: str) -> ExecutorResult:
@@ -45,11 +54,11 @@ def test_installer_missing_requirements_file(caplog, temp_dir: Path):
         installer()
 
 
-def test_installer_executor_error(caplog, temp_dir_with_requirements: Path):
+def test_installer_executor_error(caplog: pytest.LogCaptureFixture, temp_dir_with_requirements: Path) -> None:
     logger = logging.Logger("test")
 
     def mock_executor(*args: str) -> ExecutorResult:
-        raise PipExecutor.PipException("")
+        raise PipExecutor.PipError("")
 
     installer = PipelineInstaller(temp_dir_with_requirements, logger, mock_executor)
 

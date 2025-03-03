@@ -44,7 +44,12 @@ def multithreaded(max_workers: int | None = None) -> Callable[[T], T]:
 
     def decorator(func: T) -> T:
         @wraps(func)
-        def wrapper(self: Any, *args: Any, items: Iterable[Any], **kwargs: Any) -> list[Any]:  # noqa: ANN401
+        def wrapper(
+            self: Any,  # noqa: ANN401
+            *args: Any,  # noqa: ANN401
+            items: Iterable[Any],
+            **kwargs: Any,  # noqa: ANN401
+        ) -> list[Any]:
             if not isinstance(items, Sized):
                 raise TypeError("items must be a Sized iterable")
             results = []

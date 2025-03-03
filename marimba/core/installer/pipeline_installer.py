@@ -1,12 +1,30 @@
-import logging
+"""
+Pipeline Installer.
 
-from pathlib import Path
-from typing import Callable
+This module provides a pipeline installer which handles the installation of pipeline dependencies.
+
+Classes:
+    PipelineInstaller: Installs pipeline dependencies defined in the requirements.txt or pyproject.toml.
+
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from marimba.core.installer.pip_executor import ExecutorResult, PipExecutor
 
+if TYPE_CHECKING:
+    import logging
+    from collections.abc import Callable
+    from pathlib import Path
+
 
 class PipelineInstaller:
+    """
+    Installs pipeline dependencies defined in the requirements.txt or pyproject.toml.
+    """
+
     REQUIREMENTS_TXT = "requirements.txt"
     PY_PROJECT = "pyproject.toml"
 
@@ -15,13 +33,36 @@ class PipelineInstaller:
         Raised when there is an error installing pipeline dependencies.
         """
 
-    def __init__(self, pipeline_path: Path, logger: logging.Logger, pip_executor: Callable[..., ExecutorResult]):
+    def __init__(
+        self,
+        pipeline_path: Path,
+        logger: logging.Logger,
+        pip_executor: Callable[..., ExecutorResult],
+    ) -> None:
+        """
+        Initialize the pipeline installer.
+
+        Args:
+            pipeline_path: Path to the pipeline to install.
+            logger: Logger to use.
+            pip_executor: Pip executor to use.
+        """
         self._pipeline_path = pipeline_path
         self._logger = logger
         self._executor = pip_executor
 
     @classmethod
-    def create(cls, pipeline_path: Path, logger: logging.Logger):
+    def create(cls, pipeline_path: Path, logger: logging.Logger) -> PipelineInstaller:
+        """
+        Creates a new pipeline installer with the pip executor.
+
+        Args:
+            pipeline_path: Path to the pipeline to install.
+            logger: Logger to use.
+
+        Returns:
+            PipelineInstaller instance.
+        """
         pip_executor = PipExecutor.create()
         return cls(pipeline_path, logger, pip_executor)
 
@@ -33,20 +74,22 @@ class PipelineInstaller:
         return self._pipeline_path / self.REQUIREMENTS_TXT
 
     @property
-    def py_project_path(self):
+    def py_project_path(self) -> Path:
         """
         The path to the pipeline python project.
         """
         return self._pipeline_path / self.PY_PROJECT
 
-    def __call__(self):
+    def __call__(self) -> None:
         """
-        Install the pipeline dependencies as provided in a requirements.txt file, if present.
+        Install the pipeline dependencies as provided in a requirements.txt or pyproject.toml file, if present.
 
         Raises:
             PipelineWrapper.InstallError: If there is an error installing pipeline dependencies.
         """
-        self._logger.info(f"Started installing pipeline dependencies from {self.requirements_path}")
+        self._logger.info(
+            f"Started installing pipeline dependencies from {self.requirements_path}",
+        )
 
         try:
             self._install()
@@ -55,7 +98,7 @@ class PipelineInstaller:
             self._logger.exception(f"Error installing pipeline dependencies: {e}")
             raise PipelineInstaller.InstallError from e
 
-    def _install(self):
+    def _install(self) -> None:
         if self.requirements_path.is_file():
             abs_path = self.requirements_path.absolute()
             self._validate_exists(abs_path)
@@ -90,4 +133,6 @@ class PipelineInstaller:
             PipelineWrapper.InstallError: If requirements file is not found
         """
         if not requirements_path.is_file():
-            raise PipelineInstaller.InstallError(f"Requirements file not found: {requirements_path}")
+            raise PipelineInstaller.InstallError(
+                f"Requirements file not found: {requirements_path}",
+            )

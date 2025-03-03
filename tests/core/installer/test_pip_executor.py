@@ -10,8 +10,9 @@ def test_pip_executor_output():
     assert result.output[:3] == "pip"
     assert result.error == ""
 
+
 def test_pip_executor_error():
     pip_executor = PipExecutor.create()
 
-    with pytest.raises(PipExecutor.PipException):
+    with pytest.raises(PipExecutor.PipError):
         pip_executor("install abaöskjdsök")

@@ -36,7 +36,11 @@ from marimba.core.utils.config import load_config
 from marimba.core.utils.log import LogPrefixFilter, get_file_handler, get_logger
 
 
-def _find_pipeline_module_path(repo_dir: Path, *, allow_empty: bool = False) -> Path | None:
+def _find_pipeline_module_path(
+    repo_dir: Path,
+    *,
+    allow_empty: bool = False,
+) -> Path | None:
     """Find the pipeline implementation file in the repository."""
     pipeline_module_paths = list(repo_dir.glob("**/*.pipeline.py"))
 
@@ -50,7 +54,9 @@ def _find_pipeline_module_path(repo_dir: Path, *, allow_empty: bool = False) -> 
         )
 
     if len(pipeline_module_paths) > 1:
-        raise FileNotFoundError(f'Multiple pipeline implementations found in "{repo_dir}": {pipeline_module_paths}')
+        raise FileNotFoundError(
+            f'Multiple pipeline implementations found in "{repo_dir}": {pipeline_module_paths}',
+        )
 
     return pipeline_module_paths[0]
 
@@ -78,7 +84,9 @@ def _log_empty_repo_warning(repo_dir: Path) -> None:
     )
 
 
-def _load_pipeline_module(module_path: Path) -> tuple[str, types.ModuleType, machinery.ModuleSpec]:
+def _load_pipeline_module(
+    module_path: Path,
+) -> tuple[str, types.ModuleType, machinery.ModuleSpec]:
     """Load the pipeline module from the given path."""
     module_name = module_path.stem
     module_spec = spec_from_file_location(
@@ -187,9 +195,19 @@ def load_pipeline_instance(
 
     # Find and instantiate the pipeline class
     pipeline_class = _find_pipeline_class(module)
-    pipeline_instance = pipeline_class(repo_dir, config=load_config(config_path), dry_run=dry_run)
+    pipeline_instance = pipeline_class(
+        repo_dir,
+        config=load_config(config_path),
+        dry_run=dry_run,
+    )
 
     # Configure logging
-    _configure_pipeline_logging(pipeline_instance, root_dir, pipeline_name, dry_run, log_string_prefix)
+    _configure_pipeline_logging(
+        pipeline_instance,
+        root_dir,
+        pipeline_name,
+        dry_run,
+        log_string_prefix,
+    )
 
     return pipeline_instance

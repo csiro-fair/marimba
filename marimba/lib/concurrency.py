@@ -58,7 +58,11 @@ def multithreaded_generate_image_thumbnails(
     output_directory.mkdir(exist_ok=True)
 
     @multithreaded(max_workers=max_workers)
-    def generate_thumbnail_task(self: BasePipeline, thread_num: str, item: Path) -> None:
+    def generate_thumbnail_task(
+        self: BasePipeline,
+        thread_num: str,
+        item: Path,
+    ) -> None:
         thumbnail_path = generate_image_thumbnail(item, output_directory)
         self.logger.debug(
             f"Thread {thread_num} - Generated thumbnail for image "
@@ -114,7 +118,11 @@ def multithreaded_generate_video_thumbnails(
     list_lock = Lock()
 
     @multithreaded(max_workers=max_workers)
-    def generate_thumbnail_task(self: BasePipeline, thread_num: str, item: Path) -> None:
+    def generate_thumbnail_task(
+        self: BasePipeline,
+        thread_num: str,
+        item: Path,
+    ) -> None:
         output_thumbnails_directory = output_base_directory / item.stem
         output_thumbnails_directory.mkdir(parents=True, exist_ok=True)
         video_path, thumbnail_paths = generate_video_thumbnails(

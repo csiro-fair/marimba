@@ -35,12 +35,12 @@ from typing import Any
 
 from git import Repo
 
+from marimba.core.installer.pipeline_installer import PipelineInstaller
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
 from marimba.core.pipeline import BasePipeline
 from marimba.core.utils.config import load_config, save_config
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.prompt import prompt_schema
-from marimba.core.installer.pipeline_installer import PipelineInstaller
 
 
 class PipelineWrapper(LogMixin):
@@ -126,11 +126,15 @@ class PipelineWrapper(LogMixin):
 
         def check_dir_exists(path: Path) -> None:
             if not path.is_dir():
-                raise PipelineWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory')
+                raise PipelineWrapper.InvalidStructureError(
+                    f'"{path}" does not exist or is not a directory',
+                )
 
         def check_file_exists(path: Path) -> None:
             if not path.is_file():
-                raise PipelineWrapper.InvalidStructureError(f'"{path}" does not exist or is not a file')
+                raise PipelineWrapper.InvalidStructureError(
+                    f'"{path}" does not exist or is not a file',
+                )
 
         check_dir_exists(self.root_dir)
         check_dir_exists(self.repo_dir)
@@ -147,7 +151,13 @@ class PipelineWrapper(LogMixin):
         self.logger.addHandler(self._file_handler)
 
     @classmethod
-    def create(cls, root_dir: str | Path, url: str, *, dry_run: bool = False) -> "PipelineWrapper":
+    def create(
+        cls,
+        root_dir: str | Path,
+        url: str,
+        *,
+        dry_run: bool = False,
+    ) -> "PipelineWrapper":
         """
         Create a new pipeline directory from a remote git repository.
 
@@ -164,7 +174,9 @@ class PipelineWrapper(LogMixin):
 
         # Check that the root directory doesn't already exist
         if root_dir.exists():
-            raise FileExistsError(f'Pipeline root directory "{root_dir}" already exists')
+            raise FileExistsError(
+                f'Pipeline root directory "{root_dir}" already exists',
+            )
 
         # Create the pipeline root directory
         root_dir.mkdir(parents=True)
@@ -244,7 +256,9 @@ class PipelineWrapper(LogMixin):
 
             # Ensure there is one result
             if len(pipeline_module_paths) == 0:
-                raise FileNotFoundError(f'No pipeline implementation found in "{self.repo_dir}"')
+                raise FileNotFoundError(
+                    f'No pipeline implementation found in "{self.repo_dir}"',
+                )
 
             if len(pipeline_module_paths) > 1:
                 raise FileNotFoundError(
@@ -259,7 +273,9 @@ class PipelineWrapper(LogMixin):
             )
 
             if pipeline_module_spec is None:
-                raise ImportError(f"Could not load spec for {pipeline_module_name} from {pipeline_module_path}")
+                raise ImportError(
+                    f"Could not load spec for {pipeline_module_name} from {pipeline_module_path}",
+                )
 
             # Create the pipeline module
             pipeline_module = module_from_spec(pipeline_module_spec)
@@ -269,7 +285,9 @@ class PipelineWrapper(LogMixin):
 
             # Ensure that loader is not None before executing the module
             if pipeline_module_spec.loader is None:
-                raise ImportError(f"Could not find loader for {pipeline_module_name} from {pipeline_module_path}")
+                raise ImportError(
+                    f"Could not find loader for {pipeline_module_name} from {pipeline_module_path}",
+                )
 
             # Execute it
             pipeline_module_spec.loader.exec_module(pipeline_module)
@@ -350,4 +368,10 @@ class PipelineWrapper(LogMixin):
         repo.remotes.origin.pull()
 
     def install(self) -> None:
+        """
+        Installs pipeline dependencies.
+
+        Returns:
+            None
+        """
         self._pipeline_installer()

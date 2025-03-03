@@ -98,8 +98,14 @@ def global_options(
 
 @marimba_cli.command("import")
 def import_command(
-    collection_name: str = typer.Argument(..., help="Marimba collection name for targeted processing."),
-    source_paths: list[Path] = typer.Argument(..., help="Paths to source files/directories to provide for import."),
+    collection_name: str = typer.Argument(
+        ...,
+        help="Marimba collection name for targeted processing.",
+    ),
+    source_paths: list[Path] = typer.Argument(
+        ...,
+        help="Paths to source files/directories to provide for import.",
+    ),
     parent_collection_name: str | None = typer.Option(
         None,
         help="Name of the parent collection. If unspecified, use the last collection.",
@@ -108,9 +114,15 @@ def import_command(
         None,
         help="Marimba pipeline name for targeted processing. If none are specified, all pipelines will be processed.",
     ),
-    operation: Operation = typer.Option(Operation.copy, help="Operation to perform: copy, move, or link"),
+    operation: Operation = typer.Option(
+        Operation.copy,
+        help="Operation to perform: copy, move, or link",
+    ),
     project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP),
-    overwrite: bool = typer.Option(False, help="Overwrite an existing collection with the same name."),
+    overwrite: bool = typer.Option(
+        False,
+        help="Overwrite an existing collection with the same name.",
+    ),
     config: str = typer.Option(
         None,
         help="A custom configuration in JSON format to be merged with the prompted collection configuration.",
@@ -175,7 +187,9 @@ def import_command(
             max_workers=max_workers,
         )
 
-        pretty_source_paths = "\n".join([f"  - {source_path.resolve().absolute()}" for source_path in source_paths])
+        pretty_source_paths = "\n".join(
+            [f"  - {source_path.resolve().absolute()}" for source_path in source_paths],
+        )
         elapsed_time = time.time() - start_time
         print(
             success_panel(
@@ -202,14 +216,23 @@ def package_command(
         help="Marimba pipeline name to package. If none are specified, all pipelines will be packaged together.",
     ),
     project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP),
-    operation: Operation = typer.Option(Operation.copy, help="Operation to perform: copy, move, or link"),
+    operation: Operation = typer.Option(
+        Operation.copy,
+        help="Operation to perform: copy, move, or link",
+    ),
     version: str | None = typer.Option("1.0", help="Version of the packaged dataset."),
-    contact_name: str | None = typer.Option(None, help="Full name of the contact person for the packaged dataset."),
+    contact_name: str | None = typer.Option(
+        None,
+        help="Full name of the contact person for the packaged dataset.",
+    ),
     contact_email: str | None = typer.Option(
         None,
         help="Email address of the contact person for the packaged dataset.",
     ),
-    zoom: int | None = typer.Option(None, help="Zoom level for the packaged dataset map."),
+    zoom: int | None = typer.Option(
+        None,
+        help="Zoom level for the packaged dataset map.",
+    ),
     extra: list[str] = typer.Option([], help="Extra key-value pass-through arguments."),
     dry_run: bool = typer.Option(
         False,
@@ -326,7 +349,12 @@ def process_command(
 
     # Run the processing
     try:
-        project_wrapper.run_process(collection_names, pipeline_names, extra, max_workers=max_workers)
+        project_wrapper.run_process(
+            collection_names,
+            pipeline_names,
+            extra,
+            max_workers=max_workers,
+        )
 
         pretty_pipelines = ", ".join(f'"{p!s}"' for p in pipeline_names)
         pretty_collections = ", ".join(f'"{c!s}"' for c in collection_names)
@@ -377,7 +405,11 @@ def distribute_command(
     try:
         project_wrapper.distribute(dataset_name, target_name, validate)
         elapsed_time = time.time() - start_time
-        print(success_panel(f"Successfully distributed dataset {dataset_name} in {elapsed_time:.2f} seconds"))
+        print(
+            success_panel(
+                f"Successfully distributed dataset {dataset_name} in {elapsed_time:.2f} seconds",
+            ),
+        )
     except ProjectWrapper.NoSuchDatasetError as e:
         error_message = f"No such dataset: {e}"
         project_wrapper.logger.exception(error_message)
@@ -405,7 +437,9 @@ def distribute_command(
 
 
 @marimba_cli.command("update")
-def update_command(project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP)) -> None:
+def update_command(
+    project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP),
+) -> None:
     """
     Update (pull) all Marimba pipelines.
     """
@@ -422,7 +456,9 @@ def update_command(project_dir: Path | None = typer.Option(None, help=PROJECT_DI
 
 
 @marimba_cli.command("install")
-def install_command(project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP)) -> None:
+def install_command(
+    project_dir: Path | None = typer.Option(None, help=PROJECT_DIR_HELP),
+) -> None:
     """
     Install Python dependencies from requirements.txt files defined by a project's pipelines.
     """
