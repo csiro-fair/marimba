@@ -1,4 +1,4 @@
-# Contributing to Marimba
+# Contributing Guide
 
 Thank you for your interest in contributing to Marimba! This guide will help you understand our contribution process and coding standards to ensure your contributions can be efficiently integrated into the project.
 
@@ -254,7 +254,7 @@ If you find a bug or want to request a feature:
 
 ## License
 
-By contributing to Marimba, you agree that your contributions will be licensed under the project's [CSIRO BSD/MIT License](LICENSE).
+By contributing to Marimba, you agree that your contributions will be licensed under the project's [CSIRO BSD/MIT License](../LICENSE).
 
 ---
 
