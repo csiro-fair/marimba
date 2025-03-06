@@ -7,6 +7,7 @@ The BaseMetadata class provides a standard interface that all metadata implement
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -80,6 +81,7 @@ class BaseMetadata(ABC):
         items: dict[str, list["BaseMetadata"]],
         *,
         dry_run: bool = False,
+        saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
     ) -> None:
         """Create dataset-level metadata from a collection of items."""
         raise NotImplementedError
