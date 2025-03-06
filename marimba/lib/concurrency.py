@@ -16,6 +16,7 @@ Functions:
     multithreaded_generate_video_thumbnails: Generates thumbnails for multiple videos concurrently.
 """
 
+import logging
 from pathlib import Path
 from threading import Lock
 
@@ -30,6 +31,7 @@ def multithreaded_generate_image_thumbnails(
     self: BasePipeline,
     image_list: list[Path],
     output_directory: Path,
+    logger: logging.Logger | None = None,
     max_workers: int | None = None,
 ) -> list[Path]:
     """
@@ -43,6 +45,8 @@ def multithreaded_generate_image_thumbnails(
         self (BasePipeline): The instance of the BasePipeline class.
         image_list (list[Path]): A list of Path objects representing the images to generate thumbnails for.
         output_directory (Path): The directory where the generated thumbnails will be saved.
+        logger (logging.Logger | None): Logger instance to use for logging. If not provided, the default logger will be
+            used. Defaults to None.
         max_workers (int | None, optional): The maximum number of worker threads to use for generating thumbnails.
             If None, the number of worker threads will be determined automatically. Defaults to None.
 
@@ -58,17 +62,23 @@ def multithreaded_generate_image_thumbnails(
     output_directory.mkdir(exist_ok=True)
 
     @multithreaded(max_workers=max_workers)
-    def generate_thumbnail_task(self: BasePipeline, thread_num: str, item: Path) -> None:
+    def generate_thumbnail_task(
+        self: BasePipeline,
+        thread_num: str,
+        item: Path,
+        logger: logging.Logger | None = None,
+    ) -> None:
         thumbnail_path = generate_image_thumbnail(item, output_directory)
-        self.logger.debug(
-            f"Thread {thread_num} - Generated thumbnail for image "
-            f"{format_path_for_logging(item, Path(self._root_path).parents[2])}",
-        )
+        if logger:
+            logger.debug(
+                f"Thread {thread_num} - Generated thumbnail for image "
+                f"{format_path_for_logging(item, Path(self._root_path).parents[2])}",
+            )
         if thumbnail_path:
             with list_lock:
                 video_thumbnail_list.append(thumbnail_path)
 
-    generate_thumbnail_task(self, items=image_list)  # type: ignore[call-arg]
+    generate_thumbnail_task(self, items=image_list, logger=logger)  # type: ignore[call-arg]
 
     return video_thumbnail_list
 
@@ -79,6 +89,7 @@ def multithreaded_generate_video_thumbnails(
     output_base_directory: Path,
     interval: int = 10,
     suffix: str = "_THUMB",
+    logger: logging.Logger | None = None,
     max_workers: int | None = None,
     *,
     overwrite: bool = False,
@@ -98,6 +109,8 @@ def multithreaded_generate_video_thumbnails(
         interval: An integer representing the interval (in seconds) at which thumbnails will be generated. Default is
          10.
         suffix: A string to be appended to the filename of each generated thumbnail. Default is "_THUMB".
+        logger (logging.Logger | None): Logger instance to use for logging. If not provided, the default logger will be
+            used. Defaults to None.
         max_workers: Optional integer specifying the maximum number of worker threads. If None, uses the default value.
         overwrite: A boolean indicating whether to overwrite existing thumbnails. Default is False.
 
@@ -114,7 +127,12 @@ def multithreaded_generate_video_thumbnails(
     list_lock = Lock()
 
     @multithreaded(max_workers=max_workers)
-    def generate_thumbnail_task(self: BasePipeline, thread_num: str, item: Path) -> None:
+    def generate_thumbnail_task(
+        self: BasePipeline,
+        thread_num: str,
+        item: Path,
+        logger: logging.Logger | None = None,
+    ) -> None:
         output_thumbnails_directory = output_base_directory / item.stem
         output_thumbnails_directory.mkdir(parents=True, exist_ok=True)
         video_path, thumbnail_paths = generate_video_thumbnails(
@@ -124,14 +142,15 @@ def multithreaded_generate_video_thumbnails(
             suffix,
             overwrite=overwrite,
         )
-        self.logger.debug(
-            f"Thread {thread_num} - Generated thumbnails for video "
-            f"{format_path_for_logging(item, Path(self._root_path).parents[2])}",
-        )
+        if logger:
+            logger.debug(
+                f"Thread {thread_num} - Generated thumbnails for video "
+                f"{format_path_for_logging(item, Path(self._root_path).parents[2])}",
+            )
         if video_path and thumbnail_paths:
             with list_lock:
                 thumbnail_path_list.append((video_path, thumbnail_paths))
 
-    generate_thumbnail_task(self, items=video_list)  # type: ignore[call-arg]
+    generate_thumbnail_task(self, items=video_list, logger=logger)  # type: ignore[call-arg]
 
     return thumbnail_path_list

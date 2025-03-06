@@ -186,6 +186,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         cls,
         dataset_mapping: dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
         max_workers: int | None = None,
+        logger: logging.Logger | None = None,
         *,
         dry_run: bool = False,
     ) -> None:
@@ -193,11 +194,15 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         if dry_run:
             return
 
+        # Use the provided logger if available, otherwise use the module logger
+        log = logger or get_logger(__name__)
+
         @multithreaded(max_workers=max_workers)
         def process_file(
             cls: type[iFDOMetadata],
             thread_num: str,
             item: tuple[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
+            logger: logging.Logger,
             progress: Progress | None = None,
             task: TaskID | None = None,
         ) -> None:
@@ -268,7 +273,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             task = progress.add_task("[green]Processing files with metadata (4/11)", total=len(dataset_mapping))
-            process_file(cls, items=dataset_mapping.items(), progress=progress, task=task)  # type: ignore[call-arg]
+            process_file(cls, items=dataset_mapping.items(), progress=progress, task=task, logger=log)  # type: ignore[call-arg]
 
     @staticmethod
     def _inject_datetime(image_data: ImageData, exif_dict: dict[str, Any]) -> None:

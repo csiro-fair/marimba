@@ -5,6 +5,7 @@ This module defines the base interfaces for handling different metadata schemas 
 The BaseMetadata class provides a standard interface that all metadata implementations must follow.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from datetime import datetime
@@ -91,6 +92,7 @@ class BaseMetadata(ABC):
         cls,
         dataset_mapping: dict[Path, tuple[list["BaseMetadata"], dict[str, Any] | None]],
         max_workers: int | None = None,
+        logger: logging.Logger | None = None,
         *,
         dry_run: bool = False,
     ) -> None:

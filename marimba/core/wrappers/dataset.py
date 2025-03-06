@@ -418,7 +418,7 @@ class DatasetWrapper(LogMixin):
 
         self.logger.info(f'Completed packaging dataset "{dataset_name}"')
 
-    def _populate_files(
+    def _populate_files(  # noqa: C901
         self,
         dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
         operation: Operation,
@@ -444,6 +444,7 @@ class DatasetWrapper(LogMixin):
             pipeline_name: str,
             operation: Operation,
             dataset_items: dict[str, list[BaseMetadata]],
+            logger: logging.Logger | None = None,
             progress: Progress | None = None,
             tasks_by_pipeline_name: dict[str, Any] | None = None,
         ) -> None:
@@ -458,27 +459,30 @@ class DatasetWrapper(LogMixin):
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 if operation == Operation.copy:
                     copy2(src, dst)
-                    self.logger.debug(
-                        f"Thread {thread_num} - Copied file "
-                        f"{format_path_for_logging(src, self._project_dir)} to "
-                        f"{format_path_for_logging(dst, self._project_dir)}",
-                    )
+                    if logger:
+                        logger.debug(
+                            f"Thread {thread_num} - Copied file "
+                            f"{format_path_for_logging(src, self._project_dir)} to "
+                            f"{format_path_for_logging(dst, self._project_dir)}",
+                        )
                 elif operation == Operation.move:
                     src.rename(dst)
-                    self.logger.debug(
-                        f"Thread {thread_num} - Moved file "
-                        f"{format_path_for_logging(src, self._project_dir)} to "
-                        f"{format_path_for_logging(dst, self._project_dir)}",
-                    )
+                    if logger:
+                        logger.debug(
+                            f"Thread {thread_num} - Moved file "
+                            f"{format_path_for_logging(src, self._project_dir)} to "
+                            f"{format_path_for_logging(dst, self._project_dir)}",
+                        )
                 # TODO @<cjackett>: We might need to check here that image files aren't linked to linked files in the
                 #  import process because then EXIF writing might destructively change the original files
                 elif operation == Operation.link:
                     os.link(src, dst)
-                    self.logger.debug(
-                        f"Thread {thread_num} - Linked file "
-                        f"{format_path_for_logging(src, self._project_dir)} to "
-                        f"{format_path_for_logging(dst, self._project_dir)}",
-                    )
+                    if logger:
+                        logger.debug(
+                            f"Thread {thread_num} - Linked file "
+                            f"{format_path_for_logging(src, self._project_dir)} to "
+                            f"{format_path_for_logging(dst, self._project_dir)}",
+                        )
 
             if progress and tasks_by_pipeline_name:
                 progress.advance(tasks_by_pipeline_name[pipeline_name])
@@ -502,6 +506,7 @@ class DatasetWrapper(LogMixin):
                     pipeline_name=pipeline_name,
                     operation=operation,
                     dataset_items=dataset_items,
+                    logger=self.logger,
                     progress=progress,
                     tasks_by_pipeline_name=tasks_by_pipeline_name,
                 )  # type: ignore[call-arg]
@@ -580,6 +585,7 @@ class DatasetWrapper(LogMixin):
             self: DatasetWrapper,
             thread_num: str,  # noqa: ARG001
             item: tuple[str, list[BaseMetadata]],
+            logger: logging.Logger | None = None,  # noqa: ARG001
             progress: Progress | None = None,
             task: TaskID | None = None,
         ) -> None:
@@ -590,7 +596,13 @@ class DatasetWrapper(LogMixin):
         items = [
             (Path(self.data_dir) / file_path, metadata_items) for file_path, metadata_items in dataset_items.items()
         ]
-        process_items_with_hashes(self, items=items, progress=progress, task=task)  # type: ignore[call-arg]
+        process_items_with_hashes(
+            self,
+            items=items,
+            logger=self.logger,
+            progress=progress,
+            task=task,
+        )  # type: ignore[call-arg]
         return OrderedDict(sorted(dataset_items.items(), key=lambda item: item[0]))
 
     def _group_by_metadata_type(
@@ -896,6 +908,7 @@ class DatasetWrapper(LogMixin):
             self: DatasetWrapper,  # noqa: ARG001
             thread_num: str,  # noqa: ARG001
             item: Path,
+            logger: logging.Logger | None = None,  # noqa: ARG001
             progress: Progress | None = None,
             task: TaskID | None = None,
         ) -> None:
@@ -907,6 +920,7 @@ class DatasetWrapper(LogMixin):
         verify_path(
             self,
             items=list(pipeline_data_mapping.keys()),
+            logger=self.logger,
             progress=progress,
             task=task,
         )  # type: ignore[call-arg]
@@ -926,6 +940,7 @@ class DatasetWrapper(LogMixin):
             thread_num: str,  # noqa: ARG001
             item: Path,
             reverse_src_resolution: dict[Path, Path],
+            logger: logging.Logger | None = None,  # noqa: ARG001
             progress: Progress | None = None,
             task: TaskID | None = None,
         ) -> None:
@@ -942,6 +957,7 @@ class DatasetWrapper(LogMixin):
             self,
             items=pipeline_data_mapping.keys(),
             reverse_src_resolution=reverse_src_resolution,
+            logger=self.logger,
             progress=progress,
             task=task,
         )  # type: ignore[call-arg]
@@ -960,6 +976,7 @@ class DatasetWrapper(LogMixin):
             self: DatasetWrapper,  # noqa: ARG001
             thread_num: str,  # noqa: ARG001
             item: Path,
+            logger: logging.Logger | None = None,  # noqa: ARG001
             progress: Progress | None = None,
             task: TaskID | None = None,
         ) -> None:
@@ -971,6 +988,7 @@ class DatasetWrapper(LogMixin):
         verify_destination_path(
             self,
             items=destinations,
+            logger=self.logger,
             progress=progress,
             task=task,
         )  # type: ignore[call-arg]
@@ -992,6 +1010,7 @@ class DatasetWrapper(LogMixin):
             thread_num: str,  # noqa: ARG001
             item: tuple[Path, Path],
             reverse_mapping: dict[Path, Path],
+            logger: logging.Logger | None = None,  # noqa: ARG001
             progress: Progress | None = None,
             task: TaskID | None = None,
         ) -> None:
@@ -1011,6 +1030,7 @@ class DatasetWrapper(LogMixin):
             self,
             items=items,
             reverse_mapping=reverse_mapping,
+            logger=self.logger,
             progress=progress,
             task=task,
         )  # type: ignore[call-arg]

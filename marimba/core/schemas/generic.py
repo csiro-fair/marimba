@@ -213,6 +213,7 @@ class GenericMetadata(BaseMetadata):
         cls,
         dataset_mapping: dict[Path, tuple[list["BaseMetadata"], dict[str, Any] | None]],
         max_workers: int | None = None,
+        logger: logging.Logger | None = None,
         *,
         dry_run: bool = False,
     ) -> None:
