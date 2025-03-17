@@ -404,11 +404,15 @@ class DatasetWrapper(LogMixin):
         self.logger.info(
             f'Started packaging dataset "{dataset_name}" containing {len(dataset_mapping)} {pipeline_label}',
         )
+        dataset_items = {}
+        for collection_name, collection_data in dataset_mapping.items():
+            collection_mapping = {collection_name: collection_data}
+            self.check_dataset_mapping(collection_mapping, max_workers)
+            collection_dataset_items = self._populate_files(collection_mapping, operation, max_workers)
+            self._process_files_with_metadata(collection_mapping, max_workers)
+            self.generate_metadata(dataset_name, collection_dataset_items, max_workers, collection_name=collection_name)
+            dataset_items = dataset_items | collection_dataset_items
 
-        self.check_dataset_mapping(dataset_mapping, max_workers)
-        dataset_items = self._populate_files(dataset_mapping, operation, max_workers)
-        self._process_files_with_metadata(dataset_mapping, max_workers)
-        self.generate_metadata(dataset_name, dataset_items, max_workers)
         self.generate_dataset_summary(dataset_items)
         # TODO @<cjackett>: Generate summary method currently does not use multithreading
         self._generate_dataset_map(dataset_items, zoom)
@@ -627,6 +631,7 @@ class DatasetWrapper(LogMixin):
         self,
         dataset_name: str,
         grouped_items: dict[type[BaseMetadata], dict[str, list[BaseMetadata]]],
+        collection_name: str | None = None,
     ) -> None:
         """Create metadata files for each type."""
         for metadata_type, type_items in grouped_items.items():
@@ -634,6 +639,7 @@ class DatasetWrapper(LogMixin):
                 dataset_name=dataset_name,
                 root_dir=self.root_dir,
                 items=type_items,
+                metadata_name=collection_name,
                 dry_run=self.dry_run,
                 saver_overwrite=self._metadata_saver_overwrite,
             )
@@ -653,6 +659,7 @@ class DatasetWrapper(LogMixin):
         dataset_name: str,
         dataset_items: dict[str, list[BaseMetadata]],
         max_workers: int | None = None,
+        collection_name: str | None = None,
         *,
         progress: bool = True,
     ) -> None:
@@ -682,12 +689,12 @@ class DatasetWrapper(LogMixin):
                 grouped_items = self._group_by_metadata_type(processed_items)
 
                 progress_bar.update(task, description="[green]Writing dataset metadata (5/11)")
-                self._create_metadata_files(dataset_name, grouped_items)
+                self._create_metadata_files(dataset_name, grouped_items, collection_name=collection_name)
                 progress_bar.advance(task)
         else:
             processed_items = self._process_items(dataset_items)
             grouped_items = self._group_by_metadata_type(processed_items)
-            self._create_metadata_files(dataset_name, grouped_items)
+            self._create_metadata_files(dataset_name, grouped_items, collection_name=collection_name)
 
         self._log_metadata_summary(grouped_items)
 
