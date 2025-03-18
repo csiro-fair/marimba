@@ -48,6 +48,7 @@ from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
+from marimba.core.utils.dataset import DECORATOR_TYPE
 from marimba.core.utils.hash import compute_hash
 from marimba.core.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.core.utils.manifest import Manifest
@@ -374,6 +375,7 @@ class DatasetWrapper(LogMixin):
         project_pipelines_dir: Path,
         project_log_path: Path,
         pipeline_log_paths: Iterable[Path],
+        mapping_processor_decorator: DECORATOR_TYPE,
         operation: Operation = Operation.copy,
         zoom: int | None = None,
         max_workers: int | None = None,
@@ -393,6 +395,7 @@ class DatasetWrapper(LogMixin):
             project_pipelines_dir: A Path object pointing to the directory containing project pipeline files.
             project_log_path: A Path object pointing to the project log file.
             pipeline_log_paths: An iterable of Path objects pointing to individual pipeline log files.
+            mapping_processor_decorator: Dataset mapping processor decorator.
             operation: An Operation enum specifying whether to copy or move files (default: Operation.copy).
             zoom: An optional integer specifying the zoom level for the dataset map generation (default: None).
             max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
@@ -407,20 +410,14 @@ class DatasetWrapper(LogMixin):
         self.logger.info(
             f'Started packaging dataset "{dataset_name}" containing {len(dataset_mapping)} {pipeline_label}',
         )
-        dataset_items: dict[str, list[BaseMetadata]] = {}
-        for pipeline_name, pipeline_mapping in dataset_mapping.items():
-            for collection_name, collection_data in pipeline_mapping.items():
-                collection_mapping = {pipeline_name: collection_data}
-                self.check_dataset_mapping(collection_mapping, max_workers)
-                collection_dataset_items = self._populate_files(collection_mapping, operation, max_workers)
-                self._process_files_with_metadata(collection_mapping, max_workers)
-                self.generate_metadata(
-                    dataset_name,
-                    collection_dataset_items,
-                    max_workers,
-                    collection_name=f"{collection_name}.{pipeline_name}",
-                )
-                dataset_items = dataset_items | collection_dataset_items
+
+        def _mapping_processor(
+            mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
+            collection_name: str | None,
+        ) -> dict[str, list[BaseMetadata]]:
+            return self._process_dataset_mapping(dataset_name, collection_name, mapping, operation, max_workers)
+
+        dataset_items = mapping_processor_decorator(_mapping_processor, dataset_mapping)
 
         self.generate_dataset_summary(dataset_items)
         # TODO @<cjackett>: Generate summary method currently does not use multithreading
@@ -430,6 +427,25 @@ class DatasetWrapper(LogMixin):
         self._generate_manifest(dataset_items, max_workers)
 
         self.logger.info(f'Completed packaging dataset "{dataset_name}"')
+
+    def _process_dataset_mapping(
+        self,
+        dataset_name: str,
+        collection_name: str | None,
+        dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
+        operation: Operation,
+        max_workers: int | None,
+    ) -> dict[str, list[BaseMetadata]]:
+        self.check_dataset_mapping(dataset_mapping, max_workers)
+        dataset_items = self._populate_files(dataset_mapping, operation, max_workers)
+        self._process_files_with_metadata(dataset_mapping, max_workers)
+        self.generate_metadata(
+            dataset_name,
+            dataset_items,
+            max_workers,
+            collection_name=collection_name,
+        )
+        return dataset_items
 
     def _populate_files(  # noqa: C901
         self,

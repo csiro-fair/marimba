@@ -48,6 +48,7 @@ from rich.progress import Progress, SpinnerColumn
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
+from marimba.core.utils.dataset import DECORATOR_TYPE
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.paths import format_path_for_logging, remove_directory_tree
 from marimba.core.utils.prompt import prompt_schema
@@ -1078,6 +1079,7 @@ class ProjectWrapper(LogMixin):
             str,
             dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
         ],
+        metadata_mapping_processor_decorator: DECORATOR_TYPE,
         operation: Operation = Operation.copy,
         version: str | None = "1.0",
         contact_name: str | None = None,
@@ -1092,6 +1094,7 @@ class ProjectWrapper(LogMixin):
         Args:
             dataset_name: The name of the dataset to be created.
             dataset_mapping: A dictionary containing the dataset mapping information.
+            metadata_mapping_processor_decorator: Dataset mapping processor decorator.
             operation: The operation to perform on files (copy, move or link). Defaults to Operation.copy.
             version: The version of the dataset. Defaults to '1.0'.
             contact_name: The name of the contact person for the dataset. Defaults to None.
@@ -1131,6 +1134,7 @@ class ProjectWrapper(LogMixin):
             self.pipelines_dir,
             self.log_path,
             (pw.log_path for pw in self.pipeline_wrappers.values()),
+            metadata_mapping_processor_decorator,
             operation=operation,
             zoom=zoom,
             max_workers=max_workers,
