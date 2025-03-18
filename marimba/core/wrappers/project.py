@@ -37,6 +37,7 @@ import ast
 import logging
 import math
 import time
+from collections import defaultdict
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
@@ -967,7 +968,7 @@ class ProjectWrapper(LogMixin):
         extra_args: list[str] | None = None,
         max_workers: int | None = None,
         **kwargs: dict[str, Any],
-    ) -> dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]]:
+    ) -> dict[str, dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]]]:
         """
         Compose a dataset for given collections across multiple pipelines.
 
@@ -1019,7 +1020,10 @@ class ProjectWrapper(LogMixin):
             f"{collection_label} {pretty_collections}{self._format_kwargs_message(merged_kwargs)}",
         )
 
-        dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]] = {}
+        dataset_mapping: dict[
+            str,
+            dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
+        ] = defaultdict(lambda: defaultdict(dict))
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             total_task_length = len(self.pipeline_wrappers) * len(collection_wrappers)
@@ -1050,9 +1054,7 @@ class ProjectWrapper(LogMixin):
                     try:
                         (pipeline_data_mapping, message) = future.result()
                         self.logger.info(f"{log_string_prefix}{message}")
-                        if pipeline_name not in dataset_mapping:
-                            dataset_mapping[pipeline_name] = {}
-                        dataset_mapping[pipeline_name].update(pipeline_data_mapping)
+                        dataset_mapping[pipeline_name][collection_name].update(pipeline_data_mapping)
                     except Exception as e:
                         raise ProjectWrapper.CompositionError(
                             f"{log_string_prefix}"
@@ -1072,7 +1074,10 @@ class ProjectWrapper(LogMixin):
     def create_dataset(
         self,
         dataset_name: str,
-        dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
+        dataset_mapping: dict[
+            str,
+            dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
+        ],
         operation: Operation = Operation.copy,
         version: str | None = "1.0",
         contact_name: str | None = None,

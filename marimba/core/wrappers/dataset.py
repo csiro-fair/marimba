@@ -367,7 +367,10 @@ class DatasetWrapper(LogMixin):
     def populate(
         self,
         dataset_name: str,
-        dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
+        dataset_mapping: dict[
+            str,
+            dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
+        ],
         project_pipelines_dir: Path,
         project_log_path: Path,
         pipeline_log_paths: Iterable[Path],
@@ -404,14 +407,20 @@ class DatasetWrapper(LogMixin):
         self.logger.info(
             f'Started packaging dataset "{dataset_name}" containing {len(dataset_mapping)} {pipeline_label}',
         )
-        dataset_items = {}
-        for collection_name, collection_data in dataset_mapping.items():
-            collection_mapping = {collection_name: collection_data}
-            self.check_dataset_mapping(collection_mapping, max_workers)
-            collection_dataset_items = self._populate_files(collection_mapping, operation, max_workers)
-            self._process_files_with_metadata(collection_mapping, max_workers)
-            self.generate_metadata(dataset_name, collection_dataset_items, max_workers, collection_name=collection_name)
-            dataset_items = dataset_items | collection_dataset_items
+        dataset_items: dict[str, list[BaseMetadata]] = {}
+        for pipeline_name, pipeline_mapping in dataset_mapping.items():
+            for collection_name, collection_data in pipeline_mapping.items():
+                collection_mapping = {pipeline_name: collection_data}
+                self.check_dataset_mapping(collection_mapping, max_workers)
+                collection_dataset_items = self._populate_files(collection_mapping, operation, max_workers)
+                self._process_files_with_metadata(collection_mapping, max_workers)
+                self.generate_metadata(
+                    dataset_name,
+                    collection_dataset_items,
+                    max_workers,
+                    collection_name=f"{collection_name}.{pipeline_name}",
+                )
+                dataset_items = dataset_items | collection_dataset_items
 
         self.generate_dataset_summary(dataset_items)
         # TODO @<cjackett>: Generate summary method currently does not use multithreading
@@ -674,6 +683,7 @@ class DatasetWrapper(LogMixin):
             dataset_items: A dictionary mapping file paths to lists of BaseMetadata objects.
             progress: Whether to display a progress bar. Defaults to True.
             max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
+            collection_name: The name of the collection to be used for the metadata file.
 
         Raises:
             FileNotFoundError: If a file specified in dataset_items is not found in the data directory.

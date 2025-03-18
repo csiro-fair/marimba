@@ -6,6 +6,7 @@ metadata about files. It handles basic metadata attributes like datetime, geoloc
 without the complexity of specialized metadata schemas.
 """
 
+import logging
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
