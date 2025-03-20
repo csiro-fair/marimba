@@ -37,7 +37,7 @@ Classes:
 
 import logging
 import os
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from collections.abc import Callable, Iterable
 from math import isnan
 from pathlib import Path
@@ -48,7 +48,12 @@ from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
-from marimba.core.utils.dataset import DECORATOR_TYPE
+from marimba.core.utils.dataset import (
+    DATASET_MAPPING_TYPE,
+    DECORATOR_TYPE,
+    flatten_mapping,
+    flatten_middle_mapping,
+)
 from marimba.core.utils.hash import compute_hash
 from marimba.core.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.core.utils.manifest import Manifest
@@ -368,10 +373,7 @@ class DatasetWrapper(LogMixin):
     def populate(
         self,
         dataset_name: str,
-        dataset_mapping: dict[
-            str,
-            dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
-        ],
+        dataset_mapping: DATASET_MAPPING_TYPE,
         project_pipelines_dir: Path,
         project_log_path: Path,
         pipeline_log_paths: Iterable[Path],
@@ -412,13 +414,18 @@ class DatasetWrapper(LogMixin):
         )
 
         def _mapping_processor(
-            mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
+            dataset_items: dict[str, list[BaseMetadata]],
             collection_name: str | None,
-        ) -> dict[str, list[BaseMetadata]]:
-            return self._process_dataset_mapping(dataset_name, collection_name, mapping, operation, max_workers)
+        ) -> None:
+            self._process_dataset_mapping(dataset_name, collection_name, dataset_items, max_workers)
 
-        dataset_items = mapping_processor_decorator(_mapping_processor, dataset_mapping)
+        reduced_dataset_mapping = flatten_middle_mapping(dataset_mapping)
+        self.check_dataset_mapping(reduced_dataset_mapping, max_workers)
+        mapped_dataset_items = self._populate_files(dataset_mapping, operation, max_workers)
+        self._process_files_with_metadata(reduced_dataset_mapping, max_workers)
+        mapping_processor_decorator(_mapping_processor, mapped_dataset_items)
 
+        dataset_items = flatten_mapping(flatten_middle_mapping(mapped_dataset_items))
         self.generate_dataset_summary(dataset_items)
         # TODO @<cjackett>: Generate summary method currently does not use multithreading
         self._generate_dataset_map(dataset_items, zoom)
@@ -432,27 +439,23 @@ class DatasetWrapper(LogMixin):
         self,
         dataset_name: str,
         collection_name: str | None,
-        dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
-        operation: Operation,
+        dataset_items: dict[str, list[BaseMetadata]],
         max_workers: int | None,
-    ) -> dict[str, list[BaseMetadata]]:
-        self.check_dataset_mapping(dataset_mapping, max_workers)
-        dataset_items = self._populate_files(dataset_mapping, operation, max_workers)
-        self._process_files_with_metadata(dataset_mapping, max_workers)
+    ) -> None:
+
         self.generate_metadata(
             dataset_name,
             dataset_items,
             max_workers,
             collection_name=collection_name,
         )
-        return dataset_items
 
     def _populate_files(  # noqa: C901
         self,
-        dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
+        dataset_mapping: DATASET_MAPPING_TYPE,
         operation: Operation,
         max_workers: int | None = None,
-    ) -> dict[str, list[BaseMetadata]]:
+    ) -> dict[str, dict[str, dict[str, list[BaseMetadata]]]]:
         """
         Copy or move files from the dataset mapping to the destination directory.
 
@@ -516,7 +519,7 @@ class DatasetWrapper(LogMixin):
             if progress and tasks_by_pipeline_name:
                 progress.advance(tasks_by_pipeline_name[pipeline_name])
 
-        dataset_items: dict[str, list[BaseMetadata]] = {}
+        dataset_items: dict[str, dict[str, dict[str, list[BaseMetadata]]]] = defaultdict(lambda: defaultdict(dict))
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             tasks_by_pipeline_name = {
                 pipeline_name: progress.add_task(
@@ -528,18 +531,19 @@ class DatasetWrapper(LogMixin):
             }
 
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-                self.logger.info(f'Started populating data for pipeline "{pipeline_name}"')
-                process_file(
-                    self,
-                    items=list(pipeline_data_mapping.items()),
-                    pipeline_name=pipeline_name,
-                    operation=operation,
-                    dataset_items=dataset_items,
-                    logger=self.logger,
-                    progress=progress,
-                    tasks_by_pipeline_name=tasks_by_pipeline_name,
-                )  # type: ignore[call-arg]
-                self.logger.info(f'Completed populating data for pipeline "{pipeline_name}"')
+                for collection_name, collection_data_mapping in pipeline_data_mapping.items():
+                    self.logger.info(f'Started populating data for pipeline "{pipeline_name}"')
+                    process_file(
+                        self,
+                        items=list(collection_data_mapping.items()),
+                        pipeline_name=pipeline_name,
+                        operation=operation,
+                        dataset_items=dataset_items[pipeline_name][collection_name],
+                        logger=self.logger,
+                        progress=progress,
+                        tasks_by_pipeline_name=tasks_by_pipeline_name,
+                    )  # type: ignore[call-arg]
+                    self.logger.info(f'Completed populating data for pipeline "{pipeline_name}"')
 
         return dataset_items
 

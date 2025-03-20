@@ -11,6 +11,8 @@ from marimba.core.utils.dataset import (
     _run_mapping_processor_per_pipline_and_collection,
     get_mapping_processor_decorator,
     PIPELINE_DATASET_MAPPING_TYPE,
+    flatten_middle_mapping,
+    MAPPED_DATASET_ITEMS,
 )
 
 
@@ -28,37 +30,32 @@ def test_get_mapping_processor_decorator():
         get_mapping_processor_decorator("bla")  # type: ignore
 
 
-def test_run_mapping_processor():
-    def dataset_mapping_processor(
-        dataset_mapping: PIPELINE_DATASET_MAPPING_TYPE, _: str | None
-    ) -> dict[str, list[BaseMetadata]]:
-        assert dataset_mapping == {"pipeline": {Path("tmp"): (Path("tmp"), None, None)}}
-        return {}
+def test_flatten_mapping():
+    mapping = {"a": {"b": {"c": 1}}}
+    assert flatten_middle_mapping(mapping) == {"a": {"c": 1}}
 
-    dataset_mapping: DATASET_MAPPING_TYPE = {"pipeline": {"collection": {Path("tmp"): (Path("tmp"), None, None)}}}
+
+def test_run_mapping_processor():
+    def dataset_mapping_processor(dataset_mapping: dict[str, list[BaseMetadata]], _: str | None) -> None:
+        assert dataset_mapping == {"a": []}
+
+    dataset_mapping: MAPPED_DATASET_ITEMS = {"pipeline": {"collection": {"a": []}}}
     _run_mapping_processor(dataset_mapping_processor, dataset_mapping)
 
 
 def test_run_mapping_processor_per_pipeline():
-    def dataset_mapping_processor(
-        dataset_mapping: PIPELINE_DATASET_MAPPING_TYPE, collection_name: str | None
-    ) -> dict[str, list[BaseMetadata]]:
-        assert dataset_mapping == {"pipeline": {Path("tmp"): (Path("tmp"), None, None)}}
+    def dataset_mapping_processor(dataset_mapping: dict[str, list[BaseMetadata]], collection_name: str | None) -> None:
+        assert dataset_mapping == {"a": []}
         assert collection_name == "pipeline"
 
-        return {}
-
-    dataset_mapping: DATASET_MAPPING_TYPE = {"pipeline": {"collection": {Path("tmp"): (Path("tmp"), None, None)}}}
+    dataset_mapping: MAPPED_DATASET_ITEMS = {"pipeline": {"collection": {"a": []}}}
     _run_mapping_processor_per_pipeline(dataset_mapping_processor, dataset_mapping)
 
 
 def test_run_mapping_processor_per_pipline_and_collection():
-    def dataset_mapping_processor(
-        dataset_mapping: PIPELINE_DATASET_MAPPING_TYPE, collection_name: str | None
-    ) -> dict[str, list[BaseMetadata]]:
-        assert dataset_mapping == {"pipeline": {Path("tmp"): (Path("tmp"), None, None)}}
+    def dataset_mapping_processor(dataset_mapping: dict[str, list[BaseMetadata]], collection_name: str | None) -> None:
+        assert dataset_mapping == {"a": []}
         assert collection_name == "collection.pipeline"
-        return {}
 
-    dataset_mapping: DATASET_MAPPING_TYPE = {"pipeline": {"collection": {Path("tmp"): (Path("tmp"), None, None)}}}
+    dataset_mapping: MAPPED_DATASET_ITEMS = {"pipeline": {"collection": {"a": []}}}
     _run_mapping_processor_per_pipline_and_collection(dataset_mapping_processor, dataset_mapping)
