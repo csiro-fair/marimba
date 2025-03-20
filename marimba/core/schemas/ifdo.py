@@ -23,6 +23,7 @@ Classes:
 
 import io
 import json
+import logging
 import uuid
 from collections.abc import Callable
 from datetime import datetime, timezone
