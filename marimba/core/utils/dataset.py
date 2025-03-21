@@ -22,8 +22,14 @@ DATASET_MAPPING_TYPE: TypeAlias = dict[str, PIPELINE_DATASET_MAPPING_TYPE]
 PIPELINE_MAPPED_DATASET_ITEMS = dict[str, dict[str, list[BaseMetadata]]]
 MAPPED_DATASET_ITEMS = dict[str, PIPELINE_MAPPED_DATASET_ITEMS]
 
-MAPPING_PROCESSOR_TYPE: TypeAlias = Callable[[dict[str, list[BaseMetadata]], str | None], None]
-DECORATOR_TYPE: TypeAlias = Callable[[MAPPING_PROCESSOR_TYPE, MAPPED_DATASET_ITEMS], None]
+PIPLINE_MAPPED_GROUPED_ITEMS = dict[str, dict[type[BaseMetadata], dict[str, list[BaseMetadata]]]]
+MAPPED_GROUPED_ITEMS = dict[str, PIPLINE_MAPPED_GROUPED_ITEMS]
+
+MAPPING_PROCESSOR_TYPE: TypeAlias = Callable[
+    [dict[type[BaseMetadata], dict[str, list[BaseMetadata]]], str | None],
+    None,
+]
+DECORATOR_TYPE: TypeAlias = Callable[[MAPPING_PROCESSOR_TYPE, MAPPED_GROUPED_ITEMS], None]
 
 T = TypeVar("T")
 S = TypeVar("S")
@@ -55,6 +61,26 @@ def flatten_mapping(mapping: dict[str, dict[T, S]]) -> dict[T, S]:
     return reduce(lambda x, y: x | y, mapping.values(), {})
 
 
+def execute_on_mapping(mapping: dict[str, dict[str, S]], executor: Callable[[S], T]) -> dict[str, dict[str, T]]:
+    """
+    Executes a function on a mapping structure.
+
+    Args:
+        mapping: Mapping which contains data for the execution.
+        executor: Function to execute.
+
+    Returns:
+        Mapping with execution results.
+    """
+    return {
+        pipeline_name: {
+            collection_name: executor(collection_mapping)
+            for collection_name, collection_mapping in pipeline_mapping.items()
+        }
+        for pipeline_name, pipeline_mapping in mapping.items()
+    }
+
+
 def get_mapping_processor_decorator(
     level: MetadataGenerationLevelOptions,
 ) -> DECORATOR_TYPE:
@@ -79,7 +105,7 @@ def get_mapping_processor_decorator(
 
 def _run_mapping_processor(
     dataset_mapping_processor: MAPPING_PROCESSOR_TYPE,
-    collection_dataset_mapping: MAPPED_DATASET_ITEMS,
+    collection_dataset_mapping: MAPPED_GROUPED_ITEMS,
 ) -> None:
     pipeline_dataset_mapping = flatten_middle_mapping(collection_dataset_mapping)
     dataset_mapping = flatten_mapping(pipeline_dataset_mapping)
@@ -88,7 +114,7 @@ def _run_mapping_processor(
 
 def _run_mapping_processor_per_pipeline(
     dataset_mapping_processor: MAPPING_PROCESSOR_TYPE,
-    collection_dataset_mapping: MAPPED_DATASET_ITEMS,
+    collection_dataset_mapping: MAPPED_GROUPED_ITEMS,
 ) -> None:
     pipeline_dataset_mapping = flatten_middle_mapping(collection_dataset_mapping)
 
@@ -98,7 +124,7 @@ def _run_mapping_processor_per_pipeline(
 
 def _run_mapping_processor_per_pipline_and_collection(
     dataset_mapping_processor: MAPPING_PROCESSOR_TYPE,
-    dataset_mapping: MAPPED_DATASET_ITEMS,
+    dataset_mapping: MAPPED_GROUPED_ITEMS,
 ) -> None:
     for pipeline_name, pipeline_mapping in dataset_mapping.items():
         for collection_name, collection_data in pipeline_mapping.items():
