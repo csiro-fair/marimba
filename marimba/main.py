@@ -222,8 +222,8 @@ def package_command(
         help="Maximum number of worker processes to use. If None, uses all available CPU cores.",
     ),
     metadata_output: MetadataSaverTypes | None = typer.Option(None, help="Output metadata format"),
-    metadata_level: MetadataGenerationLevelOptions = typer.Option(
-        MetadataGenerationLevelOptions.project,
+    metadata_level: list[MetadataGenerationLevelOptions] | None = typer.Option(
+        None,
         help="Output metadata level",
     ),
 ) -> None:
@@ -240,7 +240,10 @@ def package_command(
     pipeline_names = pipeline_name if pipeline_name else list(project_wrapper.pipeline_wrappers.keys())
 
     metadata_saver_overwrite = None if metadata_output is None else get_saver(metadata_output)
-    metadata_mapping_processor_decorator = get_mapping_processor_decorator(metadata_level)
+    metadata_level_option: list[MetadataGenerationLevelOptions] = metadata_level or [
+        MetadataGenerationLevelOptions.project,
+    ]
+    metadata_mapping_processor_decorator = [get_mapping_processor_decorator(level) for level in metadata_level_option]
     try:
         # Compose the dataset
         dataset_mapping = project_wrapper.compose(

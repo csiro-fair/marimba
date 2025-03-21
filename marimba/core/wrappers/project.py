@@ -1079,7 +1079,7 @@ class ProjectWrapper(LogMixin):
             str,
             dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
         ],
-        metadata_mapping_processor_decorator: DECORATOR_TYPE,
+        metadata_mapping_processor_decorator: list[DECORATOR_TYPE],
         operation: Operation = Operation.copy,
         version: str | None = "1.0",
         contact_name: str | None = None,

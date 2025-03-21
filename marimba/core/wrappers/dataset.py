@@ -379,7 +379,7 @@ class DatasetWrapper(LogMixin):
         project_pipelines_dir: Path,
         project_log_path: Path,
         pipeline_log_paths: Iterable[Path],
-        mapping_processor_decorator: DECORATOR_TYPE,
+        mapping_processor_decorator: list[DECORATOR_TYPE],
         operation: Operation = Operation.copy,
         zoom: int | None = None,
         max_workers: int | None = None,
@@ -668,7 +668,7 @@ class DatasetWrapper(LogMixin):
         self,
         dataset_name: str,
         dataset_items: MAPPED_DATASET_ITEMS,
-        mapping_processor_decorator: DECORATOR_TYPE,
+        mapping_processor_decorator: list[DECORATOR_TYPE],
         max_workers: int | None = None,
         *,
         progress: bool = True,
@@ -693,7 +693,7 @@ class DatasetWrapper(LogMixin):
         """
         if progress:
             with Progress(SpinnerColumn(), *get_default_columns()) as progress_bar:
-                total_tasks = len(dataset_items) + 1
+                total_tasks = len(flatten_mapping(flatten_middle_mapping(dataset_items))) + 1
                 task = progress_bar.add_task("[green]Generating dataset metadata (5/11)", total=total_tasks)
 
                 processed_items = execute_on_mapping(
@@ -703,12 +703,14 @@ class DatasetWrapper(LogMixin):
                 grouped_items = execute_on_mapping(processed_items, self._group_by_metadata_type)
 
                 progress_bar.update(task, description="[green]Writing dataset metadata (5/11)")
-                mapping_processor_decorator(lambda x, y: self._create_metadata_files(dataset_name, x, y), grouped_items)
+                for decorator in mapping_processor_decorator:
+                    decorator(lambda x, y: self._create_metadata_files(dataset_name, x, y), grouped_items)
                 progress_bar.advance(task)
         else:
             processed_items = execute_on_mapping(dataset_items, lambda x: self._process_items(x))
             grouped_items = execute_on_mapping(processed_items, self._group_by_metadata_type)
-            mapping_processor_decorator(lambda x, y: self._create_metadata_files(dataset_name, x, y), grouped_items)
+            for decorator in mapping_processor_decorator:
+                decorator(lambda x, y: self._create_metadata_files(dataset_name, x, y), grouped_items)
 
         self._log_metadata_summary(flatten_mapping(flatten_middle_mapping(grouped_items)))
 
