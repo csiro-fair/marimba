@@ -15,6 +15,7 @@ from marimba.core.utils.dataset import (
     flatten_middle_mapping,
     MAPPED_DATASET_ITEMS,
     MAPPED_GROUPED_ITEMS,
+    flatten_mapping,
 )
 
 
@@ -32,18 +33,25 @@ def test_get_mapping_processor_decorator():
         get_mapping_processor_decorator("bla")  # type: ignore
 
 
+def test_flatten_middle_mapping():
+    mapping = {"a": {"b": {"c": 1}, "d": {"e": 1}}}
+    assert flatten_middle_mapping(mapping) == {"a": {"c": 1, "e": 1}}
+
+
 def test_flatten_mapping():
-    mapping = {"a": {"b": {"c": 1}}}
-    assert flatten_middle_mapping(mapping) == {"a": {"c": 1}}
+    mapping = {"a": {"b": 1}, "c": {"d": 1}}
+    assert flatten_mapping(mapping) == {"b": 1, "d": 1}
 
 
 def test_run_mapping_processor():
     def dataset_mapping_processor(
         dataset_mapping: dict[type[BaseMetadata], dict[str, list[BaseMetadata]]], _: str | None
     ) -> None:
-        assert dataset_mapping == {GenericMetadata: {"a": []}}
+        assert dataset_mapping == {GenericMetadata: {"a": [], "b": []}}
 
-    dataset_mapping: MAPPED_GROUPED_ITEMS = {"pipeline": {"collection": {GenericMetadata: {"a": []}}}}
+    dataset_mapping: MAPPED_GROUPED_ITEMS = {
+        "pipeline": {"collection": {GenericMetadata: {"a": []}}, "another": {GenericMetadata: {"b": []}}}
+    }
     _run_mapping_processor(dataset_mapping_processor, dataset_mapping)
 
 
@@ -51,10 +59,12 @@ def test_run_mapping_processor_per_pipeline():
     def dataset_mapping_processor(
         dataset_mapping: dict[type[BaseMetadata], dict[str, list[BaseMetadata]]], collection_name: str | None
     ) -> None:
-        assert dataset_mapping == {GenericMetadata: {"a": []}}
+        assert dataset_mapping == {GenericMetadata: {"a": [], "b": []}}
         assert collection_name == "pipeline"
 
-    dataset_mapping: MAPPED_GROUPED_ITEMS = {"pipeline": {"collection": {GenericMetadata: {"a": []}}}}
+    dataset_mapping: MAPPED_GROUPED_ITEMS = {
+        "pipeline": {"collection": {GenericMetadata: {"a": []}}, "another": {GenericMetadata: {"b": []}}}
+    }
     _run_mapping_processor_per_pipeline(dataset_mapping_processor, dataset_mapping)
 
 

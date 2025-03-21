@@ -5,6 +5,7 @@ This module provides decorators for applying dataset mapping processors at diffe
 factory function for retrieving a decorator based on the MetadataGenerationLevelOptions enum.
 """
 
+from collections import defaultdict
 from collections.abc import Callable
 from functools import reduce
 from pathlib import Path
@@ -33,6 +34,7 @@ DECORATOR_TYPE: TypeAlias = Callable[[MAPPING_PROCESSOR_TYPE, MAPPED_GROUPED_ITE
 
 T = TypeVar("T")
 S = TypeVar("S")
+R = TypeVar("R")
 
 
 def flatten_middle_mapping(mapping: dict[str, dict[str, dict[T, S]]]) -> dict[str, dict[T, S]]:
@@ -59,6 +61,37 @@ def flatten_mapping(mapping: dict[str, dict[T, S]]) -> dict[T, S]:
         flattened mapping structure.
     """
     return reduce(lambda x, y: x | y, mapping.values(), {})
+
+
+def flatten_middle_list_mapping(mapping: dict[str, dict[str, dict[T, dict[S, R]]]]) -> dict[str, dict[T, dict[S, R]]]:
+    """
+    Flattens the middle level of a mapping structure.
+
+    Args:
+        mapping: Mapping to flatten.
+
+    Returns:
+        flattened mapping structure.
+    """
+    return {pipeline_name: flatten_list_mapping(pipeline_data) for pipeline_name, pipeline_data in mapping.items()}
+
+
+def flatten_list_mapping(mapping: dict[str, dict[T, dict[S, R]]]) -> dict[T, dict[S, R]]:
+    """
+    Flattens the middle level of a mapping structure.
+
+    Args:
+        mapping: Mapping to flatten.
+
+    Returns:
+        flattened mapping structure.
+    """
+    output: defaultdict[T, dict[S, R]] = defaultdict(dict)
+    for dictionary in mapping.values():
+        for key, value in dictionary.items():
+            output[key].update(value)
+
+    return dict(output)
 
 
 def execute_on_mapping(mapping: dict[str, dict[str, S]], executor: Callable[[S], T]) -> dict[str, dict[str, T]]:
@@ -107,8 +140,8 @@ def _run_mapping_processor(
     dataset_mapping_processor: MAPPING_PROCESSOR_TYPE,
     collection_dataset_mapping: MAPPED_GROUPED_ITEMS,
 ) -> None:
-    pipeline_dataset_mapping = flatten_middle_mapping(collection_dataset_mapping)
-    dataset_mapping = flatten_mapping(pipeline_dataset_mapping)
+    pipeline_dataset_mapping = flatten_middle_list_mapping(collection_dataset_mapping)
+    dataset_mapping = flatten_list_mapping(pipeline_dataset_mapping)
     return dataset_mapping_processor(dataset_mapping, None)
 
 
@@ -116,7 +149,7 @@ def _run_mapping_processor_per_pipeline(
     dataset_mapping_processor: MAPPING_PROCESSOR_TYPE,
     collection_dataset_mapping: MAPPED_GROUPED_ITEMS,
 ) -> None:
-    pipeline_dataset_mapping = flatten_middle_mapping(collection_dataset_mapping)
+    pipeline_dataset_mapping = flatten_middle_list_mapping(collection_dataset_mapping)
 
     for pipeline_name, pipeline_data in pipeline_dataset_mapping.items():
         dataset_mapping_processor(pipeline_data, f"{pipeline_name}")
