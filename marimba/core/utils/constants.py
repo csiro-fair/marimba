@@ -33,3 +33,18 @@ class Operation(str, Enum):
     copy = "copy"
     move = "move"
     link = "link"
+
+
+class MetadataGenerationLevelOptions(str, Enum):
+    """
+    Defines an enumeration of metadata generation levels options.
+
+    Attributes:
+        - project: One metadata file is generated for a project.
+        - pipeline: One metadata file is generated per pipeline.
+        - collection: One metadata file is generated per pipeline and per collection.
+    """
+
+    project = "project"
+    pipeline = "pipeline"
+    collection = "collection"

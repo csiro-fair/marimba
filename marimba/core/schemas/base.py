@@ -79,6 +79,7 @@ class BaseMetadata(ABC):
         dataset_name: str,
         root_dir: Path,
         items: dict[str, list["BaseMetadata"]],
+        metadata_name: str | None = None,
         *,
         dry_run: bool = False,
         saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,

@@ -37,6 +37,7 @@ import ast
 import logging
 import math
 import time
+from collections import defaultdict
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
@@ -47,6 +48,7 @@ from rich.progress import Progress, SpinnerColumn
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
+from marimba.core.utils.dataset import DECORATOR_TYPE
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.paths import format_path_for_logging, remove_directory_tree
 from marimba.core.utils.prompt import prompt_schema
@@ -967,7 +969,7 @@ class ProjectWrapper(LogMixin):
         extra_args: list[str] | None = None,
         max_workers: int | None = None,
         **kwargs: dict[str, Any],
-    ) -> dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]]:
+    ) -> dict[str, dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]]]:
         """
         Compose a dataset for given collections across multiple pipelines.
 
@@ -1019,7 +1021,10 @@ class ProjectWrapper(LogMixin):
             f"{collection_label} {pretty_collections}{self._format_kwargs_message(merged_kwargs)}",
         )
 
-        dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]] = {}
+        dataset_mapping: dict[
+            str,
+            dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
+        ] = defaultdict(lambda: defaultdict(dict))
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             total_task_length = len(self.pipeline_wrappers) * len(collection_wrappers)
@@ -1050,9 +1055,7 @@ class ProjectWrapper(LogMixin):
                     try:
                         (pipeline_data_mapping, message) = future.result()
                         self.logger.info(f"{log_string_prefix}{message}")
-                        if pipeline_name not in dataset_mapping:
-                            dataset_mapping[pipeline_name] = {}
-                        dataset_mapping[pipeline_name].update(pipeline_data_mapping)
+                        dataset_mapping[pipeline_name][collection_name].update(pipeline_data_mapping)
                     except Exception as e:
                         raise ProjectWrapper.CompositionError(
                             f"{log_string_prefix}"
@@ -1072,7 +1075,11 @@ class ProjectWrapper(LogMixin):
     def create_dataset(
         self,
         dataset_name: str,
-        dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
+        dataset_mapping: dict[
+            str,
+            dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
+        ],
+        metadata_mapping_processor_decorator: list[DECORATOR_TYPE],
         operation: Operation = Operation.copy,
         version: str | None = "1.0",
         contact_name: str | None = None,
@@ -1087,6 +1094,7 @@ class ProjectWrapper(LogMixin):
         Args:
             dataset_name: The name of the dataset to be created.
             dataset_mapping: A dictionary containing the dataset mapping information.
+            metadata_mapping_processor_decorator: Dataset mapping processor decorator.
             operation: The operation to perform on files (copy, move or link). Defaults to Operation.copy.
             version: The version of the dataset. Defaults to '1.0'.
             contact_name: The name of the contact person for the dataset. Defaults to None.
@@ -1126,6 +1134,7 @@ class ProjectWrapper(LogMixin):
             self.pipelines_dir,
             self.log_path,
             (pw.log_path for pw in self.pipeline_wrappers.values()),
+            metadata_mapping_processor_decorator,
             operation=operation,
             zoom=zoom,
             max_workers=max_workers,
