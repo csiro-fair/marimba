@@ -1029,7 +1029,7 @@ class ProjectWrapper(LogMixin):
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             total_task_length = len(self.pipeline_wrappers) * len(collection_wrappers)
-            task = progress.add_task("[green]Composing data (1/11)", total=total_task_length)
+            task = progress.add_task("[green]Composing data (1/12)", total=total_task_length)
 
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
                 futures = self._create_composition_tasks(
@@ -1147,7 +1147,7 @@ class ProjectWrapper(LogMixin):
         # Validate it
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             globbed_files = list(dataset_wrapper.root_dir.glob("**/*"))
-            task = progress.add_task("[green]Validating dataset (11/11)", total=len(globbed_files))
+            task = progress.add_task("[green]Validating dataset (12/12)", total=len(globbed_files))
             dataset_wrapper.validate(progress, task)
             dataset_wrapper.logger.info(f'Packaged dataset "{dataset_name}" has been validated against the manifest')
             progress.advance(task)
