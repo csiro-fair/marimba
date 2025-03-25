@@ -46,6 +46,7 @@ from typing import Any
 from rich.progress import Progress, SpinnerColumn
 
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
+from marimba.core.pipeline import BasePipeline
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.dataset import DECORATOR_TYPE
@@ -1080,6 +1081,7 @@ class ProjectWrapper(LogMixin):
             dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
         ],
         metadata_mapping_processor_decorator: list[DECORATOR_TYPE],
+        post_package_processors: list[Callable[[Path], None]],
         operation: Operation = Operation.copy,
         version: str | None = "1.0",
         contact_name: str | None = None,
@@ -1095,6 +1097,7 @@ class ProjectWrapper(LogMixin):
             dataset_name: The name of the dataset to be created.
             dataset_mapping: A dictionary containing the dataset mapping information.
             metadata_mapping_processor_decorator: Dataset mapping processor decorator.
+            post_package_processors: Processors which are applied to the dataset after the metadata file is created.
             operation: The operation to perform on files (copy, move or link). Defaults to Operation.copy.
             version: The version of the dataset. Defaults to '1.0'.
             contact_name: The name of the contact person for the dataset. Defaults to None.
@@ -1135,6 +1138,7 @@ class ProjectWrapper(LogMixin):
             self.log_path,
             (pw.log_path for pw in self.pipeline_wrappers.values()),
             metadata_mapping_processor_decorator,
+            post_package_processors,
             operation=operation,
             zoom=zoom,
             max_workers=max_workers,
@@ -1150,6 +1154,25 @@ class ProjectWrapper(LogMixin):
 
         self._dataset_wrappers[dataset_name] = dataset_wrapper
         return dataset_wrapper
+
+    def get_pipeline_post_processors(self, pipeline_names: list[str]) -> list[Callable[[Path], None]]:
+        """
+        Gets the post processor methods for all given pipeline names.
+
+        Args:
+            pipeline_names: Pipelines from which to get post processor methods.
+
+        Returns:
+            Post processor methods.
+        """
+        return [self._get_pipeline(pipeline_name).run_post_package for pipeline_name in pipeline_names]
+
+    def _get_pipeline(self, pipeline_name: str) -> BasePipeline:
+        pipeline_wrapper = self._pipeline_wrappers[pipeline_name]
+        pipeline = pipeline_wrapper.get_instance()
+        if pipeline is None:
+            raise ProjectWrapper.NoSuchPipelineError(pipeline_name)
+        return pipeline
 
     def delete_dataset(
         self,
