@@ -273,7 +273,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                     progress.advance(task)
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Processing files with metadata (4/11)", total=len(dataset_mapping))
+            task = progress.add_task("[green]Processing files with metadata (4/12)", total=len(dataset_mapping))
             process_file(cls, items=dataset_mapping.items(), progress=progress, task=task, logger=log)  # type: ignore[call-arg]
 
     @staticmethod
