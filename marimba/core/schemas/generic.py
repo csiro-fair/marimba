@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Union, cast
 
 from marimba.core.schemas.base import BaseMetadata
-from marimba.core.utils.metadata import json_saver
+from marimba.core.utils.metadata import yaml_saver
 
 
 class GenericMetadata(BaseMetadata):
@@ -182,8 +182,8 @@ class GenericMetadata(BaseMetadata):
         dry_run: bool = False,
         saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
     ) -> None:
-        """Create dataset-level metadata by combining all items into a JSON file."""
-        saver = json_saver if saver_overwrite is None else saver_overwrite
+        """Create dataset-level metadata by combining all items into a YAML file."""
+        saver = yaml_saver if saver_overwrite is None else saver_overwrite
 
         dataset_metadata = {
             "dataset_name": dataset_name,

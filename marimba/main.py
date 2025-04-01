@@ -42,7 +42,8 @@ from rich import print
 
 from marimba.core.cli import delete, new
 from marimba.core.distribution.base import DistributionTargetBase
-from marimba.core.utils.constants import PROJECT_DIR_HELP, Operation
+from marimba.core.utils.constants import PROJECT_DIR_HELP, MetadataGenerationLevelOptions, Operation
+from marimba.core.utils.dataset import get_mapping_processor_decorator
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
 from marimba.core.utils.map import NetworkConnectionError
 from marimba.core.utils.metadata import MetadataSaverTypes, get_saver
@@ -221,6 +222,10 @@ def package_command(
         help="Maximum number of worker processes to use. If None, uses all available CPU cores.",
     ),
     metadata_output: MetadataSaverTypes | None = typer.Option(None, help="Output metadata format"),
+    metadata_level: list[MetadataGenerationLevelOptions] | None = typer.Option(
+        None,
+        help="Output metadata level",
+    ),
 ) -> None:
     """
     Package up a Marimba collection ready for distribution.
@@ -235,7 +240,10 @@ def package_command(
     pipeline_names = pipeline_name if pipeline_name else list(project_wrapper.pipeline_wrappers.keys())
 
     metadata_saver_overwrite = None if metadata_output is None else get_saver(metadata_output)
-
+    metadata_level_option: list[MetadataGenerationLevelOptions] = metadata_level or [
+        MetadataGenerationLevelOptions.project,
+    ]
+    metadata_mapping_processor_decorator = [get_mapping_processor_decorator(level) for level in metadata_level_option]
     try:
         # Compose the dataset
         dataset_mapping = project_wrapper.compose(
@@ -250,6 +258,7 @@ def package_command(
         dataset_wrapper = project_wrapper.create_dataset(
             dataset_name,
             dataset_mapping,
+            metadata_mapping_processor_decorator,
             operation=operation,
             version=version,
             contact_name=contact_name,
