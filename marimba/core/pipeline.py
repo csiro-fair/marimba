@@ -201,6 +201,27 @@ class BasePipeline(ABC, LogMixin):
 
         return data_mapping
 
+    def run_post_package(
+        self,
+        dataset_dir: Path,
+    ) -> None:
+        """
+        Post packaging hook, which is called after the metadata files are created.
+
+        Args:
+            dataset_dir: Directory containing the metadata files.
+        """
+        self.logger.info(
+            f"Started {format_command('post package')} command for pipeline {format_entity(self.class_name)} with args "
+            f"dataset_dir={format_path_for_logging(dataset_dir, Path(self._root_path).parents[2])}",
+        )
+
+        self._post_package(dataset_dir)
+
+        self.logger.info(
+            f"Completed {format_command('post package')} command for pipeline {format_entity(self.class_name)}",
+        )
+
     def _import(
         self,
         data_dir: Path,  # noqa: ARG002
@@ -238,8 +259,13 @@ class BasePipeline(ABC, LogMixin):
         **kwargs: dict[str, Any],
     ) -> dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]:
         """
-        `run_compose` implementation; override this.
+        `run_package` implementation; override this.
 
         TODO @<cjackett>: Add docs on how to implement this method.
         """
         raise NotImplementedError
+
+    def _post_package(self, dataset_dir: Path) -> None:
+        """
+        `run_post_package` implementation; override this.
+        """
