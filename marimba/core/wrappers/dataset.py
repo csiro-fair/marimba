@@ -422,11 +422,8 @@ class DatasetWrapper(LogMixin):
         mapped_dataset_items = self._populate_files(dataset_mapping, operation, max_workers)
         self._process_files_with_metadata(reduced_dataset_mapping, max_workers)
         self.generate_metadata(dataset_name, mapped_dataset_items, mapping_processor_decorator, max_workers)
-
+        self._run_post_package_processors(post_package_processors)
         dataset_items = flatten_mapping(flatten_middle_mapping(mapped_dataset_items))
-
-        for post_package_processor in post_package_processors:
-            post_package_processor(self.root_dir)
 
         self.generate_dataset_summary(dataset_items)
         # TODO @<cjackett>: Generate summary method currently does not use multithreading
@@ -700,7 +697,7 @@ class DatasetWrapper(LogMixin):
         if progress:
             with Progress(SpinnerColumn(), *get_default_columns()) as progress_bar:
                 total_tasks = len(flatten_mapping(flatten_middle_mapping(dataset_items))) + 1
-                task = progress_bar.add_task("[green]Generating dataset metadata (5/11)", total=total_tasks)
+                task = progress_bar.add_task("[green]Generating dataset metadata (5/12)", total=total_tasks)
 
                 processed_items = execute_on_mapping(
                     dataset_items,
@@ -708,7 +705,7 @@ class DatasetWrapper(LogMixin):
                 )
                 grouped_items = execute_on_mapping(processed_items, self._group_by_metadata_type)
 
-                progress_bar.update(task, description="[green]Writing dataset metadata (5/11)")
+                progress_bar.update(task, description="[green]Writing dataset metadata (5/12)")
                 for decorator in mapping_processor_decorator:
                     decorator(lambda x, y: self._create_metadata_files(dataset_name, x, y), grouped_items)
 
