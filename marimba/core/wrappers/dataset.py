@@ -576,7 +576,7 @@ class DatasetWrapper(LogMixin):
         task: TaskID | None = None,
     ) -> None:
         """Update hash values for metadata items."""
-        file_data_path = Path(self.data_dir) / file_path
+        file_data_path = Path(file_path)
         if file_data_path.is_file():
             file_hash = compute_hash(file_data_path)
             for metadata_item in metadata_items:
@@ -608,7 +608,7 @@ class DatasetWrapper(LogMixin):
             self._update_metadata_hashes(file_path, metadata_items, progress, task)
 
         items = [
-            (Path(self.data_dir) / file_path, metadata_items) for file_path, metadata_items in dataset_items.items()
+            (Path(self.root_dir) / file_path, metadata_items) for file_path, metadata_items in dataset_items.items()
         ]
         process_items_with_hashes(
             self,
