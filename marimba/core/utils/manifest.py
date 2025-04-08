@@ -20,6 +20,7 @@ Classes:
 
 import logging
 from collections.abc import Iterable
+from copy import copy
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -313,6 +314,31 @@ class Manifest:
 
         return self == manifest
 
+    @staticmethod
+    def _get_sub_directories(files: set[Path], base_directory: Path) -> set[Path]:
+        """
+        Gets the subdirectories of the files contained by the base directory.
+
+        Args:
+            files: Files to get the subdirectories for
+            base_directory: Base directory to get the subdirectories for
+
+        Returns:
+            Subdirectories between the files and the base directory.
+        """
+        sub_directories = set()
+        todo = copy(files)
+        while len(todo) != 0:
+            entry = todo.pop()
+            parent = entry.parent
+            if parent == base_directory or parent in sub_directories:
+                continue
+
+            todo.add(parent)
+            sub_directories.add(parent)
+
+        return sub_directories
+
     def update(
         self,
         files: set[Path],
@@ -332,8 +358,17 @@ class Manifest:
             max_workers: Maximum number of worker processes.
 
         """
-        self.hashes = self._process_files_with_progress(
-            files=list(files),
+        subdirectories = self._get_sub_directories(files, directory)
+        files.update(subdirectories)
+
+        deleted_files = {path for path in files if not path.exists()}
+        relative_deleted_files = {path.relative_to(directory) for path in deleted_files}
+        self.hashes = {path: value for path, value in self.hashes.items() if path not in relative_deleted_files}
+
+        changed_files = files - deleted_files
+
+        new_hashes = self._process_files_with_progress(
+            files=list(changed_files),
             directory=directory,
             exclude_paths=exclude_paths,
             dataset_items=None,
@@ -342,6 +377,7 @@ class Manifest:
             logger=logger,
             max_workers=max_workers,
         )
+        self.hashes.update(new_hashes)
 
     def __eq__(self, other: object) -> bool:
         """

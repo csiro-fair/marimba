@@ -734,7 +734,7 @@ class DatasetWrapper(LogMixin):
         manifest = Manifest.load(self.manifest_path)
         manifest.update(
             changed_files,
-            self.data_dir,
+            self.root_dir,
             {self.manifest_path, self.log_path},
             logger=self.logger,
             max_workers=max_worker,
