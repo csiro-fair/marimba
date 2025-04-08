@@ -1081,7 +1081,7 @@ class ProjectWrapper(LogMixin):
             dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
         ],
         metadata_mapping_processor_decorator: list[DECORATOR_TYPE],
-        post_package_processors: list[Callable[[Path], None]],
+        post_package_processors: list[Callable[[Path], set[Path]]],
         operation: Operation = Operation.copy,
         version: str | None = "1.0",
         contact_name: str | None = None,
@@ -1155,7 +1155,7 @@ class ProjectWrapper(LogMixin):
         self._dataset_wrappers[dataset_name] = dataset_wrapper
         return dataset_wrapper
 
-    def get_pipeline_post_processors(self, pipeline_names: list[str]) -> list[Callable[[Path], None]]:
+    def get_pipeline_post_processors(self, pipeline_names: list[str]) -> list[Callable[[Path], set[Path]]]:
         """
         Gets the post processor methods for all given pipeline names.
 

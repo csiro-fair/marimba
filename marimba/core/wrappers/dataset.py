@@ -380,7 +380,7 @@ class DatasetWrapper(LogMixin):
         project_log_path: Path,
         pipeline_log_paths: Iterable[Path],
         mapping_processor_decorator: list[DECORATOR_TYPE],
-        post_package_processors: list[Callable[[Path], None]],
+        post_package_processors: list[Callable[[Path], set[Path]]],
         operation: Operation = Operation.copy,
         zoom: int | None = None,
         max_workers: int | None = None,
@@ -422,7 +422,6 @@ class DatasetWrapper(LogMixin):
         mapped_dataset_items = self._populate_files(dataset_mapping, operation, max_workers)
         self._process_files_with_metadata(reduced_dataset_mapping, max_workers)
         self.generate_metadata(dataset_name, mapped_dataset_items, mapping_processor_decorator, max_workers)
-        self._run_post_package_processors(post_package_processors)
         dataset_items = flatten_mapping(flatten_middle_mapping(mapped_dataset_items))
 
         self.generate_dataset_summary(dataset_items)
@@ -433,6 +432,9 @@ class DatasetWrapper(LogMixin):
         self._generate_manifest(dataset_items, max_workers)
 
         self.logger.info(f'Completed packaging dataset "{dataset_name}"')
+
+        changed_files = self._run_post_package_processors(post_package_processors)
+        self._update_manifest(changed_files, max_workers)
 
     def _populate_files(  # noqa: C901
         self,
@@ -718,12 +720,28 @@ class DatasetWrapper(LogMixin):
 
         self._log_metadata_summary(flatten_mapping(flatten_middle_mapping(grouped_items)))
 
-    def _run_post_package_processors(self, post_package_processors: list[Callable[[Path], None]]) -> None:
+    def _run_post_package_processors(self, post_package_processors: list[Callable[[Path], set[Path]]]) -> set[Path]:
+        changed_files = set()
         with Progress(SpinnerColumn(), *get_default_columns()) as progress_bar:
             task = progress_bar.add_task("[green]Running post package hooks (6/12)", total=len(post_package_processors))
             for post_package_processor in post_package_processors:
-                post_package_processor(self.root_dir)
+                changed_files.update(post_package_processor(self.root_dir))
                 progress_bar.advance(task)
+
+        return changed_files
+
+    def _update_manifest(self, changed_files: set[Path], max_worker: int | None = None) -> None:
+        manifest = Manifest.load(self.manifest_path)
+        manifest.update(
+            changed_files,
+            self.data_dir,
+            {self.manifest_path, self.log_path},
+            logger=self.logger,
+            max_workers=max_worker,
+        )
+
+        if not self.dry_run:
+            manifest.save(self.manifest_path)
 
     def generate_dataset_summary(
         self,

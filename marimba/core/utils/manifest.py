@@ -313,6 +313,36 @@ class Manifest:
 
         return self == manifest
 
+    def update(
+        self,
+        files: set[Path],
+        directory: Path,
+        exclude_paths: set[Path],
+        logger: logging.Logger | None = None,
+        max_workers: int | None = None,
+    ) -> None:
+        """
+        Updates the entries of the given files.
+
+        Args:
+            files: Files to update.
+            directory: Root directory.
+            exclude_paths: Set of paths to exclude.
+            logger: Logger for recording information.
+            max_workers: Maximum number of worker processes.
+
+        """
+        self.hashes = self._process_files_with_progress(
+            files=list(files),
+            directory=directory,
+            exclude_paths=exclude_paths,
+            dataset_items=None,
+            progress=None,
+            task=None,
+            logger=logger,
+            max_workers=max_workers,
+        )
+
     def __eq__(self, other: object) -> bool:
         """
         Check if two manifests are equal.
