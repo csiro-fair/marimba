@@ -723,7 +723,10 @@ class DatasetWrapper(LogMixin):
     def _run_post_package_processors(self, post_package_processors: list[Callable[[Path], set[Path]]]) -> set[Path]:
         changed_files = set()
         with Progress(SpinnerColumn(), *get_default_columns()) as progress_bar:
-            task = progress_bar.add_task("[green]Running post package hooks (6/12)", total=len(post_package_processors))
+            task = progress_bar.add_task(
+                "[green]Running post package hooks (11/12)",
+                total=len(post_package_processors),
+            )
             for post_package_processor in post_package_processors:
                 changed_files.update(post_package_processor(self.root_dir))
                 progress_bar.advance(task)
@@ -767,7 +770,7 @@ class DatasetWrapper(LogMixin):
 
         if progress:
             with Progress(SpinnerColumn(), *get_default_columns()) as progress_bar:
-                task = progress_bar.add_task("[green]Generating dataset summary (7/12)", total=1)
+                task = progress_bar.add_task("[green]Generating dataset summary (6/12)", total=1)
                 generate_summary()
                 progress_bar.advance(task)
         else:
@@ -816,7 +819,7 @@ class DatasetWrapper(LogMixin):
             zoom: Optional zoom level for the map.
         """
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Generating dataset map (8/12)", total=1)
+            task = progress.add_task("[green]Generating dataset map (7/12)", total=1)
 
             # Check for geolocations
             geolocations = [
@@ -847,7 +850,7 @@ class DatasetWrapper(LogMixin):
             pipeline_log_paths: The paths to the pipeline log files.
         """
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Copying logs (10/12)", total=1)
+            task = progress.add_task("[green]Copying logs (9/12)", total=1)
             if not self.dry_run:
                 copy2(project_log_path, self.logs_dir)
                 for pipeline_log_path in pipeline_log_paths:
@@ -863,7 +866,7 @@ class DatasetWrapper(LogMixin):
             project_pipelines_dir: The path to the project pipelines directory.
         """
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Copying pipelines (9/12)", total=1)
+            task = progress.add_task("[green]Copying pipelines (8/12)", total=1)
             if not self.dry_run:
                 ignore = ignore_patterns(
                     ".git",
@@ -892,7 +895,7 @@ class DatasetWrapper(LogMixin):
         """
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             globbed_files = list(self.root_dir.glob("**/*"))
-            task = progress.add_task("[green]Generating manifest (11/12)", total=len(globbed_files))
+            task = progress.add_task("[green]Generating manifest (10/12)", total=len(globbed_files))
             manifest = Manifest.from_dir(
                 self.root_dir,
                 exclude_paths=[self.manifest_path, self.log_path],
