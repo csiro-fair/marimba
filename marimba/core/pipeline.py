@@ -210,6 +210,9 @@ class BasePipeline(ABC, LogMixin):
 
         Args:
             dataset_dir: Directory containing the metadata files.
+
+        Returns:
+            List of files which where changed by the post packege hook.
         """
         self.logger.info(
             f"Started {format_command('post package')} command for pipeline {format_entity(self.class_name)} with args "
