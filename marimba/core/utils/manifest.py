@@ -125,7 +125,7 @@ class Manifest:
         """
         try:
             # Get relative path without the data/ prefix
-            rel_path = item.resolve().relative_to(directory)
+            rel_path = item.resolve().relative_to(directory.resolve())
             metadata_path = str(rel_path.relative_to("data")) if str(rel_path).startswith("data/") else str(rel_path)
 
             # Try to get hash from metadata first
@@ -362,7 +362,7 @@ class Manifest:
         files.update(subdirectories)
 
         deleted_files = {path for path in files if not path.exists()}
-        relative_deleted_files = {path.relative_to(directory) for path in deleted_files}
+        relative_deleted_files = {path.resolve().relative_to(directory.resolve()) for path in deleted_files}
         self.hashes = {path: value for path, value in self.hashes.items() if path not in relative_deleted_files}
 
         changed_files = files - deleted_files
