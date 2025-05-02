@@ -52,21 +52,27 @@ cd marimba
 
 ### Set Up the Development Environment
 
-Marimba uses [Poetry](https://python-poetry.org/) for dependency management. Follow these steps to set up your development environment:
+Marimba uses [UV](https://github.com/astral-sh/uv) for dependency management. Follow these steps to set up your development environment:
 
-1. Install Poetry if you haven't already:
+1. Install UV if you haven't already:
    ```bash
-   curl -sSL https://install.python-poetry.org | python3 -
+   pip install uv
    ```
 
-2. Install the project dependencies:
+2. Create and activate a virtual environment:
    ```bash
-   poetry install
+   # Create a virtual environment
+   uv venv --python=3.10
+   
+   # Activate the virtual environment
+   source .venv/bin/activate  # On Linux/Mac
+   # or
+   .venv\Scripts\activate     # On Windows
    ```
 
-3. Install pre-commit hooks:
+3. Install the project dependencies:
    ```bash
-   poetry run pre-commit install
+   uv pip install -e ".[dev]"
    ```
 
 ## Development Workflow

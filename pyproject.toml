@@ -29,7 +29,7 @@ dependencies = [
 [project.scripts]
 marimba = "marimba.main:marimba_cli"
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
     "black>=24.4.2,<25",
     "isort>=5.13.2,<6",

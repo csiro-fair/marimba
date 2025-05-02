@@ -361,19 +361,19 @@ class PipelineWrapper(LogMixin):
         repo = Repo(self.repo_dir)
         repo.remotes.origin.pull()
 
-    def _handle_pip_error(self, returncode: int) -> None:
+    def _handle_install_error(self, returncode: int) -> None:
         """
-        Handle pip installation errors by raising appropriate exceptions.
+        Handle package installation errors by raising appropriate exceptions.
 
         Args:
-            returncode: The return code from pip installation process
+            returncode: The return code from the installation process
 
         Raises:
-            PipelineWrapper.InstallError: If pip installation fails
+            PipelineWrapper.InstallError: If installation fails
         """
         if returncode != 0:
             raise PipelineWrapper.InstallError(
-                f"pip install had a non-zero return code: {returncode}",
+                f"uv pip install had a non-zero return code: {returncode}",
             )
 
     def _validate_requirements(self, requirements_path: str) -> None:
@@ -389,24 +389,26 @@ class PipelineWrapper(LogMixin):
         if not Path(requirements_path).is_file():
             raise PipelineWrapper.InstallError(f"Requirements file not found: {requirements_path}")
 
-    def _validate_pip(self) -> str:
+    def _validate_uv(self) -> str:
         """
-        Validate that pip is available in the system PATH.
+        Validate that uv is available in the system PATH.
 
         Returns:
-            str: Path to pip executable
+            str: Path to uv executable
 
         Raises:
-            PipelineWrapper.InstallError: If pip is not found
+            PipelineWrapper.InstallError: If uv is not found
         """
-        pip_path = shutil.which("pip")
-        if pip_path is None:
-            raise PipelineWrapper.InstallError("pip executable not found in PATH")
-        return pip_path
+        uv_path = shutil.which("uv")
+        if uv_path is None:
+            raise PipelineWrapper.InstallError("uv executable not found in PATH")
+        return uv_path
 
     def install(self) -> None:
         """
         Install the pipeline dependencies as provided in a requirements.txt file, if present.
+
+        Uses the uv package manager to install dependencies.
 
         Raises:
             PipelineWrapper.InstallError: If there is an error installing pipeline dependencies.
@@ -421,11 +423,11 @@ class PipelineWrapper(LogMixin):
             requirements_path = str(self.requirements_path.absolute())
             self._validate_requirements(requirements_path)
 
-            # Find and validate pip executable
-            pip_path = self._validate_pip()
+            # Find and validate uv executable
+            uv_path = self._validate_uv()
 
             with subprocess.Popen(
-                [pip_path, "install", "--no-input", "-r", requirements_path],
+                [uv_path, "pip", "install", "-r", requirements_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             ) as process:
@@ -435,7 +437,7 @@ class PipelineWrapper(LogMixin):
                 if error:
                     self.logger.warning(error.decode("utf-8"))
 
-                self._handle_pip_error(process.returncode)
+                self._handle_install_error(process.returncode)
 
             self.logger.info("Pipeline dependencies installed")
         except Exception as e:
