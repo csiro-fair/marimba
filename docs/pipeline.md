@@ -1,3 +1,5 @@
+from marimba.core.pipeline import BasePipeline
+
 # Pipeline Implementation Guide
 
 A Marimba Pipeline is the core component responsible for processing data from a specific instruments or 
@@ -53,8 +55,8 @@ processing capabilities in the Marimba standard library.
         - [Executing the `_package` Method](#executing-the-_package-method)
           - [Targeted Packaging with Specific Pipelines and Collections](#targeted-packaging-with-specific-pipelines-and-collections)
         - [Marimba Packaging Steps](#marimba-packaging-steps)
-        - [Multi-Level iFDO Files](#multi-level-ifdo-files)
-        - [Multi-Level Summary Files](#multi-level-summary-files)
+   - [Implementing the `_post_package` Method](#implementing-the-_post_package-method)
+     - [Example `_post_package` Implementation](#example-_post_package-implementation)
 5. [Pipeline Implementation Summary](#pipeline-implementation-summary)
    - [Next Steps](#next-steps)
 
@@ -152,6 +154,13 @@ including:
   - Files listed in the data mapping that contain an iFDO will have their metadata saved in a dataset-level iFDO 
     output file named `ifdo.yml`. Additionally, this metadata will be embedded in the EXIF metadata of any included 
     JPG file, adhering to FAIR data standards.
+
+- `_post_package()`:
+  - This method allows for the alterations of the finalized dataset. For example this can be useful to remove sensitive
+    data (e.g. API tokens, passwords etc.) from the dataset before it is being published.
+  - Because the method can modify files after the manifest is created, the entries for the files that the method modified 
+    must be updated in the manifest. Therefore, the method must return the set of files it altered.
+    
 
 ---
 
@@ -1228,7 +1237,10 @@ all processing operations throughout the entire Marimba workflow.
 their SHA256 hashes. This manifest is crucial for validating the integrity of the dataset and ensuring no files were 
 corrupted or altered during packaging.
 
-11. **Dataset Validation**: Once the Dataset has been finalized, it undergoes a validation process to check for any 
+11. **Post Package Hook**: The post-package hooks of the pipelines are run on the finalized dataset, which return a 
+set of paths of files that were changed. The manifest is then updated for these paths.
+
+12. **Dataset Validation**: Once the Dataset has been finalized, it undergoes a validation process to check for any 
 inconsistencies with its manifest. This step is critical to certify that the Dataset is complete and accurate.
 
 When the packaging process is executed using the Marimba package command, these steps are visually tracked in the CLI 
@@ -1237,14 +1249,99 @@ finalized FAIR image dataset that adheres to the highest levels of FAIR data sta
 dissemination.
 
 
-#### Multi-Level iFDO Files
+### Implementing the `_post_package` Method
+The `_post_package` method is automatically called after the dataset is finalized and before the dataset is validated to 
+allow for changes to the dataset contents. Because it is called after the manifest is generated, it must return the 
+paths to the files that were changed so that the manifest can be updated accordingly. Not returning every changed file 
+will cause the dataset validation to fail. This should not be seen as a burden, but as an opportunity to verify that 
+only the intended files have been changed by the `_post_package` method.
 
-To be written...
+#### Example `_post_package` Implementation
 
+The `_post_package` method enables various post-processing operations on packaged datasets. Here are some common use
+cases:
 
-#### Multi-Level Summary Files
+##### 1. Removing sensitive data
 
-To be written...
+[.env](https://pypi.org/project/python-dotenv/) files are a standard way to manage secrets (e.g. API tokens, passwords) 
+for applications, but should not be published (even on GitHub). In the case of the marimba pipeline, this could be a 
+problem, as the entire pipeline is included in the dataset. To solve this problem, the `_post_package` method can be 
+used to remove all .env files from the dataset before publishing:
+
+```python
+from pathlib import Path
+from marimba.core.pipeline import BasePipeline
+
+class MyPipeline(BasePipeline):
+    def _post_package(self, dataset_dir: Path) -> set[Path]:
+        # Find all paths to .env files in the dataset directory
+        env_file_paths = {Path(path) for path in dataset_dir.glob("**/*/.env")}
+        
+        # Delete all .env files
+        for file_path in env_file_paths:
+            file_path.unlink()
+        
+        # Return all path of changed files; in this case all .env files 
+        return env_file_paths
+
+```
+
+##### 2. Handling file renames
+
+When renaming files in the `_post_package` method, you must include both the original file path and the new file path
+in the returned set:
+
+```python
+from pathlib import Path
+from marimba.core.pipeline import BasePipeline
+
+class MyPipeline(BasePipeline):
+    def _post_package(self, dataset_dir: Path) -> set[Path]:
+        changed_files = set()
+        
+        # Rename a file
+        source_file = dataset_dir / "data" / "original.json"
+        dest_file = dataset_dir / "data" / "renamed.json"
+        
+        if source_file.exists():
+            # Perform the rename operation
+            source_file.rename(dest_file)
+            
+            # Add both source and destination paths to the changed files
+            changed_files.add(source_file)  # Original file that no longer exists
+            changed_files.add(dest_file)    # New file that was created
+        
+        return changed_files
+```
+
+##### 3. Modifying file contents
+
+You can also modify existing files and update their hashes:
+
+```python
+from datetime import datetime
+from pathlib import Path
+from marimba.core.pipeline import BasePipeline
+
+class MyPipeline(BasePipeline):
+    def _post_package(self, dataset_dir: Path) -> set[Path]:
+        changed_files = set()
+        
+        # Find and modify README files in data directories
+        readme_paths = list(dataset_dir.glob("**/data/**/README.md"))
+        for readme_path in readme_paths:
+            # Append to existing README
+            with open(readme_path, "a") as f:
+                f.write(f"\n\nModified by post_package hook on {datetime.now().isoformat()}")
+            
+            # Add the modified file to the changed files set
+            changed_files.add(readme_path)
+        
+        return changed_files
+```
+
+These examples can be combined for more complex post-processing operations. Always ensure all modified, created, or
+deleted files are included in the returned set for proper manifest updating.
 
 ---
 
@@ -1259,7 +1356,7 @@ traceability.
 
 ### Next Steps
 1. **Test Your Pipeline**: Ensure your custom Marimba Pipeline functions as expected by running it on sample datasets. 
-Use the Marimba CLI to execute `_import`, `_process`, and `_package` methods, and validate the output.
+Use the Marimba CLI to execute `_import`, `_process`, `_package`, and `_post_package` methods, and validate the output.
    
 2. **Expand Your Pipeline**: Leverage advanced features like multi-threading, custom metadata handling, and targeted 
 processing to optimize and scale your Marimba Pipeline.
@@ -1271,6 +1368,6 @@ users and projects.
 By continuously refining your Pipeline and exploring new features, you can ensure that your data processing workflows 
 remain efficient, scalable, and fully compliant with best practices in scientific data management.
 
-Happy data processing with Marimba!
+Happy FAIR data processing with Marimba!
 
 ---
