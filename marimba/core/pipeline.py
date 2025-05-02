@@ -265,8 +265,6 @@ class BasePipeline(ABC, LogMixin):
     ) -> dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]:
         """
         `run_package` implementation; override this.
-
-        TODO @<cjackett>: Add docs on how to implement this method.
         """
         raise NotImplementedError
 
