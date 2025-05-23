@@ -42,7 +42,7 @@ marimba = "marimba.main:marimba_cli"
 "Documentation" = "https://github.com/csiro-fair/marimba/tree/main/docs"
 "Bug Tracker" = "https://github.com/csiro-fair/marimba/issues"
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "black>=24.4.2,<25",
     "isort>=5.13.2,<6",
@@ -64,6 +64,7 @@ dev = [
     "ruff>=0.7.0,<0.8",
     "hatch>=1.14.1,<2",
     "twine>=6.1.0,<7",
+    "deptry>=0.23.0",
 ]
 
 [tool.black]
@@ -91,3 +92,9 @@ packages = ["marimba"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "marimba/py.typed" = "marimba/py.typed"
+
+[tool.deptry.package_module_name_map]
+pillow = ["PIL"]
+PyYAML = ["yaml"]
+gitpython = ["git"]
+opencv-python-headless = ["cv2"]
