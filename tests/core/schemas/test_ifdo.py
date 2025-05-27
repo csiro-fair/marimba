@@ -43,5 +43,5 @@ def test_create_dataset_metadata():
             items,
             logger,
             saver_overwrite=mock_saver,
-            validator=lambda _: False,
+            validator_option=lambda _: False,
         )

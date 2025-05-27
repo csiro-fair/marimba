@@ -155,10 +155,11 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         *,
         dry_run: bool = False,
         saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
-        validator: Callable[[iFDO], bool] = iFDOValidator.create(),
+        validator_option: Callable[[iFDO], bool] | None = None,
     ) -> None:
         """Create an iFDO from the metadata items."""
         saver = yaml_saver if saver_overwrite is None else saver_overwrite
+        validator = validator_option if validator_option is not None else iFDOValidator.create()
 
         # Convert BaseMetadata items to ImageData for iFDO
         image_set_items = {
