@@ -1,0 +1,122 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://marine-imaging.com/fair/schemas/annotation-v2.0.0.json",
+    "title": "Annotations of images",
+    "description": "A schema to establish a format for annotations within images (photos and videos) of different shape and by different annotators",
+    "type": "object",
+    "properties": {
+        "image-annotation-labels": {
+            "description": "All the labels used in the image-annotations. Specified by an id (e.g. AphiaID), a human-readable name and an optional description.",
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/label"
+            }
+        },
+        "image-annotation-creators": {
+            "description": "All the annotators that created image-annotations. Specified by an id (e.g. ORCID), a human-readable name and an optional type specifying the annotator's expertise.",
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/annotator"
+            }
+        },
+        "image-annotations": {
+            "description": "This field stores all annotations as a list of dictionaries of 3-4 fields: shape, coordinates, labels and (optional) frames. See further explanations below. The list of labels specifies the IDs or names of objects and annotators and their confidence. These should be specified in an `image-annotation-labels` and `image-annotation-creators` field (see above) to provide more information on the values used in these fields.",
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "shape": {
+                        "description": "The annotation shape is specified by a keyword (allowed values: see enum).",
+                        "type": "string",
+                        "enum": [
+                            "single-pixel",
+                            "polyline",
+                            "polygon",
+                            "circle",
+                            "rectangle",
+                            "ellipse",
+                            "whole-image"
+                        ]
+                    },
+                    "coordinates": {
+                        "description": "The pixel coordinates of one annotation. The top-left corner of an image is the (0,0) coordinate. The x-axis is the horizontal axis. Pixel coordinates may be fractional. Coordinates are to be given as a list of lists (only one element for photos, optionally multiple elements for videos). The required number of pixel coordinates is defined by the shape (0 for whole-image, 2 for single-pixel, 3 for circle, 8 for ellipse/rectangle, 4 or more for polyline, 8 or more for polygon). The third coordinate value of a circle defines the radius. The first and last coordinates of a polygon must be equal. Format: [[p1.x,p1.y,p2x,p2.y,...]..]",
+                        "type": "array",
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "type": "number"
+                            }
+                        }
+                    },
+                    "labels": {
+                        "description": "The list of labels assigned to annotations by annotators",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/$defs/annotation-label"
+                        }
+                    },
+                    "frames": {
+                        "description": "(only required for video annotations) Frame times (in seconds from the beginning of a video) of a video annotation. Each frame time is linked to one entry in `image-annotations:coordinates` at the same position in the list, which specifies the current coordinates of the annotation at that frame.\nFormat: [f1,...]"
+                    }
+                }
+            }
+        }
+    },
+    "$defs": {
+        "annotation-label": {
+            "type": "object",
+            "required": ["label","annotator","created-at"],
+            "properties": {
+                "label": {
+                    "description":  "A unique identifier to a semantic label",
+                    "type":  "string"
+                },
+                "annotator": {
+                    "description": "A unique identifier to an annotation creator, e.g. orcid URL or handle to ML model",
+                    "type": "string"
+                },
+                "created-at": {
+                    "description": "The date-time stamp of label creation",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "confidence": {
+                    "description": "A numerical confidence estimate of the validity of the label between 0 (untrustworthy) and 1 (100% certainty)",
+                    "type": "number"
+                }
+            }
+        },
+        "label": {
+            "type": "object",
+            "required": ["id","name"],
+            "properties": {
+                "id": {
+                    "description": "A unique identifier to a semantic label",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "A human-readable name for the semantic label",
+                    "type": "string"
+                },
+                "info": {
+                    "description": "A description on what this semantic label represents",
+                    "type": "string"
+                }
+            }
+        },
+        "annotator": {
+            "type": "object",
+            "required": ["id","name"],
+            "properties": {
+                "id": {
+                    "description": "A unique identifier to an annotation creator, e.g. orcid URL or handle to ML model",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "A human-readable name for the annotator (identifying the specific human or machine)",
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

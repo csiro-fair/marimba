@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marine-imaging.com/fair/schemas/provenance-v0.1.0.json",
+  "title": "Documenting a processing workflow",
+  "description": "A schema to document the agents, activities and entities that led to an image set entity",
+  "type": "object",
+  "properties": {
+    "provenance-agents": {
+      "type": "array",
+      "description": "A list of all the agents in this provenance documentation",
+      "items": {
+        "$ref": "#/$defs/agent"
+      }
+    },
+    "provenance-entities": {
+      "type": "array",
+      "description": "A list of all the entities in this provenance documentation",
+      "items": {
+        "$ref": "#/$defs/entity"
+      }
+    },
+    "provenance-activities": {
+      "type": "array",
+      "description": "A list of all the activities in this provenance documentation",
+      "items": {
+        "$ref": "#/$defs/activity"
+      }
+    }
+  },
+  "$defs": {
+    "agent": {
+      "type": "object",
+      "description": "Someone or something that operates, takes responsibility, conducts, etc.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "A human-readable identifier of the agent"
+        },
+        "id": {
+          "type": "string",
+          "description": "A unique identifier for the agent. Could be a uri."
+        }
+      }
+    },
+    "entity": {
+      "type": "object",
+      "description": "A static instance of a virtual thing",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "A human-readable identifier of the entity"
+        },
+        "id": {
+          "type": "string",
+          "description": "A unique identifier for the entity. Could be a uri."
+        },
+        "created-at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time at which this entity was created in its entirety"
+        },
+        "attributed-to": {
+          "type": "array",
+          "description": "A list of agents that relate to this entity",
+          "items": {
+            "$ref": "#/$defs/agent"
+          }
+        },
+        "generated-by": {
+          "type": "array",
+          "description": "A list of activities that created this entity"
+        }
+      }
+    },
+    "activity": {
+      "type": "object",
+      "description": "A process that works with entities and is operated by agents",
+      "properties": {
+        "start-time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time at which the activity began"
+        },
+        "end-time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time at which the activity ended"
+        },
+        "associated-agents": {
+          "type": "array",
+          "description": "The agents that are associated to this activity",
+          "items": {
+            "$ref": "#/$defs/agent"
+          }
+        },
+        "used-entities": {
+          "type": "array",
+          "description": "The entities that are associated to this activity",
+          "items": {
+            "$ref": "#/$defs/entity"
+          }
+        }
+      }
+    }
+  }
+}
