@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
@@ -9,11 +10,12 @@ from marimba.core.schemas.ifdo import iFDOMetadata
 
 
 def test_create_dataset_metadata():
+    logger = logging.getLogger()
     mock_uuid = "a43a84f2-b657-44e0-bafe-72e2624115fa"
 
     def mock_saver(path: Path, output_name: str, data: dict[str, Any]) -> None:
         assert path.name == "tmp"
-        assert output_name == "ifdo"
+        assert output_name == "ifdo.incomplete"
         assert data == {
             "image-set-header": {
                 "image-set-name": "TestDataSet",
@@ -26,6 +28,20 @@ def test_create_dataset_metadata():
 
     data_setname = "TestDataSet"
     root_dir = Path("/tmp")
-    items = {"image.jpg": [cast(BaseMetadata, iFDOMetadata(image_data=ImageData(image_altitude_meters=0.0)))]}
+    items = {
+        "image.jpg": [
+            cast(
+                BaseMetadata,
+                iFDOMetadata(image_data=ImageData(image_altitude_meters=0.0)),
+            )
+        ]
+    }
     with patch("uuid.uuid4", MagicMock(return_value=mock_uuid)):
-        iFDOMetadata.create_dataset_metadata(data_setname, root_dir, items, saver_overwrite=mock_saver)
+        iFDOMetadata.create_dataset_metadata(
+            data_setname,
+            root_dir,
+            items,
+            logger,
+            saver_overwrite=mock_saver,
+            validator_option=lambda _: False,
+        )
