@@ -25,6 +25,7 @@ dependencies = [
     "av>=14.0.1,<15",
     "distlib>=0.3.8,<0.4",
     "typing-extensions>=4.12.2,<5",
+    "uv>=0.7.8",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
