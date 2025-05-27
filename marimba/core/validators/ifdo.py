@@ -15,6 +15,8 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 from typing_extensions import Self
 
+import marimba
+
 
 class iFDOValidator:  # noqa: N801
     """iFDO validator based on the jsonschema validator."""
@@ -33,7 +35,8 @@ class iFDOValidator:  # noqa: N801
         """
         Creates a new ifdo schema validator.
         """
-        resources_path = Path("resources") / "schemas" / "ifdo"
+        marimba_path = Path(marimba.__path__[0])
+        resources_path = marimba_path / "resources" / "schemas" / "ifdo"
         schema = cls._load_json_file(resources_path / "ifdo-v2.1.0.json")
         registry = Registry().with_resources(
             [
