@@ -39,6 +39,7 @@ from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.metadata import yaml_saver
 from marimba.core.utils.rich import get_default_columns
+from marimba.core.validators.ifdo import iFDOValidator
 from marimba.lib import image
 from marimba.lib.decorators import multithreaded
 from marimba.lib.gps import convert_degrees_to_gps_coordinate
@@ -149,10 +150,12 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         dataset_name: str,
         root_dir: Path,
         items: dict[str, list["BaseMetadata"]],
+        logger: logging.Logger,
         metadata_name: str | None = None,
         *,
         dry_run: bool = False,
         saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
+        validator: Callable[[iFDO], bool] = iFDOValidator.create(),
     ) -> None:
         """Create an iFDO from the metadata items."""
         saver = yaml_saver if saver_overwrite is None else saver_overwrite
@@ -178,6 +181,10 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         # If metadata_name is provided but missing extension, add it
         else:
             output_name = metadata_name if metadata_name.endswith(".ifdo") else f"{metadata_name}.ifdo"
+
+        if not validator(ifdo):
+            logger.warning(f"iFDO {output_name} is incomplete!")
+            output_name += ".incomplete"
 
         if not dry_run:
             saver(root_dir, output_name, ifdo.to_dict())
@@ -236,7 +243,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                     try:
                         exif_dict = piexif.load(str(file_path))
                     except piexif.InvalidImageDataError as e:
-                        logger.warning(f"Failed to load EXIF metadata from {file_path}: {e}")
+                        logger.warning(
+                            f"Failed to load EXIF metadata from {file_path}: {e}",
+                        )
                     else:
                         # Get the ImageData from the metadata items
                         image_data_list = [item.image_data for item in metadata_items if isinstance(item, iFDOMetadata)]
@@ -250,7 +259,11 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                             cls._inject_gps_coordinates(image_data, exif_dict)
                             image_file = cls._add_thumbnail(file_path, exif_dict)
                             cls._extract_image_properties(image_file, image_data)
-                            cls._embed_exif_metadata(image_data, ancillary_data, exif_dict)
+                            cls._embed_exif_metadata(
+                                image_data,
+                                ancillary_data,
+                                exif_dict,
+                            )
 
                             try:
                                 exif_bytes = piexif.dump(exif_dict)
@@ -260,7 +273,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                                     f" {file_path}",
                                 )
                             except piexif.InvalidImageDataError:
-                                logger.warning(f"Failed to write EXIF metadata to {file_path}")
+                                logger.warning(
+                                    f"Failed to write EXIF metadata to {file_path}",
+                                )
                 else:
                     # For non-EXIF files (like videos), just log that we're skipping EXIF processing
                     logger.debug(
@@ -273,8 +288,17 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                     progress.advance(task)
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Processing files with metadata (4/12)", total=len(dataset_mapping))
-            process_file(cls, items=dataset_mapping.items(), progress=progress, task=task, logger=log)  # type: ignore[call-arg]
+            task = progress.add_task(
+                "[green]Processing files with metadata (4/12)",
+                total=len(dataset_mapping),
+            )
+            process_file(
+                cls,
+                items=dataset_mapping.items(),
+                progress=progress,
+                task=task,
+                logger=log,
+            )  # type: ignore[call-arg]
 
     @staticmethod
     def _inject_datetime(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
@@ -319,7 +343,10 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             exif_dict["Exif"][piexif.ExifIFD.ImageUniqueID] = str(image_data.image_uuid)
 
     @staticmethod
-    def _inject_gps_coordinates(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
+    def _inject_gps_coordinates(
+        image_data: ImageData,
+        exif_dict: dict[str, Any],
+    ) -> None:
         """
         Inject GPS coordinates into EXIF metadata.
 
@@ -330,16 +357,29 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         ifd_gps = exif_dict["GPS"]
 
         if image_data.image_latitude is not None:
-            d_lat, m_lat, s_lat = convert_degrees_to_gps_coordinate(image_data.image_latitude)
+            d_lat, m_lat, s_lat = convert_degrees_to_gps_coordinate(
+                image_data.image_latitude,
+            )
             ifd_gps[piexif.GPSIFD.GPSLatitude] = ((d_lat, 1), (m_lat, 1), (s_lat, 1000))
             ifd_gps[piexif.GPSIFD.GPSLatitudeRef] = "N" if image_data.image_latitude > 0 else "S"
         if image_data.image_longitude is not None:
-            d_lon, m_lon, s_lon = convert_degrees_to_gps_coordinate(image_data.image_longitude)
-            ifd_gps[piexif.GPSIFD.GPSLongitude] = ((d_lon, 1), (m_lon, 1), (s_lon, 1000))
+            d_lon, m_lon, s_lon = convert_degrees_to_gps_coordinate(
+                image_data.image_longitude,
+            )
+            ifd_gps[piexif.GPSIFD.GPSLongitude] = (
+                (d_lon, 1),
+                (m_lon, 1),
+                (s_lon, 1000),
+            )
             ifd_gps[piexif.GPSIFD.GPSLongitudeRef] = "E" if image_data.image_longitude > 0 else "W"
         if image_data.image_altitude_meters is not None:
-            altitude_fraction = Fraction(abs(float(image_data.image_altitude_meters))).limit_denominator()
-            altitude_rational = (altitude_fraction.numerator, altitude_fraction.denominator)
+            altitude_fraction = Fraction(
+                abs(float(image_data.image_altitude_meters)),
+            ).limit_denominator()
+            altitude_rational = (
+                altitude_fraction.numerator,
+                altitude_fraction.denominator,
+            )
             ifd_gps[piexif.GPSIFD.GPSAltitude] = altitude_rational
             ifd_gps[piexif.GPSIFD.GPSAltitudeRef] = 0 if image_data.image_altitude_meters >= 0 else 1
 
@@ -383,7 +423,10 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             return image_file
 
     @staticmethod
-    def _extract_image_properties(image_file: Image.Image, image_data: ImageData) -> None:
+    def _extract_image_properties(
+        image_file: Image.Image,
+        image_data: ImageData,
+    ) -> None:
         """
         Extract image properties and update the image data.
 
@@ -410,7 +453,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             exif_dict: The EXIF metadata dictionary.
         """
         image_data_dict = image_data.to_dict()
-        user_comment_data = {"metadata": {"ifdo": image_data_dict, "ancillary": ancillary_data}}
+        user_comment_data = {
+            "metadata": {"ifdo": image_data_dict, "ancillary": ancillary_data},
+        }
         user_comment_json = json.dumps(user_comment_data)
         ascii_encoding = b"ASCII\x00\x00\x00"
         user_comment_bytes = ascii_encoding + user_comment_json.encode("ascii")
