@@ -42,7 +42,7 @@ marimba = "marimba.main:marimba_cli"
 "Documentation" = "https://github.com/csiro-fair/marimba/tree/main/docs"
 "Bug Tracker" = "https://github.com/csiro-fair/marimba/issues"
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "black>=24.4.2,<25",
     "isort>=5.13.2,<6",
