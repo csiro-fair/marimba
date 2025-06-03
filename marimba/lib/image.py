@@ -95,8 +95,8 @@ def convert_to_jpeg(path: str | Path, quality: int = 95, destination: str | Path
     if path.suffix.lower() in (".jpg", ".jpeg"):
         copy2(path, destination)
     else:
-        img = cast(Image.Image, Image.open(path))
-        img.convert("RGB").save(destination, "JPEG", quality=quality)
+        with Image.open(path) as img:
+            img.convert("RGB").save(destination, "JPEG", quality=quality)
     return destination
 
 
@@ -128,9 +128,9 @@ def resize_fit(
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
-    img = _resize_fit(img, max_width, max_height)
-    img.save(destination)
+    with Image.open(path) as img:
+        resized_img = _resize_fit(img, max_width, max_height)
+        resized_img.save(destination)
 
 
 def resize_exact(
@@ -151,9 +151,9 @@ def resize_exact(
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
-    img = img.resize((width, height), Image.Resampling.LANCZOS)
-    img.save(destination)
+    with Image.open(path) as img:
+        resized_img = img.resize((width, height), Image.Resampling.LANCZOS)
+        resized_img.save(destination)
 
 
 def scale(path: str | Path, scale_factor: float, destination: str | Path | None = None) -> None:
@@ -167,12 +167,12 @@ def scale(path: str | Path, scale_factor: float, destination: str | Path | None 
     """
     path = Path(path)
     destination = Path(destination) if destination is not None else path
-    img = cast(Image.Image, Image.open(path))
-    width, height = img.size
-    new_width = int(width * scale_factor)
-    new_height = int(height * scale_factor)
-    img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-    img.save(destination)
+    with Image.open(path) as img:
+        width, height = img.size
+        new_width = int(width * scale_factor)
+        new_height = int(height * scale_factor)
+        scaled_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        scaled_img.save(destination)
 
 
 def rotate_clockwise(
@@ -200,9 +200,9 @@ def rotate_clockwise(
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
-    img = img.rotate(-degrees, expand=expand)  # type: ignore[no-untyped-call]
-    img.save(destination)
+    with Image.open(path) as img:
+        rotated_img = img.rotate(-degrees, expand=expand)  # type: ignore[no-untyped-call]
+        rotated_img.save(destination)
 
 
 def turn_clockwise(path: str | Path, turns: int = 1, destination: str | Path | None = None) -> None:
@@ -228,9 +228,9 @@ def turn_clockwise(path: str | Path, turns: int = 1, destination: str | Path | N
         3: Image.Transpose.ROTATE_270,
     }
 
-    img = cast(Image.Image, Image.open(path))
-    img = img.transpose(rotation_constants[turns])
-    img.save(destination)
+    with Image.open(path) as img:
+        turned_img = img.transpose(rotation_constants[turns])
+        turned_img.save(destination)
 
 
 def flip_vertical(path: str | Path, destination: str | Path | None = None) -> None:
@@ -244,9 +244,9 @@ def flip_vertical(path: str | Path, destination: str | Path | None = None) -> No
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
-    img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-    img.save(destination)
+    with Image.open(path) as img:
+        flipped_img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+        flipped_img.save(destination)
 
 
 def flip_horizontal(path: str | Path, destination: str | Path | None = None) -> None:
@@ -260,9 +260,9 @@ def flip_horizontal(path: str | Path, destination: str | Path | None = None) -> 
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
-    img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-    img.save(destination)
+    with Image.open(path) as img:
+        flipped_img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        flipped_img.save(destination)
 
 
 def is_blurry(path: str | Path, threshold: float = 100.0) -> bool:
@@ -318,9 +318,9 @@ def crop(
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
-    img = img.crop((x, y, x + width, y + height))
-    img.save(destination)
+    with Image.open(path) as img:
+        cropped_img = img.crop((x, y, x + width, y + height))
+        cropped_img.save(destination)
 
 
 def apply_clahe(
@@ -409,8 +409,8 @@ def get_width_height(path: str | Path) -> tuple[int, int]:
     expected_dimensions = 2
 
     path = Path(path)
-    img = cast(Image.Image, Image.open(path))
-    size = img.size
+    with Image.open(path) as img:
+        size = img.size
 
     if not (isinstance(size, tuple) and len(size) == expected_dimensions and all(isinstance(x, int) for x in size)):
         raise ValueError("Size must be a tuple of two integers")
@@ -485,7 +485,7 @@ class GridRow:
         scale_factor = self.dimensions.column_width / img_width
         scaled_height = int(img_height * scale_factor)
 
-        # Resize image
+        # Resize image - create a copy to avoid memory issues
         resized_img = img.resize(
             (self.dimensions.column_width, scaled_height),
             Image.Resampling.LANCZOS,
@@ -560,7 +560,9 @@ class GridImageProcessor:
         """
         try:
             with Image.open(path) as img:
-                return row.add_image(img)
+                # Create a copy to avoid issues with the context manager
+                img_copy = img.copy()
+                return row.add_image(img_copy)
         except OSError:
             return False
 
@@ -586,39 +588,51 @@ class GridImageProcessor:
             ValueError: If the dimensions object is not properly initialized.
             IOError: If there are issues reading or processing the image files.
         """
+        import gc
+        
         rows: list[GridRow] = []
         current_height = 0
         current_row = GridRow(self.dimensions)
         images_processed = 0
 
-        while images_processed < len(paths_subset):
-            path = paths_subset[images_processed]
-            if not self.process_single_image(path, current_row):
+        try:
+            while images_processed < len(paths_subset):
+                path = paths_subset[images_processed]
+                if not self.process_single_image(path, current_row):
+                    images_processed += 1
+                    continue
+
+                # If row is full, start a new one
+                if len(current_row.images) >= self.dimensions.columns:
+                    if current_height + current_row.height <= self.dimensions.max_height:
+                        current_height += current_row.height
+                        rows.append(current_row)
+                        current_row = GridRow(self.dimensions)
+                        # Trigger garbage collection after each row to manage memory
+                        if len(rows) % 5 == 0:  # Every 5 rows
+                            gc.collect()
+                    else:
+                        break
+
                 images_processed += 1
-                continue
 
-            # If row is full, start a new one
-            if len(current_row.images) >= self.dimensions.columns:
-                if current_height + current_row.height <= self.dimensions.max_height:
-                    current_height += current_row.height
-                    rows.append(current_row)
-                    current_row = GridRow(self.dimensions)
-                else:
-                    break
+            # Handle last row
+            if current_row.images and current_height + current_row.height <= self.dimensions.max_height:
+                rows.append(current_row)
+                current_height += current_row.height
+            else:
+                current_row.cleanup()
+                current_row = None  # Clear reference
 
-            images_processed += 1
+            if not rows:
+                return None, 0, images_processed
 
-        # Handle last row
-        if current_row.images and current_height + current_row.height <= self.dimensions.max_height:
-            rows.append(current_row)
-            current_height += current_row.height
-        else:
-            current_row.cleanup()
-
-        if not rows:
-            return None, 0, images_processed
-
-        return self._render_grid(rows), current_height, images_processed
+            return self._render_grid(rows), current_height, images_processed
+        finally:
+            # Ensure cleanup happens even if there's an exception
+            if current_row is not None and current_row not in rows:
+                current_row.cleanup()
+            gc.collect()
 
     def _render_grid(self, rows: list[GridRow]) -> PILImage:
         """

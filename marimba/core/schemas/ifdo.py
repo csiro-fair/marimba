@@ -248,17 +248,22 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         image_file = None
         try:
             image_file = cls._add_thumbnail(file_path, exif_dict)
-            try:
-                cls._extract_image_properties(image_file, image_data)
-            finally:
-                if image_file is not None:
+            if image_file is not None:
+                try:
+                    cls._extract_image_properties(image_file, image_data)
+                finally:
                     image_file.close()
                     # Set to None to help garbage collection
                     image_file = None
         except (ValueError, OSError, UnidentifiedImageError, piexif.InvalidImageDataError) as e:
             logger.warning(f"Error processing thumbnail for {file_path}: {e}")
             if image_file is not None:
-                image_file.close()
+                try:
+                    image_file.close()
+                except Exception:
+                    pass  # Ignore errors during cleanup
+                finally:
+                    image_file = None
 
     @staticmethod
     def _write_exif_data(
@@ -308,6 +313,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         ) -> None:
             file_path, (metadata_items, ancillary_data) = item
             file_extension = file_path.suffix.lower()
+            exif_dict = None
 
             try:
                 # If it's an EXIF-supported file, process EXIF metadata
@@ -337,8 +343,12 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                     progress.advance(task)
 
                 # Explicitly clean up references to help garbage collection
-                if "exif_dict" in locals():
+                if exif_dict is not None:
                     del exif_dict
+                # Clear other references
+                metadata_items = None
+                ancillary_data = None
+                file_path = None
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             task = progress.add_task("[green]Processing files with metadata (4/11)", total=len(dataset_mapping))
@@ -346,6 +356,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
         # Explicitly trigger garbage collection after processing all files
         gc.collect()
+        
+        # Clear dataset_mapping reference to help with memory
+        dataset_mapping = None
 
     @staticmethod
     def _inject_datetime(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
@@ -428,7 +441,8 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             image_file = Image.open(path)
 
             # Create a copy for the thumbnail to avoid modifying original
-            with image_file.copy() as original_thumb:
+            original_thumb = image_file.copy()
+            try:
                 # Set max dimension to 240px - aspect ratio will be maintained
                 thumbnail_size = (240, 240)
 
@@ -441,9 +455,11 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                     thumb = original_thumb.convert("RGB")
                     # Close the original first
                     original_thumb.close()
+                    original_thumb = None
                 else:
                     # Use the original thumb if it's already in RGB mode
                     thumb = original_thumb
+                    original_thumb = None  # Clear reference
 
                 with io.BytesIO() as thumbnail_io:
                     thumb.save(
@@ -456,9 +472,26 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                     # Get value before closing the BytesIO to avoid potential issues
                     thumbnail_bytes = thumbnail_io.getvalue()
                     exif_dict["thumbnail"] = thumbnail_bytes
+                
+                # Clean up thumbnail image
+                if thumb is not original_thumb:
+                    thumb.close()
+                    thumb = None
+                    
+            finally:
+                # Ensure cleanup of thumbnail copy
+                if original_thumb is not None:
+                    original_thumb.close()
+                    original_thumb = None
+                    
         except OSError as err:
             if image_file is not None:
-                image_file.close()
+                try:
+                    image_file.close()
+                except Exception:
+                    pass  # Ignore errors during cleanup
+                finally:
+                    image_file = None
             raise ValueError(f"Unable to open image: {err}") from err
         else:
             # This executes if no exception occurred in the try block
