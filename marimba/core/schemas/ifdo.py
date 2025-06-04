@@ -180,7 +180,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             output_name = metadata_name if metadata_name.endswith(".ifdo") else f"{metadata_name}.ifdo"
 
         if not dry_run:
-            saver(root_dir, output_name, ifdo.to_dict())
+            saver(root_dir, output_name, ifdo.model_dump(mode="json", by_alias=True, exclude_none=True))
 
     @classmethod
     def process_files(
@@ -409,7 +409,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             ancillary_data: Any ancillary data to include in the user comment.
             exif_dict: The EXIF metadata dictionary.
         """
-        image_data_dict = image_data.to_dict()
+        image_data_dict = image_data.model_dump(mode="json", by_alias=True, exclude_none=True)
         user_comment_data = {"metadata": {"ifdo": image_data_dict, "ancillary": ancillary_data}}
         user_comment_json = json.dumps(user_comment_data)
         ascii_encoding = b"ASCII\x00\x00\x00"
