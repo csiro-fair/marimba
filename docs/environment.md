@@ -7,7 +7,8 @@ This guide provides a detailed walkthrough for setting up a development environm
 
 - [Clone the Repository](#clone-the-repository)
 - [Project Structure](#project-structure)
-- [Set up Poetry Environment](#set-up-poetry-environment)
+- [Set up UV Environment](#set-up-uv-environment)
+- [Code Quality Tools](#code-quality-tools)
 - [Build Marimba](#build-marimba)
 
 ---
@@ -36,46 +37,60 @@ The architecture of the Marimba project is organised according to best practices
 The repository structure is as follows:
 
 ```plaintext
-marimba
-├── docs                        - Documentation files for Marimba
-├── img                         - Images for this README.md file
-├── marimba                     - Source directory containing the Marimba Python CLI application code
-│   │
-│   ├── commands                - Command definitions and CLI logic
-│   ├── core                    - Core functionalities and data structures
-│   ├── utils                   - Utility modules, helper functions, and common code
-│   │
-│   └── marimba.py              - Main Python application entry point
-│
-├── tests                       - Unit tests for the application
-│
-├── .flake8                     - Custom flake8 linting settings
-├── .gitignore                  - Specifies files and folders to be ignored by Git
-├── .isort.cfg                  - Configuration settings for isort tool
-├── .pre-commit-config.yaml     - Configuration for pre-commit hooks that can be executed locally and in CI
-├── LICENSE                     - License information for the project
-├── pyproject.toml              - Custom Python Black code formatting settings
-└── README.md                   - Project readme file providing an overview and setup instructions for the project
+marimba/
+├── config/                     - Configuration files for tools (mypy, pytest, bandit, etc.)
+├── dist/                       - Build distribution files (created during build)
+├── docs/                       - Documentation files
+│   ├── img/                    - Documentation images
+│   └── templates/              - Template files for documentation
+├── marimba/                    - Source code directory
+│   ├── core/                   - Core functionality
+│   │   ├── cli/                - Command line interface components
+│   │   ├── distribution/       - Distribution target implementations
+│   │   ├── parallel/           - Parallel processing functionality
+│   │   ├── schemas/            - Data schemas for different formats
+│   │   ├── utils/              - Utility modules and common functions
+│   │   └── wrappers/           - Wrapper classes for core components
+│   ├── lib/                    - Library modules for various functionalities
+│   └── main.py                 - Main application entry point
+├── tests/                      - Unit tests
+│   └── core/                   - Tests for core modules
+│       ├── cli/                - Tests for CLI modules
+│       ├── distribution/       - Tests for distribution modules
+│       ├── parallel/           - Tests for parallel modules
+│       ├── schemas/            - Tests for schema modules
+│       ├── utils/              - Tests for utility modules
+│       └── wrappers/           - Tests for wrapper modules
+├── .gitignore                  - Git ignore patterns
+├── .pre-commit-config.yaml     - Pre-commit hook configuration
+├── LICENSE                     - Project license file
+├── pyproject.toml              - Project configuration and dependencies
+└── README.md                   - Project overview and documentation
 ```
 
 <p align="right">(<a href="#marimba-development-environment-setup-guide-top">back to top</a>)</p>
 
 ---
 
-<a name="set-up-poetry-environment"></a>
-## Set up Poetry Environment
+<a name="set-up-uv-environment"></a>
+## Set up UV Environment
 
-The Python dependencies for Marimba are managed using [Poetry](https://python-poetry.org/). To install Poetry, execute:
-
-```bash
-pip install poetry
-```
-
-Navigate to the root directory of the Marimba project and run the following commands to set up the Poetry environment:
+The Python dependencies for Marimba are managed using [UV](https://github.com/astral-sh/uv), a fast Python package installer and resolver. To set up your development environment:
 
 ```bash
-poetry install
-poetry shell
+# Create a new virtual environment with Python 3.10
+uv venv --python=3.10
+
+# Activate the virtual environment
+source .venv/bin/activate  # On Linux/Mac
+# or
+.venv\Scripts\activate  # On Windows
+
+# Update pip
+uv pip install --upgrade pip
+
+# Install the package in development mode with dev dependencies
+uv pip install -e ".[dev]"
 ```
 
 This will create a new Python virtual environment, install the package dependencies, and activate the environment. You can confirm the successful activation by running:
@@ -88,19 +103,76 @@ marimba --help
 
 ---
 
+<a name="code-quality-tools"></a>
+## Code Quality Tools
+
+Marimba uses several code quality tools that are configured in the pre-commit hooks:
+
+### Pre-commit Hooks
+
+The project includes pre-commit hooks to ensure code quality. Install them with:
+
+```bash
+pre-commit install
+```
+
+Our pre-commit configuration includes these hooks:
+
+1. **Ruff** - For fast, comprehensive linting
+   - Auto-fixes issues when possible
+   - Uses configuration in the project files
+
+2. **Black** - For code formatting
+   - Line length: 120 characters
+   - Ensures consistent code style
+
+3. **Mypy** - For static type checking
+   - Configuration: `config/mypy.ini`
+   - Verifies type annotations
+
+4. **Bandit** - For security linting
+   - Configuration: `config/bandit.yml`
+   - Identifies potential security issues
+
+5. **Pytest** - For running tests
+   - Configuration: `config/pytest.ini`
+   - Ensures your changes don't break existing functionality
+
+### Running Hooks Manually
+
+You can run the pre-commit hooks manually to check your code:
+
+```bash
+# Run all hooks on all files
+pre-commit run --all-files
+
+# Run a specific hook
+pre-commit run ruff --all-files
+pre-commit run black --all-files
+pre-commit run mypy --all-files
+pre-commit run bandit --all-files
+pre-commit run pytest --all-files
+```
+
+<p align="right">(<a href="#marimba-development-environment-setup-guide-top">back to top</a>)</p>
+
+---
+
 <a name="build-marimba"></a>
 ## Build Marimba
 
-To package the Marimba application as a Python wheel, execute:
+To package the Marimba application as a Python wheel:
 
 ```bash
-poetry build
+# Using Hatch (via uv)
+uv pip install build
+python -m build
 ```
 
-This command will generate a `dist` directory containing the built wheel package. This package can then be installed on other systems using pip:
+This command will generate a `dist` directory containing the built wheel package. This package can then be installed on other systems:
 
 ```bash
-pip install dist/marimba-0.1.0-py3-none-any.whl
+uv pip install dist/marimba-1.0.0-py3-none-any.whl
 ```
 
 <p align="right">(<a href="#marimba-development-environment-setup-guide-top">back to top</a>)</p>

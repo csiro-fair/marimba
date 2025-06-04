@@ -259,6 +259,7 @@ def package_command(
             dataset_name,
             dataset_mapping,
             metadata_mapping_processor_decorator,
+            project_wrapper.get_pipeline_post_processors(pipeline_names),
             operation=operation,
             version=version,
             contact_name=contact_name,
