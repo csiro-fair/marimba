@@ -44,9 +44,9 @@ from marimba.lib.decorators import multithreaded
 from marimba.lib.gps import convert_degrees_to_gps_coordinate
 
 if TYPE_CHECKING:
-    from ifdo.models import ImageData, ImageSetHeader, iFDO
+    from ifdo import iFDO, ImageData, ImageSetHeader
 else:
-    from ifdo.models import ImageData, ImageSetHeader, iFDO
+    from ifdo import iFDO, ImageData, ImageSetHeader
 
 
 logger = get_logger(__name__)
