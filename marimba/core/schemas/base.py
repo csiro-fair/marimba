@@ -5,7 +5,9 @@ This module defines the base interfaces for handling different metadata schemas 
 The BaseMetadata class provides a standard interface that all metadata implementations must follow.
 """
 
+import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -77,8 +79,10 @@ class BaseMetadata(ABC):
         dataset_name: str,
         root_dir: Path,
         items: dict[str, list["BaseMetadata"]],
+        metadata_name: str | None = None,
         *,
         dry_run: bool = False,
+        saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
     ) -> None:
         """Create dataset-level metadata from a collection of items."""
         raise NotImplementedError
@@ -89,6 +93,7 @@ class BaseMetadata(ABC):
         cls,
         dataset_mapping: dict[Path, tuple[list["BaseMetadata"], dict[str, Any] | None]],
         max_workers: int | None = None,
+        logger: logging.Logger | None = None,
         *,
         dry_run: bool = False,
     ) -> None:

@@ -37,6 +37,8 @@ import ast
 import logging
 import math
 import time
+from collections import defaultdict
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
@@ -45,8 +47,10 @@ from rich.progress import Progress, SpinnerColumn
 
 from marimba.core.installer.pipeline_installer import PipelineInstaller
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
+from marimba.core.pipeline import BasePipeline
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
+from marimba.core.utils.dataset import DECORATOR_TYPE
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.paths import format_path_for_logging, remove_directory_tree
 from marimba.core.utils.prompt import prompt_schema
@@ -1052,10 +1056,10 @@ class ProjectWrapper(LogMixin):
         extra_args: list[str] | None = None,
         max_workers: int | None = None,
         **kwargs: dict[str, Any],
-    ) -> dict[
+    ) -> dict[str, dict[
         str,
         dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
-    ]:
+    ]]:
         """
         Compose a dataset for given collections across multiple pipelines.
 
@@ -1109,13 +1113,16 @@ class ProjectWrapper(LogMixin):
 
         dataset_mapping: dict[
             str,
+            dict[
+            str,
             dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
-        ] = {}
+        ],
+        ] = defaultdict(lambda: defaultdict(dict))
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             total_task_length = len(self.pipeline_wrappers) * len(collection_wrappers)
             task = progress.add_task(
-                "[green]Composing data (1/11)",
+                "[green]Composing data (1/12)",
                 total=total_task_length,
             )
 
@@ -1144,9 +1151,7 @@ class ProjectWrapper(LogMixin):
                     try:
                         (pipeline_data_mapping, message) = future.result()
                         self.logger.info(f"{log_string_prefix}{message}")
-                        if pipeline_name not in dataset_mapping:
-                            dataset_mapping[pipeline_name] = {}
-                        dataset_mapping[pipeline_name].update(pipeline_data_mapping)
+                        dataset_mapping[pipeline_name][collection_name].update(pipeline_data_mapping)
                     except Exception as e:
                         raise ProjectWrapper.CompositionError(
                             f"{log_string_prefix}"
@@ -1168,14 +1173,20 @@ class ProjectWrapper(LogMixin):
         dataset_name: str,
         dataset_mapping: dict[
             str,
+            dict[
+            str,
             dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
         ],
+        ],
+        metadata_mapping_processor_decorator: list[DECORATOR_TYPE],
+        post_package_processors: list[Callable[[Path], set[Path]]],
         operation: Operation = Operation.copy,
         version: str | None = "1.0",
         contact_name: str | None = None,
         contact_email: str | None = None,
         zoom: int | None = None,
         max_workers: int | None = None,
+        metadata_saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
     ) -> DatasetWrapper:
         """
         Create a Marimba dataset from a dataset mapping.
@@ -1183,12 +1194,16 @@ class ProjectWrapper(LogMixin):
         Args:
             dataset_name: The name of the dataset to be created.
             dataset_mapping: A dictionary containing the dataset mapping information.
+            metadata_mapping_processor_decorator: Dataset mapping processor decorator.
+            post_package_processors: Processors which are applied to the dataset after the metadata file is created.
             operation: The operation to perform on files (copy, move or link). Defaults to Operation.copy.
             version: The version of the dataset. Defaults to '1.0'.
             contact_name: The name of the contact person for the dataset. Defaults to None.
             contact_email: The email of the contact person for the dataset. Defaults to None.
             zoom: The zoom level for the dataset. Defaults to None.
             max_workers: The maximum number of worker processes to use. If None, uses all available CPU cores.
+            metadata_saver_overwrite: Saving function overwriting the default metadata saving function.
+                Defaults to None.
 
         Returns:
             A DatasetWrapper instance representing the created dataset.
@@ -1210,6 +1225,7 @@ class ProjectWrapper(LogMixin):
             contact_name=contact_name,
             contact_email=contact_email,
             dry_run=self.dry_run,
+            metadata_saver=metadata_saver_overwrite,
         )
 
         # Populate it
@@ -1219,6 +1235,8 @@ class ProjectWrapper(LogMixin):
             self.pipelines_dir,
             self.log_path,
             (pw.log_path for pw in self.pipeline_wrappers.values()),
+            metadata_mapping_processor_decorator,
+            post_package_processors,
             operation=operation,
             zoom=zoom,
             max_workers=max_workers,
@@ -1228,7 +1246,7 @@ class ProjectWrapper(LogMixin):
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             globbed_files = list(dataset_wrapper.root_dir.glob("**/*"))
             task = progress.add_task(
-                "[green]Validating dataset (11/11)",
+                "[green]Validating dataset (12/12)",
                 total=len(globbed_files),
             )
             dataset_wrapper.validate(progress, task)
@@ -1239,6 +1257,25 @@ class ProjectWrapper(LogMixin):
 
         self._dataset_wrappers[dataset_name] = dataset_wrapper
         return dataset_wrapper
+
+    def get_pipeline_post_processors(self, pipeline_names: list[str]) -> list[Callable[[Path], set[Path]]]:
+        """
+        Gets the post processor methods for all given pipeline names.
+
+        Args:
+            pipeline_names: Pipelines from which to get post processor methods.
+
+        Returns:
+            Post processor methods.
+        """
+        return [self._get_pipeline(pipeline_name).run_post_package for pipeline_name in pipeline_names]
+
+    def _get_pipeline(self, pipeline_name: str) -> BasePipeline:
+        pipeline_wrapper = self._pipeline_wrappers[pipeline_name]
+        pipeline = pipeline_wrapper.get_instance()
+        if pipeline is None:
+            raise ProjectWrapper.NoSuchPipelineError(pipeline_name)
+        return pipeline
 
     def delete_dataset(
         self,

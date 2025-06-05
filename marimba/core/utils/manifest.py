@@ -20,6 +20,7 @@ Classes:
 
 import logging
 from collections.abc import Iterable
+from copy import copy
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -127,7 +128,7 @@ class Manifest:
         """
         try:
             # Get relative path without the data/ prefix
-            rel_path = item.resolve().relative_to(directory)
+            rel_path = item.resolve().relative_to(directory.resolve())
             metadata_path = str(rel_path.relative_to("data")) if str(rel_path).startswith("data/") else str(rel_path)
 
             # Try to get hash from metadata first
@@ -185,6 +186,7 @@ class Manifest:
             exclude_paths: set[Path],
             hashes: dict[Path, str],
             dataset_items: dict[str, list[BaseMetadata]] | None = None,
+            logger: logging.Logger | None = None,
             progress: Progress | None = None,
             task: TaskID | None = None,
         ) -> None:
@@ -216,6 +218,7 @@ class Manifest:
             exclude_paths=exclude_paths,
             hashes=hashes,
             dataset_items=dataset_items,
+            logger=logger,
             progress=progress,
             task=task,
         )  # type: ignore[call-arg]
@@ -318,6 +321,71 @@ class Manifest:
             raise RuntimeError("Failed to validate directory") from e
 
         return self == manifest
+
+    @staticmethod
+    def _get_sub_directories(files: set[Path], base_directory: Path) -> set[Path]:
+        """
+        Gets the subdirectories of the files contained by the base directory.
+
+        Args:
+            files: Files to get the subdirectories for
+            base_directory: Base directory to get the subdirectories for
+
+        Returns:
+            Subdirectories between the files and the base directory.
+        """
+        sub_directories = set()
+        todo = copy(files)
+        while len(todo) != 0:
+            entry = todo.pop()
+            parent = entry.parent
+            if parent == base_directory or parent in sub_directories:
+                continue
+
+            todo.add(parent)
+            sub_directories.add(parent)
+
+        return sub_directories
+
+    def update(
+        self,
+        files: set[Path],
+        directory: Path,
+        exclude_paths: set[Path],
+        logger: logging.Logger | None = None,
+        max_workers: int | None = None,
+    ) -> None:
+        """
+        Updates the entries of the given files.
+
+        Args:
+            files: Files to update.
+            directory: Root directory.
+            exclude_paths: Set of paths to exclude.
+            logger: Logger for recording information.
+            max_workers: Maximum number of worker processes.
+
+        """
+        subdirectories = self._get_sub_directories(files, directory)
+        files.update(subdirectories)
+
+        deleted_files = {path for path in files if not path.exists()}
+        relative_deleted_files = {path.resolve().relative_to(directory.resolve()) for path in deleted_files}
+        self.hashes = {path: value for path, value in self.hashes.items() if path not in relative_deleted_files}
+
+        changed_files = files - deleted_files
+
+        new_hashes = self._process_files_with_progress(
+            files=list(changed_files),
+            directory=directory,
+            exclude_paths=exclude_paths,
+            dataset_items=None,
+            progress=None,
+            task=None,
+            logger=logger,
+            max_workers=max_workers,
+        )
+        self.hashes.update(new_hashes)
 
     def __eq__(self, other: object) -> bool:
         """

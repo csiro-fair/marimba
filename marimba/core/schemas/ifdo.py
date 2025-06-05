@@ -23,11 +23,13 @@ Classes:
 
 import io
 import json
+import logging
+import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
 from fractions import Fraction
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
-from uuid import uuid4
 
 import piexif
 from PIL import Image
@@ -35,6 +37,7 @@ from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.log import get_logger
+from marimba.core.utils.metadata import yaml_saver
 from marimba.core.utils.rich import get_default_columns
 from marimba.lib import image
 from marimba.lib.decorators import multithreaded
@@ -54,7 +57,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
     iFDO metadata implementation that adapts ImageData to the BaseMetadata interface.
     """
 
-    DEFAULT_METADATA_NAME = "ifdo.yml"
+    DEFAULT_METADATA_NAME = "ifdo"
 
     def __init__(
         self,
@@ -149,38 +152,42 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         metadata_name: str | None = None,
         *,
         dry_run: bool = False,
+        saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
     ) -> None:
         """Create an iFDO from the metadata items."""
+        saver = yaml_saver if saver_overwrite is None else saver_overwrite
+
+        # Convert BaseMetadata items to ImageData for iFDO
+        image_set_items = {
+            path: [item.image_data for item in metadata_items if isinstance(item, iFDOMetadata)]
+            for path, metadata_items in items.items()
+        }
+
+        ifdo = iFDO(
+            image_set_header=ImageSetHeader(
+                image_set_name=dataset_name,
+                image_set_uuid=str(uuid.uuid4()),
+                image_set_handle="",  # TODO @<cjackett>: Populate from distribution target URL
+            ),
+            image_set_items=image_set_items,
+        )
+
+        # If no metadata_name provided, use default
+        if not metadata_name:
+            output_name = cls.DEFAULT_METADATA_NAME
+        # If metadata_name is provided but missing extension, add it
+        else:
+            output_name = metadata_name if metadata_name.endswith(".ifdo") else f"{metadata_name}.ifdo"
+
         if not dry_run:
-            # Convert BaseMetadata items to ImageData for iFDO
-            image_set_items = {
-                path: [item.image_data for item in metadata_items if isinstance(item, iFDOMetadata)]
-                for path, metadata_items in items.items()
-            }
-
-            ifdo = iFDO(
-                image_set_header=ImageSetHeader(
-                    image_set_name=dataset_name,
-                    image_set_uuid=str(uuid4()),
-                    image_set_handle="",  # TODO @<cjackett>: Populate from distribution target URL
-                ),
-                image_set_items=image_set_items,
-            )
-
-            # If no metadata_name provided, use default
-            if not metadata_name:
-                output_name = cls.DEFAULT_METADATA_NAME
-            # If metadata_name is provided but missing extension, add it
-            else:
-                output_name = metadata_name if metadata_name.endswith(".ifdo.yml") else f"{metadata_name}.ifdo.yml"
-
-            ifdo.save(root_dir / output_name)
+            saver(root_dir, output_name, ifdo.to_dict())
 
     @classmethod
     def process_files(
         cls,
-        dataset_mapping: dict[Path, tuple[list["BaseMetadata"], dict[str, Any] | None]],
+        dataset_mapping: dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
         max_workers: int | None = None,
+        logger: logging.Logger | None = None,
         *,
         dry_run: bool = False,
     ) -> None:
@@ -188,11 +195,15 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         if dry_run:
             return
 
+        # Use the provided logger if available, otherwise use the module logger
+        log = logger or get_logger(__name__)
+
         @multithreaded(max_workers=max_workers)
         def process_file(
-            cls: type["iFDOMetadata"],
+            cls: type[iFDOMetadata],
             thread_num: str,
             item: tuple[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
+            logger: logging.Logger,
             progress: Progress | None = None,
             task: TaskID | None = None,
         ) -> None:
@@ -270,16 +281,8 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                     progress.advance(task)
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task(
-                "[green]Processing files with metadata (4/11)",
-                total=len(dataset_mapping),
-            )
-            process_file(
-                cls,
-                items=dataset_mapping.items(),
-                progress=progress,
-                task=task,
-            )  # type: ignore[call-arg]
+            task = progress.add_task("[green]Processing files with metadata (4/12)", total=len(dataset_mapping))
+            process_file(cls, items=dataset_mapping.items(), progress=progress, task=task, logger=log)  # type: ignore[call-arg]
 
     @staticmethod
     def _inject_datetime(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
