@@ -92,7 +92,10 @@ class S3DistributionTarget(DistributionTargetBase):
         """
         self._s3.meta.client.head_bucket(Bucket=self._bucket_name)
 
-    def _iterate_dataset_wrapper(self, dataset_wrapper: DatasetWrapper) -> Iterable[tuple[Path, str]]:
+    def _iterate_dataset_wrapper(
+        self,
+        dataset_wrapper: DatasetWrapper,
+    ) -> Iterable[tuple[Path, str]]:
         """
         Iterate over a dataset structure and generate (path, key) tuples.
 
@@ -133,10 +136,12 @@ class S3DistributionTarget(DistributionTargetBase):
         self._bucket.upload_file(str(path.absolute()), key, Config=self._config)
 
     def _distribute(self, dataset_wrapper: DatasetWrapper) -> None:
-
         with Progress(SpinnerColumn(), *get_default_columns()) as collection_progress:
             # Add task for collecting path-key pairs
-            collection_task = collection_progress.add_task("[green]Collecting files to upload", total=None)
+            collection_task = collection_progress.add_task(
+                "[green]Collecting files to upload",
+                total=None,
+            )
             self.logger.info("Started collecting files for upload")
 
             path_key_tups = []
@@ -149,7 +154,10 @@ class S3DistributionTarget(DistributionTargetBase):
 
         # Calculate total size with progress bar
         with Progress(SpinnerColumn(), *get_default_columns()) as size_progress:
-            size_task = size_progress.add_task("[green]Calculating total upload size", total=len(path_key_tups))
+            size_task = size_progress.add_task(
+                "[green]Calculating total upload size",
+                total=len(path_key_tups),
+            )
             self.logger.info("Started calculating total upload size")
 
             total_bytes = 0
@@ -160,7 +168,11 @@ class S3DistributionTarget(DistributionTargetBase):
             size_progress.update(size_task)
             self.logger.info(f"Total upload size: {total_bytes / (1024 * 1024):.2f} MB")
 
-        with Progress(SpinnerColumn(), *get_default_columns(), DownloadColumn(binary_units=True)) as progress:
+        with Progress(
+            SpinnerColumn(),
+            *get_default_columns(),
+            DownloadColumn(binary_units=True),
+        ) as progress:
             task = progress.add_task("[green]Uploading dataset", total=total_bytes)
 
             for path, key in path_key_tups:
@@ -177,7 +189,9 @@ class S3DistributionTarget(DistributionTargetBase):
                         f"AWS client error while uploading {path} to {key}:\n{e}",
                     ) from e
                 except Exception as e:
-                    raise DistributionTargetBase.DistributionError(f"Failed to upload {path} to {key}:\n{e}") from e
+                    raise DistributionTargetBase.DistributionError(
+                        f"Failed to upload {path} to {key}:\n{e}",
+                    ) from e
 
                 progress.update(task, advance=file_bytes)
 
@@ -194,4 +208,6 @@ class S3DistributionTarget(DistributionTargetBase):
         try:
             return self._distribute(dataset_wrapper)
         except Exception as e:
-            raise DistributionTargetBase.DistributionError(f"Distribution error:\n{e}") from e
+            raise DistributionTargetBase.DistributionError(
+                f"Distribution error:\n{e}",
+            ) from e

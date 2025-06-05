@@ -62,7 +62,10 @@ app = typer.Typer(
 
 @app.command()
 def project(
-    project_dir: Path = typer.Argument(..., help="Root path to create new Marimba project."),
+    project_dir: Path = typer.Argument(
+        ...,
+        help="Root path to create new Marimba project.",
+    ),
 ) -> None:
     """
     Create a new Marimba project.
@@ -78,7 +81,11 @@ def project(
         print(error_panel(error_message))
         raise typer.Exit(code=1) from e
 
-    print(success_panel(f'Created new {MARIMBA} {format_entity("project")} at: "{project_wrapper.root_dir}"'))
+    print(
+        success_panel(
+            f'Created new {MARIMBA} {format_entity("project")} at: "{project_wrapper.root_dir}"',
+        ),
+    )
 
 
 @app.command()
@@ -114,7 +121,11 @@ def pipeline(
         project_wrapper = ProjectWrapper(project_dir)
 
         # Create the pipeline
-        pipeline_wrapper = project_wrapper.create_pipeline(pipeline_name, url, config_dict)
+        pipeline_wrapper = project_wrapper.create_pipeline(
+            pipeline_name,
+            url,
+            config_dict,
+        )
     except ProjectWrapper.InvalidNameError as e:
         error_message = f"Invalid pipeline name: {e}"
         logger.exception(error_message)
@@ -182,7 +193,10 @@ def collection(
         )
 
         # Create the collection
-        collection_wrapper = project_wrapper.create_collection(collection_name, collection_config)
+        collection_wrapper = project_wrapper.create_collection(
+            collection_name,
+            collection_config,
+        )
     except ProjectWrapper.InvalidNameError as e:
         logger.exception(e)
         print(error_panel(f"Invalid collection name: {e}"))
@@ -229,7 +243,11 @@ def target(
         target_type, target_config = DistributionTargetWrapper.prompt_target()
 
         # Create the distribution target
-        distribution_target_wrapper = project_wrapper.create_target(target_name, target_type, target_config)
+        distribution_target_wrapper = project_wrapper.create_target(
+            target_name,
+            target_type,
+            target_config,
+        )
     except ProjectWrapper.InvalidNameError as e:
         error_message = f"Invalid target name: {e}"
         logger.exception(error_message)

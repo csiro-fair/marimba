@@ -53,7 +53,9 @@ def compute_hash(path: Path, root_dir: Path | None = None) -> str:
                 relative_path = path.resolve().relative_to(root_dir.resolve())
                 path_to_hash = relative_path
             except ValueError as e:
-                raise ValueError(f"Path {path} is not within root directory {root_dir}") from e
+                raise ValueError(
+                    f"Path {path} is not within root directory {root_dir}",
+                ) from e
         else:
             path_to_hash = path
 

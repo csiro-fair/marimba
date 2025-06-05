@@ -34,7 +34,9 @@ from rich.console import Console
 from rich.logging import RichHandler
 
 # Global file log format - this is used for all file handlers.
-file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+file_formatter = logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 
 
 class DryRunRichHandler(RichHandler):
