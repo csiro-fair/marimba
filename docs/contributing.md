@@ -68,7 +68,7 @@ Follow these steps to set up your development environment:
 2. Install project dependencies:
    ```bash
    # Creates a virtual environment .venv and installs dependencies
-   uv sync
+   uv sync --python 3.10
    ```
 
 3. Run commands:
@@ -76,10 +76,10 @@ Follow these steps to set up your development environment:
    # Run pre-commit hooks
    uv run pre-commit run --all-files
 
-   # Or with activate virtual environment
-   source .venv/bin/activate # On Linux/Mac
-   #or
-   .venv/bin/activate # On Windows   
+   # Or with activated virtual environment on Linux/Mac
+    source .venv/bin/activate
+    # or on Windows
+    .venv\Scripts\activate
 
    pre-commit run --all-files
    ```
