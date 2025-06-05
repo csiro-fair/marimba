@@ -80,7 +80,7 @@ The Python dependencies for Marimba are managed using [UV](https://github.com/as
 ```bash
 # Install the package in development mode with dev dependencies
 # This creates a virtual environment automatically and installs all dependencies
-uv sync --group dev
+uv sync --group dev --python 3.10
 
 # Activate the virtual environment (if not already activated) on Linux/Mac
 source .venv/bin/activate
