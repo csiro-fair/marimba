@@ -78,19 +78,14 @@ marimba/
 The Python dependencies for Marimba are managed using [UV](https://github.com/astral-sh/uv), a fast Python package installer and resolver. To set up your development environment:
 
 ```bash
-# Create a new virtual environment with Python 3.10
-uv venv --python=3.10
-
-# Activate the virtual environment
-source .venv/bin/activate  # On Linux/Mac
-# or
-.venv\Scripts\activate  # On Windows
-
-# Update pip
-uv pip install --upgrade pip
-
 # Install the package in development mode with dev dependencies
-uv pip install -e ".[dev]"
+# This creates a virtual environment automatically and installs all dependencies
+uv sync --group dev
+
+# Activate the virtual environment (if not already activated) on Linux/Mac
+source .venv/bin/activate
+# or on Windows
+.venv\Scripts\activate
 ```
 
 This will create a new Python virtual environment, install the package dependencies, and activate the environment. You can confirm the successful activation by running:
@@ -126,15 +121,19 @@ Our pre-commit configuration includes these hooks:
    - Line length: 120 characters
    - Ensures consistent code style
 
-3. **Mypy** - For static type checking
+3. **Deptry** - For dependency validation
+   - Ensures all imports are declared in dependencies
+   - Prevents unused dependency accumulation
+
+4. **Mypy** - For static type checking
    - Configuration: `config/mypy.ini`
    - Verifies type annotations
 
-4. **Bandit** - For security linting
+5. **Bandit** - For security linting
    - Configuration: `config/bandit.yml`
    - Identifies potential security issues
 
-5. **Pytest** - For running tests
+6. **Pytest** - For running tests
    - Configuration: `config/pytest.ini`
    - Ensures your changes don't break existing functionality
 
@@ -149,6 +148,7 @@ pre-commit run --all-files
 # Run a specific hook
 pre-commit run ruff --all-files
 pre-commit run black --all-files
+pre-commit run deptry --all-files
 pre-commit run mypy --all-files
 pre-commit run bandit --all-files
 pre-commit run pytest --all-files

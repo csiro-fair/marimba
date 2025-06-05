@@ -20,6 +20,14 @@ repos:
         types: [ python ]
         args: [ "--line-length", "120" ]
 
+      - id: deptry
+        name: Deptry
+        entry: uv run deptry
+        language: system
+        files: 'pyproject.toml'
+        pass_filenames: false
+        args : ['.']
+
       - id: mypy
         name: Mypy
         entry: uv run mypy
@@ -41,11 +49,3 @@ repos:
         types: [ python ]
         pass_filenames: false
         args: [ '--rootdir', '.', '-c', 'config/pytest.ini' ]
-
-      - id: deptry
-        name: Deptry
-        entry: uv run deptry
-        language: system
-        files: 'pyproject.toml'
-        pass_filenames: false
-        args : ['.']
