@@ -52,7 +52,11 @@ from PIL import Image
 from PIL.Image import Image as PILImage
 
 
-def generate_image_thumbnail(image: Path, output_directory: Path, suffix: str = "_THUMB") -> Path:
+def generate_image_thumbnail(
+    image: Path,
+    output_directory: Path,
+    suffix: str = "_THUMB",
+) -> Path:
     """
     Generate a thumbnail image from the given image file.
 
@@ -73,7 +77,11 @@ def generate_image_thumbnail(image: Path, output_directory: Path, suffix: str = 
     return output_path
 
 
-def convert_to_jpeg(path: str | Path, quality: int = 95, destination: str | Path | None = None) -> Path:
+def convert_to_jpeg(
+    path: str | Path,
+    quality: int = 95,
+    destination: str | Path | None = None,
+) -> Path:
     """
     Convert an image to JPEG format.
 
@@ -156,7 +164,11 @@ def resize_exact(
     img.save(destination)
 
 
-def scale(path: str | Path, scale_factor: float, destination: str | Path | None = None) -> None:
+def scale(
+    path: str | Path,
+    scale_factor: float,
+    destination: str | Path | None = None,
+) -> None:
     """
     Scale an image by a given factor.
 
@@ -205,7 +217,11 @@ def rotate_clockwise(
     img.save(destination)
 
 
-def turn_clockwise(path: str | Path, turns: int = 1, destination: str | Path | None = None) -> None:
+def turn_clockwise(
+    path: str | Path,
+    turns: int = 1,
+    destination: str | Path | None = None,
+) -> None:
     """
     Turn an image clockwise in steps of 90 degrees.
 

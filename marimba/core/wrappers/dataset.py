@@ -325,14 +325,20 @@ class DatasetWrapper(LogMixin):
 
         def check_dir_exists(path: Path) -> None:
             if not path.is_dir():
-                raise DatasetWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory')
+                raise DatasetWrapper.InvalidStructureError(
+                    f'"{path}" does not exist or is not a directory',
+                )
 
         check_dir_exists(self.root_dir)
         check_dir_exists(self.data_dir)
         check_dir_exists(self.logs_dir)
         check_dir_exists(self.pipeline_logs_dir)
 
-    def validate(self, progress: Progress | None = None, task: TaskID | None = None) -> None:
+    def validate(
+        self,
+        progress: Progress | None = None,
+        task: TaskID | None = None,
+    ) -> None:
         """
         Validate the dataset. If the dataset is inconsistent with its manifest (if present), raise a ManifestError.
 
@@ -457,7 +463,10 @@ class DatasetWrapper(LogMixin):
         @multithreaded(max_workers=max_workers)
         def process_file(
             self: DatasetWrapper,
-            item: tuple[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
+            item: tuple[
+                Path,
+                tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None],
+            ],
             thread_num: str,
             pipeline_name: str,
             operation: Operation,
@@ -518,7 +527,9 @@ class DatasetWrapper(LogMixin):
 
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
                 for collection_name, collection_data_mapping in pipeline_data_mapping.items():
-                    self.logger.info(f'Started populating data for pipeline "{pipeline_name}"')
+                    self.logger.info(
+                        f'Started populating data for pipeline "{pipeline_name}"',
+                    )
                     process_file(
                         self,
                         items=list(collection_data_mapping.items()),
@@ -529,13 +540,18 @@ class DatasetWrapper(LogMixin):
                         progress=progress,
                         tasks_by_pipeline_name=tasks_by_pipeline_name,
                     )  # type: ignore[call-arg]
-                    self.logger.info(f'Completed populating data for pipeline "{pipeline_name}"')
+                    self.logger.info(
+                        f'Completed populating data for pipeline "{pipeline_name}"',
+                    )
 
         return dataset_items
 
     def _process_files_with_metadata(
         self,
-        dataset_mapping: dict[str, dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]],
+        dataset_mapping: dict[
+            str,
+            dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
+        ],
         max_workers: int | None = None,
     ) -> None:
         """
@@ -546,10 +562,17 @@ class DatasetWrapper(LogMixin):
             max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
         """
         # Group files by metadata type
-        files_by_type: dict[type, dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]]] = {}
+        files_by_type: dict[
+            type,
+            dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
+        ] = {}
 
         for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-            for relative_dst, metadata_items, ancillary_data in pipeline_data_mapping.values():
+            for (
+                relative_dst,
+                metadata_items,
+                ancillary_data,
+            ) in pipeline_data_mapping.values():
                 if not metadata_items:
                     continue
 
@@ -699,11 +722,19 @@ class DatasetWrapper(LogMixin):
         if progress:
             with Progress(SpinnerColumn(), *get_default_columns()) as progress_bar:
                 total_tasks = len(flatten_mapping(flatten_middle_mapping(dataset_items))) + 1
-                task = progress_bar.add_task("[green]Generating dataset metadata (5/12)", total=total_tasks)
+                task = progress_bar.add_task(
+                    "[green]Generating dataset metadata (5/12)",
+                    total=total_tasks,
+                )
 
                 processed_items = execute_on_mapping(
                     dataset_items,
-                    lambda x: self._process_items(x, progress_bar, task, max_workers),
+                    lambda x: self._process_items(
+                        x,
+                        progress_bar,
+                        task,
+                        max_workers,
+                    ),
                 )
                 grouped_items = execute_on_mapping(processed_items, self._group_by_metadata_type)
 
@@ -770,14 +801,21 @@ class DatasetWrapper(LogMixin):
 
         if progress:
             with Progress(SpinnerColumn(), *get_default_columns()) as progress_bar:
-                task = progress_bar.add_task("[green]Generating dataset summary (6/12)", total=1)
+                task = progress_bar.add_task(
+                    "[green]Generating dataset summary (6/12)",
+                    total=1,
+                )
                 generate_summary()
                 progress_bar.advance(task)
         else:
             generate_summary()
 
     @staticmethod
-    def _is_valid_coordinate(value: float | None, min_value: float, max_value: float) -> bool:
+    def _is_valid_coordinate(
+        value: float | None,
+        min_value: float,
+        max_value: float,
+    ) -> bool:
         """
         Validate if a coordinate is a valid real number within the given range.
 
@@ -807,10 +845,18 @@ class DatasetWrapper(LogMixin):
             False.
         """
         valid_latitude = self._is_valid_coordinate(lat, -90.0, 90.0)
-        valid_longitude = self._is_valid_coordinate(lon, -180.0, 180.0) or self._is_valid_coordinate(lon, 0.0, 360.0)
+        valid_longitude = self._is_valid_coordinate(
+            lon,
+            -180.0,
+            180.0,
+        ) or self._is_valid_coordinate(lon, 0.0, 360.0)
         return valid_latitude and valid_longitude
 
-    def _generate_dataset_map(self, image_set_items: dict[str, list[BaseMetadata]], zoom: int | None = None) -> None:
+    def _generate_dataset_map(
+        self,
+        image_set_items: dict[str, list[BaseMetadata]],
+        zoom: int | None = None,
+    ) -> None:
         """
         Generate a summary of the dataset, including a map of geolocations if available.
 
@@ -826,7 +872,10 @@ class DatasetWrapper(LogMixin):
                 (image_data.latitude, image_data.longitude)
                 for image_data_list in image_set_items.values()
                 for image_data in image_data_list
-                if self._validate_geolocations(image_data.latitude, image_data.longitude)
+                if self._validate_geolocations(
+                    image_data.latitude,
+                    image_data.longitude,
+                )
             ]
             if geolocations:
                 summary_map = make_summary_map(geolocations, zoom=zoom)
@@ -841,7 +890,11 @@ class DatasetWrapper(LogMixin):
                     )
             progress.advance(task)
 
-    def _copy_logs(self, project_log_path: Path, pipeline_log_paths: Iterable[Path]) -> None:
+    def _copy_logs(
+        self,
+        project_log_path: Path,
+        pipeline_log_paths: Iterable[Path],
+    ) -> None:
         """
         Copy project and pipeline log files to the appropriate directories.
 
@@ -855,7 +908,9 @@ class DatasetWrapper(LogMixin):
                 copy2(project_log_path, self.logs_dir)
                 for pipeline_log_path in pipeline_log_paths:
                     copy2(pipeline_log_path, self.pipeline_logs_dir)
-            self.logger.info(f"Copied project logs to {format_path_for_logging(self.logs_dir, self._project_dir)}")
+            self.logger.info(
+                f"Copied project logs to {format_path_for_logging(self.logs_dir, self._project_dir)}",
+            )
             progress.advance(task)
 
     def _copy_pipelines(self, project_pipelines_dir: Path) -> None:
@@ -877,7 +932,12 @@ class DatasetWrapper(LogMixin):
                     ".DS_Store",
                     "*.log",
                 )
-                copytree(project_pipelines_dir, self.pipelines_dir, dirs_exist_ok=True, ignore=ignore)
+                copytree(
+                    project_pipelines_dir,
+                    self.pipelines_dir,
+                    dirs_exist_ok=True,
+                    ignore=ignore,
+                )
             self.logger.info(
                 f"Copied project pipelines to {format_path_for_logging(self.pipelines_dir, self._project_dir)}",
             )
@@ -895,7 +955,10 @@ class DatasetWrapper(LogMixin):
         """
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             globbed_files = list(self.root_dir.glob("**/*"))
-            task = progress.add_task("[green]Generating manifest (10/12)", total=len(globbed_files))
+            task = progress.add_task(
+                "[green]Generating manifest (10/12)",
+                total=len(globbed_files),
+            )
             manifest = Manifest.from_dir(
                 self.root_dir,
                 exclude_paths=[self.manifest_path, self.log_path],
@@ -923,7 +986,10 @@ class DatasetWrapper(LogMixin):
 
     def check_dataset_mapping(
         self,
-        dataset_mapping: dict[str, dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]]],
+        dataset_mapping: dict[
+            str,
+            dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
+        ],
         max_workers: int | None = None,
     ) -> None:
         """
@@ -941,19 +1007,45 @@ class DatasetWrapper(LogMixin):
             total_tasks += len(pipeline_data_mapping) * 4
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Checking dataset mapping (2/12)", total=total_tasks)
+            task = progress.add_task(
+                "[green]Checking dataset mapping (2/12)",
+                total=total_tasks,
+            )
 
             for pipeline_data_mapping in dataset_mapping.values():
-                self._verify_source_paths_exist(pipeline_data_mapping, progress, task, max_workers)
-                self._verify_unique_source_resolutions(pipeline_data_mapping, progress, task, max_workers)
-                self._verify_relative_destination_paths(pipeline_data_mapping, progress, task, max_workers)
-                self._verify_no_destination_collisions(pipeline_data_mapping, progress, task, max_workers)
+                self._verify_source_paths_exist(
+                    pipeline_data_mapping,
+                    progress,
+                    task,
+                    max_workers,
+                )
+                self._verify_unique_source_resolutions(
+                    pipeline_data_mapping,
+                    progress,
+                    task,
+                    max_workers,
+                )
+                self._verify_relative_destination_paths(
+                    pipeline_data_mapping,
+                    progress,
+                    task,
+                    max_workers,
+                )
+                self._verify_no_destination_collisions(
+                    pipeline_data_mapping,
+                    progress,
+                    task,
+                    max_workers,
+                )
 
         self.logger.info("Dataset mapping is valid")
 
     def _verify_source_paths_exist(
         self,
-        pipeline_data_mapping: dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
+        pipeline_data_mapping: dict[
+            Path,
+            tuple[Path, list[Any] | None, dict[str, Any] | None],
+        ],
         progress: Progress,
         task: TaskID,
         max_workers: int | None = None,
@@ -968,7 +1060,9 @@ class DatasetWrapper(LogMixin):
             task: TaskID | None = None,
         ) -> None:
             if not item.exists():
-                raise DatasetWrapper.InvalidDatasetMappingError(f"Source path {item} does not exist")
+                raise DatasetWrapper.InvalidDatasetMappingError(
+                    f"Source path {item} does not exist",
+                )
             if progress and task is not None:
                 progress.advance(task)
 
@@ -982,7 +1076,10 @@ class DatasetWrapper(LogMixin):
 
     def _verify_unique_source_resolutions(
         self,
-        pipeline_data_mapping: dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
+        pipeline_data_mapping: dict[
+            Path,
+            tuple[Path, list[Any] | None, dict[str, Any] | None],
+        ],
         progress: Progress,
         task: TaskID,
         max_workers: int | None = None,
@@ -1019,7 +1116,10 @@ class DatasetWrapper(LogMixin):
 
     def _verify_relative_destination_paths(
         self,
-        pipeline_data_mapping: dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
+        pipeline_data_mapping: dict[
+            Path,
+            tuple[Path, list[Any] | None, dict[str, Any] | None],
+        ],
         progress: Progress,
         task: TaskID,
         max_workers: int | None = None,
@@ -1036,7 +1136,9 @@ class DatasetWrapper(LogMixin):
             task: TaskID | None = None,
         ) -> None:
             if item.is_absolute():
-                raise DatasetWrapper.InvalidDatasetMappingError(f"Destination path {item} must be relative")
+                raise DatasetWrapper.InvalidDatasetMappingError(
+                    f"Destination path {item} must be relative",
+                )
             if progress and task is not None:
                 progress.advance(task)
 
@@ -1050,7 +1152,10 @@ class DatasetWrapper(LogMixin):
 
     def _verify_no_destination_collisions(
         self,
-        pipeline_data_mapping: dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
+        pipeline_data_mapping: dict[
+            Path,
+            tuple[Path, list[Any] | None, dict[str, Any] | None],
+        ],
         progress: Progress,
         task: TaskID,
         max_workers: int | None = None,

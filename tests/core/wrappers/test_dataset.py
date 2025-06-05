@@ -66,14 +66,26 @@ class TestDatasetWrapper(TestCase):
                 "test": {
                     Path("file1.txt"): (Path("destination1.txt"), None, None),
                     Path("file2.txt"): (Path("destination2.txt"), None, None),
-                    Path("some_dir/../file1.txt"): (Path("destination3.txt"), None, None),
+                    Path("some_dir/../file1.txt"): (
+                        Path("destination3.txt"),
+                        None,
+                        None,
+                    ),
                 },
             }
             with self.assertRaises(DatasetWrapper.InvalidDatasetMappingError):
                 self.dataset_wrapper.check_dataset_mapping(dataset_mapping)
 
             # Test that a path mapping with absolute destination paths raises an error
-            dataset_mapping = {"test": {Path("file.txt"): (Path("path/to/destination.txt").absolute(), None, None)}}
+            dataset_mapping = {
+                "test": {
+                    Path("file.txt"): (
+                        Path("path/to/destination.txt").absolute(),
+                        None,
+                        None,
+                    )
+                }
+            }
             with self.assertRaises(DatasetWrapper.InvalidDatasetMappingError):
                 self.dataset_wrapper.check_dataset_mapping(dataset_mapping)
 

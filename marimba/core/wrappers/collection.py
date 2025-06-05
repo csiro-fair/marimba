@@ -49,7 +49,11 @@ class CollectionWrapper:
         self._check_file_structure()
 
     @classmethod
-    def create(cls, root_dir: str | Path, config: dict[str, Any]) -> "CollectionWrapper":
+    def create(
+        cls,
+        root_dir: str | Path,
+        config: dict[str, Any],
+    ) -> "CollectionWrapper":
         """
         Create a new collection directory.
 
@@ -101,11 +105,15 @@ class CollectionWrapper:
 
         def check_dir_exists(path: Path) -> None:
             if not path.is_dir():
-                raise CollectionWrapper.InvalidStructureError(f'"{path}" does not exist or is not a directory')
+                raise CollectionWrapper.InvalidStructureError(
+                    f'"{path}" does not exist or is not a directory',
+                )
 
         def check_file_exists(path: Path) -> None:
             if not path.is_file():
-                raise CollectionWrapper.InvalidStructureError(f'"{path}" does not exist or is not a file')
+                raise CollectionWrapper.InvalidStructureError(
+                    f'"{path}" does not exist or is not a file',
+                )
 
         check_dir_exists(self.root_dir)
         check_file_exists(self.config_path)
@@ -134,7 +142,9 @@ class CollectionWrapper:
         """
         pipeline_data_dir = self._get_pipeline_data_dir(pipeline_name)
         if pipeline_data_dir.is_dir():
-            raise FileExistsError(f'Pipeline data directory "{pipeline_data_dir}" already exists')
+            raise FileExistsError(
+                f'Pipeline data directory "{pipeline_data_dir}" already exists',
+            )
 
         pipeline_data_dir.mkdir(parents=True)
         return pipeline_data_dir
@@ -166,5 +176,7 @@ class CollectionWrapper:
         """
         pipeline_data_dir = self._get_pipeline_data_dir(pipeline_name)
         if not pipeline_data_dir.is_dir():
-            raise CollectionWrapper.NoSuchPipelineError(f'Pipeline "{pipeline_name}" does not exist')
+            raise CollectionWrapper.NoSuchPipelineError(
+                f'Pipeline "{pipeline_name}" does not exist',
+            )
         return pipeline_data_dir

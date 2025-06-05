@@ -58,7 +58,10 @@ class Manifest:
             raise ValueError(f"Path is not a directory: {directory}")
 
     @staticmethod
-    def _get_files_from_directory(directory: Path, logger: logging.Logger | None) -> list[Path]:
+    def _get_files_from_directory(
+        directory: Path,
+        logger: logging.Logger | None,
+    ) -> list[Path]:
         """
         Get all files from a directory.
 
@@ -194,7 +197,12 @@ class Manifest:
                 return
 
             try:
-                result = cls._process_single_file(item, directory, dataset_items, logger)
+                result = cls._process_single_file(
+                    item,
+                    directory,
+                    dataset_items,
+                    logger,
+                )
                 if result:
                     rel_path, file_hash = result
                     hashes[rel_path] = file_hash
@@ -434,7 +442,9 @@ class Manifest:
                             path_str, hash_str = line.strip().split(":")
                             hashes[Path(path_str)] = hash_str
                         except ValueError as e:
-                            raise ValueError(f"Invalid manifest file format at line: {line.strip()}") from e
+                            raise ValueError(
+                                f"Invalid manifest file format at line: {line.strip()}",
+                            ) from e
             return cls(hashes)
         except OSError as e:
             raise OSError(f"Failed to load manifest from {path}: {e!s}") from e

@@ -63,7 +63,11 @@ def x_to_lon(x: float, zoom: int) -> float:
     return (x / n * 360.0) - 180.0
 
 
-def calculate_grid_intervals(min_val: float, max_val: float, num_lines: int) -> tuple[list[float], int]:
+def calculate_grid_intervals(
+    min_val: float,
+    max_val: float,
+    num_lines: int,
+) -> tuple[list[float], int]:
     """
     Calculate appropriate grid line intervals based on coordinate range.
 
@@ -164,8 +168,16 @@ def add_axes(
     margin_y = 40
 
     # Calculate grid intervals and positions first
-    lon_positions, lon_decimals = calculate_grid_intervals(min_lon, max_lon, num_x_lines)
-    lat_positions, lat_decimals = calculate_grid_intervals(min_lat, max_lat, num_y_lines)
+    lon_positions, lon_decimals = calculate_grid_intervals(
+        min_lon,
+        max_lon,
+        num_x_lines,
+    )
+    lat_positions, lat_decimals = calculate_grid_intervals(
+        min_lat,
+        max_lat,
+        num_y_lines,
+    )
 
     # Calculate dynamic dash padding based on decimal places in latitude labels
     extra_padding = max(0, lat_decimals - MIN_DECIMAL_PLACES) * PADDING_PER_DECIMAL
@@ -174,7 +186,11 @@ def add_axes(
     # Calculate total left margin based on fixed label width and dynamic padding
     total_left_margin = BASE_LEFT_MARGIN + LABEL_WIDTH + total_dash_padding
 
-    def draw_dashed_line(start: tuple[int, int], end: tuple[int, int], dash_length: int = 5) -> None:
+    def draw_dashed_line(
+        start: tuple[int, int],
+        end: tuple[int, int],
+        dash_length: int = 5,
+    ) -> None:
         """Draw a dashed line between two points."""
         x1, y1 = start
         x2, y2 = end
@@ -229,7 +245,10 @@ def add_axes(
                 font=ImageFont.load_default(size=16),
                 anchor="lm",
             )
-            draw_dashed_line((total_left_margin, int(y)), (width - BASE_LEFT_MARGIN, int(y)))
+            draw_dashed_line(
+                (total_left_margin, int(y)),
+                (width - BASE_LEFT_MARGIN, int(y)),
+            )
 
 
 def calculate_zoom_level(
@@ -336,7 +355,11 @@ def make_summary_map(
     max_lon = max(lons)
 
     try:
-        m = StaticMap(width, height, url_template="http://a.tile.osm.org/{z}/{x}/{y}.png")
+        m = StaticMap(
+            width,
+            height,
+            url_template="http://a.tile.osm.org/{z}/{x}/{y}.png",
+        )
 
         # Add markers
         for lat, lon in valid_coords:
@@ -345,7 +368,14 @@ def make_summary_map(
 
         # Calculate zoom level if not provided
         if zoom is None:
-            zoom = calculate_zoom_level(min_lat, max_lat, min_lon, max_lon, width, height)
+            zoom = calculate_zoom_level(
+                min_lat,
+                max_lat,
+                min_lon,
+                max_lon,
+                width,
+                height,
+            )
 
         # Calculate center point
         center_lat = (min_lat + max_lat) / 2

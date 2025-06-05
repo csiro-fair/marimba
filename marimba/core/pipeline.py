@@ -115,7 +115,13 @@ class BasePipeline(ABC, LogMixin):
         """
         return self.__class__.__name__
 
-    def run_import(self, data_dir: Path, source_path: Path, config: dict[str, Any], **kwargs: dict[str, Any]) -> None:
+    def run_import(
+        self,
+        data_dir: Path,
+        source_path: Path,
+        config: dict[str, Any],
+        **kwargs: dict[str, Any],
+    ) -> None:
         """
         Public interface for the import command. Delegate to the private implementation method `_import`.
 
@@ -146,7 +152,12 @@ class BasePipeline(ABC, LogMixin):
 
         return
 
-    def run_process(self, data_dir: Path, config: dict[str, Any], **kwargs: dict[str, Any]) -> None:
+    def run_process(
+        self,
+        data_dir: Path,
+        config: dict[str, Any],
+        **kwargs: dict[str, Any],
+    ) -> None:
         """
         Public interface for the process command. Delegate to the private implementation method `_process`.
 
