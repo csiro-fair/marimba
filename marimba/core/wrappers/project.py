@@ -1056,10 +1056,13 @@ class ProjectWrapper(LogMixin):
         extra_args: list[str] | None = None,
         max_workers: int | None = None,
         **kwargs: dict[str, Any],
-    ) -> dict[str, dict[
+    ) -> dict[
         str,
-        dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
-    ]]:
+        dict[
+            str,
+            dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
+        ],
+    ]:
         """
         Compose a dataset for given collections across multiple pipelines.
 
@@ -1114,9 +1117,9 @@ class ProjectWrapper(LogMixin):
         dataset_mapping: dict[
             str,
             dict[
-            str,
-            dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
-        ],
+                str,
+                dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
+            ],
         ] = defaultdict(lambda: defaultdict(dict))
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
@@ -1174,9 +1177,9 @@ class ProjectWrapper(LogMixin):
         dataset_mapping: dict[
             str,
             dict[
-            str,
-            dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
-        ],
+                str,
+                dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
+            ],
         ],
         metadata_mapping_processor_decorator: list[DECORATOR_TYPE],
         post_package_processors: list[Callable[[Path], set[Path]]],

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from marimba.core.installer.pip_executor import ExecutorResult, PipExecutor
+from marimba.core.installer.uv_executor import ExecutorResult, UvExecutor
 
 if TYPE_CHECKING:
     import logging
@@ -37,7 +37,7 @@ class PipelineInstaller:
         self,
         pipeline_path: Path,
         logger: logging.Logger,
-        pip_executor: Callable[..., ExecutorResult],
+        uv_executor: Callable[..., ExecutorResult],
     ) -> None:
         """
         Initialize the pipeline installer.
@@ -45,16 +45,16 @@ class PipelineInstaller:
         Args:
             pipeline_path: Path to the pipeline to install.
             logger: Logger to use.
-            pip_executor: Pip executor to use.
+            uv_executor: Uv executor to use.
         """
         self._pipeline_path = pipeline_path
         self._logger = logger
-        self._executor = pip_executor
+        self._executor = uv_executor
 
     @classmethod
     def create(cls, pipeline_path: Path, logger: logging.Logger) -> PipelineInstaller:
         """
-        Creates a new pipeline installer with the pip executor.
+        Creates a new pipeline installer with the uv executor.
 
         Args:
             pipeline_path: Path to the pipeline to install.
@@ -63,8 +63,8 @@ class PipelineInstaller:
         Returns:
             PipelineInstaller instance.
         """
-        pip_executor = PipExecutor.create()
-        return cls(pipeline_path, logger, pip_executor)
+        uv_executor = UvExecutor.create()
+        return cls(pipeline_path, logger, uv_executor)
 
     @property
     def requirements_path(self) -> Path:
@@ -103,12 +103,12 @@ class PipelineInstaller:
             abs_path = self.requirements_path.absolute()
             self._validate_exists(abs_path)
 
-            result = self._executor("install", "--no-input", "-r", str(abs_path))
+            result = self._executor("install", "-r", str(abs_path))
         elif self.py_project_path.is_file():
             abs_path = self.py_project_path.absolute()
             self._validate_exists(abs_path)
 
-            result = self._executor("install", "--no-input", str(abs_path.parent))
+            result = self._executor("install", str(abs_path.parent))
         else:
             error_msg = f"Pipeline does not defines dependencies: {self.requirements_path} / {self.py_project_path}"
             self._logger.exception(error_msg)

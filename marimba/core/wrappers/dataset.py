@@ -528,8 +528,8 @@ class DatasetWrapper(LogMixin):
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
                 for collection_name, collection_data_mapping in pipeline_data_mapping.items():
                     self.logger.info(
-                    f'Started populating data for pipeline "{pipeline_name}"',
-                )
+                        f'Started populating data for pipeline "{pipeline_name}"',
+                    )
                     process_file(
                         self,
                         items=list(collection_data_mapping.items()),
@@ -541,8 +541,8 @@ class DatasetWrapper(LogMixin):
                         tasks_by_pipeline_name=tasks_by_pipeline_name,
                     )  # type: ignore[call-arg]
                     self.logger.info(
-                    f'Completed populating data for pipeline "{pipeline_name}"',
-                )
+                        f'Completed populating data for pipeline "{pipeline_name}"',
+                    )
 
         return dataset_items
 
@@ -729,12 +729,12 @@ class DatasetWrapper(LogMixin):
 
                 processed_items = execute_on_mapping(
                     dataset_items,
-                    lambda x:self._process_items(
-                    x,
-                    progress_bar,
-                    task,
-                    max_workers,
-                ),
+                    lambda x: self._process_items(
+                        x,
+                        progress_bar,
+                        task,
+                        max_workers,
+                    ),
                 )
                 grouped_items = execute_on_mapping(processed_items, self._group_by_metadata_type)
 

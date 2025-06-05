@@ -5,7 +5,7 @@ from typing import Generator
 
 import pytest
 
-from marimba.core.installer.pip_executor import ExecutorResult, PipExecutor
+from marimba.core.installer.uv_executor import ExecutorResult, UvExecutor
 from marimba.core.installer.pipeline_installer import PipelineInstaller
 
 
@@ -31,7 +31,6 @@ def test_installer_valid(caplog: pytest.LogCaptureFixture, temp_dir_with_require
     def mock_executor(*args: str) -> ExecutorResult:
         assert args == (
             "install",
-            "--no-input",
             "-r",
             str(temp_dir_with_requirements / "requirements.txt"),
         )
@@ -58,7 +57,7 @@ def test_installer_executor_error(caplog: pytest.LogCaptureFixture, temp_dir_wit
     logger = logging.Logger("test")
 
     def mock_executor(*args: str) -> ExecutorResult:
-        raise PipExecutor.PipError("")
+        raise UvExecutor.UvError("")
 
     installer = PipelineInstaller(temp_dir_with_requirements, logger, mock_executor)
 

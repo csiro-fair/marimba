@@ -47,7 +47,7 @@ def multithreaded(max_workers: int | None = None) -> Callable[[T], T]:
             self: Any,  # noqa: ANN401
             *args: Any,  # noqa: ANN401
             items: Iterable[Any],
-           logger: logging.Logger | None = None,
+            logger: logging.Logger | None = None,
             **kwargs: Any,  # noqa: ANN401
         ) -> list[Any]:
             if not isinstance(items, Sized):
