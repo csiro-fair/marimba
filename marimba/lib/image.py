@@ -803,7 +803,7 @@ def get_shannon_entropy(image_data: Image.Image) -> float:
     return float(entropy)
 
 
-def get_average_image_color(image_data: Image.Image) -> tuple[int, ...]:
+def get_average_image_color(image_data: Image.Image) -> list[int]:
     """
     Calculate the average color of an image.
 
@@ -822,4 +822,4 @@ def get_average_image_color(image_data: Image.Image) -> tuple[int, ...]:
     # Calculate the average color for each channel
     average_color = np.mean(np_image, axis=(0, 1))
 
-    return tuple(map(int, average_color))
+    return list(map(int, average_color))

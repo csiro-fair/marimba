@@ -44,9 +44,9 @@ from marimba.lib.decorators import multithreaded
 from marimba.lib.gps import convert_degrees_to_gps_coordinate
 
 if TYPE_CHECKING:
-    from ifdo.models import ImageData, ImageSetHeader, iFDO
+    from ifdo import ImageData, ImageSetHeader, iFDO
 else:
-    from ifdo.models import ImageData, ImageSetHeader, iFDO
+    from ifdo import ImageData, ImageSetHeader, iFDO
 
 
 logger = get_logger(__name__)
@@ -158,10 +158,21 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         saver = yaml_saver if saver_overwrite is None else saver_overwrite
 
         # Convert BaseMetadata items to ImageData for iFDO
-        image_set_items = {
-            path: [item.image_data for item in metadata_items if isinstance(item, iFDOMetadata)]
-            for path, metadata_items in items.items()
-        }
+        # Use filename only as keys per iFDO standard instead of full paths
+        image_set_items = {}
+        for path_str, metadata_items in items.items():
+            path = Path(path_str)
+            filename = path.name
+            image_data_list = []
+            for item in metadata_items:
+                if isinstance(item, iFDOMetadata):
+                    image_data = item.image_data
+                    # Set the image-set-local-path to the directory path for files in subdirectories
+                    if path.parent != Path():
+                        image_data.image_set_local_path = str(path.parent)
+                    image_data_list.append(image_data)
+            if image_data_list:
+                image_set_items[filename] = image_data_list
 
         ifdo = iFDO(
             image_set_header=ImageSetHeader(
@@ -180,7 +191,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             output_name = metadata_name if metadata_name.endswith(".ifdo") else f"{metadata_name}.ifdo"
 
         if not dry_run:
-            saver(root_dir, output_name, ifdo.to_dict())
+            saver(root_dir, output_name, ifdo.model_dump(mode="json", by_alias=True, exclude_none=True))
 
     @classmethod
     def process_files(
@@ -436,7 +447,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             ancillary_data: Any ancillary data to include in the user comment.
             exif_dict: The EXIF metadata dictionary.
         """
-        image_data_dict = image_data.to_dict()
+        image_data_dict = image_data.model_dump(mode="json", by_alias=True, exclude_none=True)
         user_comment_data = {
             "metadata": {"ifdo": image_data_dict, "ancillary": ancillary_data},
         }
