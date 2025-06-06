@@ -213,10 +213,10 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         for item in ifdo_items:
             if item.is_video:
                 # If the metadata is already a video (list), extend with all entries
-                image_data_list.extend(item.image_data)
+                image_data_list.extend(cast(list[ImageData], item.image_data))
             else:
                 # If single ImageData, add it to the list
-                image_data_list.append(item.image_data)
+                image_data_list.append(cast(ImageData, item.image_data))
 
         # Set image-set-local-path for subdirectory files
         if path.parent != Path():
@@ -275,17 +275,8 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 if image_data_list:
                     image_set_items[filename] = image_data_list
             else:
-                image_data_list = []
-                for item in metadata_items:
-                    if isinstance(item, iFDOMetadata):
-                        image_data = item.image_data
-                        # Set the image-set-local-path to the directory path for files in subdirectories
-                        if path.parent != Path():
-                            image_data.image_set_local_path = str(path.parent)
-                        image_data_list.append(image_data)
-
-                if image_data_list:
-                    image_set_items[filename] = image_data_list
+                image_data = cls._process_image_metadata(ifdo_items, path)
+                image_set_items[filename] = image_data
 
         ifdo = iFDO(
             image_set_header=ImageSetHeader(
