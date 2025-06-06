@@ -39,6 +39,7 @@ from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.metadata import yaml_saver
 from marimba.core.utils.rich import get_default_columns
+from marimba.core.validators.ifdo import iFDOValidator
 from marimba.lib import image
 from marimba.lib.decorators import multithreaded
 from marimba.lib.gps import convert_degrees_to_gps_coordinate
@@ -248,13 +249,16 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         dataset_name: str,
         root_dir: Path,
         items: dict[str, list["BaseMetadata"]],
+        logger: logging.Logger,
         metadata_name: str | None = None,
         *,
         dry_run: bool = False,
         saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
+        validator_option: Callable[[iFDO], bool] | None = None,
     ) -> None:
         """Create an iFDO from the metadata items."""
         saver = yaml_saver if saver_overwrite is None else saver_overwrite
+        validator = validator_option if validator_option is not None else iFDOValidator.create()
 
         # Convert BaseMetadata items to ImageData for iFDO
         # Use filename only as keys per iFDO standard instead of full paths
@@ -293,6 +297,16 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         # If metadata_name is provided but missing extension, add it
         else:
             output_name = metadata_name if metadata_name.endswith(".ifdo") else f"{metadata_name}.ifdo"
+
+        if not validator(ifdo):
+            # Determine the file extension that will be used by the saver
+            if saver == yaml_saver:
+                extension = ".yml"
+            else:
+                extension = ".json"
+            
+            logger.warning(f"Dataset iFDO file {output_name}{extension} is incomplete and will be saved as {output_name}.incomplete{extension}")
+            output_name += ".incomplete"
 
         if not dry_run:
             saver(root_dir, output_name, ifdo.model_dump(mode="json", by_alias=True, exclude_none=True))
@@ -397,8 +411,17 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                     progress.advance(task)
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Processing files with metadata (4/12)", total=len(dataset_mapping))
-            process_file(cls, items=dataset_mapping.items(), progress=progress, task=task, logger=log)  # type: ignore[call-arg]
+            task = progress.add_task(
+                "[green]Processing files with metadata (4/12)",
+                total=len(dataset_mapping),
+            )
+            process_file(
+                cls,
+                items=dataset_mapping.items(),
+                progress=progress,
+                task=task,
+                logger=log,
+            )  # type: ignore[call-arg]
 
     @staticmethod
     def _inject_datetime(image_data: ImageData, exif_dict: dict[str, Any]) -> None:

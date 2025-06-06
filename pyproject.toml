@@ -27,6 +27,7 @@ dependencies = [
     "botocore>=1.38.2",
     "requests>=2.32.3",
     "uv>=0.7.8",
+    "jsonschema>=4.24.0",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",

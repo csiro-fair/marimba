@@ -425,9 +425,18 @@ class DatasetWrapper(LogMixin):
 
         reduced_dataset_mapping = flatten_middle_mapping(dataset_mapping)
         self.check_dataset_mapping(reduced_dataset_mapping, max_workers)
-        mapped_dataset_items = self._populate_files(dataset_mapping, operation, max_workers)
+        mapped_dataset_items = self._populate_files(
+            dataset_mapping,
+            operation,
+            max_workers,
+        )
         self._process_files_with_metadata(reduced_dataset_mapping, max_workers)
-        self.generate_metadata(dataset_name, mapped_dataset_items, mapping_processor_decorator, max_workers)
+        self.generate_metadata(
+            dataset_name,
+            mapped_dataset_items,
+            mapping_processor_decorator,
+            max_workers,
+        )
         dataset_items = flatten_mapping(flatten_middle_mapping(mapped_dataset_items))
 
         self.generate_dataset_summary(dataset_items)
@@ -526,7 +535,10 @@ class DatasetWrapper(LogMixin):
             }
 
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-                for collection_name, collection_data_mapping in pipeline_data_mapping.items():
+                for (
+                    collection_name,
+                    collection_data_mapping,
+                ) in pipeline_data_mapping.items():
                     self.logger.info(
                         f'Started populating data for pipeline "{pipeline_name}"',
                     )
@@ -677,6 +689,7 @@ class DatasetWrapper(LogMixin):
                 dataset_name=dataset_name,
                 root_dir=self.root_dir,
                 items=type_items,
+                logger=self.logger,
                 metadata_name=collection_name,
                 dry_run=self.dry_run,
                 saver_overwrite=self._metadata_saver_overwrite,
@@ -736,22 +749,45 @@ class DatasetWrapper(LogMixin):
                         max_workers,
                     ),
                 )
-                grouped_items = execute_on_mapping(processed_items, self._group_by_metadata_type)
+                grouped_items = execute_on_mapping(
+                    processed_items,
+                    self._group_by_metadata_type,
+                )
 
-                progress_bar.update(task, description="[green]Writing dataset metadata (5/12)")
+                progress_bar.update(
+                    task,
+                    description="[green]Writing dataset metadata (5/12)",
+                )
                 for decorator in mapping_processor_decorator:
-                    decorator(lambda x, y: self._create_metadata_files(dataset_name, x, y), grouped_items)
+                    decorator(
+                        lambda x, y: self._create_metadata_files(dataset_name, x, y),
+                        grouped_items,
+                    )
 
                 progress_bar.advance(task)
         else:
-            processed_items = execute_on_mapping(dataset_items, lambda x: self._process_items(x))
-            grouped_items = execute_on_mapping(processed_items, self._group_by_metadata_type)
+            processed_items = execute_on_mapping(
+                dataset_items,
+                lambda x: self._process_items(x),
+            )
+            grouped_items = execute_on_mapping(
+                processed_items,
+                self._group_by_metadata_type,
+            )
             for decorator in mapping_processor_decorator:
-                decorator(lambda x, y: self._create_metadata_files(dataset_name, x, y), grouped_items)
+                decorator(
+                    lambda x, y: self._create_metadata_files(dataset_name, x, y),
+                    grouped_items,
+                )
 
-        self._log_metadata_summary(flatten_mapping(flatten_middle_mapping(grouped_items)))
+        self._log_metadata_summary(
+            flatten_mapping(flatten_middle_mapping(grouped_items)),
+        )
 
-    def _run_post_package_processors(self, post_package_processors: list[Callable[[Path], set[Path]]]) -> set[Path]:
+    def _run_post_package_processors(
+        self,
+        post_package_processors: list[Callable[[Path], set[Path]]],
+    ) -> set[Path]:
         changed_files = set()
         with Progress(SpinnerColumn(), *get_default_columns()) as progress_bar:
             task = progress_bar.add_task(
@@ -764,7 +800,11 @@ class DatasetWrapper(LogMixin):
 
         return changed_files
 
-    def _update_manifest(self, changed_files: set[Path], max_worker: int | None = None) -> None:
+    def _update_manifest(
+        self,
+        changed_files: set[Path],
+        max_worker: int | None = None,
+    ) -> None:
         manifest = Manifest.load(self.manifest_path)
         manifest.update(
             changed_files,
