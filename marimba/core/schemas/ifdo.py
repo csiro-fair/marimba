@@ -44,10 +44,10 @@ from marimba.lib.decorators import multithreaded
 from marimba.lib.gps import convert_degrees_to_gps_coordinate
 
 if TYPE_CHECKING:
-    from ifdo.models import ImageData, ImageSetHeader
+    from ifdo import ImageData, ImageSetHeader
     from ifdo.models.ifdo import iFDO
 else:
-    from ifdo.models import ImageData, ImageSetHeader
+    from ifdo import ImageData, ImageSetHeader
     from ifdo.models.ifdo import iFDO
 
 
@@ -275,8 +275,17 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 if image_data_list:
                     image_set_items[filename] = image_data_list
             else:
-                image_data = cls._process_image_metadata(ifdo_items, path)
-                image_set_items[filename] = image_data
+                image_data_list = []
+                for item in metadata_items:
+                    if isinstance(item, iFDOMetadata):
+                        image_data = item.image_data
+                        # Set the image-set-local-path to the directory path for files in subdirectories
+                        if path.parent != Path():
+                            image_data.image_set_local_path = str(path.parent)
+                        image_data_list.append(image_data)
+
+                if image_data_list:
+                    image_set_items[filename] = image_data_list
 
         ifdo = iFDO(
             image_set_header=ImageSetHeader(
