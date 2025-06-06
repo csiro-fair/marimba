@@ -742,7 +742,12 @@ class DatasetWrapper(LogMixin):
 
                 processed_items = execute_on_mapping(
                     dataset_items,
-                    lambda x: self._process_items(x, progress_bar, task, max_workers),
+                    lambda x: self._process_items(
+                        x,
+                        progress_bar,
+                        task,
+                        max_workers,
+                    ),
                 )
                 grouped_items = execute_on_mapping(
                     processed_items,

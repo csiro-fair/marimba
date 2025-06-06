@@ -138,7 +138,9 @@ class DistributionTargetWrapper:
 
         # Check if __init__ method exists
         if not hasattr(target_class, "__init__"):
-            raise TypeError(f"Target class {target_type} does not have an __init__ method")
+            raise TypeError(
+                f"Target class {target_type} does not have an __init__ method",
+            )
 
         # Ensure that target_class.__init__ is a method
         if not isinstance(target_class.__init__, FunctionType):  # type: ignore[attr-defined]
@@ -173,7 +175,10 @@ class DistributionTargetWrapper:
         # Prompt for values for the keyword arguments, using the default values
         for arg_name in keyword_args:
             default_value = str(keyword_defaults.get(arg_name))
-            target_args[arg_name] = Prompt.ask(map_arg_name(arg_name), default=default_value)
+            target_args[arg_name] = Prompt.ask(
+                map_arg_name(arg_name),
+                default=default_value,
+            )
 
         return target_type, target_args
 
