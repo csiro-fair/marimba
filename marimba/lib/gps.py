@@ -4,7 +4,9 @@ GPS functions.
 
 from pathlib import Path
 
-import piexif
+import exiftool
+
+from marimba.core.utils.dependencies import show_dependency_error_and_exit
 
 
 def convert_gps_coordinate_to_degrees(
@@ -59,33 +61,32 @@ def read_exif_location(path: str | Path) -> tuple[float | None, float | None]:
         A tuple containing the latitude and longitude, or (None, None) if the location could not be found.
     """
     path = Path(path)
+
     try:
-        # Load the EXIF metadata
-        exif_data = piexif.load(str(path.absolute()))
+        with exiftool.ExifToolHelper() as et:
+            metadata = et.get_metadata(str(path.absolute()))
+            if not metadata:
+                return None, None
 
-        # Extract the GPS information
-        gps_data = exif_data["GPS"]
-        gps_latitude = gps_data.get(piexif.GPSIFD.GPSLatitude)
-        gps_latitude_ref = gps_data.get(piexif.GPSIFD.GPSLatitudeRef)
-        gps_longitude = gps_data.get(piexif.GPSIFD.GPSLongitude)
-        gps_longitude_ref = gps_data.get(piexif.GPSIFD.GPSLongitudeRef)
+            data = metadata[0]
 
-        # Parse the GPS information into degrees
-        if gps_latitude and gps_latitude_ref and gps_longitude and gps_longitude_ref:
-            latitude = convert_gps_coordinate_to_degrees(gps_latitude)
-            if gps_latitude_ref == b"S":
-                latitude = 0 - latitude
-            longitude = convert_gps_coordinate_to_degrees(gps_longitude)
-            if gps_longitude_ref == b"W":
-                longitude = 0 - longitude
-            return latitude, longitude  # success!
+            # ExifTool returns GPS coordinates in decimal degrees directly
+            # Try Composite tags first as they handle coordinate conversion automatically
+            latitude = data.get("Composite:GPSLatitude") or data.get("EXIF:GPSLatitude")
+            longitude = data.get("Composite:GPSLongitude") or data.get("EXIF:GPSLongitude")
 
-    except (KeyError, ValueError, piexif.InvalidImageDataError, TypeError):
+            if latitude is not None and longitude is not None:
+                return float(latitude), float(longitude)
+
+            return None, None
+
+    except FileNotFoundError as e:
+        if "exiftool" in str(e).lower():
+            show_dependency_error_and_exit("exiftool", str(e))
+        return None, None
+    except (KeyError, ValueError, TypeError, Exception):
         # KeyError: Missing expected EXIF data structure
         # ValueError: Invalid EXIF data format
-        # InvalidImageDataError: File doesn't contain valid EXIF data
         # TypeError: Unexpected data type in EXIF fields
-        return None, None
-    else:
-        # no GPS data
+        # Exception: Any exiftool errors
         return None, None

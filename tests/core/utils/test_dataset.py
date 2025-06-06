@@ -1,19 +1,14 @@
-from pathlib import Path
-
 import pytest
 
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.schemas.generic import GenericMetadata
 from marimba.core.utils.constants import MetadataGenerationLevelOptions
 from marimba.core.utils.dataset import (
-    DATASET_MAPPING_TYPE,
     _run_mapping_processor,
     _run_mapping_processor_per_pipeline,
     _run_mapping_processor_per_pipline_and_collection,
     get_mapping_processor_decorator,
-    PIPELINE_DATASET_MAPPING_TYPE,
     flatten_middle_mapping,
-    MAPPED_DATASET_ITEMS,
     MAPPED_GROUPED_ITEMS,
     flatten_mapping,
 )
