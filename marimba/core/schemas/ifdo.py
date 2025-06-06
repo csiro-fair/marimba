@@ -184,7 +184,13 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             output_name = metadata_name if metadata_name.endswith(".ifdo") else f"{metadata_name}.ifdo"
 
         if not validator(ifdo):
-            logger.warning(f"iFDO {output_name} is incomplete!")
+            # Determine the file extension that will be used by the saver
+            if saver == yaml_saver:
+                extension = ".yml"
+            else:
+                extension = ".json"
+            
+            logger.warning(f"Dataset iFDO file {output_name}{extension} is incomplete and will be saved as {output_name}.incomplete{extension}")
             output_name += ".incomplete"
 
         if not dry_run:
