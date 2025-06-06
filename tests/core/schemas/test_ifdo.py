@@ -21,7 +21,7 @@ def test_create_dataset_metadata():
                 "image-set-handle": "",
                 "image-set-ifdo-version": "v2.1.0",
             },
-            "image-set-items": {"image.jpg": [{"image-altitude-meters": 0.0}]},
+            "image-set-items": {"image.jpg": {"image-altitude-meters": 0.0}},
         }
 
     data_setname = "TestDataSet"

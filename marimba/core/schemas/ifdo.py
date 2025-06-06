@@ -44,9 +44,11 @@ from marimba.lib.decorators import multithreaded
 from marimba.lib.gps import convert_degrees_to_gps_coordinate
 
 if TYPE_CHECKING:
-    from ifdo import ImageData, ImageSetHeader, iFDO
+    from ifdo import ImageData, ImageSetHeader
+    from ifdo.models.ifdo import iFDO
 else:
-    from ifdo import ImageData, ImageSetHeader, iFDO
+    from ifdo import ImageData, ImageSetHeader
+    from ifdo.models.ifdo import iFDO
 
 
 logger = get_logger(__name__)
@@ -55,27 +57,47 @@ logger = get_logger(__name__)
 class iFDOMetadata(BaseMetadata):  # noqa: N801
     """
     iFDO metadata implementation that adapts ImageData to the BaseMetadata interface.
+
+    Supports both single ImageData (for still images) and list of ImageData (for videos
+    with time-varying metadata) as per iFDO v2.1.0 specification.
     """
 
     DEFAULT_METADATA_NAME = "ifdo"
 
     def __init__(
         self,
-        image_data: ImageData,
+        image_data: ImageData | list[ImageData],
     ) -> None:
-        """Initialize with an ImageData instance."""
+        """Initialize with an ImageData instance or list of ImageData instances.
+
+        Args:
+            image_data: Single ImageData for still images, or list of ImageData for videos
+                       with time-varying metadata per iFDO specification.
+        """
         self._image_data = image_data
         self._metadata_name = self.DEFAULT_METADATA_NAME
 
     @property
-    def image_data(self) -> ImageData:
-        """Get the underlying ImageData instance."""
+    def image_data(self) -> ImageData | list[ImageData]:
+        """Get the underlying ImageData instance(s)."""
+        return self._image_data
+
+    @property
+    def is_video(self) -> bool:
+        """Check if this metadata represents video data (list of ImageData)."""
+        return isinstance(self._image_data, list)
+
+    @property
+    def primary_image_data(self) -> ImageData:
+        """Get the primary ImageData instance (first for videos, single for images)."""
+        if isinstance(self._image_data, list):
+            return self._image_data[0]
         return self._image_data
 
     @property
     def datetime(self) -> datetime | None:
         """Get the date and time when the image was captured."""
-        value = self._image_data.image_datetime
+        value = self.primary_image_data.image_datetime
         if value is None or isinstance(value, datetime):
             return value
         # If the value is not None and not a datetime, it's an error
@@ -84,7 +106,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
     @property
     def latitude(self) -> float | None:
         """Get the geographic latitude in decimal degrees."""
-        value = self._image_data.image_latitude
+        value = self.primary_image_data.image_latitude
         if value is None or isinstance(value, int | float):
             return cast(float | None, value)
         # If the value is not None and not a number, it's an error
@@ -93,7 +115,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
     @property
     def longitude(self) -> float | None:
         """Get the geographic longitude in decimal degrees."""
-        value = self._image_data.image_longitude
+        value = self.primary_image_data.image_longitude
         if value is None or isinstance(value, int | float):
             return cast(float | None, value)
         # If the value is not None and not a number, it's an error
@@ -102,7 +124,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
     @property
     def altitude(self) -> float | None:
         """Get the altitude in meters."""
-        value = self._image_data.image_altitude_meters
+        value = self.primary_image_data.image_altitude_meters
         if value is None or isinstance(value, int | float):
             return cast(float | None, value)
         # If the value is not None and not a number, it's an error
@@ -111,28 +133,28 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
     @property
     def context(self) -> str | None:
         """Get the contextual information about the image."""
-        if self._image_data.image_context is None:
+        if self.primary_image_data.image_context is None:
             return None
-        return cast(str, self._image_data.image_context.name)
+        return cast(str, self.primary_image_data.image_context.name)
 
     @property
     def license(self) -> str | None:
         """Get the license information."""
-        if self._image_data.image_license is None:
+        if self.primary_image_data.image_license is None:
             return None
-        return cast(str, self._image_data.image_license.name)
+        return cast(str, self.primary_image_data.image_license.name)
 
     @property
     def creators(self) -> list[str]:
         """Get the list of creator names."""
-        if not self._image_data.image_creators:
+        if not self.primary_image_data.image_creators:
             return []
-        return [cast(str, creator.name) for creator in self._image_data.image_creators]
+        return [cast(str, creator.name) for creator in self.primary_image_data.image_creators]
 
     @property
     def hash_sha256(self) -> str | None:
         """Get the SHA256 hash from the underlying ImageData."""
-        value = self._image_data.image_hash_sha256
+        value = self.primary_image_data.image_hash_sha256
         if value is None or isinstance(value, str):
             return value
         # If the value is not None and not str, it's an error
@@ -141,7 +163,84 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
     @hash_sha256.setter
     def hash_sha256(self, value: str) -> None:
         """Set the SHA256 hash in the underlying ImageData."""
-        self._image_data.image_hash_sha256 = value
+        self.primary_image_data.image_hash_sha256 = value
+
+    @staticmethod
+    def _is_video_file(filename: str) -> bool:
+        """Check if a file is a video based on its extension."""
+        video_extensions = {
+            ".mp4",
+            ".avi",
+            ".mov",
+            ".wmv",
+            ".flv",
+            ".webm",
+            ".mkv",
+            ".m4v",
+            ".3gp",
+            ".ogv",
+            ".ts",
+            ".mts",
+            ".m2ts",
+            ".vob",
+            ".rm",
+            ".rmvb",
+            ".asf",
+            ".dv",
+            ".f4v",
+            ".m1v",
+            ".m2v",
+            ".mpe",
+            ".mpeg",
+            ".mpg",
+            ".mpv",
+            ".qt",
+            ".swf",
+            ".viv",
+            ".vivo",
+            ".yuv",
+        }
+        return Path(filename).suffix.lower() in video_extensions
+
+    @classmethod
+    def _process_video_metadata(
+        cls,
+        ifdo_items: list["iFDOMetadata"],
+        path: Path,
+    ) -> list[ImageData]:
+        """Process video metadata items into a list of ImageData."""
+        image_data_list: list[ImageData] = []
+        for item in ifdo_items:
+            if item.is_video:
+                # If the metadata is already a video (list), extend with all entries
+                image_data_list.extend(cast(list[ImageData], item.image_data))
+            else:
+                # If single ImageData, add it to the list
+                image_data_list.append(cast(ImageData, item.image_data))
+
+        # Set image-set-local-path for subdirectory files
+        if path.parent != Path():
+            for img_data in image_data_list:
+                img_data.image_set_local_path = str(path.parent)
+
+        return image_data_list
+
+    @classmethod
+    def _process_image_metadata(
+        cls,
+        ifdo_items: list["iFDOMetadata"],
+        path: Path,
+    ) -> ImageData:
+        """Process image metadata items into a single ImageData."""
+        # Take the first iFDO metadata item
+        item = ifdo_items[0]
+        image_data = cast(ImageData, item.image_data[0] if item.is_video else item.image_data)
+
+        # Set image-set-local-path for subdirectory files
+        if path.parent != Path():
+            image_data.image_set_local_path = str(path.parent)
+
+        return image_data
 
     @classmethod
     def create_dataset_metadata(
@@ -163,16 +262,21 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         for path_str, metadata_items in items.items():
             path = Path(path_str)
             filename = path.name
-            image_data_list = []
-            for item in metadata_items:
-                if isinstance(item, iFDOMetadata):
-                    image_data = item.image_data
-                    # Set the image-set-local-path to the directory path for files in subdirectories
-                    if path.parent != Path():
-                        image_data.image_set_local_path = str(path.parent)
-                    image_data_list.append(image_data)
-            if image_data_list:
-                image_set_items[filename] = image_data_list
+
+            # Check if this is a video file
+            is_video = cls._is_video_file(filename)
+
+            ifdo_items = [item for item in metadata_items if isinstance(item, iFDOMetadata)]
+            if not ifdo_items:
+                continue
+
+            if is_video:
+                image_data_list = cls._process_video_metadata(ifdo_items, path)
+                if image_data_list:
+                    image_set_items[filename] = image_data_list
+            else:
+                image_data = cls._process_image_metadata(ifdo_items, path)
+                image_set_items[filename] = image_data
 
         ifdo = iFDO(
             image_set_header=ImageSetHeader(
@@ -252,10 +356,11 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                         )
                     else:
                         # Get the ImageData from the metadata items
-                        image_data_list = [item.image_data for item in metadata_items if isinstance(item, iFDOMetadata)]
+                        ifdo_metadata_items = [item for item in metadata_items if isinstance(item, iFDOMetadata)]
 
-                        if image_data_list:
-                            image_data = image_data_list[0]  # Use first item's metadata
+                        if ifdo_metadata_items:
+                            # Use the primary ImageData from the first iFDO metadata item
+                            image_data = ifdo_metadata_items[0].primary_image_data
 
                             # Apply EXIF metadata
                             cls._inject_datetime(image_data, exif_dict)
