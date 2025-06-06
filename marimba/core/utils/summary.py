@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from PIL import Image
 from tabulate import tabulate
 
+from marimba.core.utils.dependencies import check_dependency_available, show_dependency_error_and_exit
 from marimba.core.utils.log import get_logger
 
 if TYPE_CHECKING:
@@ -417,6 +418,11 @@ class ImagerySummary:
         Raises:
             RuntimeError: If the FFmpeg command fails to execute successfully.
         """
+        # Check if ffmpeg/ffprobe is available
+        tool_name = command[0] if command else "ffmpeg"
+        if not check_dependency_available(tool_name):
+            show_dependency_error_and_exit("ffmpeg", f"{tool_name} is required for video analysis")
+
         result = subprocess.run(
             command,
             stdout=subprocess.PIPE,
@@ -425,6 +431,9 @@ class ImagerySummary:
             check=False,
         )
         if result.returncode != 0:
+            # Check if it's a "command not found" type error
+            if "not found" in result.stderr.lower() or "not recognized" in result.stderr.lower():
+                show_dependency_error_and_exit("ffmpeg", result.stderr)
             raise RuntimeError(f"FFmpeg command failed with error: {result.stderr}")
         return cast(dict[str, Any], json.loads(result.stdout))
 

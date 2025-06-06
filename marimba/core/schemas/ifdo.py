@@ -6,14 +6,12 @@ metadata in image files. It implements the BaseMetadata interface for iFDO-speci
 for creating dataset metadata and processing image files with EXIF data.
 
 Imports:
-    io: Provides tools for working with I/O operations
     json: Handles JSON data encoding and decoding
     datetime: Supplies classes for working with dates and times
-    Fraction: Represents rational numbers with numerator and denominator
     Path: Offers object-oriented filesystem paths
     typing: Provides support for type hints
     uuid: Generates universally unique identifiers
-    piexif: Handles reading and writing of EXIF data in images
+    exiftool: Handles reading and writing of EXIF data in images via ExifTool
     PIL: Python Imaging Library for opening, manipulating, and saving image files
     rich: Offers rich text and beautiful formatting in the terminal
 
@@ -21,27 +19,26 @@ Classes:
     iFDOMetadata: Implements the BaseMetadata interface for iFDO-specific metadata
 """
 
-import io
 import json
 import logging
+import tempfile
 import uuid
 from collections.abc import Callable
 from datetime import datetime, timezone
-from fractions import Fraction
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-import piexif
+import exiftool
 from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
+from marimba.core.utils.dependencies import show_dependency_error_and_exit
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.metadata import yaml_saver
 from marimba.core.utils.rich import get_default_columns
 from marimba.lib import image
 from marimba.lib.decorators import multithreaded
-from marimba.lib.gps import convert_degrees_to_gps_coordinate
 
 if TYPE_CHECKING:
     from ifdo import ImageData, ImageSetHeader
@@ -349,12 +346,6 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 # If it's an EXIF-supported file, process EXIF metadata
                 if file_extension in exif_supported_extensions:
                     try:
-                        exif_dict = piexif.load(str(file_path))
-                    except piexif.InvalidImageDataError as e:
-                        logger.warning(
-                            f"Failed to load EXIF metadata from {file_path}: {e}",
-                        )
-                    else:
                         # Get the ImageData from the metadata items
                         ifdo_metadata_items = [item for item in metadata_items if isinstance(item, iFDOMetadata)]
 
@@ -362,29 +353,28 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                             # Use the primary ImageData from the first iFDO metadata item
                             image_data = ifdo_metadata_items[0].primary_image_data
 
-                            # Apply EXIF metadata
-                            cls._inject_datetime(image_data, exif_dict)
-                            cls._inject_identifiers(image_data, exif_dict)
-                            cls._inject_gps_coordinates(image_data, exif_dict)
-                            image_file = cls._add_thumbnail(file_path, exif_dict)
-                            cls._extract_image_properties(image_file, image_data)
-                            cls._embed_exif_metadata(
+                            # Open image file for processing
+                            image_file = Image.open(file_path)
+
+                            # Apply EXIF metadata using exiftool
+                            cls._inject_metadata_with_exiftool(
+                                file_path,
                                 image_data,
                                 ancillary_data,
-                                exif_dict,
+                                image_file,
+                                logger,
                             )
 
-                            try:
-                                exif_bytes = piexif.dump(exif_dict)
-                                piexif.insert(exif_bytes, str(file_path))
-                                logger.debug(
-                                    f"Thread {thread_num} - Applied iFDO metadata to EXIF tags for image"
-                                    f" {file_path}",
-                                )
-                            except piexif.InvalidImageDataError:
-                                logger.warning(
-                                    f"Failed to write EXIF metadata to {file_path}",
-                                )
+                            # Extract image properties
+                            cls._extract_image_properties(image_file, image_data)
+
+                            logger.debug(
+                                f"Thread {thread_num} - Applied iFDO metadata to EXIF tags for image {file_path}",
+                            )
+                    except (OSError, exiftool.ExifToolException) as e:
+                        logger.warning(
+                            f"Failed to process EXIF metadata for {file_path}: {e}",
+                        )
                 else:
                     # For non-EXIF files (like videos), just log that we're skipping EXIF processing
                     logger.debug(
@@ -401,102 +391,132 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             process_file(cls, items=dataset_mapping.items(), progress=progress, task=task, logger=log)  # type: ignore[call-arg]
 
     @staticmethod
-    def _inject_datetime(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
+    def _inject_metadata_with_exiftool(
+        file_path: Path,
+        image_data: ImageData,
+        ancillary_data: dict[str, Any] | None,
+        image_file: Image.Image,
+        logger: logging.Logger,
+    ) -> None:
         """
-        Inject datetime information into EXIF metadata.
+        Inject metadata into EXIF using exiftool.
 
         Args:
-            image_data: The image data containing datetime information.
-            exif_dict: The EXIF metadata dictionary.
+            file_path: Path to the image file.
+            image_data: The image data containing metadata information.
+            ancillary_data: Any ancillary data to include.
+            image_file: PIL Image object for extracting dimensions.
+            logger: Logger instance.
         """
+        try:
+            with exiftool.ExifToolHelper() as et:
+                existing_metadata = et.get_metadata(str(file_path))
+                existing_exif = existing_metadata[0] if existing_metadata else {}
+
+                exif_tags: dict[str, Any] = {}
+
+                # Build EXIF tags using helper methods
+                iFDOMetadata._add_image_dimensions(exif_tags, existing_exif, image_file)
+                iFDOMetadata._add_datetime_tags(exif_tags, image_data)
+                iFDOMetadata._add_identifier_tags(exif_tags, image_data)
+                iFDOMetadata._add_gps_tags(exif_tags, image_data)
+                iFDOMetadata._add_user_comment(exif_tags, image_data, ancillary_data)
+
+                # Apply all tags at once
+                if exif_tags:
+                    et.set_tags([str(file_path)], exif_tags, params=["-overwrite_original"])
+
+                # Add thumbnail after applying other EXIF tags
+                iFDOMetadata._add_thumbnail_to_exif(file_path, image_file, logger)
+
+        except FileNotFoundError as e:
+            if "exiftool" in str(e).lower():
+                show_dependency_error_and_exit("exiftool", str(e))
+            else:
+                logger.warning(f"File not found during EXIF processing: {e}")
+        except exiftool.ExifToolException as e:
+            logger.warning(f"Failed to inject EXIF metadata with exiftool: {e}")
+
+    @staticmethod
+    def _add_image_dimensions(
+        exif_tags: dict[str, Any],
+        existing_exif: dict[str, Any],
+        image_file: Image.Image,
+    ) -> None:
+        """Add image dimensions to EXIF tags if missing."""
+        if "EXIF:ExifImageWidth" not in existing_exif:
+            width, height = image_file.size
+            exif_tags["EXIF:ExifImageWidth"] = width
+
+        if "EXIF:ExifImageHeight" not in existing_exif:
+            width, height = image_file.size
+            exif_tags["EXIF:ExifImageHeight"] = height
+
+    @staticmethod
+    def _add_datetime_tags(exif_tags: dict[str, Any], image_data: ImageData) -> None:
+        """Add datetime-related EXIF tags."""
         if image_data.image_datetime is not None:
             dt = image_data.image_datetime
-            offset_str = None
             if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
                 dt = dt.astimezone(timezone.utc)
                 offset_str = "+00:00"
+                exif_tags["EXIF:OffsetTime"] = offset_str
+                exif_tags["EXIF:OffsetTimeOriginal"] = offset_str
 
             datetime_str = dt.strftime("%Y:%m:%d %H:%M:%S")
             subsec_str = str(dt.microsecond)
 
-            ifd_0th = exif_dict["0th"]
-            ifd_exif = exif_dict["Exif"]
-
-            ifd_0th[piexif.ImageIFD.DateTime] = datetime_str
-            ifd_exif[piexif.ExifIFD.DateTimeOriginal] = datetime_str
-            ifd_exif[piexif.ExifIFD.SubSecTime] = subsec_str
-            ifd_exif[piexif.ExifIFD.SubSecTimeOriginal] = subsec_str
-            if offset_str is not None:
-                ifd_exif[piexif.ExifIFD.OffsetTime] = offset_str
-                ifd_exif[piexif.ExifIFD.OffsetTimeOriginal] = offset_str
+            exif_tags["EXIF:DateTime"] = datetime_str
+            exif_tags["EXIF:DateTimeOriginal"] = datetime_str
+            exif_tags["EXIF:SubSecTime"] = subsec_str
+            exif_tags["EXIF:SubSecTimeOriginal"] = subsec_str
 
     @staticmethod
-    def _inject_identifiers(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
-        """
-        Inject identifier information into EXIF metadata.
-
-        Args:
-            image_data: The image data containing identifier information.
-            exif_dict: The EXIF metadata dictionary.
-        """
+    def _add_identifier_tags(exif_tags: dict[str, Any], image_data: ImageData) -> None:
+        """Add identifier-related EXIF tags."""
         if image_data.image_uuid:
-            exif_dict["Exif"][piexif.ExifIFD.ImageUniqueID] = str(image_data.image_uuid)
+            exif_tags["EXIF:ImageUniqueID"] = str(image_data.image_uuid)
 
     @staticmethod
-    def _inject_gps_coordinates(
-        image_data: ImageData,
-        exif_dict: dict[str, Any],
-    ) -> None:
-        """
-        Inject GPS coordinates into EXIF metadata.
-
-        Args:
-            image_data: The image data containing GPS information.
-            exif_dict: The EXIF metadata dictionary.
-        """
-        ifd_gps = exif_dict["GPS"]
-
+    def _add_gps_tags(exif_tags: dict[str, Any], image_data: ImageData) -> None:
+        """Add GPS-related EXIF tags."""
         if image_data.image_latitude is not None:
-            d_lat, m_lat, s_lat = convert_degrees_to_gps_coordinate(
-                image_data.image_latitude,
-            )
-            ifd_gps[piexif.GPSIFD.GPSLatitude] = ((d_lat, 1), (m_lat, 1), (s_lat, 1000))
-            ifd_gps[piexif.GPSIFD.GPSLatitudeRef] = "N" if image_data.image_latitude > 0 else "S"
+            exif_tags["EXIF:GPSLatitude"] = abs(image_data.image_latitude)
+            exif_tags["EXIF:GPSLatitudeRef"] = "N" if image_data.image_latitude >= 0 else "S"
+
         if image_data.image_longitude is not None:
-            d_lon, m_lon, s_lon = convert_degrees_to_gps_coordinate(
-                image_data.image_longitude,
-            )
-            ifd_gps[piexif.GPSIFD.GPSLongitude] = (
-                (d_lon, 1),
-                (m_lon, 1),
-                (s_lon, 1000),
-            )
-            ifd_gps[piexif.GPSIFD.GPSLongitudeRef] = "E" if image_data.image_longitude > 0 else "W"
+            exif_tags["EXIF:GPSLongitude"] = abs(image_data.image_longitude)
+            exif_tags["EXIF:GPSLongitudeRef"] = "E" if image_data.image_longitude >= 0 else "W"
+
         if image_data.image_altitude_meters is not None:
-            altitude_fraction = Fraction(
-                abs(float(image_data.image_altitude_meters)),
-            ).limit_denominator()
-            altitude_rational = (
-                altitude_fraction.numerator,
-                altitude_fraction.denominator,
-            )
-            ifd_gps[piexif.GPSIFD.GPSAltitude] = altitude_rational
-            ifd_gps[piexif.GPSIFD.GPSAltitudeRef] = 0 if image_data.image_altitude_meters >= 0 else 1
+            exif_tags["EXIF:GPSAltitude"] = abs(float(image_data.image_altitude_meters))
+            exif_tags["EXIF:GPSAltitudeRef"] = "0" if image_data.image_altitude_meters >= 0 else "1"
 
     @staticmethod
-    def _add_thumbnail(path: Path, exif_dict: dict[str, Any]) -> Image.Image:
+    def _add_user_comment(
+        exif_tags: dict[str, Any],
+        image_data: ImageData,
+        ancillary_data: dict[str, Any] | None,
+    ) -> None:
+        """Add user comment with iFDO metadata."""
+        image_data_dict = image_data.model_dump(mode="json", by_alias=True, exclude_none=True)
+        user_comment_data = {
+            "metadata": {"ifdo": image_data_dict, "ancillary": ancillary_data},
+        }
+        user_comment_json = json.dumps(user_comment_data)
+        exif_tags["EXIF:UserComment"] = user_comment_json
+
+    @staticmethod
+    def _add_thumbnail_to_exif(file_path: Path, image_file: Image.Image, logger: logging.Logger) -> None:
         """
-        Add a thumbnail to the EXIF metadata.
+        Add a thumbnail to the EXIF metadata using PIL and exiftool.
 
         Args:
-            path: The path to the image file.
-            exif_dict: The EXIF metadata dictionary.
+            file_path: Path to the image file.
+            image_file: PIL Image object.
+            logger: Logger instance.
         """
         try:
-            image_file = Image.open(path)
-        except OSError as err:
-            raise ValueError(f"Unable to open image: {err}") from err
-        else:
             # Create a copy for the thumbnail to avoid modifying original
             thumb = image_file.copy()
 
@@ -510,17 +530,22 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             if thumb.mode != "RGB":
                 thumb = thumb.convert("RGB")
 
-            thumbnail_io = io.BytesIO()
-            thumb.save(
-                thumbnail_io,
-                format="JPEG",
-                quality=90,
-                optimize=True,
-                progressive=False,
-            )
+            # Save thumbnail to a temporary file
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_file:
+                thumb.save(temp_file.name, format="JPEG", quality=90, optimize=True)
+                temp_thumb_path = temp_file.name
 
-            exif_dict["thumbnail"] = thumbnail_io.getvalue()
-            return image_file
+            # Use exiftool to embed the thumbnail
+            with exiftool.ExifToolHelper() as et:
+                et.execute("-ThumbnailImage<=" + temp_thumb_path, "-overwrite_original", str(file_path))
+
+            # Clean up temporary file
+            Path(temp_thumb_path).unlink()
+
+        except exiftool.ExifToolException as e:
+            logger.debug(f"Failed to add thumbnail to {file_path}: {e}")
+        except OSError as e:
+            logger.debug(f"Failed to create thumbnail for {file_path}: {e}")
 
     @staticmethod
     def _extract_image_properties(
@@ -537,26 +562,3 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         # Inject the image entropy and average image color into the iFDO
         image_data.image_entropy = image.get_shannon_entropy(image_file)
         image_data.image_average_color = image.get_average_image_color(image_file)
-
-    @staticmethod
-    def _embed_exif_metadata(
-        image_data: ImageData,
-        ancillary_data: dict[str, Any] | None,
-        exif_dict: dict[str, Any],
-    ) -> None:
-        """
-        Add a user comment with iFDO metadata to the EXIF metadata.
-
-        Args:
-            image_data: The image data to include in the user comment.
-            ancillary_data: Any ancillary data to include in the user comment.
-            exif_dict: The EXIF metadata dictionary.
-        """
-        image_data_dict = image_data.model_dump(mode="json", by_alias=True, exclude_none=True)
-        user_comment_data = {
-            "metadata": {"ifdo": image_data_dict, "ancillary": ancillary_data},
-        }
-        user_comment_json = json.dumps(user_comment_data)
-        ascii_encoding = b"ASCII\x00\x00\x00"
-        user_comment_bytes = ascii_encoding + user_comment_json.encode("ascii")
-        exif_dict["Exif"][piexif.ExifIFD.UserComment] = user_comment_bytes

@@ -25,6 +25,8 @@ from pathlib import Path
 import av
 from PIL import Image
 
+from marimba.core.utils.dependencies import show_dependency_error_and_exit
+
 logger = logging.getLogger(__name__)
 
 
@@ -174,7 +176,14 @@ def generate_video_thumbnails(
         A tuple containing the input video path and a list of generated thumbnail paths.
     """
     output_directory.mkdir(parents=True, exist_ok=True)
-    container = av.open(str(video))  # type: ignore[attr-defined]
+
+    try:
+        container = av.open(str(video))  # type: ignore[attr-defined]
+    except Exception as e:  # av.AVError is dynamically created, so use generic Exception
+        if "No such file or directory" in str(e) and "ffmpeg" in str(e).lower():
+            show_dependency_error_and_exit("ffmpeg", f"PyAV requires FFmpeg libraries: {e}")
+        raise
+
     stream = container.streams.video[0]
 
     frame_rate, time_base, total_frames = get_stream_properties(stream)

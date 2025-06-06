@@ -19,7 +19,7 @@ Imports:
     - textwrap.dedent: Remove any common leading whitespace from every line.
     - typing: Type hints for function signatures and variables.
     - uuid: Generate unique identifiers.
-    - piexif: Library to insert and extract EXIF metadata from images.
+    - exiftool: Library to insert and extract EXIF metadata from images.
     - ifdo.models: Data models for images.
     - PIL.Image: Python Imaging Library for opening, manipulating, and saving image files.
     - rich.progress: Utilities for creating progress bars.
