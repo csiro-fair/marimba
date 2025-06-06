@@ -928,19 +928,19 @@ class ImagerySummary:
         return {
             "image_num": len(image_data["files"]),
             "image_size_bytes": sum(file["size"] for file in image_data["files"]),
-            "image_file_types": list({file["type"] for file in image_data["files"]}),
+            "image_file_types": list({file["type"] for file in image_data["files"] if file["type"]}),
             "image_unique_directories": len(
                 {file["directory"] for file in image_data["files"]},
             ),
             "video_num": len(video_data["files"]),
             "video_size_bytes": sum(file["size"] for file in video_data["files"]),
-            "video_file_types": list({file["type"] for file in video_data["files"]}),
+            "video_file_types": list({file["type"] for file in video_data["files"] if file["type"]}),
             "video_unique_directories": len(
                 {file["directory"] for file in video_data["files"]},
             ),
             "other_num": len(other_data["files"]),
             "other_size_bytes": sum(file["size"] for file in other_data["files"]),
-            "other_file_types": list({file["type"] for file in other_data["files"]}),
+            "other_file_types": list({file["type"] for file in other_data["files"] if file["type"]}),
         }
 
     @classmethod
