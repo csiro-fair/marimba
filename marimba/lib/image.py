@@ -44,7 +44,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy2
-from typing import cast
 
 import cv2
 import numpy as np
@@ -605,21 +604,21 @@ class GridImageProcessor:
             IOError: If there are issues reading or processing the image files.
         """
         import gc
-        
+
         rows: list[GridRow] = []
         current_height = 0
-        current_row = GridRow(self.dimensions)
+        current_row: GridRow | None = GridRow(self.dimensions)
         images_processed = 0
 
         try:
             while images_processed < len(paths_subset):
                 path = paths_subset[images_processed]
-                if not self.process_single_image(path, current_row):
+                if current_row is None or not self.process_single_image(path, current_row):
                     images_processed += 1
                     continue
 
                 # If row is full, start a new one
-                if len(current_row.images) >= self.dimensions.columns:
+                if current_row is not None and len(current_row.images) >= self.dimensions.columns:
                     if current_height + current_row.height <= self.dimensions.max_height:
                         current_height += current_row.height
                         rows.append(current_row)
@@ -633,11 +632,16 @@ class GridImageProcessor:
                 images_processed += 1
 
             # Handle last row
-            if current_row.images and current_height + current_row.height <= self.dimensions.max_height:
+            if (
+                current_row is not None
+                and current_row.images
+                and current_height + current_row.height <= self.dimensions.max_height
+            ):
                 rows.append(current_row)
                 current_height += current_row.height
             else:
-                current_row.cleanup()
+                if current_row is not None:
+                    current_row.cleanup()
                 current_row = None  # Clear reference
 
             if not rows:

@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import exiftool
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
@@ -294,107 +294,6 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         if not dry_run:
             saver(root_dir, output_name, ifdo.model_dump(mode="json", by_alias=True, exclude_none=True))
 
-    @staticmethod
-    def _get_supported_exif_extensions() -> set[str]:
-        """Return a set of file extensions with reliable EXIF support."""
-        return {
-            # Standard formats with native EXIF support
-            ".jpg",
-            ".jpeg",
-            ".tiff",
-            ".tif",
-            # Common RAW formats that support EXIF
-            ".cr2",  # Canon
-            ".cr3",  # Canon
-            ".nef",  # Nikon
-            ".arw",  # Sony
-            ".dng",  # Adobe Digital Negative
-            ".raf",  # Fujifilm
-            ".orf",  # Olympus
-            ".pef",  # Pentax
-            ".rw2",  # Panasonic
-        }
-
-    @classmethod
-    def _handle_image_processing(
-        cls,
-        file_path: Path,
-        exif_dict: dict[str, Any],
-        metadata_items: list[BaseMetadata],
-        ancillary_data: dict[str, Any] | None,
-        thread_num: str,
-        logger: logging.Logger,
-    ) -> None:
-        """Process a single image file with EXIF support."""
-        # Get the ImageData from the metadata items
-        image_data_list = [item.image_data for item in metadata_items if isinstance(item, iFDOMetadata)]
-        if not image_data_list:
-            return
-        image_data = image_data_list[0]  # Use first item's metadata
-        # Clear the list reference to help garbage collection
-        image_data_list = []
-
-        # Apply EXIF metadata
-        cls._inject_datetime(image_data, exif_dict)
-        cls._inject_identifiers(image_data, exif_dict)
-        cls._inject_gps_coordinates(image_data, exif_dict)
-
-        # Process image file with thumbnail and properties
-        cls._process_image_file(file_path, exif_dict, image_data, logger)
-        # Embed the metadata
-        cls._embed_exif_metadata(image_data, ancillary_data, exif_dict)
-        # Write the updated EXIF data back to file
-        cls._write_exif_data(file_path, exif_dict, thread_num, logger)
-
-    @classmethod
-    def _process_image_file(
-        cls,
-        file_path: Path,
-        exif_dict: dict[str, Any],
-        image_data: ImageData,
-        logger: logging.Logger,
-    ) -> None:
-        """Process thumbnail and extract properties from an image file."""
-        # Add thumbnail and extract properties in a way that ensures resource cleanup
-        image_file = None
-        try:
-            image_file = cls._add_thumbnail(file_path, exif_dict)
-            if image_file is not None:
-                try:
-                    cls._extract_image_properties(image_file, image_data)
-                finally:
-                    image_file.close()
-                    # Set to None to help garbage collection
-                    image_file = None
-        except (ValueError, OSError, UnidentifiedImageError, piexif.InvalidImageDataError) as e:
-            logger.warning(f"Error processing thumbnail for {file_path}: {e}")
-            if image_file is not None:
-                try:
-                    image_file.close()
-                except Exception:
-                    pass  # Ignore errors during cleanup
-                finally:
-                    image_file = None
-
-    @staticmethod
-    def _write_exif_data(
-        file_path: Path,
-        exif_dict: dict[str, Any],
-        thread_num: str,
-        logger: logging.Logger,
-    ) -> None:
-        """Write EXIF data back to the image file."""
-        try:
-            exif_bytes = piexif.dump(exif_dict)
-            piexif.insert(exif_bytes, str(file_path))
-            # Clean up large byte objects
-            del exif_bytes
-            logger.debug(
-                f"Thread {thread_num} - Applied iFDO metadata to EXIF tags for image {file_path}",
-            )
-        except piexif.InvalidImageDataError:
-            logger.warning(f"Failed to write EXIF metadata to {file_path}")
-
     @classmethod
     def process_files(
         cls,
@@ -410,8 +309,6 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
         # Use the provided logger if available, otherwise use the module logger
         log = logger or get_logger(__name__)
-        # Get the supported extensions
-        exif_supported_extensions = cls._get_supported_exif_extensions()
 
         @multithreaded(max_workers=max_workers)
         def process_file(
@@ -423,8 +320,27 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             task: TaskID | None = None,
         ) -> None:
             file_path, (metadata_items, ancillary_data) = item
+
+            # Formats with reliable EXIF support
+            exif_supported_extensions = {
+                # Standard formats with native EXIF support
+                ".jpg",
+                ".jpeg",
+                ".tiff",
+                ".tif",
+                # Common RAW formats that support EXIF
+                ".cr2",  # Canon
+                ".cr3",  # Canon
+                ".nef",  # Nikon
+                ".arw",  # Sony
+                ".dng",  # Adobe Digital Negative
+                ".raf",  # Fujifilm
+                ".orf",  # Olympus
+                ".pef",  # Pentax
+                ".rw2",  # Panasonic
+            }
+
             file_extension = file_path.suffix.lower()
-            exif_dict = None
 
             try:
                 # If it's an EXIF-supported file, process EXIF metadata
@@ -470,23 +386,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 if progress and task is not None:
                     progress.advance(task)
 
-                # Explicitly clean up references to help garbage collection
-                if exif_dict is not None:
-                    del exif_dict
-                # Clear other references
-                metadata_items = None
-                ancillary_data = None
-                file_path = None
-
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             task = progress.add_task("[green]Processing files with metadata (4/12)", total=len(dataset_mapping))
             process_file(cls, items=dataset_mapping.items(), progress=progress, task=task, logger=log)  # type: ignore[call-arg]
-
-        # Explicitly trigger garbage collection after processing all files
-        gc.collect()
-
-        # Clear dataset_mapping reference to help with memory
-        dataset_mapping = None
 
     @staticmethod
     def _inject_metadata_with_exiftool(
@@ -614,28 +516,19 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             image_file: PIL Image object.
             logger: Logger instance.
         """
-        image_file = None
         try:
             # Create a copy for the thumbnail to avoid modifying original
-            original_thumb = image_file.copy()
-            try:
-                # Set max dimension to 240px - aspect ratio will be maintained
-                thumbnail_size = (240, 240)
+            thumb = image_file.copy()
 
-                # Use LANCZOS resampling for better quality
-                original_thumb.thumbnail(thumbnail_size, Image.Resampling.LANCZOS)
+            # Set max dimension to 240px - aspect ratio will be maintained
+            thumbnail_size = (240, 240)
 
-                # Convert to RGB if not already
-                if original_thumb.mode != "RGB":
-                    # Convert to RGB - this returns a new image
-                    thumb = original_thumb.convert("RGB")
-                    # Close the original first
-                    original_thumb.close()
-                    original_thumb = None
-                else:
-                    # Use the original thumb if it's already in RGB mode
-                    thumb = original_thumb
-                    original_thumb = None  # Clear reference
+            # Use LANCZOS resampling for better quality
+            thumb.thumbnail(thumbnail_size, Image.Resampling.LANCZOS)
+
+            # Convert to RGB if not already
+            if thumb.mode != "RGB":
+                thumb = thumb.convert("RGB")
 
             # Save thumbnail to a temporary file
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_file:
@@ -666,9 +559,6 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             image_file: The PIL Image object from which to extract properties.
             image_data: The ImageData object to update with extracted properties.
         """
-        try:
-            # Inject the image entropy and average image color into the iFDO
-            image_data.image_entropy = image.get_shannon_entropy(image_file)
-            image_data.image_average_color = image.get_average_image_color(image_file)
-        except (ValueError, AttributeError, TypeError, OSError) as e:
-            logger.warning(f"Failed to extract image properties: {e}")
+        # Inject the image entropy and average image color into the iFDO
+        image_data.image_entropy = image.get_shannon_entropy(image_file)
+        image_data.image_average_color = image.get_average_image_color(image_file)
