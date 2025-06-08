@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from PIL import Image
 from tabulate import tabulate
 
+from marimba.core.utils.dependencies import check_dependency_available, show_dependency_error_and_exit
 from marimba.core.utils.log import get_logger
 
 if TYPE_CHECKING:
@@ -93,8 +94,24 @@ class ImagerySummary:
     PAIR_OF_CONTRIBUTORS: ClassVar[int] = 2
     SECONDS_PER_HOUR: ClassVar[int] = 3600
     SECONDS_PER_MINUTE: ClassVar[int] = 60
-    IMAGE_EXTENSIONS: ClassVar[set[str]] = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif"}
-    VIDEO_EXTENSIONS: ClassVar[set[str]] = {".mp4", ".mov", ".avi", ".wmv", ".flv", ".mkv", ".webm"}
+    IMAGE_EXTENSIONS: ClassVar[set[str]] = {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".bmp",
+        ".tiff",
+        ".tif",
+    }
+    VIDEO_EXTENSIONS: ClassVar[set[str]] = {
+        ".mp4",
+        ".mov",
+        ".avi",
+        ".wmv",
+        ".flv",
+        ".mkv",
+        ".webm",
+    }
 
     @staticmethod
     def sizeof_fmt(num: float, suffix: str = "B") -> str:
@@ -146,7 +163,12 @@ class ImagerySummary:
                 "default=noprint_wrappers=1:nokey=1",
                 video_path,
             ]
-            probe_result = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+            probe_result = subprocess.run(
+                probe_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
             if probe_result.returncode != 0:
                 return True
 
@@ -155,8 +177,24 @@ class ImagerySummary:
             # Quick seek test (start, middle, end)
             seek_times = [0, duration / 2, duration - 1]
             for seek_time in seek_times:
-                seek_cmd = ["ffmpeg", "-ss", str(seek_time), "-i", video_path, "-vframes", "1", "-f", "null", "-"]
-                seek_result = subprocess.run(seek_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+                seek_cmd = [
+                    "ffmpeg",
+                    "-ss",
+                    str(seek_time),
+                    "-i",
+                    video_path,
+                    "-vframes",
+                    "1",
+                    "-f",
+                    "null",
+                    "-",
+                ]
+                seek_result = subprocess.run(
+                    seek_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                )
                 if seek_result.returncode != 0:
                     return True
         except Exception as e:
@@ -185,7 +223,9 @@ class ImagerySummary:
             corrupt_images: An integer count of images that could not be opened.
         """
 
-        def process_single_image(path: Path) -> tuple[tuple[int, int] | None, int | None]:
+        def process_single_image(
+            path: Path,
+        ) -> tuple[tuple[int, int] | None, int | None]:
             try:
                 with Image.open(path) as img:
                     return img.size, len(img.getbands()) * 8
@@ -205,7 +245,11 @@ class ImagerySummary:
             else:
                 corrupt_images += 1
 
-        return {"resolutions": resolutions, "color_depths": color_depths, "corrupt_images": corrupt_images}
+        return {
+            "resolutions": resolutions,
+            "color_depths": color_depths,
+            "corrupt_images": corrupt_images,
+        }
 
     @staticmethod
     def calculate_image_resolution(resolutions: set[tuple[int, int]]) -> str:
@@ -374,8 +418,22 @@ class ImagerySummary:
         Raises:
             RuntimeError: If the FFmpeg command fails to execute successfully.
         """
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+        # Check if ffmpeg/ffprobe is available
+        tool_name = command[0] if command else "ffmpeg"
+        if not check_dependency_available(tool_name):
+            show_dependency_error_and_exit("ffmpeg", f"{tool_name} is required for video analysis")
+
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
         if result.returncode != 0:
+            # Check if it's a "command not found" type error
+            if "not found" in result.stderr.lower() or "not recognized" in result.stderr.lower():
+                show_dependency_error_and_exit("ffmpeg", result.stderr)
             raise RuntimeError(f"FFmpeg command failed with error: {result.stderr}")
         return cast(dict[str, Any], json.loads(result.stdout))
 
@@ -666,7 +724,10 @@ class ImagerySummary:
         TODO @<cjackett>: Implement multithreading for this method
         """
         dataset_info = cls._extract_dataset_info(dataset_wrapper)
-        image_data, video_data, other_data = cls._process_files(dataset_wrapper, dataset_items)
+        image_data, video_data, other_data = cls._process_files(
+            dataset_wrapper,
+            dataset_items,
+        )
         file_stats = cls._calculate_file_stats(image_data, video_data, other_data)
 
         # Ensure all data matches expected types, handle None, and combine data
@@ -739,7 +800,9 @@ class ImagerySummary:
         return summary
 
     @staticmethod
-    def _extract_dataset_info(dataset_wrapper: "DatasetWrapper") -> dict[str, str | None]:
+    def _extract_dataset_info(
+        dataset_wrapper: "DatasetWrapper",
+    ) -> dict[str, str | None]:
         info = {
             "dataset_name": dataset_wrapper.name,
             "version": dataset_wrapper.version,
@@ -765,8 +828,18 @@ class ImagerySummary:
         dataset_wrapper: "DatasetWrapper",
         dataset_items: dict[str, list["BaseMetadata"]],
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-        image_data: dict[str, Any] = {"files": [], "context": set(), "contributors": [], "licenses": set()}
-        video_data: dict[str, Any] = {"files": [], "context": set(), "contributors": [], "licenses": set()}
+        image_data: dict[str, Any] = {
+            "files": [],
+            "context": set(),
+            "contributors": [],
+            "licenses": set(),
+        }
+        video_data: dict[str, Any] = {
+            "files": [],
+            "context": set(),
+            "contributors": [],
+            "licenses": set(),
+        }
         other_data: dict[str, list[str]] = {"files": []}
 
         for path_str, dataset_item in dataset_items.items():
@@ -797,7 +870,12 @@ class ImagerySummary:
                 data["contributors"].append(creator)
 
     @classmethod
-    def _process_image(cls, image_data: dict[str, Any], path: Path, image_info: "BaseMetadata") -> None:
+    def _process_image(
+        cls,
+        image_data: dict[str, Any],
+        path: Path,
+        image_info: "BaseMetadata",
+    ) -> None:
         image_data["files"].append(
             {
                 "path": path,
@@ -812,7 +890,12 @@ class ImagerySummary:
         )
 
     @classmethod
-    def _process_video(cls, video_data: dict[str, Any], path: Path, image_info: "BaseMetadata") -> None:
+    def _process_video(
+        cls,
+        video_data: dict[str, Any],
+        path: Path,
+        image_info: "BaseMetadata",
+    ) -> None:
         video_data["files"].append(
             {
                 "path": path,
@@ -828,14 +911,21 @@ class ImagerySummary:
         )
 
     @staticmethod
-    def _process_other_files(dataset_wrapper: "DatasetWrapper", other_data: dict[str, Any]) -> None:
+    def _process_other_files(
+        dataset_wrapper: "DatasetWrapper",
+        other_data: dict[str, Any],
+    ) -> None:
         for path in dataset_wrapper.data_dir.glob("**/*"):
             if (
                 path.is_file()
                 and path.suffix.lower() not in ImagerySummary.IMAGE_EXTENSIONS | ImagerySummary.VIDEO_EXTENSIONS
             ):
                 other_data["files"].append(
-                    {"path": path, "size": path.stat().st_size, "type": path.suffix.lower().replace(".", "")},
+                    {
+                        "path": path,
+                        "size": path.stat().st_size,
+                        "type": path.suffix.lower().replace(".", ""),
+                    },
                 )
 
     @staticmethod
@@ -848,11 +938,15 @@ class ImagerySummary:
             "image_num": len(image_data["files"]),
             "image_size_bytes": sum(file["size"] for file in image_data["files"]),
             "image_file_types": list({file["type"] for file in image_data["files"] if file["type"]}),
-            "image_unique_directories": len({file["directory"] for file in image_data["files"]}),
+            "image_unique_directories": len(
+                {file["directory"] for file in image_data["files"]},
+            ),
             "video_num": len(video_data["files"]),
             "video_size_bytes": sum(file["size"] for file in video_data["files"]),
             "video_file_types": list({file["type"] for file in video_data["files"] if file["type"]}),
-            "video_unique_directories": len({file["directory"] for file in video_data["files"]}),
+            "video_unique_directories": len(
+                {file["directory"] for file in video_data["files"]},
+            ),
             "other_num": len(other_data["files"]),
             "other_size_bytes": sum(file["size"] for file in other_data["files"]),
             "other_file_types": list({file["type"] for file in other_data["files"] if file["type"]}),
@@ -865,8 +959,12 @@ class ImagerySummary:
         image_data: dict[str, Any],
         video_data: dict[str, Any],
     ) -> None:
-        summary.context = summary.context_to_text(list(image_data["context"] | video_data["context"]))
-        summary.licenses = summary.list_to_text(list(image_data["licenses"] | video_data["licenses"]))
+        summary.context = summary.context_to_text(
+            list(image_data["context"] | video_data["context"]),
+        )
+        summary.licenses = summary.list_to_text(
+            list(image_data["licenses"] | video_data["licenses"]),
+        )
 
         # Merge contributors while maintaining order
         all_contributors = []
@@ -882,10 +980,20 @@ class ImagerySummary:
         summary.contributors = summary.contributors_to_text(all_contributors)
 
     @classmethod
-    def _set_image_properties(cls, summary: "ImagerySummary", image_data: dict[str, Any]) -> None:
-        image_props = cls.get_image_properties([file["path"] for file in image_data["files"]])
-        summary.image_resolution = cls.calculate_image_resolution(image_props["resolutions"])
-        summary.image_color_depth = cls.calculate_image_color_depth(image_props["color_depths"])
+    def _set_image_properties(
+        cls,
+        summary: "ImagerySummary",
+        image_data: dict[str, Any],
+    ) -> None:
+        image_props = cls.get_image_properties(
+            [file["path"] for file in image_data["files"]],
+        )
+        summary.image_resolution = cls.calculate_image_resolution(
+            image_props["resolutions"],
+        )
+        summary.image_color_depth = cls.calculate_image_color_depth(
+            image_props["color_depths"],
+        )
         summary.image_data_quality = cls.calculate_image_data_quality(
             len(image_data["files"]),
             image_props["corrupt_images"],
@@ -894,13 +1002,29 @@ class ImagerySummary:
         summary.image_licenses = summary.list_to_text(list(image_data["licenses"]))
 
     @classmethod
-    def _set_video_properties(cls, summary: "ImagerySummary", video_data: dict[str, Any]) -> None:
-        video_props = cls.get_video_properties([file["path"] for file in video_data["files"]])
-        summary.video_total_duration = cls.calculate_video_total_duration(video_props["total_seconds"])
-        summary.video_resolution = cls.calculate_video_resolution(video_props["resolutions"])
-        summary.video_encoding_details = cls.calculate_video_encoding_details(video_props["codecs"])
-        summary.video_frame_rate = cls.calculate_video_frame_rate(video_props["frame_rates"])
-        summary.video_color_depth = cls.calculate_video_color_depth(video_props["color_depths"])
+    def _set_video_properties(
+        cls,
+        summary: "ImagerySummary",
+        video_data: dict[str, Any],
+    ) -> None:
+        video_props = cls.get_video_properties(
+            [file["path"] for file in video_data["files"]],
+        )
+        summary.video_total_duration = cls.calculate_video_total_duration(
+            video_props["total_seconds"],
+        )
+        summary.video_resolution = cls.calculate_video_resolution(
+            video_props["resolutions"],
+        )
+        summary.video_encoding_details = cls.calculate_video_encoding_details(
+            video_props["codecs"],
+        )
+        summary.video_frame_rate = cls.calculate_video_frame_rate(
+            video_props["frame_rates"],
+        )
+        summary.video_color_depth = cls.calculate_video_color_depth(
+            video_props["color_depths"],
+        )
         summary.video_average_file_size = summary.calculate_video_average_file_size()
         summary.video_data_quality = cls.calculate_video_data_quality(
             len(video_data["files"]),
@@ -925,8 +1049,16 @@ class ImagerySummary:
             depths = [file["depth"] for file in data["files"] if file["depth"] is not None]
             datetimes = [file["datetime"] for file in data["files"] if file["datetime"] is not None]
 
-            setattr(summary, f"{data_type}_latitude_extent", f"{min(lats):.3f} to {max(lats):.3f}" if lats else "N/A")
-            setattr(summary, f"{data_type}_longitude_extent", f"{min(lons):.3f} to {max(lons):.3f}" if lons else "N/A")
+            setattr(
+                summary,
+                f"{data_type}_latitude_extent",
+                f"{min(lats):.3f} to {max(lats):.3f}" if lats else "N/A",
+            )
+            setattr(
+                summary,
+                f"{data_type}_longitude_extent",
+                f"{min(lons):.3f} to {max(lons):.3f}" if lons else "N/A",
+            )
             setattr(
                 summary,
                 f"{data_type}_altitude_extent",
