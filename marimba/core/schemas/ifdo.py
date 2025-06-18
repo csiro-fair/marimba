@@ -19,6 +19,7 @@ Classes:
     iFDOMetadata: Implements the BaseMetadata interface for iFDO-specific metadata
 """
 
+import gc
 import json
 import logging
 import tempfile
@@ -353,20 +354,19 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                             # Use the primary ImageData from the first iFDO metadata item
                             image_data = ifdo_metadata_items[0].primary_image_data
 
-                            # Open image file for processing
-                            image_file = Image.open(file_path)
+                            # Open image file for processing with proper context management
+                            with Image.open(file_path) as image_file:
+                                # Apply EXIF metadata using exiftool
+                                cls._inject_metadata_with_exiftool(
+                                    file_path,
+                                    image_data,
+                                    ancillary_data,
+                                    image_file,
+                                    logger,
+                                )
 
-                            # Apply EXIF metadata using exiftool
-                            cls._inject_metadata_with_exiftool(
-                                file_path,
-                                image_data,
-                                ancillary_data,
-                                image_file,
-                                logger,
-                            )
-
-                            # Extract image properties
-                            cls._extract_image_properties(image_file, image_data)
+                                # Extract image properties
+                                cls._extract_image_properties(image_file, image_data)
 
                             logger.debug(
                                 f"Thread {thread_num} - Applied iFDO metadata to EXIF tags for image {file_path}",
@@ -385,6 +385,11 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 # Always increment the progress bar, regardless of file type or processing success
                 if progress and task is not None:
                     progress.advance(task)
+                    
+                    # Trigger garbage collection periodically to manage memory during large dataset processing
+                    current_count = progress.tasks[task].completed
+                    if current_count > 0 and current_count % 100 == 0:
+                        gc.collect()
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             task = progress.add_task("[green]Processing files with metadata (4/12)", total=len(dataset_mapping))
@@ -518,29 +523,32 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         """
         try:
             # Create a copy for the thumbnail to avoid modifying original
-            thumb = image_file.copy()
+            with image_file.copy() as thumb:
+                # Set max dimension to 240px - aspect ratio will be maintained
+                thumbnail_size = (240, 240)
 
-            # Set max dimension to 240px - aspect ratio will be maintained
-            thumbnail_size = (240, 240)
+                # Use LANCZOS resampling for better quality
+                thumb.thumbnail(thumbnail_size, Image.Resampling.LANCZOS)
 
-            # Use LANCZOS resampling for better quality
-            thumb.thumbnail(thumbnail_size, Image.Resampling.LANCZOS)
+                # Convert to RGB if not already
+                if thumb.mode != "RGB":
+                    with thumb.convert("RGB") as rgb_thumb:
+                        # Save thumbnail to a temporary file
+                        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_file:
+                            rgb_thumb.save(temp_file.name, format="JPEG", quality=90, optimize=True)
+                            temp_thumb_path = temp_file.name
+                else:
+                    # Save thumbnail to a temporary file
+                    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_file:
+                        thumb.save(temp_file.name, format="JPEG", quality=90, optimize=True)
+                        temp_thumb_path = temp_file.name
 
-            # Convert to RGB if not already
-            if thumb.mode != "RGB":
-                thumb = thumb.convert("RGB")
+                # Use exiftool to embed the thumbnail
+                with exiftool.ExifToolHelper() as et:
+                    et.execute("-ThumbnailImage<=" + temp_thumb_path, "-overwrite_original", str(file_path))
 
-            # Save thumbnail to a temporary file
-            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_file:
-                thumb.save(temp_file.name, format="JPEG", quality=90, optimize=True)
-                temp_thumb_path = temp_file.name
-
-            # Use exiftool to embed the thumbnail
-            with exiftool.ExifToolHelper() as et:
-                et.execute("-ThumbnailImage<=" + temp_thumb_path, "-overwrite_original", str(file_path))
-
-            # Clean up temporary file
-            Path(temp_thumb_path).unlink()
+                # Clean up temporary file
+                Path(temp_thumb_path).unlink()
 
         except exiftool.ExifToolException as e:
             logger.debug(f"Failed to add thumbnail to {file_path}: {e}")
