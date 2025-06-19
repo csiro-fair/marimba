@@ -1,6 +1,6 @@
 [project]
 name = "marimba"
-version = "1.0.0"
+version = "1.0.1"
 description = "A Python framework for structuring, processing, packaging and distributing FAIR scientific image datasets"
 authors = [
     { name = "Chris Jackett", email = "chris.jackett@csiro.au" },
@@ -14,7 +14,7 @@ dependencies = [
     "rich>=13.3.1,<14",
     "PyYAML~=6.0",
     "pandas>=2.2.2,<3",
-    "ifdo>=1.2.5,<2",
+    "ifdo>=1.2.5,<1.3",
     "pillow>=11.1.0,<12",
     "opencv-python-headless>=4.7.0.72,<5",
     "gitpython>=3.1.44,<4",
