@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from copy import copy
 import inspect
+from copy import copy
 from typing import Any, Generic, TypeVar
 
 T = TypeVar("T")
@@ -47,9 +47,7 @@ class BaseMetadataHeader(Generic[T]):
     def _get_attributes(value: object) -> list[tuple[str, Any]]:
         members = inspect.getmembers(value)
         public_attr = [
-            (name, value)
-            for name, value in members
-            if (not name.startswith("_")) and (not inspect.ismethod(value))
+            (name, value) for name, value in members if (not name.startswith("_")) and (not inspect.ismethod(value))
         ]
 
         return public_attr

@@ -6,7 +6,7 @@ authors = [
     { name = "Chris Jackett", email = "chris.jackett@csiro.au" },
     { name = "Kevin Barnard", email = "kbarnard@mbari.org" },
 ]
-requires-python = "~=3.10"
+requires-python = "~=3.10.0"
 readme = "README.md"
 license = {file = "LICENSE"}
 dependencies = [

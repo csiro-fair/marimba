@@ -20,12 +20,18 @@ Classes:
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.log import LogMixin
 from marimba.core.utils.paths import format_path_for_logging
 from marimba.core.utils.rich import format_command, format_entity
+
+
+class PackageEntry(NamedTuple):
+    path: Path
+    metadata: list[BaseMetadata] | None = None
+    extra: dict[str, Any] | None = None
 
 
 class BasePipeline(ABC, LogMixin):
@@ -184,7 +190,7 @@ class BasePipeline(ABC, LogMixin):
         data_dir: Path,
         config: dict[str, Any],
         **kwargs: dict[str, Any],
-    ) -> dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]:
+    ) -> dict[Path, PackageEntry]:
         """
         Package a dataset from the given data directories and their corresponding collection configurations.
 
@@ -210,7 +216,7 @@ class BasePipeline(ABC, LogMixin):
             f"Completed {format_command('package')} command for pipeline {format_entity(self.class_name)}",
         )
 
-        return data_mapping
+        return {key: PackageEntry(*entry) for key, entry in data_mapping.items()}
 
     def run_post_package(
         self,
