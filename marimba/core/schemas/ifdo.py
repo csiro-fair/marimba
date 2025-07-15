@@ -150,7 +150,10 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         """Get the list of creator names."""
         if not self.primary_image_data.image_creators:
             return []
-        return [cast(str, creator.name) for creator in self.primary_image_data.image_creators]
+        return [
+            cast(str, creator.name)
+            for creator in self.primary_image_data.image_creators
+        ]
 
     @property
     def hash_sha256(self) -> str | None:
@@ -271,7 +274,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             # Check if this is a video file
             is_video = cls._is_video_file(filename)
 
-            ifdo_items = [item for item in metadata_items if isinstance(item, iFDOMetadata)]
+            ifdo_items = [
+                item for item in metadata_items if isinstance(item, iFDOMetadata)
+            ]
             if not ifdo_items:
                 continue
 
@@ -283,12 +288,19 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 image_data = cls._process_image_metadata(ifdo_items, path)
                 image_set_items[filename] = image_data
 
-        ifdo = iFDO(
-            image_set_header=ImageSetHeader(
+        if metadata_header is not None and isinstance(
+            metadata_header.header, ImageSetHeader
+        ):
+            image_set_header = metadata_header.header
+        else:
+            image_set_header = ImageSetHeader(
                 image_set_name=dataset_name,
                 image_set_uuid=str(uuid.uuid4()),
                 image_set_handle="",  # TODO @<cjackett>: Populate from distribution target URL
-            ),
+            )
+
+        ifdo = iFDO(
+            image_set_header=image_set_header,
             image_set_items=image_set_items,
         )
 
@@ -297,7 +309,11 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             output_name = cls.DEFAULT_METADATA_NAME
         # If metadata_name is provided but missing extension, add it
         else:
-            output_name = metadata_name if metadata_name.endswith(".ifdo") else f"{metadata_name}.ifdo"
+            output_name = (
+                metadata_name
+                if metadata_name.endswith(".ifdo")
+                else f"{metadata_name}.ifdo"
+            )
 
         if not dry_run:
             saver(
@@ -372,7 +388,11 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                         )
                     else:
                         # Get the ImageData from the metadata items
-                        ifdo_metadata_items = [item for item in metadata_items if isinstance(item, iFDOMetadata)]
+                        ifdo_metadata_items = [
+                            item
+                            for item in metadata_items
+                            if isinstance(item, iFDOMetadata)
+                        ]
 
                         if ifdo_metadata_items:
                             # Use the primary ImageData from the first iFDO metadata item
@@ -486,7 +506,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 image_data.image_latitude,
             )
             ifd_gps[piexif.GPSIFD.GPSLatitude] = ((d_lat, 1), (m_lat, 1), (s_lat, 1000))
-            ifd_gps[piexif.GPSIFD.GPSLatitudeRef] = "N" if image_data.image_latitude > 0 else "S"
+            ifd_gps[piexif.GPSIFD.GPSLatitudeRef] = (
+                "N" if image_data.image_latitude > 0 else "S"
+            )
         if image_data.image_longitude is not None:
             d_lon, m_lon, s_lon = convert_degrees_to_gps_coordinate(
                 image_data.image_longitude,
@@ -496,7 +518,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 (m_lon, 1),
                 (s_lon, 1000),
             )
-            ifd_gps[piexif.GPSIFD.GPSLongitudeRef] = "E" if image_data.image_longitude > 0 else "W"
+            ifd_gps[piexif.GPSIFD.GPSLongitudeRef] = (
+                "E" if image_data.image_longitude > 0 else "W"
+            )
         if image_data.image_altitude_meters is not None:
             altitude_fraction = Fraction(
                 abs(float(image_data.image_altitude_meters)),
@@ -506,7 +530,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 altitude_fraction.denominator,
             )
             ifd_gps[piexif.GPSIFD.GPSAltitude] = altitude_rational
-            ifd_gps[piexif.GPSIFD.GPSAltitudeRef] = 0 if image_data.image_altitude_meters >= 0 else 1
+            ifd_gps[piexif.GPSIFD.GPSAltitudeRef] = (
+                0 if image_data.image_altitude_meters >= 0 else 1
+            )
 
     @staticmethod
     def _add_thumbnail(path: Path, exif_dict: dict[str, Any]) -> Image.Image:

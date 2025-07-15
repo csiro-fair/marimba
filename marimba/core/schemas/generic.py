@@ -178,7 +178,7 @@ class GenericMetadata(BaseMetadata):
         dataset_name: str,
         root_dir: Path,
         items: dict[str, list["BaseMetadata"]],
-        metadata_header: BaseMetadataHeader[object] | None = None,
+        _metadata_header: BaseMetadataHeader[object] | None = None,
         metadata_name: str | None = None,
         *,
         dry_run: bool = False,
@@ -192,14 +192,18 @@ class GenericMetadata(BaseMetadata):
             "items": {
                 path: [
                     {
-                        "datetime": item.datetime.isoformat() if item.datetime else None,
+                        "datetime": item.datetime.isoformat()
+                        if item.datetime
+                        else None,
                         "latitude": item.latitude,
                         "longitude": item.longitude,
                         "altitude": item.altitude,
                         "context": item.context,
                         "license": item.license,
                         "creators": item.creators,
-                        "hash_sha256": item.format_hash() if hasattr(item, "format_hash") else None,
+                        "hash_sha256": item.format_hash()
+                        if hasattr(item, "format_hash")
+                        else None,
                     }
                     for item in metadata_items
                 ]
