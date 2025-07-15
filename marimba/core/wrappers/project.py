@@ -251,7 +251,7 @@ def execute_packaging(
 ) -> tuple[
     tuple[
         dict[Path, PackageEntry],
-        dict[type[BaseMetadata], BaseMetadataHeader[object]] | None,
+        dict[type[BaseMetadata], BaseMetadataHeader[object]],
     ],
     str,
 ]:

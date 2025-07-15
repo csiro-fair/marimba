@@ -193,7 +193,7 @@ class BasePipeline(ABC, LogMixin):
         **kwargs: dict[str, Any],
     ) -> tuple[
         dict[Path, PackageEntry],
-        dict[type[BaseMetadata], BaseMetadataHeader[object]] | None,
+        dict[type[BaseMetadata], BaseMetadataHeader[object]],
     ]:
         """
         Package a dataset from the given data directories and their corresponding collection configurations.
@@ -214,7 +214,14 @@ class BasePipeline(ABC, LogMixin):
             f"data_dir={format_path_for_logging(data_dir, Path(self._root_path).parents[2])}, {config=}, {kwargs=}",
         )
 
-        data_mapping, metadata_header = self._package(data_dir, config, **kwargs)
+        result = self._package(data_dir, config, **kwargs)
+
+        metadata_header: dict[type[BaseMetadata], BaseMetadataHeader[object]]
+        if isinstance(result, tuple):
+            data_mapping, metadata_header = result
+        else:
+            data_mapping = result
+            metadata_header = {}
 
         self.logger.info(
             f"Completed {format_command('package')} command for pipeline {format_entity(self.class_name)}",
@@ -283,10 +290,13 @@ class BasePipeline(ABC, LogMixin):
         data_dir: Path,
         config: dict[str, Any],
         **kwargs: dict[str, Any],
-    ) -> tuple[
-        dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
-        dict[type[BaseMetadata], BaseMetadataHeader[object]] | None,
-    ]:
+    ) -> (
+        dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]
+        | tuple[
+            dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
+            dict[type[BaseMetadata], BaseMetadataHeader[object]],
+        ]
+    ):
         """
         `run_package` implementation; override this.
         """

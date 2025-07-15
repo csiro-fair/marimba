@@ -349,12 +349,19 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         def process_file(
             cls: type[iFDOMetadata],
             thread_num: str,
-            item: tuple[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
+            item: tuple[
+                Path,
+                tuple[
+                    list[BaseMetadata],
+                    dict[str, Any] | None,
+                    BaseMetadataHeader[object] | None,
+                ],
+            ],
             logger: logging.Logger,
             progress: Progress | None = None,
             task: TaskID | None = None,
         ) -> None:
-            file_path, (metadata_items, ancillary_data) = item
+            file_path, (metadata_items, ancillary_data, header) = item
 
             # Formats with reliable EXIF support
             exif_supported_extensions = {

@@ -114,7 +114,7 @@ class PipelineTemplate(BasePipeline):
         **kwargs: dict[str, Any],
     ) -> tuple[
         dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
-        dict[type[BaseMetadata], BaseMetadataHeader[object]] | None,
+        dict[type[BaseMetadata], BaseMetadataHeader[object]],
     ]:
         """
         Package data from data_dir for distribution.
@@ -129,9 +129,9 @@ class PipelineTemplate(BasePipeline):
         """
         data_mapping: tuple[
             dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
-            dict[type[BaseMetadata], BaseMetadataHeader[object]] | None,
+            dict[type[BaseMetadata], BaseMetadataHeader[object]],
         ] = (
             {},
-            None,
+            {},
         )
         return data_mapping
