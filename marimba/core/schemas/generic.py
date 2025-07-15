@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Union, cast
 
 from marimba.core.schemas.base import BaseMetadata
+from marimba.core.schemas.header.base import BaseMetadataHeader
 from marimba.core.utils.metadata import yaml_saver
 
 
@@ -177,6 +178,7 @@ class GenericMetadata(BaseMetadata):
         dataset_name: str,
         root_dir: Path,
         items: dict[str, list["BaseMetadata"]],
+        metadata_header: BaseMetadataHeader[object] | None = None,
         metadata_name: str | None = None,
         *,
         dry_run: bool = False,
@@ -212,7 +214,14 @@ class GenericMetadata(BaseMetadata):
     @classmethod
     def process_files(
         cls,
-        dataset_mapping: dict[Path, tuple[list["BaseMetadata"], dict[str, Any] | None]],
+        dataset_mapping: dict[
+            Path,
+            tuple[
+                list["BaseMetadata"],
+                dict[str, Any] | None,
+                BaseMetadataHeader[object] | None,
+            ],
+        ],
         max_workers: int | None = None,
         logger: logging.Logger | None = None,
         *,

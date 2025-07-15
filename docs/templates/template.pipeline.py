@@ -10,6 +10,7 @@ from typing import Any
 
 from marimba.core.pipeline import BasePipeline
 from marimba.core.schemas.base import BaseMetadata
+from marimba.core.schemas.header.base import BaseMetadataHeader
 from marimba.core.schemas.ifdo import iFDOMetadata
 
 
@@ -111,7 +112,10 @@ class PipelineTemplate(BasePipeline):
         data_dir: Path,
         config: dict[str, Any],
         **kwargs: dict[str, Any],
-    ) -> dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]:
+    ) -> tuple[
+        dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
+        dict[type[BaseMetadata], BaseMetadataHeader[object]] | None,
+    ]:
         """
         Package data from data_dir for distribution.
 
@@ -123,5 +127,11 @@ class PipelineTemplate(BasePipeline):
         Returns:
             Dictionary mapping source paths to tuples of (destination path, BaseMetadata list, metadata).
         """
-        data_mapping: dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]] = {}
+        data_mapping: tuple[
+            dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
+            dict[type[BaseMetadata], BaseMetadataHeader[object]] | None,
+        ] = (
+            {},
+            None,
+        )
         return data_mapping

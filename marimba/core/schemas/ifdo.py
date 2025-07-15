@@ -36,6 +36,7 @@ from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
+from marimba.core.schemas.header.base import BaseMetadataHeader
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.metadata import yaml_saver
 from marimba.core.utils.rich import get_default_columns
@@ -234,7 +235,10 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         """Process image metadata items into a single ImageData."""
         # Take the first iFDO metadata item
         item = ifdo_items[0]
-        image_data = cast(ImageData, item.image_data[0] if item.is_video else item.image_data)
+        image_data = cast(
+            ImageData,
+            item.image_data[0] if item.is_video else item.image_data,
+        )
 
         # Set image-set-local-path for subdirectory files
         if path.parent != Path():
@@ -248,6 +252,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         dataset_name: str,
         root_dir: Path,
         items: dict[str, list["BaseMetadata"]],
+        metadata_header: BaseMetadataHeader[object] | None = None,
         metadata_name: str | None = None,
         *,
         dry_run: bool = False,
@@ -295,12 +300,23 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             output_name = metadata_name if metadata_name.endswith(".ifdo") else f"{metadata_name}.ifdo"
 
         if not dry_run:
-            saver(root_dir, output_name, ifdo.model_dump(mode="json", by_alias=True, exclude_none=True))
+            saver(
+                root_dir,
+                output_name,
+                ifdo.model_dump(mode="json", by_alias=True, exclude_none=True),
+            )
 
     @classmethod
     def process_files(
         cls,
-        dataset_mapping: dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
+        dataset_mapping: dict[
+            Path,
+            tuple[
+                list[BaseMetadata],
+                dict[str, Any] | None,
+                BaseMetadataHeader[object] | None,
+            ],
+        ],
         max_workers: int | None = None,
         logger: logging.Logger | None = None,
         *,
@@ -397,8 +413,17 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                     progress.advance(task)
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            task = progress.add_task("[green]Processing files with metadata (4/12)", total=len(dataset_mapping))
-            process_file(cls, items=dataset_mapping.items(), progress=progress, task=task, logger=log)  # type: ignore[call-arg]
+            task = progress.add_task(
+                "[green]Processing files with metadata (4/12)",
+                total=len(dataset_mapping),
+            )
+            process_file(
+                cls,
+                items=dataset_mapping.items(),
+                progress=progress,
+                task=task,
+                logger=log,
+            )  # type: ignore[call-arg]
 
     @staticmethod
     def _inject_datetime(image_data: ImageData, exif_dict: dict[str, Any]) -> None:
@@ -552,7 +577,11 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             ancillary_data: Any ancillary data to include in the user comment.
             exif_dict: The EXIF metadata dictionary.
         """
-        image_data_dict = image_data.model_dump(mode="json", by_alias=True, exclude_none=True)
+        image_data_dict = image_data.model_dump(
+            mode="json",
+            by_alias=True,
+            exclude_none=True,
+        )
         user_comment_data = {
             "metadata": {"ifdo": image_data_dict, "ancillary": ancillary_data},
         }

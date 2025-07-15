@@ -43,6 +43,11 @@ class BaseMetadataHeader(Generic[T]):
 
         return result
 
+    def merge(self, other: BaseMetadataHeader[T] | None) -> BaseMetadataHeader[T]:
+        if other is None:
+            return copy(self)
+        return self + other
+
     @staticmethod
     def _get_attributes(value: object) -> list[tuple[str, Any]]:
         members = inspect.getmembers(value)
