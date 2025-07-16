@@ -35,7 +35,6 @@ Classes:
     - DatasetWrapper: A wrapper class for handling dataset directories.
 """
 
-import json
 import logging
 import os
 from collections import OrderedDict, defaultdict
@@ -59,7 +58,6 @@ from marimba.core.utils.dataset import (
     MAPPED_GROUPED_ITEMS,
     PIPELINE_METADATA_HEADER_TYPE,
     execute_on_mapping,
-    flatten_composite_mapping,
     flatten_mapping,
     flatten_middle_mapping,
 )
@@ -605,29 +603,6 @@ class DatasetWrapper(LogMixin):
             dataset_mapping: The dataset mapping containing source and destination paths.
             max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
         """
-
-        for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-            for collection_data_mapping in pipeline_data_mapping.values():
-                ...
-
-        total_files = sum(
-            [
-                self._process_files_with_metadata_collection(
-                    pipeline_name, collection_data, collection_header, max_workers
-                )
-                for pipeline_name, pipeline_data_mapping in dataset_mapping.items()
-                for collection_data, collection_header in pipeline_data_mapping.values()
-            ]
-        )
-        self.logger.info(f"Processed {total_files} files with metadata")
-
-    def _process_files_with_metadata_collection(
-        self,
-        pipeline_name: str,
-        collection_data: dict[Path, PackageEntry],
-        collection_header: PIPELINE_METADATA_HEADER_TYPE,
-        max_workers: int | None,
-    ) -> int:
         # Group files by metadata type
         files_by_type: dict[
             type,
@@ -641,36 +616,31 @@ class DatasetWrapper(LogMixin):
             ],
         ] = {}
 
-        for (
-            relative_dst,
-            metadata_items,
-            ancillary_data,
-        ) in collection_data.values():
-            if not metadata_items:
-                continue
+        for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
+            for collection_data, collection_header in pipeline_data_mapping.values():
+                for (
+                    relative_dst,
+                    metadata_items,
+                    ancillary_data,
+                ) in collection_data.values():
+                    if not metadata_items:
+                        continue
 
-            dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
+                    dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
 
-            # Group by the type of the first metadata item
-            metadata_type = type(metadata_items[0])
-            if metadata_type not in files_by_type:
-                files_by_type[metadata_type] = {}
+                    # Group by the type of the first metadata item
+                    metadata_type = type(metadata_items[0])
+                    if metadata_type not in files_by_type:
+                        files_by_type[metadata_type] = {}
 
-            files_by_type[metadata_type][dst] = (
-                metadata_items,
-                ancillary_data,
-                collection_header.get(metadata_type, None),
-            )
+                    files_by_type[metadata_type][dst] = (
+                        metadata_items,
+                        ancillary_data,
+                        collection_header.get(metadata_type, None),
+                    )
 
-        # Process files for each metadata type
-        for metadata_type, files in files_by_type.items():
-            metadata_type.process_files(
-                dataset_mapping=files,
-                max_workers=max_workers,
-                dry_run=self.dry_run,
-            )
-
-        return sum(len(files) for files in files_by_type.values())
+        total_files = sum(len(files) for files in files_by_type.values())
+        self.logger.info(f"Processed {total_files} files with metadata")
 
     def _update_metadata_hashes(
         self,
