@@ -11,6 +11,8 @@ from functools import reduce
 from pathlib import Path
 from typing import TypeAlias, TypeVar
 
+from pydantic import BaseModel
+
 from marimba.core.pipeline import PackageEntry
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.schemas.header.base import BaseMetadataHeader
@@ -18,7 +20,7 @@ from marimba.core.utils.constants import MetadataGenerationLevelOptions
 
 PIPELINE_METADATA_HEADER_TYPE: TypeAlias = dict[
     type[BaseMetadata],
-    BaseMetadataHeader[object],
+    BaseMetadataHeader[BaseModel],
 ]
 
 PIPELINE_DATASET_MAPPING_TYPE: TypeAlias = dict[
@@ -37,7 +39,7 @@ PIPLINE_MAPPED_GROUPED_ITEMS = dict[
     str,
     dict[
         type[BaseMetadata],
-        tuple[dict[str, list[BaseMetadata]], BaseMetadataHeader[object] | None],
+        tuple[dict[str, list[BaseMetadata]], BaseMetadataHeader[BaseModel] | None],
     ],
 ]
 MAPPED_GROUPED_ITEMS = dict[str, PIPLINE_MAPPED_GROUPED_ITEMS]
@@ -46,7 +48,7 @@ MAPPING_PROCESSOR_TYPE: TypeAlias = Callable[
     [
         dict[
             type[BaseMetadata],
-            tuple[dict[str, list[BaseMetadata]], BaseMetadataHeader[object] | None],
+            tuple[dict[str, list[BaseMetadata]], BaseMetadataHeader[BaseModel] | None],
         ],
         str | None,
     ],
@@ -65,9 +67,9 @@ R = TypeVar("R")
 def flatten_middle_mapping(
     mapping: dict[
         str,
-        dict[str, tuple[dict[T, S], dict[type[R], BaseMetadataHeader[object]]]],
+        dict[str, tuple[dict[T, S], dict[type[R], BaseMetadataHeader[BaseModel]]]],
     ],
-) -> dict[str, tuple[dict[T, S], dict[type[R], BaseMetadataHeader[object]]]]:
+) -> dict[str, dict[T, S]]:
     """
     Flattens the middle level of a mapping structure.
 
@@ -84,20 +86,17 @@ def flatten_middle_mapping(
 
 
 def flatten_composite_mapping(
-    mapping: dict[str, tuple[dict[T, S], dict[type[R], BaseMetadataHeader[object]]]],
-) -> tuple[dict[T, S], dict[type[R], BaseMetadataHeader[object]]]:
+    mapping: dict[str, tuple[dict[T, S], dict[type[R], BaseMetadataHeader[BaseModel]]]],
+) -> dict[T, S]:
     flattened_mapping = flatten_mapping(
         {key: value for key, (value, _) in mapping.items()},
     )
-    flattened_header_mapping = flatten_header_mapping(
-        {key: header for key, (_, header) in mapping.items()},
-    )
-    return flattened_mapping, flattened_header_mapping
+    return flattened_mapping
 
 
 def flatten_header_mapping(
-    mapping: dict[str, dict[type[R], BaseMetadataHeader[object]]],
-) -> dict[type[R], BaseMetadataHeader[object]]:
+    mapping: dict[str, dict[type[R], BaseMetadataHeader[BaseModel]]],
+) -> dict[type[R], BaseMetadataHeader[BaseModel]]:
     headers = list(mapping.values())
     types = {key for entry in headers for key in entry}
 
@@ -130,9 +129,9 @@ def flatten_mapping(mapping: dict[str, dict[T, S]]) -> dict[T, S]:
 def flatten_middle_list_mapping(
     mapping: dict[
         str,
-        dict[str, dict[T, tuple[dict[S, R], BaseMetadataHeader[object] | None]]],
+        dict[str, dict[T, tuple[dict[S, R], BaseMetadataHeader[BaseModel] | None]]],
     ],
-) -> dict[str, dict[T, tuple[dict[S, R], BaseMetadataHeader[object] | None]]]:
+) -> dict[str, dict[T, tuple[dict[S, R], BaseMetadataHeader[BaseModel] | None]]]:
     """
     Flattens the middle level of a mapping structure.
 
@@ -149,8 +148,10 @@ def flatten_middle_list_mapping(
 
 
 def flatten_list_mapping(
-    mapping: dict[str, dict[T, tuple[dict[S, R], BaseMetadataHeader[object] | None]]],
-) -> dict[T, tuple[dict[S, R], BaseMetadataHeader[object] | None]]:
+    mapping: dict[
+        str, dict[T, tuple[dict[S, R], BaseMetadataHeader[BaseModel] | None]]
+    ],
+) -> dict[T, tuple[dict[S, R], BaseMetadataHeader[BaseModel] | None]]:
     """
     Flattens the middle level of a mapping structure.
 
@@ -160,7 +161,7 @@ def flatten_list_mapping(
     Returns:
         flattened mapping structure.
     """
-    output: defaultdict[T, tuple[dict[S, R], BaseMetadataHeader[object] | None]] = (
+    output: defaultdict[T, tuple[dict[S, R], BaseMetadataHeader[BaseModel] | None]] = (
         defaultdict(lambda: ({}, None))
     )
     for dictionary in mapping.values():

@@ -12,6 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel
+
 from marimba.core.schemas.header.base import BaseMetadataHeader
 
 
@@ -81,7 +83,7 @@ class BaseMetadata(ABC):
         dataset_name: str,
         root_dir: Path,
         items: dict[str, list["BaseMetadata"]],
-        metadata_header: BaseMetadataHeader[object] | None = None,
+        metadata_header: BaseMetadataHeader[BaseModel] | None = None,
         metadata_name: str | None = None,
         *,
         dry_run: bool = False,
@@ -99,7 +101,7 @@ class BaseMetadata(ABC):
             tuple[
                 list["BaseMetadata"],
                 dict[str, Any] | None,
-                BaseMetadataHeader[object] | None,
+                BaseMetadataHeader[BaseModel] | None,
             ],
         ],
         max_workers: int | None = None,

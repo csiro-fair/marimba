@@ -43,6 +43,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel
 from rich.progress import Progress, SpinnerColumn
 
 from marimba.core.installer.pipeline_installer import PipelineInstaller
@@ -251,7 +252,7 @@ def execute_packaging(
 ) -> tuple[
     tuple[
         dict[Path, PackageEntry],
-        dict[type[BaseMetadata], BaseMetadataHeader[object]],
+        dict[type[BaseMetadata], BaseMetadataHeader[BaseModel]],
     ],
     str,
 ]:
@@ -865,7 +866,9 @@ class ProjectWrapper(LogMixin):
                 # Zero-pad process, pipeline and collection indices
                 padded_process_index = f"{process_index:0{process_padding_length}}"
                 padded_pipeline_index = f"{pipeline_index:0{pipeline_padding_length}}"
-                padded_collection_index = f"{collection_index:0{collection_padding_length}}"
+                padded_collection_index = (
+                    f"{collection_index:0{collection_padding_length}}"
+                )
 
                 log_string_prefix = (
                     f"Process {padded_process_index} | "
@@ -918,15 +921,25 @@ class ProjectWrapper(LogMixin):
             ProjectWrapper.RunCommandError: If the command cannot be run.
         """
         merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
-        pipeline_wrappers_to_run, collection_wrappers_to_run = self._get_wrappers_to_run(
-            pipeline_names,
-            collection_names,
+        pipeline_wrappers_to_run, collection_wrappers_to_run = (
+            self._get_wrappers_to_run(
+                pipeline_names,
+                collection_names,
+            )
         )
 
-        pretty_pipelines = ", ".join(f'"{p!s}"' for p, _ in pipeline_wrappers_to_run.items())
-        pretty_collections = ", ".join(f'"{c!s}"' for c, _ in collection_wrappers_to_run.items())
-        pipeline_label = "pipeline" if len(pipeline_wrappers_to_run) == 1 else "pipelines"
-        collection_label = "collection" if len(collection_wrappers_to_run) == 1 else "collections"
+        pretty_pipelines = ", ".join(
+            f'"{p!s}"' for p, _ in pipeline_wrappers_to_run.items()
+        )
+        pretty_collections = ", ".join(
+            f'"{c!s}"' for c, _ in collection_wrappers_to_run.items()
+        )
+        pipeline_label = (
+            "pipeline" if len(pipeline_wrappers_to_run) == 1 else "pipelines"
+        )
+        collection_label = (
+            "collection" if len(collection_wrappers_to_run) == 1 else "collections"
+        )
         self.logger.info(
             f"Started processing data for {pipeline_label} {pretty_pipelines} "
             f"and {collection_label} {pretty_collections}{self._format_kwargs_message(merged_kwargs)}",
@@ -1027,8 +1040,12 @@ class ProjectWrapper(LogMixin):
 
                     # Zero-pad process, pipeline and collection indices
                     padded_process_index = f"{process_index:0{process_padding_length}}"
-                    padded_pipeline_index = f"{pipeline_index:0{pipeline_padding_length}}"
-                    padded_collection_index = f"{collection_index:0{collection_padding_length}}"
+                    padded_pipeline_index = (
+                        f"{pipeline_index:0{pipeline_padding_length}}"
+                    )
+                    padded_collection_index = (
+                        f"{collection_index:0{collection_padding_length}}"
+                    )
 
                     log_string_prefix = (
                         f"Process {padded_process_index} | "
@@ -1103,13 +1120,20 @@ class ProjectWrapper(LogMixin):
             collection_wrappers.append(collection_wrapper)
 
         # Load the collection configs and get the merged keyword arguments
-        collection_configs = [collection_wrapper.load_config() for collection_wrapper in collection_wrappers]
+        collection_configs = [
+            collection_wrapper.load_config()
+            for collection_wrapper in collection_wrappers
+        ]
         merged_kwargs = get_merged_keyword_args(kwargs, extra_args, self.logger)
 
-        pretty_pipelines = ", ".join(f'"{p!s}"' for p, _ in self.pipeline_wrappers.items())
+        pretty_pipelines = ", ".join(
+            f'"{p!s}"' for p, _ in self.pipeline_wrappers.items()
+        )
         pretty_collections = ", ".join(f'"{c!s}"' for c in collection_names)
         pipeline_label = "pipeline" if len(self.pipeline_wrappers) == 1 else "pipelines"
-        collection_label = "collection" if len(collection_wrappers) == 1 else "collections"
+        collection_label = (
+            "collection" if len(collection_wrappers) == 1 else "collections"
+        )
         self.logger.info(
             f'Started packaging dataset "{dataset_name}" for {pipeline_label} {pretty_pipelines} and '
             f"{collection_label} {pretty_collections}{self._format_kwargs_message(merged_kwargs)}",
@@ -1149,7 +1173,9 @@ class ProjectWrapper(LogMixin):
                     try:
                         (pipeline_data_mapping, message) = future.result()
                         self.logger.info(f"{log_string_prefix}{message}")
-                        dataset_mapping[pipeline_name][collection_name] = pipeline_data_mapping
+                        dataset_mapping[pipeline_name][collection_name] = (
+                            pipeline_data_mapping
+                        )
 
                     except Exception as e:
                         raise ProjectWrapper.CompositionError(
@@ -1179,7 +1205,8 @@ class ProjectWrapper(LogMixin):
         contact_email: str | None = None,
         zoom: int | None = None,
         max_workers: int | None = None,
-        metadata_saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
+        metadata_saver_overwrite: Callable[[Path, str, dict[str, Any]], None]
+        | None = None,
     ) -> DatasetWrapper:
         """
         Create a Marimba dataset from a dataset mapping.
@@ -1264,7 +1291,10 @@ class ProjectWrapper(LogMixin):
         Returns:
             Post processor methods.
         """
-        return [self._get_pipeline(pipeline_name).run_post_package for pipeline_name in pipeline_names]
+        return [
+            self._get_pipeline(pipeline_name).run_post_package
+            for pipeline_name in pipeline_names
+        ]
 
     def _get_pipeline(self, pipeline_name: str) -> BasePipeline:
         pipeline_wrapper = self._pipeline_wrappers[pipeline_name]
@@ -1474,7 +1504,9 @@ class ProjectWrapper(LogMixin):
         if collection_wrapper is None:
             raise ProjectWrapper.NoSuchCollectionError(collection_name)
 
-        pretty_paths = ", ".join(str(Path(p).resolve().absolute()) for p in source_paths)
+        pretty_paths = ", ".join(
+            str(Path(p).resolve().absolute()) for p in source_paths
+        )
         source_label = "source path" if len(source_paths) == 1 else "source paths"
         self.logger.info(
             f'Started importing data for collection "{collection_name}" from {source_label} {pretty_paths}'
@@ -1527,8 +1559,12 @@ class ProjectWrapper(LogMixin):
 
                     for source_index, source_path in enumerate(source_paths, start=1):
                         # Zero-pad process, pipeline and source indices
-                        padded_process_index = f"{process_index:0{process_padding_length}}"
-                        padded_pipeline_index = f"{pipeline_index:0{pipeline_padding_length}}"
+                        padded_process_index = (
+                            f"{process_index:0{process_padding_length}}"
+                        )
+                        padded_pipeline_index = (
+                            f"{pipeline_index:0{pipeline_padding_length}}"
+                        )
                         padded_source_index = f"{source_index:0{source_padding_length}}"
 
                         log_string_prefix = (

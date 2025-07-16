@@ -12,6 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Union, cast
 
+from pydantic import BaseModel
+
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.schemas.header.base import BaseMetadataHeader
 from marimba.core.utils.metadata import yaml_saver
@@ -178,7 +180,7 @@ class GenericMetadata(BaseMetadata):
         dataset_name: str,
         root_dir: Path,
         items: dict[str, list["BaseMetadata"]],
-        _metadata_header: BaseMetadataHeader[object] | None = None,
+        _metadata_header: BaseMetadataHeader[BaseModel] | None = None,
         metadata_name: str | None = None,
         *,
         dry_run: bool = False,
@@ -223,7 +225,7 @@ class GenericMetadata(BaseMetadata):
             tuple[
                 list["BaseMetadata"],
                 dict[str, Any] | None,
-                BaseMetadataHeader[object] | None,
+                BaseMetadataHeader[BaseModel] | None,
             ],
         ],
         max_workers: int | None = None,

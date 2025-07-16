@@ -3,8 +3,9 @@ from __future__ import annotations
 import inspect
 from copy import copy
 from typing import Any, Generic, TypeVar
+from pydantic import BaseModel
 
-T = TypeVar("T")
+T = TypeVar("T", bound=BaseModel)
 
 
 class HeaderMergeconflictError(Exception):
@@ -25,11 +26,11 @@ class BaseMetadataHeader(Generic[T]):
         return self._header
 
     def __add__(self, other: BaseMetadataHeader[T]) -> BaseMetadataHeader[T]:
-        result = copy(self)
-        own_attr = self._get_attributes(result.header)
+        result_data = self.header.model_dump(mode="python")
+        other_data = other.header.model_dump(mode="python")
 
-        for attr_name, own_value in own_attr:
-            other_value = getattr(other.header, attr_name)
+        for attr_name, own_value in result_data.items():
+            other_value = other_data.get(attr_name, None)
             if own_value == other_value:
                 continue
 
@@ -39,9 +40,9 @@ class BaseMetadataHeader(Generic[T]):
             if own_value is not None:
                 raise HeaderMergeconflictError(attr_name)
 
-            setattr(result.header, attr_name, other_value)
+            result_data[attr_name] = other_value
 
-        return result
+        return BaseMetadataHeader(type(self.header).model_validate(result_data))
 
     def merge(self, other: BaseMetadataHeader[T] | None) -> BaseMetadataHeader[T]:
         if other is None:
@@ -52,7 +53,9 @@ class BaseMetadataHeader(Generic[T]):
     def _get_attributes(value: object) -> list[tuple[str, Any]]:
         members = inspect.getmembers(value)
         public_attr = [
-            (name, value) for name, value in members if (not name.startswith("_")) and (not inspect.ismethod(value))
+            (name, value)
+            for name, value in members
+            if (not name.startswith("_")) and (not inspect.ismethod(value))
         ]
 
         return public_attr
