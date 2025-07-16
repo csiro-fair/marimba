@@ -1,6 +1,6 @@
 from marimba.core.schemas.header.base import (
-    BaseMetadataHeader,
-    HeaderMergeconflictError,
+    HeaderMergeConflictError,
+    MetadataHeader,
 )
 
-__all__ = ["BaseMetadataHeader", "HeaderMergeconflictError"]
+__all__ = ["MetadataHeader", "HeaderMergeConflictError"]

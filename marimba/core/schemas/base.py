@@ -14,7 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from marimba.core.schemas.header.base import BaseMetadataHeader
+from marimba.core.schemas.header.base import MetadataHeader
 
 
 class BaseMetadata(ABC):
@@ -83,7 +83,7 @@ class BaseMetadata(ABC):
         dataset_name: str,
         root_dir: Path,
         items: dict[str, list["BaseMetadata"]],
-        metadata_header: BaseMetadataHeader[BaseModel] | None = None,
+        metadata_header: MetadataHeader[BaseModel] | None = None,
         metadata_name: str | None = None,
         *,
         dry_run: bool = False,
@@ -101,7 +101,7 @@ class BaseMetadata(ABC):
             tuple[
                 list["BaseMetadata"],
                 dict[str, Any] | None,
-                BaseMetadataHeader[BaseModel] | None,
+                MetadataHeader[BaseModel] | None,
             ],
         ],
         max_workers: int | None = None,

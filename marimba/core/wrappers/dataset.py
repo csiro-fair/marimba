@@ -49,14 +49,13 @@ from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.pipeline import PackageEntry
 from marimba.core.schemas.base import BaseMetadata
-from marimba.core.schemas.header.base import BaseMetadataHeader
+from marimba.core.schemas.header.base import MetadataHeader
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.dataset import (
     DATASET_MAPPING_TYPE,
     DECORATOR_TYPE,
     MAPPED_DATASET_ITEMS,
     MAPPED_GROUPED_ITEMS,
-    PIPELINE_METADATA_HEADER_TYPE,
     execute_on_mapping,
     flatten_mapping,
     flatten_middle_mapping,
@@ -99,8 +98,7 @@ class DatasetWrapper(LogMixin):
         contact_email: str | None = None,
         *,
         dry_run: bool = False,
-        metadata_saver_overwrite: Callable[[Path, str, dict[str, Any]], None]
-        | None = None,
+        metadata_saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
     ) -> None:
         """
         Initialize a new instance of the class.
@@ -183,11 +181,7 @@ class DatasetWrapper(LogMixin):
             filename (str): The new filename for the summary.
         """
         if filename:
-            self._summary_name = (
-                filename
-                if filename.endswith(".summary.md")
-                else f"{filename}.summary.md"
-            )
+            self._summary_name = filename if filename.endswith(".summary.md") else f"{filename}.summary.md"
         else:
             self._summary_name = "summary.md"
 
@@ -473,7 +467,7 @@ class DatasetWrapper(LogMixin):
             str,
             tuple[
                 dict[str, list[BaseMetadata]],
-                dict[type[BaseMetadata], BaseMetadataHeader[BaseModel]],
+                dict[type[BaseMetadata], MetadataHeader[BaseModel]],
             ],
         ],
     ]:
@@ -549,7 +543,7 @@ class DatasetWrapper(LogMixin):
                 str,
                 tuple[
                     dict[str, list[BaseMetadata]],
-                    dict[type[BaseMetadata], BaseMetadataHeader[BaseModel]],
+                    dict[type[BaseMetadata], MetadataHeader[BaseModel]],
                 ],
             ],
         ] = defaultdict(lambda: defaultdict(lambda: ({}, {})))
@@ -611,7 +605,7 @@ class DatasetWrapper(LogMixin):
                 tuple[
                     list[BaseMetadata],
                     dict[str, Any] | None,
-                    BaseMetadataHeader[BaseModel] | None,
+                    MetadataHeader[BaseModel] | None,
                 ],
             ],
         ] = {}
@@ -639,6 +633,13 @@ class DatasetWrapper(LogMixin):
                         collection_header.get(metadata_type, None),
                     )
 
+        for metadata_type, files in files_by_type.items():
+            metadata_type.process_files(
+                dataset_mapping=files,
+                max_workers=max_workers,
+                dry_run=self.dry_run,
+            )
+
         total_files = sum(len(files) for files in files_by_type.values())
         self.logger.info(f"Processed {total_files} files with metadata")
 
@@ -663,14 +664,14 @@ class DatasetWrapper(LogMixin):
         self,
         dataset_items: tuple[
             dict[str, list[BaseMetadata]],
-            dict[type[BaseMetadata], BaseMetadataHeader[BaseModel]],
+            dict[type[BaseMetadata], MetadataHeader[BaseModel]],
         ],
         progress: Progress | None = None,
         task: TaskID | None = None,
         max_workers: int | None = None,
     ) -> tuple[
         dict[str, list[BaseMetadata]],
-        dict[type[BaseMetadata], BaseMetadataHeader[BaseModel]],
+        dict[type[BaseMetadata], MetadataHeader[BaseModel]],
     ]:
         """Process all items and return them sorted by path."""
 
@@ -688,8 +689,7 @@ class DatasetWrapper(LogMixin):
             self._update_metadata_hashes(file_path, metadata_items, progress, task)
 
         items = [
-            (Path(self.root_dir) / file_path, metadata_items)
-            for file_path, metadata_items in dataset_items[0].items()
+            (Path(self.root_dir) / file_path, metadata_items) for file_path, metadata_items in dataset_items[0].items()
         ]
         process_items_with_hashes(
             self,
@@ -709,16 +709,16 @@ class DatasetWrapper(LogMixin):
         self,
         items: tuple[
             dict[str, list[BaseMetadata]],
-            dict[type[BaseMetadata], BaseMetadataHeader[BaseModel]],
+            dict[type[BaseMetadata], MetadataHeader[BaseModel]],
         ],
     ) -> dict[
         type[BaseMetadata],
-        tuple[dict[str, list[BaseMetadata]], BaseMetadataHeader[BaseModel] | None],
+        tuple[dict[str, list[BaseMetadata]], MetadataHeader[BaseModel] | None],
     ]:
         """Group dataset items by their metadata type."""
         grouped_items: dict[
             type[BaseMetadata],
-            tuple[dict[str, list[BaseMetadata]], BaseMetadataHeader[BaseModel] | None],
+            tuple[dict[str, list[BaseMetadata]], MetadataHeader[BaseModel] | None],
         ] = {}
 
         for path, metadata_items in items[0].items():
@@ -740,7 +740,7 @@ class DatasetWrapper(LogMixin):
         dataset_name: str,
         grouped_items: dict[
             type[BaseMetadata],
-            tuple[dict[str, list[BaseMetadata]], BaseMetadataHeader[BaseModel] | None],
+            tuple[dict[str, list[BaseMetadata]], MetadataHeader[BaseModel] | None],
         ],
         collection_name: str | None = None,
     ) -> None:
@@ -769,14 +769,10 @@ class DatasetWrapper(LogMixin):
         ]
         metadata_types = {keys for item in metadata_counts for keys in item}
         type_counts = {
-            metadata_type: sum([x.get(metadata_type, 0) for x in metadata_counts])
-            for metadata_type in metadata_types
+            metadata_type: sum([x.get(metadata_type, 0) for x in metadata_counts]) for metadata_type in metadata_types
         }
 
-        type_counts_messages = [
-            f"{counts} {metadata_type.__name__}"
-            for metadata_type, counts in type_counts.items()
-        ]
+        type_counts_messages = [f"{counts} {metadata_type.__name__}" for metadata_type, counts in type_counts.items()]
         self.logger.info(
             f"Generated metadata file containing {', '.join(type_counts_messages)} items",
         )
@@ -948,9 +944,7 @@ class DatasetWrapper(LogMixin):
         Returns:
             bool: True if the value is within the specified range and is not NaN, otherwise False.
         """
-        return (
-            value is not None and min_value <= value <= max_value and not isnan(value)
-        )
+        return value is not None and min_value <= value <= max_value and not isnan(value)
 
     def _validate_geolocations(self, lat: float | None, lon: float | None) -> bool:
         """
@@ -1006,11 +1000,7 @@ class DatasetWrapper(LogMixin):
                     map_path = self.root_dir / "map.png"
                     if not self.dry_run:
                         summary_map.save(map_path)
-                    coordinate_label = (
-                        "spatial coordinate"
-                        if len(geolocations) == 1
-                        else "spatial coordinates"
-                    )
+                    coordinate_label = "spatial coordinate" if len(geolocations) == 1 else "spatial coordinates"
                     self.logger.info(
                         f"Generated summary map containing {len(geolocations)} "
                         f"{coordinate_label} at {format_path_for_logging(map_path, self._project_dir)}",
@@ -1288,9 +1278,7 @@ class DatasetWrapper(LogMixin):
         max_workers: int | None = None,
     ) -> None:
         reverse_mapping: dict[Path, Path] = {
-            dst.resolve(): src
-            for src, (dst, _, _) in pipeline_data_mapping.items()
-            if dst is not None
+            dst.resolve(): src for src, (dst, _, _) in pipeline_data_mapping.items() if dst is not None
         }
 
         @multithreaded(max_workers=max_workers)

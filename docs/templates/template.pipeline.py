@@ -8,9 +8,11 @@ Rename the PipelineTemplate class to something appropriate for your Pipeline's p
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel
+
 from marimba.core.pipeline import BasePipeline
 from marimba.core.schemas.base import BaseMetadata
-from marimba.core.schemas.header.base import BaseMetadataHeader
+from marimba.core.schemas.header.base import MetadataHeader
 from marimba.core.schemas.ifdo import iFDOMetadata
 
 
@@ -114,7 +116,7 @@ class PipelineTemplate(BasePipeline):
         **kwargs: dict[str, Any],
     ) -> tuple[
         dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
-        dict[type[BaseMetadata], BaseMetadataHeader[object]],
+        dict[type[BaseMetadata], MetadataHeader[BaseModel]],
     ]:
         """
         Package data from data_dir for distribution.
@@ -129,7 +131,7 @@ class PipelineTemplate(BasePipeline):
         """
         data_mapping: tuple[
             dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
-            dict[type[BaseMetadata], BaseMetadataHeader[object]],
+            dict[type[BaseMetadata], MetadataHeader[BaseModel]],
         ] = (
             {},
             {},

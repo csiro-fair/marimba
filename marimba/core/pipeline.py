@@ -15,6 +15,7 @@ Imports:
 
 Classes:
     - BasePipeline: Abstract base class for Marimba pipelines.
+    - PackageEntry: Package metadata for a single file.
 
 """
 
@@ -22,14 +23,20 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, NamedTuple
 
+from pydantic import BaseModel
+
 from marimba.core.schemas.base import BaseMetadata
-from marimba.core.schemas.header.base import BaseMetadataHeader
+from marimba.core.schemas.header.base import MetadataHeader
 from marimba.core.utils.log import LogMixin
 from marimba.core.utils.paths import format_path_for_logging
 from marimba.core.utils.rich import format_command, format_entity
 
 
 class PackageEntry(NamedTuple):
+    """
+    Package metadata for a single file.
+    """
+
     path: Path
     metadata: list[BaseMetadata] | None = None
     extra: dict[str, Any] | None = None
@@ -193,7 +200,7 @@ class BasePipeline(ABC, LogMixin):
         **kwargs: dict[str, Any],
     ) -> tuple[
         dict[Path, PackageEntry],
-        dict[type[BaseMetadata], BaseMetadataHeader[object]],
+        dict[type[BaseMetadata], MetadataHeader[BaseModel]],
     ]:
         """
         Package a dataset from the given data directories and their corresponding collection configurations.
@@ -216,7 +223,7 @@ class BasePipeline(ABC, LogMixin):
 
         result = self._package(data_dir, config, **kwargs)
 
-        metadata_header: dict[type[BaseMetadata], BaseMetadataHeader[object]]
+        metadata_header: dict[type[BaseMetadata], MetadataHeader[BaseModel]]
         if isinstance(result, tuple):
             data_mapping, metadata_header = result
         else:
@@ -294,7 +301,7 @@ class BasePipeline(ABC, LogMixin):
         dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]
         | tuple[
             dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
-            dict[type[BaseMetadata], BaseMetadataHeader[object]],
+            dict[type[BaseMetadata], MetadataHeader[BaseModel]],
         ]
     ):
         """

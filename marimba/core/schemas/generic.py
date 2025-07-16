@@ -15,7 +15,7 @@ from typing import Any, Union, cast
 from pydantic import BaseModel
 
 from marimba.core.schemas.base import BaseMetadata
-from marimba.core.schemas.header.base import BaseMetadataHeader
+from marimba.core.schemas.header.base import MetadataHeader
 from marimba.core.utils.metadata import yaml_saver
 
 
@@ -180,7 +180,7 @@ class GenericMetadata(BaseMetadata):
         dataset_name: str,
         root_dir: Path,
         items: dict[str, list["BaseMetadata"]],
-        _metadata_header: BaseMetadataHeader[BaseModel] | None = None,
+        _metadata_header: MetadataHeader[BaseModel] | None = None,
         metadata_name: str | None = None,
         *,
         dry_run: bool = False,
@@ -194,18 +194,14 @@ class GenericMetadata(BaseMetadata):
             "items": {
                 path: [
                     {
-                        "datetime": item.datetime.isoformat()
-                        if item.datetime
-                        else None,
+                        "datetime": item.datetime.isoformat() if item.datetime else None,
                         "latitude": item.latitude,
                         "longitude": item.longitude,
                         "altitude": item.altitude,
                         "context": item.context,
                         "license": item.license,
                         "creators": item.creators,
-                        "hash_sha256": item.format_hash()
-                        if hasattr(item, "format_hash")
-                        else None,
+                        "hash_sha256": item.format_hash() if hasattr(item, "format_hash") else None,
                     }
                     for item in metadata_items
                 ]
@@ -225,7 +221,7 @@ class GenericMetadata(BaseMetadata):
             tuple[
                 list["BaseMetadata"],
                 dict[str, Any] | None,
-                BaseMetadataHeader[BaseModel] | None,
+                MetadataHeader[BaseModel] | None,
             ],
         ],
         max_workers: int | None = None,

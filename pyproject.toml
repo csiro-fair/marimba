@@ -27,6 +27,7 @@ dependencies = [
     "botocore>=1.38.2",
     "requests>=2.32.3",
     "uv>=0.7.8",
+    "pydantic>=2.11.3",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -100,3 +101,6 @@ pillow = ["PIL"]
 PyYAML = ["yaml"]
 gitpython = ["git"]
 opencv-python-headless = ["cv2"]
+
+[tool.deptry.per_rule_ignores]
+DEP002 = ["uv"]
