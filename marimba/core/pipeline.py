@@ -15,17 +15,31 @@ Imports:
 
 Classes:
     - BasePipeline: Abstract base class for Marimba pipelines.
+    - PackageEntry: Package metadata for a single file.
 
 """
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
+
+from pydantic import BaseModel
 
 from marimba.core.schemas.base import BaseMetadata
+from marimba.core.schemas.header.base import MetadataHeader
 from marimba.core.utils.log import LogMixin
 from marimba.core.utils.paths import format_path_for_logging
 from marimba.core.utils.rich import format_command, format_entity
+
+
+class PackageEntry(NamedTuple):
+    """
+    Package metadata for a single file.
+    """
+
+    path: Path
+    metadata: list[BaseMetadata] | None = None
+    extra: dict[str, Any] | None = None
 
 
 class BasePipeline(ABC, LogMixin):
@@ -184,7 +198,10 @@ class BasePipeline(ABC, LogMixin):
         data_dir: Path,
         config: dict[str, Any],
         **kwargs: dict[str, Any],
-    ) -> dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]:
+    ) -> tuple[
+        dict[Path, PackageEntry],
+        dict[type[BaseMetadata], MetadataHeader[BaseModel]],
+    ]:
         """
         Package a dataset from the given data directories and their corresponding collection configurations.
 
@@ -204,13 +221,20 @@ class BasePipeline(ABC, LogMixin):
             f"data_dir={format_path_for_logging(data_dir, Path(self._root_path).parents[2])}, {config=}, {kwargs=}",
         )
 
-        data_mapping = self._package(data_dir, config, **kwargs)
+        result = self._package(data_dir, config, **kwargs)
+
+        metadata_header: dict[type[BaseMetadata], MetadataHeader[BaseModel]]
+        if isinstance(result, tuple):
+            data_mapping, metadata_header = result
+        else:
+            data_mapping = result
+            metadata_header = {}
 
         self.logger.info(
             f"Completed {format_command('package')} command for pipeline {format_entity(self.class_name)}",
         )
 
-        return data_mapping
+        return {key: PackageEntry(*entry) for key, entry in data_mapping.items()}, metadata_header
 
     def run_post_package(
         self,
@@ -273,7 +297,13 @@ class BasePipeline(ABC, LogMixin):
         data_dir: Path,
         config: dict[str, Any],
         **kwargs: dict[str, Any],
-    ) -> dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]:
+    ) -> (
+        dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]
+        | tuple[
+            dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
+            dict[type[BaseMetadata], MetadataHeader[BaseModel]],
+        ]
+    ):
         """
         `run_package` implementation; override this.
         """

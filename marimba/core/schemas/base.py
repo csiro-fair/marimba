@@ -12,6 +12,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel
+
+from marimba.core.schemas.header.base import MetadataHeader
+
 
 class BaseMetadata(ABC):
     """
@@ -79,6 +83,7 @@ class BaseMetadata(ABC):
         dataset_name: str,
         root_dir: Path,
         items: dict[str, list["BaseMetadata"]],
+        metadata_header: MetadataHeader[BaseModel] | None = None,
         metadata_name: str | None = None,
         *,
         dry_run: bool = False,
@@ -91,7 +96,14 @@ class BaseMetadata(ABC):
     @abstractmethod
     def process_files(
         cls,
-        dataset_mapping: dict[Path, tuple[list["BaseMetadata"], dict[str, Any] | None]],
+        dataset_mapping: dict[
+            Path,
+            tuple[
+                list["BaseMetadata"],
+                dict[str, Any] | None,
+                MetadataHeader[BaseModel] | None,
+            ],
+        ],
         max_workers: int | None = None,
         logger: logging.Logger | None = None,
         *,

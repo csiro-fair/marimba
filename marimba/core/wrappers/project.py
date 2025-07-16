@@ -43,14 +43,16 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel
 from rich.progress import Progress, SpinnerColumn
 
 from marimba.core.installer.pipeline_installer import PipelineInstaller
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
-from marimba.core.pipeline import BasePipeline
+from marimba.core.pipeline import BasePipeline, PackageEntry
 from marimba.core.schemas.base import BaseMetadata
+from marimba.core.schemas.header.base import MetadataHeader
 from marimba.core.utils.constants import Operation
-from marimba.core.utils.dataset import DECORATOR_TYPE
+from marimba.core.utils.dataset import DATASET_MAPPING_TYPE, DECORATOR_TYPE
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.paths import format_path_for_logging, remove_directory_tree
 from marimba.core.utils.prompt import prompt_schema
@@ -247,7 +249,13 @@ def execute_packaging(
     dry_run: bool,
     log_string_prefix: str,
     merged_kwargs: dict[str, Any],
-) -> tuple[dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]], str]:
+) -> tuple[
+    tuple[
+        dict[Path, PackageEntry],
+        dict[type[BaseMetadata], MetadataHeader[BaseModel]],
+    ],
+    str,
+]:
     """
     Package a pipeline's data for a given collection directory and configuration.
 
@@ -1056,13 +1064,7 @@ class ProjectWrapper(LogMixin):
         extra_args: list[str] | None = None,
         max_workers: int | None = None,
         **kwargs: dict[str, Any],
-    ) -> dict[
-        str,
-        dict[
-            str,
-            dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
-        ],
-    ]:
+    ) -> DATASET_MAPPING_TYPE:
         """
         Compose a dataset for given collections across multiple pipelines.
 
@@ -1114,13 +1116,7 @@ class ProjectWrapper(LogMixin):
             f"{collection_label} {pretty_collections}{self._format_kwargs_message(merged_kwargs)}",
         )
 
-        dataset_mapping: dict[
-            str,
-            dict[
-                str,
-                dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
-            ],
-        ] = defaultdict(lambda: defaultdict(dict))
+        dataset_mapping: DATASET_MAPPING_TYPE = defaultdict(dict)
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             total_task_length = len(self.pipeline_wrappers) * len(collection_wrappers)
@@ -1154,7 +1150,8 @@ class ProjectWrapper(LogMixin):
                     try:
                         (pipeline_data_mapping, message) = future.result()
                         self.logger.info(f"{log_string_prefix}{message}")
-                        dataset_mapping[pipeline_name][collection_name].update(pipeline_data_mapping)
+                        dataset_mapping[pipeline_name][collection_name] = pipeline_data_mapping
+
                     except Exception as e:
                         raise ProjectWrapper.CompositionError(
                             f"{log_string_prefix}"
@@ -1174,13 +1171,7 @@ class ProjectWrapper(LogMixin):
     def create_dataset(
         self,
         dataset_name: str,
-        dataset_mapping: dict[
-            str,
-            dict[
-                str,
-                dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
-            ],
-        ],
+        dataset_mapping: DATASET_MAPPING_TYPE,
         metadata_mapping_processor_decorator: list[DECORATOR_TYPE],
         post_package_processors: list[Callable[[Path], set[Path]]],
         operation: Operation = Operation.copy,
@@ -1261,7 +1252,10 @@ class ProjectWrapper(LogMixin):
         self._dataset_wrappers[dataset_name] = dataset_wrapper
         return dataset_wrapper
 
-    def get_pipeline_post_processors(self, pipeline_names: list[str]) -> list[Callable[[Path], set[Path]]]:
+    def get_pipeline_post_processors(
+        self,
+        pipeline_names: list[str],
+    ) -> list[Callable[[Path], set[Path]]]:
         """
         Gets the post processor methods for all given pipeline names.
 

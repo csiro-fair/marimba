@@ -9,35 +9,67 @@ from collections import defaultdict
 from collections.abc import Callable
 from functools import reduce
 from pathlib import Path
-from typing import Any, TypeAlias, TypeVar
+from typing import TypeAlias, TypeVar
 
+from pydantic import BaseModel
+
+from marimba.core.pipeline import PackageEntry
 from marimba.core.schemas.base import BaseMetadata
+from marimba.core.schemas.header.base import MetadataHeader
 from marimba.core.utils.constants import MetadataGenerationLevelOptions
+
+PIPELINE_METADATA_HEADER_TYPE: TypeAlias = dict[
+    type[BaseMetadata],
+    MetadataHeader[BaseModel],
+]
 
 PIPELINE_DATASET_MAPPING_TYPE: TypeAlias = dict[
     str,
-    dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
+    tuple[dict[Path, PackageEntry], PIPELINE_METADATA_HEADER_TYPE],
 ]
 DATASET_MAPPING_TYPE: TypeAlias = dict[str, PIPELINE_DATASET_MAPPING_TYPE]
 
-PIPELINE_MAPPED_DATASET_ITEMS = dict[str, dict[str, list[BaseMetadata]]]
+PIPELINE_MAPPED_DATASET_ITEMS = dict[
+    str,
+    tuple[dict[str, list[BaseMetadata]], PIPELINE_METADATA_HEADER_TYPE],
+]
 MAPPED_DATASET_ITEMS = dict[str, PIPELINE_MAPPED_DATASET_ITEMS]
 
-PIPLINE_MAPPED_GROUPED_ITEMS = dict[str, dict[type[BaseMetadata], dict[str, list[BaseMetadata]]]]
+PIPLINE_MAPPED_GROUPED_ITEMS = dict[
+    str,
+    dict[
+        type[BaseMetadata],
+        tuple[dict[str, list[BaseMetadata]], MetadataHeader[BaseModel] | None],
+    ],
+]
 MAPPED_GROUPED_ITEMS = dict[str, PIPLINE_MAPPED_GROUPED_ITEMS]
 
 MAPPING_PROCESSOR_TYPE: TypeAlias = Callable[
-    [dict[type[BaseMetadata], dict[str, list[BaseMetadata]]], str | None],
+    [
+        dict[
+            type[BaseMetadata],
+            tuple[dict[str, list[BaseMetadata]], MetadataHeader[BaseModel] | None],
+        ],
+        str | None,
+    ],
     None,
 ]
-DECORATOR_TYPE: TypeAlias = Callable[[MAPPING_PROCESSOR_TYPE, MAPPED_GROUPED_ITEMS], None]
+DECORATOR_TYPE: TypeAlias = Callable[
+    [MAPPING_PROCESSOR_TYPE, MAPPED_GROUPED_ITEMS],
+    None,
+]
 
 T = TypeVar("T")
 S = TypeVar("S")
 R = TypeVar("R")
 
 
-def flatten_middle_mapping(mapping: dict[str, dict[str, dict[T, S]]]) -> dict[str, dict[T, S]]:
+def flatten_middle_mapping(
+    mapping: dict[
+        str,
+        dict[str, tuple[dict[T, S], dict[type[R], MetadataHeader[BaseModel]]]],
+    ],
+) -> dict[str, dict[T, S]]:
     """
     Flattens the middle level of a mapping structure.
 
@@ -47,7 +79,48 @@ def flatten_middle_mapping(mapping: dict[str, dict[str, dict[T, S]]]) -> dict[st
     Returns:
         flattened mapping structure.
     """
-    return {pipeline_name: flatten_mapping(pipeline_data) for pipeline_name, pipeline_data in mapping.items()}
+    return {pipeline_name: flatten_composite_mapping(pipeline_data) for pipeline_name, pipeline_data in mapping.items()}
+
+
+def flatten_composite_mapping(
+    mapping: dict[str, tuple[dict[T, S], dict[type[R], MetadataHeader[BaseModel]]]],
+) -> dict[T, S]:
+    """
+    Flattens a mapping structure for one level.
+
+    Args:
+        mapping: Mapping to flatten.
+
+    Returns:
+        flattened mapping structure.
+    """
+    return flatten_mapping(
+        {key: value for key, (value, _) in mapping.items()},
+    )
+
+
+def flatten_header_mapping(
+    mapping: dict[str, dict[type[R], MetadataHeader[BaseModel]]],
+) -> dict[type[R], MetadataHeader[BaseModel]]:
+    """
+    Flattens a mapping structure for one level.
+
+    Args:
+        mapping: Mapping to flatten.
+
+    Returns:
+        flattened mapping structure.
+    """
+    headers = list(mapping.values())
+    types = {key for entry in headers for key in entry}
+
+    return {
+        header_type: reduce(
+            MetadataHeader.__add__,
+            [entry[header_type] for entry in headers if entry.get(header_type, None) is not None],
+        )
+        for header_type in types
+    }
 
 
 def flatten_mapping(mapping: dict[str, dict[T, S]]) -> dict[T, S]:
@@ -63,7 +136,12 @@ def flatten_mapping(mapping: dict[str, dict[T, S]]) -> dict[T, S]:
     return reduce(lambda x, y: x | y, mapping.values(), {})
 
 
-def flatten_middle_list_mapping(mapping: dict[str, dict[str, dict[T, dict[S, R]]]]) -> dict[str, dict[T, dict[S, R]]]:
+def flatten_middle_list_mapping(
+    mapping: dict[
+        str,
+        dict[str, dict[T, tuple[dict[S, R], MetadataHeader[BaseModel] | None]]],
+    ],
+) -> dict[str, dict[T, tuple[dict[S, R], MetadataHeader[BaseModel] | None]]]:
     """
     Flattens the middle level of a mapping structure.
 
@@ -76,7 +154,12 @@ def flatten_middle_list_mapping(mapping: dict[str, dict[str, dict[T, dict[S, R]]
     return {pipeline_name: flatten_list_mapping(pipeline_data) for pipeline_name, pipeline_data in mapping.items()}
 
 
-def flatten_list_mapping(mapping: dict[str, dict[T, dict[S, R]]]) -> dict[T, dict[S, R]]:
+def flatten_list_mapping(
+    mapping: dict[
+        str,
+        dict[T, tuple[dict[S, R], MetadataHeader[BaseModel] | None]],
+    ],
+) -> dict[T, tuple[dict[S, R], MetadataHeader[BaseModel] | None]]:
     """
     Flattens the middle level of a mapping structure.
 
@@ -86,15 +169,19 @@ def flatten_list_mapping(mapping: dict[str, dict[T, dict[S, R]]]) -> dict[T, dic
     Returns:
         flattened mapping structure.
     """
-    output: defaultdict[T, dict[S, R]] = defaultdict(dict)
+    output: defaultdict[T, tuple[dict[S, R], MetadataHeader[BaseModel] | None]] = defaultdict(lambda: ({}, None))
     for dictionary in mapping.values():
-        for key, value in dictionary.items():
-            output[key].update(value)
-
+        for key, (entries, header) in dictionary.items():
+            output[key][0].update(entries)
+            if header is not None:
+                output[key] = (output[key][0], header.merge(output[key][1]))
     return dict(output)
 
 
-def execute_on_mapping(mapping: dict[str, dict[str, S]], executor: Callable[[S], T]) -> dict[str, dict[str, T]]:
+def execute_on_mapping(
+    mapping: dict[str, dict[str, S]],
+    executor: Callable[[S], T],
+) -> dict[str, dict[str, T]]:
     """
     Executes a function on a mapping structure.
 
