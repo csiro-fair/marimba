@@ -6,7 +6,7 @@ from pathlib import Path
 
 import exiftool
 
-from marimba.core.utils.dependencies import show_dependency_error_and_exit
+from marimba.core.utils.dependencies import ToolDependency, show_dependency_error_and_exit
 
 
 def convert_gps_coordinate_to_degrees(
@@ -82,7 +82,7 @@ def read_exif_location(path: str | Path) -> tuple[float | None, float | None]:
 
     except FileNotFoundError as e:
         if "exiftool" in str(e).lower():
-            show_dependency_error_and_exit("exiftool", str(e))
+            show_dependency_error_and_exit(ToolDependency.EXIFTOOL, str(e))
         return None, None
     except (KeyError, ValueError, TypeError, Exception):
         # KeyError: Missing expected EXIF data structure

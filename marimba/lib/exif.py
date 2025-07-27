@@ -20,7 +20,7 @@ from typing import Any
 
 import exiftool
 
-from marimba.core.utils.dependencies import show_dependency_error_and_exit
+from marimba.core.utils.dependencies import ToolDependency, show_dependency_error_and_exit
 
 
 def get_dict(path: str | Path) -> Any:  # noqa: ANN401
@@ -41,7 +41,7 @@ def get_dict(path: str | Path) -> Any:  # noqa: ANN401
             return None
     except FileNotFoundError as e:
         if "exiftool" in str(e).lower():
-            show_dependency_error_and_exit("exiftool", str(e))
+            show_dependency_error_and_exit(ToolDependency.EXIFTOOL, str(e))
         return None
     except exiftool.ExifToolException:
         return None
