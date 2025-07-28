@@ -34,7 +34,7 @@ from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
-from marimba.core.utils.dependencies import show_dependency_error_and_exit
+from marimba.core.utils.dependencies import ToolDependency, show_dependency_error_and_exit
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.metadata import yaml_saver
 from marimba.core.utils.rich import get_default_columns
@@ -436,7 +436,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
         except FileNotFoundError as e:
             if "exiftool" in str(e).lower():
-                show_dependency_error_and_exit("exiftool", str(e))
+                show_dependency_error_and_exit(ToolDependency.EXIFTOOL, str(e))
             else:
                 logger.warning(f"File not found during EXIF processing: {e}")
         except exiftool.ExifToolException as e:

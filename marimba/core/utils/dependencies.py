@@ -1,18 +1,15 @@
 """
-Marimba External Dependencies Error Handling.
+Marimba External Dependencies Management.
 
-This module provides standardized error handling and user messaging for external dependencies
-like exiftool and ffmpeg. It uses rich panels to provide clear, actionable error messages
-when external tools are not found or not properly installed.
-
-Functions:
-    show_dependency_error: Display a rich error panel for missing dependencies
-    check_dependency_available: Check if a dependency is available on the system
+This module provides dependency checking and error handling for external tools
+like exiftool and ffmpeg. It uses rich panels to provide clear, actionable
+error messages when tools are missing.
 """
 
 import platform
 import shutil
-from typing import Any
+from dataclasses import dataclass
+from enum import Enum
 
 import typer
 from rich.console import Console
@@ -20,106 +17,145 @@ from rich.panel import Panel
 from rich.text import Text
 
 
-def get_installation_instructions(dependency: str) -> dict[str, Any]:
+class ToolDependency(Enum):
+    """Enumeration of supported external tool dependencies."""
+
+    EXIFTOOL = "exiftool"
+    FFMPEG = "ffmpeg"
+    FFPROBE = "ffprobe"
+
+
+class Platform(Enum):
+    """Enumeration of supported platforms."""
+
+    WINDOWS = "windows"
+    MACOS = "macos"
+    LINUX = "linux"
+
+
+@dataclass
+class ToolInfo:
+    """Information about a tool dependency including installation instructions."""
+
+    name: str
+    description: str
+    homepage: str
+    windows_instructions: list[str]
+    macos_instructions: list[str]
+    linux_instructions: list[str]
+
+    def get_platform_instructions(self, platform: Platform) -> list[str]:
+        """Get installation instructions for a specific platform."""
+        return {
+            Platform.WINDOWS: self.windows_instructions,
+            Platform.MACOS: self.macos_instructions,
+            Platform.LINUX: self.linux_instructions,
+        }[platform]
+
+
+def get_tool_info(dependency: ToolDependency) -> ToolInfo:
     """
-    Get installation instructions for a dependency based on the current platform.
+    Get tool information for a dependency.
 
     Args:
-        dependency: Name of the dependency (e.g., 'exiftool', 'ffmpeg')
+        dependency: ToolDependency enum value
 
     Returns:
-        Dictionary containing installation instructions for different platforms
+        ToolInfo object containing installation instructions and metadata
     """
-    instructions = {
-        "exiftool": {
-            "description": "ExifTool is required for reading and writing EXIF metadata in images",
-            "homepage": "https://exiftool.org/",
-            "windows": [
+    tool_info = {
+        ToolDependency.EXIFTOOL: ToolInfo(
+            name="exiftool",
+            description="ExifTool is required for reading and writing EXIF metadata in images",
+            homepage="https://exiftool.org/",
+            windows_instructions=[
                 "1. Download ExifTool from https://exiftool.org/",
                 "2. Extract the .exe file to a folder in your PATH",
                 "3. Alternatively, install via Chocolatey: choco install exiftool",
             ],
-            "macos": [
+            macos_instructions=[
                 "1. Install via Homebrew: brew install exiftool",
                 "2. Alternatively, install via MacPorts: sudo port install p5.34-image-exiftool",
             ],
-            "linux": [
+            linux_instructions=[
                 "• Ubuntu/Debian: sudo apt-get install libimage-exiftool-perl",
                 "• CentOS/RHEL/Fedora: sudo yum install perl-Image-ExifTool",
                 "• Arch Linux: sudo pacman -S perl-image-exiftool",
                 "• Or download from https://exiftool.org/",
             ],
-        },
-        "ffmpeg": {
-            "description": "FFmpeg is required for video processing and analysis",
-            "homepage": "https://ffmpeg.org/",
-            "windows": [
+        ),
+        ToolDependency.FFMPEG: ToolInfo(
+            name="ffmpeg",
+            description="FFmpeg is required for video processing and analysis",
+            homepage="https://ffmpeg.org/",
+            windows_instructions=[
                 "1. Download FFmpeg from https://ffmpeg.org/download.html",
                 "2. Extract and add to your PATH environment variable",
                 "3. Alternatively, install via Chocolatey: choco install ffmpeg",
             ],
-            "macos": [
+            macos_instructions=[
                 "1. Install via Homebrew: brew install ffmpeg",
                 "2. Alternatively, install via MacPorts: sudo port install ffmpeg",
             ],
-            "linux": [
+            linux_instructions=[
                 "• Ubuntu/Debian: sudo apt-get install ffmpeg",
                 "• CentOS/RHEL: sudo yum install ffmpeg",
                 "• Fedora: sudo dnf install ffmpeg",
                 "• Arch Linux: sudo pacman -S ffmpeg",
             ],
-        },
+        ),
     }
 
-    return instructions.get(dependency, {})
+    return tool_info[dependency]
 
 
-def show_dependency_error(dependency: str, error_message: str = "") -> None:
+def get_current_platform() -> Platform:
+    """Get the current platform."""
+    system = platform.system().lower()
+    if system == "darwin":
+        return Platform.MACOS
+    if system == "windows":
+        return Platform.WINDOWS
+    return Platform.LINUX
+
+
+def show_dependency_error(dependency: ToolDependency, error_message: str = "") -> None:
     """
     Display a rich error panel for a missing dependency with installation instructions.
 
     Args:
-        dependency: Name of the missing dependency
+        dependency: ToolDependency enum value
         error_message: Optional specific error message to include
     """
     console = Console()
 
-    instructions = get_installation_instructions(dependency)
-    if not instructions:
-        console.print(f"[red]Error: Unknown dependency '{dependency}'[/red]")
-        return
+    tool_info = get_tool_info(dependency)
+    current_platform = get_current_platform()
 
-    # Determine current platform
-    system = platform.system().lower()
-    if system == "darwin":
-        platform_key = "macos"
-        platform_name = "macOS"
-    elif system == "windows":
-        platform_key = "windows"
-        platform_name = "Windows"
-    else:
-        platform_key = "linux"
-        platform_name = "Linux"
+    platform_names = {
+        Platform.MACOS: "macOS",
+        Platform.WINDOWS: "Windows",
+        Platform.LINUX: "Linux",
+    }
 
     # Build the error message
     title = "Error"
 
     content = Text()
-    content.append(f"{instructions['description']}\n\n", style="white")
+    content.append(f"{tool_info.description}\n\n", style="white")
 
     if error_message:
         content.append("Error Details:\n", style="bold red")
         content.append(f"{error_message}\n\n", style="red")
 
-    content.append(f"Installation Instructions for {platform_name}:\n", style="bold cyan")
+    content.append(f"Installation Instructions for {platform_names[current_platform]}:\n", style="bold cyan")
 
-    platform_instructions = instructions.get(platform_key, [])
+    platform_instructions = tool_info.get_platform_instructions(current_platform)
     for instruction in platform_instructions:
         content.append(f"{instruction}\n", style="yellow")
 
-    content.append(f"\nFor more information, visit: {instructions['homepage']}", style="blue underline")
+    content.append(f"\nFor more information, visit: {tool_info.homepage}", style="blue underline")
 
-    # Create and display the panel
     panel = Panel(
         content,
         title=title,
@@ -133,58 +169,52 @@ def show_dependency_error(dependency: str, error_message: str = "") -> None:
     console.print()
 
 
-def check_dependency_available(dependency: str) -> bool:
+def check_dependency_available(dependency: ToolDependency) -> bool:
     """
     Check if a dependency is available on the system.
 
     Args:
-        dependency: Name of the dependency to check
+        dependency: ToolDependency enum value to check
 
     Returns:
         True if the dependency is available, False otherwise
     """
-    return shutil.which(dependency) is not None
+    return shutil.which(dependency.value) is not None
 
 
-def validate_required_dependencies() -> None:
+def validate_dependencies(required_tools: list[ToolDependency]) -> None:
     """
-    Validate that all required external dependencies are available.
+    Validate that specified external dependencies are available.
 
-    This should be called once at the start of pipeline processing to ensure
-    all required tools are available before starting any work.
+    Args:
+        required_tools: List of ToolDependency enum values to validate
 
     Raises:
         typer.Exit: If any required dependency is missing
     """
-    missing_dependencies = []
+    if not required_tools:
+        return
 
-    # Check for ExifTool
-    if not check_dependency_available("exiftool"):
-        missing_dependencies.append("exiftool")
+    for tool in required_tools:
+        if not check_dependency_available(tool):
+            show_dependency_error_and_exit(
+                tool,
+                f"Required dependency '{tool.value}' is not available",
+            )
 
-    # Check for FFmpeg tools
-    if not check_dependency_available("ffmpeg"):
-        missing_dependencies.append("ffmpeg")
-    elif not check_dependency_available("ffprobe"):
-        missing_dependencies.append("ffmpeg")  # ffprobe comes with ffmpeg
-
-    # If any dependencies are missing, show error and exit
-    if missing_dependencies:
-        # Show error for the first missing dependency
-        # (usually they're related, like ffmpeg/ffprobe)
-        dependency = missing_dependencies[0]
-        show_dependency_error_and_exit(
-            dependency,
-            f"Required dependency '{dependency}' is not available",
-        )
+        if tool == ToolDependency.FFMPEG and not check_dependency_available(ToolDependency.FFPROBE):
+            show_dependency_error_and_exit(
+                ToolDependency.FFMPEG,
+                "FFprobe (part of FFmpeg) is not available",
+            )
 
 
-def show_dependency_error_and_exit(dependency: str, error_message: str = "", exit_code: int = 1) -> None:
+def show_dependency_error_and_exit(dependency: ToolDependency, error_message: str = "", exit_code: int = 1) -> None:
     """
     Display a rich error panel for a missing dependency and exit the program.
 
     Args:
-        dependency: Name of the missing dependency
+        dependency: ToolDependency enum value
         error_message: Optional specific error message to include
         exit_code: Exit code to use when exiting (default: 1)
     """
@@ -199,5 +229,4 @@ def show_dependency_error_and_exit(dependency: str, error_message: str = "", exi
     )
     console.print()
 
-    # Exit using typer for proper CLI handling
     raise typer.Exit(exit_code)
