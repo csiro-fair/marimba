@@ -44,6 +44,7 @@ from marimba.core.cli import delete, new
 from marimba.core.distribution.base import DistributionTargetBase
 from marimba.core.utils.constants import PROJECT_DIR_HELP, MetadataGenerationLevelOptions, Operation
 from marimba.core.utils.dataset import get_mapping_processor_decorator
+from marimba.core.utils.dependencies import ToolDependency, validate_dependencies
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
 from marimba.core.utils.map import NetworkConnectionError
 from marimba.core.utils.metadata import MetadataSaverTypes, get_saver
@@ -142,6 +143,8 @@ def import_command(
     """
     Import data in a source directory into a new or existing Marimba collection.
     """
+    validate_dependencies([ToolDependency.EXIFTOOL, ToolDependency.FFMPEG])
+
     start_time = time.time()
     project_dir = find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
@@ -253,6 +256,8 @@ def package_command(
     """
     Package up a Marimba collection ready for distribution.
     """
+    validate_dependencies([ToolDependency.EXIFTOOL, ToolDependency.FFMPEG])
+
     start_time = time.time()
     project_dir = find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
@@ -353,6 +358,8 @@ def process_command(
     """
     Process the Marimba collection based on the pipeline specification.
     """
+    validate_dependencies([ToolDependency.EXIFTOOL, ToolDependency.FFMPEG])
+
     start_time = time.time()
     project_dir = find_project_dir_or_exit(project_dir)
     project_wrapper = ProjectWrapper(project_dir, dry_run=dry_run)
