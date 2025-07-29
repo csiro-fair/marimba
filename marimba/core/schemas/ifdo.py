@@ -32,7 +32,8 @@ from pathlib import Path
 from typing import Any, cast
 
 import piexif
-from ifdo import ImageData, ImageSetHeader, iFDO
+from ifdo import iFDO
+from ifdo.models import ImageData, ImageSetHeader
 from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
