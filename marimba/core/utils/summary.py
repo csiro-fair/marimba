@@ -21,7 +21,7 @@ Classes:
 """
 
 import json
-import subprocess
+import subprocess  # nosec
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -146,7 +146,12 @@ class ImagerySummary:
                 "default=noprint_wrappers=1:nokey=1",
                 video_path,
             ]
-            probe_result = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+            probe_result = subprocess.run(
+                probe_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )  # nosec
             if probe_result.returncode != 0:
                 return True
 
@@ -156,7 +161,12 @@ class ImagerySummary:
             seek_times = [0, duration / 2, duration - 1]
             for seek_time in seek_times:
                 seek_cmd = ["ffmpeg", "-ss", str(seek_time), "-i", video_path, "-vframes", "1", "-f", "null", "-"]
-                seek_result = subprocess.run(seek_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+                seek_result = subprocess.run(
+                    seek_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                )  # nosec
                 if seek_result.returncode != 0:
                     return True
         except Exception as e:
@@ -374,7 +384,13 @@ class ImagerySummary:
         Raises:
             RuntimeError: If the FFmpeg command fails to execute successfully.
         """
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )  # nosec
         if result.returncode != 0:
             raise RuntimeError(f"FFmpeg command failed with error: {result.stderr}")
         return cast(dict[str, Any], json.loads(result.stdout))

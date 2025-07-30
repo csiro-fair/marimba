@@ -29,9 +29,11 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from fractions import Fraction
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 import piexif
+from ifdo import iFDO
+from ifdo.models import ImageData, ImageSetHeader
 from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
@@ -42,12 +44,6 @@ from marimba.core.utils.rich import get_default_columns
 from marimba.lib import image
 from marimba.lib.decorators import multithreaded
 from marimba.lib.gps import convert_degrees_to_gps_coordinate
-
-if TYPE_CHECKING:
-    from ifdo.models import ImageData, ImageSetHeader, iFDO
-else:
-    from ifdo.models import ImageData, ImageSetHeader, iFDO
-
 
 logger = get_logger(__name__)
 

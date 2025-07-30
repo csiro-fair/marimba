@@ -30,7 +30,7 @@ Classes:
 
 import logging
 import shutil
-import subprocess
+import subprocess  # nosec
 import sys
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -426,7 +426,7 @@ class PipelineWrapper(LogMixin):
             # Find and validate uv executable
             uv_path = self._validate_uv()
 
-            with subprocess.Popen(
+            with subprocess.Popen(  # nosec
                 [uv_path, "pip", "install", "-r", requirements_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
