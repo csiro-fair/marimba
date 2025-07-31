@@ -45,6 +45,7 @@
 - [Contributing](#contributing)
 - [License](#license)
 - [Contact](#contact)
+- [Citation](#citation)
 - [Acknowledgments](#acknowledgments)
 
 ---
@@ -304,6 +305,34 @@ For inquiries related to this repository, please contact:
 - **Kevin Barnard**  
   *Software Engineer, MBARI*  
   Email: [kbarnard@mbari.org](mailto:kbarnard@mbari.org)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+<a name="citation"></a>
+## Citation
+
+If you use Marimba to process your scientific image datasets, we would greatly appreciate it if you mention this in your publications and cite our work. This helps us track the impact of Marimba and supports continued development of the framework.
+
+### Journal Article
+
+Jackett, C. J., Barnard, K., Althaus, F., Mortimer, N., Webb, D., Untiedt, C., Tyndall, A., Jameson, I., Gorton, B., Devine, C., Strzelecki, J., Thrall, P. H., & Scoulding, B. (2025). Marimba: A Python framework for structuring and processing FAIR scientific image datasets. *SoftwareX*, 31, 102251. https://doi.org/10.1016/j.softx.2025.102251
+
+### BibTeX
+
+```bibtex
+@article{jackett2025marimba,
+  title={Marimba: A Python framework for structuring and processing FAIR scientific image datasets},
+  author={Jackett, Christopher J and Barnard, Kevin and Althaus, Franziska and Mortimer, Nicolas and Webb, David and Untiedt, Candice and Tyndall, Aaron and Jameson, Ian and Gorton, Bec and Devine, Carlie and Strzelecki, Joanna and Thrall, Peter H and Scoulding, Ben},
+  journal={SoftwareX},
+  volume={31},
+  pages={102251},
+  year={2025},
+  publisher={Elsevier},
+  doi={10.1016/j.softx.2025.102251}
+}
+```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
