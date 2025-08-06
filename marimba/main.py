@@ -252,6 +252,10 @@ def package_command(
         None,
         help="Output metadata level",
     ),
+    force: bool = typer.Option(
+        False,
+        help="Force packaging without prompting for hard-link warnings.",
+    ),
 ) -> None:
     """
     Package up a Marimba collection ready for distribution.
@@ -295,6 +299,7 @@ def package_command(
             zoom=zoom,
             max_workers=max_workers,
             metadata_saver_overwrite=metadata_saver_overwrite,
+            force=force,
         )
 
         elapsed_time = time.time() - start_time

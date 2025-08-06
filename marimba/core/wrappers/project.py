@@ -43,6 +43,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
+import typer
+from rich.console import Console
 from rich.progress import Progress, SpinnerColumn
 
 from marimba.core.installer.pipeline_installer import PipelineInstaller
@@ -52,9 +54,9 @@ from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.dataset import DECORATOR_TYPE
 from marimba.core.utils.log import LogMixin, get_file_handler
-from marimba.core.utils.paths import format_path_for_logging, remove_directory_tree
+from marimba.core.utils.paths import detect_hardlinked_files, format_path_for_logging, remove_directory_tree
 from marimba.core.utils.prompt import prompt_schema
-from marimba.core.utils.rich import get_default_columns
+from marimba.core.utils.rich import get_default_columns, warning_panel
 from marimba.core.wrappers.collection import CollectionWrapper
 from marimba.core.wrappers.dataset import DatasetWrapper
 from marimba.core.wrappers.pipeline import PipelineWrapper
@@ -1190,6 +1192,8 @@ class ProjectWrapper(LogMixin):
         zoom: int | None = None,
         max_workers: int | None = None,
         metadata_saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
+        *,
+        force: bool = False,
     ) -> DatasetWrapper:
         """
         Create a Marimba dataset from a dataset mapping.
@@ -1207,6 +1211,7 @@ class ProjectWrapper(LogMixin):
             max_workers: The maximum number of worker processes to use. If None, uses all available CPU cores.
             metadata_saver_overwrite: Saving function overwriting the default metadata saving function.
                 Defaults to None.
+            force: Skip hard-link warning prompts and proceed with packaging. Defaults to False.
 
         Returns:
             A DatasetWrapper instance representing the created dataset.
@@ -1230,6 +1235,10 @@ class ProjectWrapper(LogMixin):
             dry_run=self.dry_run,
             metadata_saver=metadata_saver_overwrite,
         )
+
+        # Check for hard-linked files that will be modified during packaging
+        if not force and operation == Operation.link:
+            self._check_hardlinks_and_warn(dataset_mapping)
 
         # Populate it
         dataset_wrapper.populate(
@@ -1824,6 +1833,103 @@ class ProjectWrapper(LogMixin):
         Whether the project is in dry-run mode.
         """
         return self._dry_run
+
+    def _check_hardlinks_and_warn(
+        self,
+        dataset_mapping: dict[
+            str,
+            dict[
+                str,
+                dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
+            ],
+        ],
+    ) -> None:
+        """
+        Check for hard-linked files that will be modified during packaging and warn the user.
+
+        Args:
+            dataset_mapping: The dataset mapping containing files to be packaged
+
+        Raises:
+            typer.Exit: If the user chooses to abort packaging
+        """
+        # Constants
+        max_sample_files = 10
+
+        # Collect all files that will have EXIF metadata written
+        files_to_check = []
+        for pipeline_data in dataset_mapping.values():
+            for collection_data in pipeline_data.values():
+                for source_path, (_dest_path, metadata_list, _) in collection_data.items():
+                    # Only check files that will have EXIF metadata written
+                    if (
+                        source_path.suffix.lower()
+                        in {
+                            ".jpg",
+                            ".jpeg",
+                            ".tiff",
+                            ".tif",
+                            ".cr2",
+                            ".cr3",
+                            ".nef",
+                            ".arw",
+                            ".dng",
+                            ".raf",
+                            ".orf",
+                            ".pef",
+                            ".rw2",
+                        }
+                        and metadata_list is not None
+                    ):
+                        files_to_check.append(source_path)
+
+        if not files_to_check:
+            return
+
+        # Detect hard-linked files
+        hardlinked_files = detect_hardlinked_files(files_to_check)
+
+        if not hardlinked_files:
+            return
+
+        # Display warning using rich panel
+
+        file_count = len(hardlinked_files)
+        warning_message = (
+            f"During packaging, Marimba will destructively modify EXIF data in image files.\n"
+            f"The following {file_count} files are hard-linked to external sources and will be modified:\n\n"
+        )
+
+        # Show sample files (max 10)
+        sample_files = hardlinked_files[:max_sample_files]
+        for file_path in sample_files:
+            warning_message += f"  {file_path}\n"
+
+        if len(hardlinked_files) > max_sample_files:
+            warning_message += f"  ... (showing first {max_sample_files} of {file_count} files)\n"
+
+        warning_message += "\nThis means your original source files will be permanently modified."
+
+        # Create and display the warning panel
+        console = Console()
+        console.print(warning_panel(warning_message, title="Hard-linked files detected!"))
+
+        # Also log the warning for record keeping
+        self.logger.warning(f"Hard-linked files detected during packaging: {file_count} files will be modified")
+
+        # Prompt user with Y/n format (y is default)
+        self._prompt_user_for_hard_link_continuation()
+
+    def _prompt_user_for_hard_link_continuation(self) -> None:
+        """Prompt user to continue with hard-link packaging or abort."""
+        try:
+            response = typer.prompt("Continue anyway? [Y/n]", type=str, default="y")
+            if response.lower() in ["n", "no"]:
+                self.logger.info("Packaging aborted by user due to hard-link warning")
+                raise typer.Exit(code=1) from None
+        except (KeyboardInterrupt, EOFError) as exc:
+            self.logger.info("Packaging aborted by user (interrupted)")
+            raise typer.Exit(code=1) from exc
 
     @staticmethod
     def check_name(name: str) -> None:
