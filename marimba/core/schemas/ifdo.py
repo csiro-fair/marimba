@@ -424,7 +424,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
                 # Apply all tags at once
                 if exif_tags:
-                    et.set_tags([str(file_path)], exif_tags, params=["-overwrite_original"])
+                    et.set_tags([str(file_path)], exif_tags, params=["-overwrite_original_in_place"])
 
                 # Add thumbnail after applying other EXIF tags
                 iFDOMetadata._add_thumbnail_to_exif(file_path, image_file, logger)
@@ -537,7 +537,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
             # Use exiftool to embed the thumbnail
             with exiftool.ExifToolHelper() as et:
-                et.execute("-ThumbnailImage<=" + temp_thumb_path, "-overwrite_original", str(file_path))
+                et.execute("-ThumbnailImage<=" + temp_thumb_path, "-overwrite_original_in_place", str(file_path))
 
             # Clean up temporary file
             Path(temp_thumb_path).unlink()

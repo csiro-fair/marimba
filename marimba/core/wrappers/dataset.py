@@ -1038,6 +1038,9 @@ class DatasetWrapper(LogMixin):
                     max_workers,
                 )
 
+            # Ensure progress reaches 100%
+            progress.update(task, completed=total_tasks)
+
         self.logger.info("Dataset mapping is valid")
 
     def _verify_source_paths_exist(
