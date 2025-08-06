@@ -532,11 +532,12 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
                 # Convert to RGB if not already
                 if thumb.mode != "RGB":
-                    with thumb.convert("RGB") as rgb_thumb:
-                        # Save thumbnail to a temporary file
-                        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_file:
-                            rgb_thumb.save(temp_file.name, format="JPEG", quality=90, optimize=True)
-                            temp_thumb_path = temp_file.name
+                    with (
+                        thumb.convert("RGB") as rgb_thumb,
+                        tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_file,
+                    ):
+                        rgb_thumb.save(temp_file.name, format="JPEG", quality=90, optimize=True)
+                        temp_thumb_path = temp_file.name
                 else:
                     # Save thumbnail to a temporary file
                     with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_file:
