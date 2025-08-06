@@ -17,7 +17,6 @@ Functions:
     - multithreaded: A decorator to process items in a multithreaded manner.
 """
 
-import gc
 import logging
 import math
 from collections.abc import Callable, Iterable, Sized
@@ -71,23 +70,13 @@ def multithreaded(max_workers: int | None = None) -> Callable[[T], T]:
                     ): item
                     for i, item in enumerate(items)
                 }
-                completed_count = 0
                 for future in as_completed(futures):
                     item = futures[future]
                     try:
                         result = future.result()
                         results.append(result)
-                        completed_count += 1
-                        
-                        # Trigger garbage collection periodically to manage memory in large batch processing
-                        if completed_count % 50 == 0:
-                            gc.collect()
                     except Exception as e:
                         log.exception(f"Error processing {item}: {e}")
-                        completed_count += 1
-                        
-                # Final cleanup after all threads complete
-                gc.collect()
             return results
 
         return cast(T, wrapper)
