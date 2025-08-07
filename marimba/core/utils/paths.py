@@ -19,9 +19,11 @@ Functions:
     - remove_all_subdirectories: Deletes all subdirectories within a specified directory, with optional dry-run and root
     directory removal features.
     - detect_hardlinked_files: Detects files that are hard-linked to locations outside a specified directory.
+    - detect_readonly_files: Detects files that are read-only and cannot be written to.
     - count_external_hardlinks: Counts files with hard-links pointing outside a specified directory.
 """
 
+import os
 import shutil
 from os import R_OK, access
 from pathlib import Path
@@ -187,6 +189,38 @@ def detect_hardlinked_files(files: list[Path]) -> list[Path]:
             continue
 
     return hardlinked_files
+
+
+def detect_readonly_files(files: list[Path]) -> list[Path]:
+    """
+    Detect files that are read-only and cannot be written to.
+
+    Args:
+        files: List of file paths to check for write permissions
+
+    Returns:
+        list: List of file paths that are read-only
+    """
+    readonly_files = []
+
+    for file_path in files:
+        if not file_path.exists() or not file_path.is_file():
+            continue
+
+        try:
+            # Check if file is writable - use the same method as os.access
+            if not file_path.is_file():
+                continue
+
+            # Check write permission on the file itself
+            if not os.access(file_path, os.W_OK):
+                readonly_files.append(file_path)
+
+        except (OSError, PermissionError):
+            # If we can't check permissions, assume it's not writable
+            readonly_files.append(file_path)
+
+    return readonly_files
 
 
 def format_path_for_logging(path: Path | str, project_dir: Path | None = None) -> str:

@@ -51,10 +51,15 @@ from marimba.core.installer.pipeline_installer import PipelineInstaller
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
 from marimba.core.pipeline import BasePipeline
 from marimba.core.schemas.base import BaseMetadata
-from marimba.core.utils.constants import Operation
+from marimba.core.utils.constants import EXIF_SUPPORTED_EXTENSIONS, Operation
 from marimba.core.utils.dataset import DECORATOR_TYPE
 from marimba.core.utils.log import LogMixin, get_file_handler
-from marimba.core.utils.paths import detect_hardlinked_files, format_path_for_logging, remove_directory_tree
+from marimba.core.utils.paths import (
+    detect_hardlinked_files,
+    detect_readonly_files,
+    format_path_for_logging,
+    remove_directory_tree,
+)
 from marimba.core.utils.prompt import prompt_schema
 from marimba.core.utils.rich import get_default_columns, warning_panel
 from marimba.core.wrappers.collection import CollectionWrapper
@@ -1240,6 +1245,10 @@ class ProjectWrapper(LogMixin):
         if not force and operation == Operation.link:
             self._check_hardlinks_and_warn(dataset_mapping)
 
+        # Check for read-only files that will fail EXIF writing during packaging
+        if not force:
+            self._check_readonly_files_and_warn(dataset_mapping)
+
         # Populate it
         dataset_wrapper.populate(
             dataset_name,
@@ -1862,25 +1871,7 @@ class ProjectWrapper(LogMixin):
             for collection_data in pipeline_data.values():
                 for source_path, (_dest_path, metadata_list, _) in collection_data.items():
                     # Only check files that will have EXIF metadata written
-                    if (
-                        source_path.suffix.lower()
-                        in {
-                            ".jpg",
-                            ".jpeg",
-                            ".tiff",
-                            ".tif",
-                            ".cr2",
-                            ".cr3",
-                            ".nef",
-                            ".arw",
-                            ".dng",
-                            ".raf",
-                            ".orf",
-                            ".pef",
-                            ".rw2",
-                        }
-                        and metadata_list is not None
-                    ):
+                    if source_path.suffix.lower() in EXIF_SUPPORTED_EXTENSIONS and metadata_list is not None:
                         files_to_check.append(source_path)
 
         if not files_to_check:
@@ -1926,6 +1917,84 @@ class ProjectWrapper(LogMixin):
             response = typer.prompt("Continue anyway? [Y/n]", type=str, default="y")
             if response.lower() in ["n", "no"]:
                 self.logger.info("Packaging aborted by user due to hard-link warning")
+                raise typer.Exit(code=1) from None
+        except (KeyboardInterrupt, EOFError) as exc:
+            self.logger.info("Packaging aborted by user (interrupted)")
+            raise typer.Exit(code=1) from exc
+
+    def _check_readonly_files_and_warn(
+        self,
+        dataset_mapping: dict[
+            str,
+            dict[
+                str,
+                dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
+            ],
+        ],
+    ) -> None:
+        """
+        Check for read-only files that will fail EXIF writing during packaging and warn the user.
+
+        Args:
+            dataset_mapping: The dataset mapping containing files to be packaged
+
+        Raises:
+            typer.Exit: If the user chooses to abort packaging
+        """
+        # Constants
+        max_sample_files = 10
+
+        # Collect all files that will have EXIF metadata written (same logic as hard-link check)
+        files_to_check = []
+        for pipeline_data in dataset_mapping.values():
+            for collection_data in pipeline_data.values():
+                for source_path, (_dest_path, metadata_list, _) in collection_data.items():
+                    # Only check files that will have EXIF metadata written
+                    if source_path.suffix.lower() in EXIF_SUPPORTED_EXTENSIONS and metadata_list is not None:
+                        files_to_check.append(source_path)
+
+        if not files_to_check:
+            return
+
+        # Detect read-only files
+        readonly_files = detect_readonly_files(files_to_check)
+
+        if not readonly_files:
+            return
+
+        # Display warning using rich panel
+        file_count = len(readonly_files)
+        warning_message = (
+            f"During packaging, Marimba needs to write EXIF metadata to image files.\n"
+            f"The following {file_count} files are read-only and EXIF writing will fail:\n\n"
+        )
+
+        # Show sample files (max 10)
+        sample_files = readonly_files[:max_sample_files]
+        for file_path in sample_files:
+            warning_message += f"  {file_path}\n"
+
+        if len(readonly_files) > max_sample_files:
+            warning_message += f"  ... (showing first {max_sample_files} of {file_count} files)\n"
+
+        warning_message += "\nYou need to make these files writable or packaging will fail."
+
+        # Create and display the warning panel
+        console = Console()
+        console.print(warning_panel(warning_message, title="Read-only files detected!"))
+
+        # Also log the warning for record keeping
+        self.logger.warning(f"Read-only files detected during packaging: {file_count} files cannot be written")
+
+        # Prompt user with Y/n format (y is default)
+        self._prompt_user_for_readonly_continuation()
+
+    def _prompt_user_for_readonly_continuation(self) -> None:
+        """Prompt user to continue with read-only file packaging or abort."""
+        try:
+            response = typer.prompt("Continue anyway? [Y/n]", type=str, default="y")
+            if response.lower() in ["n", "no"]:
+                self.logger.info("Packaging aborted by user due to read-only file warning")
                 raise typer.Exit(code=1) from None
         except (KeyboardInterrupt, EOFError) as exc:
             self.logger.info("Packaging aborted by user (interrupted)")

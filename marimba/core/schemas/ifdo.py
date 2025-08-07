@@ -41,6 +41,7 @@ except AttributeError:
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
+from marimba.core.utils.constants import EXIF_SUPPORTED_EXTENSIONS
 from marimba.core.utils.dependencies import ToolDependency, show_dependency_error_and_exit
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.metadata import yaml_saver
@@ -329,30 +330,11 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         ) -> None:
             file_path, (metadata_items, ancillary_data) = item
 
-            # Formats with reliable EXIF support
-            exif_supported_extensions = {
-                # Standard formats with native EXIF support
-                ".jpg",
-                ".jpeg",
-                ".tiff",
-                ".tif",
-                # Common RAW formats that support EXIF
-                ".cr2",  # Canon
-                ".cr3",  # Canon
-                ".nef",  # Nikon
-                ".arw",  # Sony
-                ".dng",  # Adobe Digital Negative
-                ".raf",  # Fujifilm
-                ".orf",  # Olympus
-                ".pef",  # Pentax
-                ".rw2",  # Panasonic
-            }
-
             file_extension = file_path.suffix.lower()
 
             try:
                 # If it's an EXIF-supported file, process EXIF metadata
-                if file_extension in exif_supported_extensions:
+                if file_extension in EXIF_SUPPORTED_EXTENSIONS:
                     try:
                         # Get the ImageData from the metadata items
                         ifdo_metadata_items = [item for item in metadata_items if isinstance(item, iFDOMetadata)]
