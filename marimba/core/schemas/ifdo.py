@@ -31,6 +31,13 @@ from typing import TYPE_CHECKING, Any, cast
 
 import exiftool
 from PIL import Image
+
+# Handle different versions of exiftool that may or may not have ExifToolException
+try:
+    ExifToolException = exiftool.ExifToolException
+except AttributeError:
+    # Fallback for versions that don't have this exception
+    ExifToolException = RuntimeError
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
@@ -371,7 +378,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                             logger.debug(
                                 f"Thread {thread_num} - Applied iFDO metadata to EXIF tags for image {file_path}",
                             )
-                    except (OSError, exiftool.ExifToolException) as e:
+                    except (OSError, Exception) as e:
                         logger.warning(
                             f"Failed to process EXIF metadata for {file_path}: {e}",
                         )
@@ -439,7 +446,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 show_dependency_error_and_exit(ToolDependency.EXIFTOOL, str(e))
             else:
                 logger.warning(f"File not found during EXIF processing: {e}")
-        except exiftool.ExifToolException as e:
+        except (ExifToolException, OSError) as e:
             logger.warning(f"Failed to inject EXIF metadata with exiftool: {e}")
 
     @staticmethod
@@ -551,10 +558,8 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 # Clean up temporary file
                 Path(temp_thumb_path).unlink()
 
-        except exiftool.ExifToolException as e:
+        except (ExifToolException, OSError) as e:
             logger.debug(f"Failed to add thumbnail to {file_path}: {e}")
-        except OSError as e:
-            logger.debug(f"Failed to create thumbnail for {file_path}: {e}")
 
     @staticmethod
     def _extract_image_properties(
