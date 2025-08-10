@@ -603,8 +603,6 @@ class GridImageProcessor:
             ValueError: If the dimensions object is not properly initialized.
             IOError: If there are issues reading or processing the image files.
         """
-        import gc
-
         rows: list[GridRow] = []
         current_height = 0
         current_row: GridRow | None = GridRow(self.dimensions)
@@ -623,9 +621,6 @@ class GridImageProcessor:
                         current_height += current_row.height
                         rows.append(current_row)
                         current_row = GridRow(self.dimensions)
-                        # Trigger garbage collection after each row to manage memory
-                        if len(rows) % 5 == 0:  # Every 5 rows
-                            gc.collect()
                     else:
                         break
 
@@ -652,7 +647,6 @@ class GridImageProcessor:
             # Ensure cleanup happens even if there's an exception
             if current_row is not None and current_row not in rows:
                 current_row.cleanup()
-            gc.collect()
 
     def _render_grid(self, rows: list[GridRow]) -> PILImage:
         """
