@@ -1247,8 +1247,7 @@ class ProjectWrapper(LogMixin):
         )
 
         # Check for read-only files that will fail EXIF writing during packaging (fail fast)
-        if not force:
-            self._check_readonly_files_and_fail(dataset_mapping)
+        self._check_readonly_files_and_fail(dataset_mapping)
 
         # Check for hard-linked files that will be modified during packaging
         if not force and operation == Operation.link:
@@ -1983,7 +1982,7 @@ class ProjectWrapper(LogMixin):
         if len(readonly_files) > max_sample_files:
             error_message += f"  ... (showing first {max_sample_files} of {file_count} files)\n"
 
-        error_message += "\nTo fix this issue, run:\n  chmod +w <files>\n\nOr use --force to bypass all checks."
+        error_message += "\nTo fix this issue, run:\n  chmod +w <files>"
 
         # Log the error for record keeping
         self.logger.error(f"Packaging failed: {file_count} read-only files detected that cannot be written")
