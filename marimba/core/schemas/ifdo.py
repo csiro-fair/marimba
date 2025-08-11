@@ -34,6 +34,7 @@ from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
+from marimba.core.utils.constants import EXIF_SUPPORTED_EXTENSIONS
 from marimba.core.utils.dependencies import ToolDependency, show_dependency_error_and_exit
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.metadata import yaml_saver
@@ -337,6 +338,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
                             # Open image file for processing with proper context management
                             with Image.open(file_path) as image_file:
+                                # Extract image properties first while image is still open
+                                cls._extract_image_properties(image_file, image_data)
+
                                 # Apply EXIF metadata using exiftool
                                 cls._inject_metadata_with_exiftool(
                                     file_path,
@@ -345,9 +349,6 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                                     image_file,
                                     logger,
                                 )
-
-                                # Extract image properties
-                                cls._extract_image_properties(image_file, image_data)
 
                             logger.debug(
                                 f"Thread {thread_num} - Applied iFDO metadata to EXIF tags for image {file_path}",
@@ -366,11 +367,6 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 # Always increment the progress bar, regardless of file type or processing success
                 if progress and task is not None:
                     progress.advance(task)
-
-                    # Trigger garbage collection periodically to manage memory during large dataset processing
-                    current_count = progress.tasks[task].completed
-                    if current_count > 0 and current_count % 100 == 0:
-                        gc.collect()
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             task = progress.add_task("[green]Processing files with metadata (4/12)", total=len(dataset_mapping))
