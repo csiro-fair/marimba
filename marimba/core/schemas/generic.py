@@ -116,49 +116,49 @@ class GenericMetadata(BaseMetadata):
     def datetime(self) -> datetime | None:
         """When the data was captured/created."""
         value = self._data.get("datetime")
-        return cast(datetime | None, value)
+        return cast("datetime | None", value)
 
     @property
     def latitude(self) -> float | None:
         """Geographic latitude in decimal degrees."""
         value = self._data.get("latitude")
-        return cast(float | None, value)
+        return cast("float | None", value)
 
     @property
     def longitude(self) -> float | None:
         """Geographic longitude in decimal degrees."""
         value = self._data.get("longitude")
-        return cast(float | None, value)
+        return cast("float | None", value)
 
     @property
     def altitude(self) -> float | None:
         """Altitude in meters."""
         value = self._data.get("altitude")
-        return cast(float | None, value)
+        return cast("float | None", value)
 
     @property
     def context(self) -> str | None:
         """Contextual information about the data."""
         value = self._data.get("context")
-        return cast(str | None, value)
+        return cast("str | None", value)
 
     @property
     def license(self) -> str | None:
         """License information."""
         value = self._data.get("license")
-        return cast(str | None, value)
+        return cast("str | None", value)
 
     @property
     def creators(self) -> list[str]:
         """List of creator names."""
         value = self._data.get("creators", [])
-        return cast(list[str], value)
+        return cast("list[str]", value)
 
     @property
     def hash_sha256(self) -> str | None:
         """SHA256 hash of the associated file as a hexadecimal string."""
         value = self._data.get("hash_sha256")
-        return cast(str | None, value)
+        return cast("str | None", value)
 
     @hash_sha256.setter
     def hash_sha256(self, value: str | None) -> None:

@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import exiftool
+from exiftool.exceptions import ExifToolException
 from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
@@ -105,7 +106,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         """Get the geographic latitude in decimal degrees."""
         value = self.primary_image_data.image_latitude
         if value is None or isinstance(value, int | float):
-            return cast(float | None, value)
+            return cast("float | None", value)
         # If the value is not None and not a number, it's an error
         raise TypeError(f"Expected float or None, got {type(value)}")
 
@@ -114,7 +115,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         """Get the geographic longitude in decimal degrees."""
         value = self.primary_image_data.image_longitude
         if value is None or isinstance(value, int | float):
-            return cast(float | None, value)
+            return cast("float | None", value)
         # If the value is not None and not a number, it's an error
         raise TypeError(f"Expected float or None, got {type(value)}")
 
@@ -123,7 +124,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         """Get the altitude in meters."""
         value = self.primary_image_data.image_altitude_meters
         if value is None or isinstance(value, int | float):
-            return cast(float | None, value)
+            return cast("float | None", value)
         # If the value is not None and not a number, it's an error
         raise TypeError(f"Expected float or None, got {type(value)}")
 
@@ -132,21 +133,21 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         """Get the contextual information about the image."""
         if self.primary_image_data.image_context is None:
             return None
-        return cast(str, self.primary_image_data.image_context.name)
+        return cast("str", self.primary_image_data.image_context.name)
 
     @property
     def license(self) -> str | None:
         """Get the license information."""
         if self.primary_image_data.image_license is None:
             return None
-        return cast(str, self.primary_image_data.image_license.name)
+        return cast("str", self.primary_image_data.image_license.name)
 
     @property
     def creators(self) -> list[str]:
         """Get the list of creator names."""
         if not self.primary_image_data.image_creators:
             return []
-        return [cast(str, creator.name) for creator in self.primary_image_data.image_creators]
+        return [cast("str", creator.name) for creator in self.primary_image_data.image_creators]
 
     @property
     def hash_sha256(self) -> str | None:
@@ -210,10 +211,10 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         for item in ifdo_items:
             if item.is_video:
                 # If the metadata is already a video (list), extend with all entries
-                image_data_list.extend(cast(list[ImageData], item.image_data))
+                image_data_list.extend(cast("list[ImageData]", item.image_data))
             else:
                 # If single ImageData, add it to the list
-                image_data_list.append(cast(ImageData, item.image_data))
+                image_data_list.append(cast("ImageData", item.image_data))
 
         # Set image-set-local-path for subdirectory files
         if path.parent != Path():
@@ -231,7 +232,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         """Process image metadata items into a single ImageData."""
         # Take the first iFDO metadata item
         item = ifdo_items[0]
-        image_data = cast(ImageData, item.image_data[0] if item.is_video else item.image_data)
+        image_data = cast("ImageData", item.image_data[0] if item.is_video else item.image_data)
 
         # Set image-set-local-path for subdirectory files
         if path.parent != Path():
@@ -371,7 +372,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                             logger.debug(
                                 f"Thread {thread_num} - Applied iFDO metadata to EXIF tags for image {file_path}",
                             )
-                    except (OSError, exiftool.ExifToolException) as e:
+                    except (OSError, ExifToolException) as e:
                         logger.warning(
                             f"Failed to process EXIF metadata for {file_path}: {e}",
                         )
@@ -434,7 +435,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 show_dependency_error_and_exit(ToolDependency.EXIFTOOL, str(e))
             else:
                 logger.warning(f"File not found during EXIF processing: {e}")
-        except exiftool.ExifToolException as e:
+        except ExifToolException as e:
             logger.warning(f"Failed to inject EXIF metadata with exiftool: {e}")
 
     @staticmethod
@@ -542,7 +543,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             # Clean up temporary file
             Path(temp_thumb_path).unlink()
 
-        except exiftool.ExifToolException as e:
+        except ExifToolException as e:
             logger.debug(f"Failed to add thumbnail to {file_path}: {e}")
         except OSError as e:
             logger.debug(f"Failed to create thumbnail for {file_path}: {e}")

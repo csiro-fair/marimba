@@ -420,7 +420,7 @@ class ImagerySummary:
         """
         # Check if ffmpeg/ffprobe is available
         tool_name = command[0] if command else "ffmpeg"
-        tool_dependency = ToolDependency.FFMPEG if tool_name in ["ffmpeg", "ffprobe"] else ToolDependency.FFMPEG
+        tool_dependency = ToolDependency.FFMPEG
         if not check_dependency_available(tool_dependency):
             show_dependency_error_and_exit(ToolDependency.FFMPEG, f"{tool_name} is required for video analysis")
 
@@ -436,7 +436,7 @@ class ImagerySummary:
             if "not found" in result.stderr.lower() or "not recognized" in result.stderr.lower():
                 show_dependency_error_and_exit(ToolDependency.FFMPEG, result.stderr)
             raise RuntimeError(f"FFmpeg command failed with error: {result.stderr}")
-        return cast(dict[str, Any], json.loads(result.stdout))
+        return cast("dict[str, Any]", json.loads(result.stdout))
 
     @staticmethod
     def get_video_properties(video_list: list[Path]) -> dict[str, Any]:

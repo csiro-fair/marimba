@@ -382,7 +382,7 @@ def make_summary_map(
         center_lon = (min_lon + max_lon) / 2
 
         # Render the map with calculated zoom and center
-        image = cast(Image.Image, m.render(zoom=zoom, center=[center_lon, center_lat]))
+        image = cast("Image.Image", m.render(zoom=zoom, center=[center_lon, center_lat]))
 
         # Calculate the actual visible bounds based on the zoom level
         min_lat, max_lat, min_lon, max_lon = calculate_visible_bounds(

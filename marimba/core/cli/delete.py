@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import TypeVar
 
 import typer
-from rich import print
+from rich import print as rprint
 from rich.progress import Progress, SpinnerColumn
 
 from marimba.core.utils.constants import PROJECT_DIR_HELP
@@ -88,8 +88,20 @@ def batch_delete_operation(
     def attempt_delete(item_name: str) -> tuple[str, T | None, str | None]:
         try:
             result = delete_func(item_name, dry_run)
+        except (
+            ProjectWrapper.NoSuchCollectionError,
+            ProjectWrapper.NoSuchPipelineError,
+            ProjectWrapper.NoSuchDatasetError,
+            ProjectWrapper.NoSuchTargetError,
+            ProjectWrapper.DeletePipelineError,
+            ProjectWrapper.InvalidNameError,
+            FileExistsError,  # Used by dataset deletion when dataset doesn't exist
+        ) as e:
+            logger.error(f"Error deleting {entity_type} {item_name}: {e}")  # noqa: TRY400
+            return item_name, None, str(e)
         except Exception as e:
-            logger.exception(f"Error deleting {entity_type} {item_name}")
+            # Catch-all for unexpected errors - these should show tracebacks
+            logger.exception(f"Unexpected error deleting {entity_type} {item_name}")
             return item_name, None, str(e)
         else:
             return item_name, result, None
@@ -118,7 +130,7 @@ def print_results(
     """Print the results of a batch deletion operation."""
     if success_items:
         for name, path in success_items:
-            print(
+            rprint(
                 success_panel(
                     f'Deleted {MARIMBA} {format_entity(entity_type)} "{name}" at: "{path}"',
                 ),
@@ -126,7 +138,7 @@ def print_results(
 
     if errors:
         for name, error_msg in errors:
-            print(error_panel(f'Failed to delete {entity_type} "{name}": {error_msg}'))
+            rprint(error_panel(f'Failed to delete {entity_type} "{name}": {error_msg}'))
         raise typer.Exit(code=1)
 
 
@@ -148,7 +160,7 @@ def project(
         logger.info(
             f'Project Deleted {MARIMBA} {format_entity("project")} "{project_wrapper.root_dir}"',
         )
-        print(
+        rprint(
             success_panel(
                 f'Deleted {MARIMBA} {format_entity("project")} "{root_path}"',
             ),
@@ -156,7 +168,7 @@ def project(
     except ProjectWrapper.InvalidStructureError as e:
         error_message = f'A {MARIMBA} {format_entity("project")} not valid project: "{project_dir}"'
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
 
 

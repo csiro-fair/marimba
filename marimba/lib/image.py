@@ -103,7 +103,7 @@ def convert_to_jpeg(
     if path.suffix.lower() in (".jpg", ".jpeg"):
         copy2(path, destination)
     else:
-        img = cast(Image.Image, Image.open(path))
+        img = cast("Image.Image", Image.open(path))
         img.convert("RGB").save(destination, "JPEG", quality=quality)
     return destination
 
@@ -136,7 +136,7 @@ def resize_fit(
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
+    img = cast("Image.Image", Image.open(path))
     img = _resize_fit(img, max_width, max_height)
     img.save(destination)
 
@@ -159,7 +159,7 @@ def resize_exact(
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
+    img = cast("Image.Image", Image.open(path))
     img = img.resize((width, height), Image.Resampling.LANCZOS)
     img.save(destination)
 
@@ -179,7 +179,7 @@ def scale(
     """
     path = Path(path)
     destination = Path(destination) if destination is not None else path
-    img = cast(Image.Image, Image.open(path))
+    img = cast("Image.Image", Image.open(path))
     width, height = img.size
     new_width = int(width * scale_factor)
     new_height = int(height * scale_factor)
@@ -212,7 +212,7 @@ def rotate_clockwise(
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
+    img = cast("Image.Image", Image.open(path))
     img = img.rotate(-degrees, expand=expand)  # type: ignore[no-untyped-call]
     img.save(destination)
 
@@ -244,7 +244,7 @@ def turn_clockwise(
         3: Image.Transpose.ROTATE_270,
     }
 
-    img = cast(Image.Image, Image.open(path))
+    img = cast("Image.Image", Image.open(path))
     img = img.transpose(rotation_constants[turns])
     img.save(destination)
 
@@ -260,7 +260,7 @@ def flip_vertical(path: str | Path, destination: str | Path | None = None) -> No
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
+    img = cast("Image.Image", Image.open(path))
     img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
     img.save(destination)
 
@@ -276,7 +276,7 @@ def flip_horizontal(path: str | Path, destination: str | Path | None = None) -> 
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
+    img = cast("Image.Image", Image.open(path))
     img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
     img.save(destination)
 
@@ -334,7 +334,7 @@ def crop(
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
+    img = cast("Image.Image", Image.open(path))
     img = img.crop((x, y, x + width, y + height))
     img.save(destination)
 
@@ -360,6 +360,8 @@ def apply_clahe(
     destination = Path(destination) if destination is not None else path
 
     img = cv2.imread(str(path), 0)
+    if img is None:
+        raise ValueError(f"Could not read image from {path}")
 
     # Apply CLAHE to the image
     clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
@@ -385,6 +387,8 @@ def gaussian_blur(
     destination = Path(destination) if destination is not None else path
 
     img = cv2.imread(str(path))
+    if img is None:
+        raise ValueError(f"Could not read image from {path}")
 
     # Apply Gaussian blur to the image
     img_blur = cv2.GaussianBlur(img, kernel_size, 0)
@@ -404,6 +408,8 @@ def sharpen(path: str | Path, destination: str | Path | None = None) -> None:
     destination = Path(destination) if destination is not None else path
 
     img = cv2.imread(str(path))
+    if img is None:
+        raise ValueError(f"Could not read image from {path}")
 
     # Apply sharpening to the image
     kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
@@ -425,7 +431,7 @@ def get_width_height(path: str | Path) -> tuple[int, int]:
     expected_dimensions = 2
 
     path = Path(path)
-    img = cast(Image.Image, Image.open(path))
+    img = cast("Image.Image", Image.open(path))
     size = img.size
 
     if not (isinstance(size, tuple) and len(size) == expected_dimensions and all(isinstance(x, int) for x in size)):

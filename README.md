@@ -149,7 +149,7 @@ processing:
 <a name="installation"></a>
 ## Installation
 
-Marimba can be installed using the Python pip package manager. Ensure that Python version 3.10 or greater is installed 
+Marimba can be installed using the Python pip package manager. Ensure that Python version 3.12 or greater is installed 
 in your environment before proceeding.
 
 To install Marimba, open your terminal or command prompt and run the following command:
