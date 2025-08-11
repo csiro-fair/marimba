@@ -375,6 +375,11 @@ class ProjectWrapper(LogMixin):
         Raised when an invalid name is used.
         """
 
+    class ReadOnlyFilesError(Exception):
+        """
+        Raised when read-only files are detected during packaging.
+        """
+
     class DeletePipelineError(Exception):
         """
         Raised when a Pipeline cannot be deleted.
@@ -1241,13 +1246,13 @@ class ProjectWrapper(LogMixin):
             metadata_saver=metadata_saver_overwrite,
         )
 
+        # Check for read-only files that will fail EXIF writing during packaging (fail fast)
+        if not force:
+            self._check_readonly_files_and_fail(dataset_mapping)
+
         # Check for hard-linked files that will be modified during packaging
         if not force and operation == Operation.link:
             self._check_hardlinks_and_warn(dataset_mapping)
-
-        # Check for read-only files that will fail EXIF writing during packaging
-        if not force:
-            self._check_readonly_files_and_warn(dataset_mapping)
 
         # Populate it
         dataset_wrapper.populate(
@@ -1922,7 +1927,7 @@ class ProjectWrapper(LogMixin):
             self.logger.info("Packaging aborted by user (interrupted)")
             raise typer.Exit(code=1) from exc
 
-    def _check_readonly_files_and_warn(
+    def _check_readonly_files_and_fail(
         self,
         dataset_mapping: dict[
             str,
@@ -1933,13 +1938,13 @@ class ProjectWrapper(LogMixin):
         ],
     ) -> None:
         """
-        Check for read-only files that will fail EXIF writing during packaging and warn the user.
+        Check for read-only files that will fail EXIF writing during packaging and exit immediately.
 
         Args:
             dataset_mapping: The dataset mapping containing files to be packaged
 
         Raises:
-            typer.Exit: If the user chooses to abort packaging
+            typer.Exit: Always exits if read-only files are found
         """
         # Constants
         max_sample_files = 10
@@ -1962,43 +1967,29 @@ class ProjectWrapper(LogMixin):
         if not readonly_files:
             return
 
-        # Display warning using rich panel
+        # Display error using rich panel and exit immediately
         file_count = len(readonly_files)
-        warning_message = (
-            f"During packaging, Marimba needs to write EXIF metadata to image files.\n"
-            f"The following {file_count} files are read-only and EXIF writing will fail:\n\n"
+        error_message = (
+            f"Cannot package dataset: {file_count} files are read-only and cannot be modified.\n"
+            f"Marimba requires write permissions to embed EXIF metadata during packaging.\n\n"
+            f"The following files need write permissions:\n\n"
         )
 
         # Show sample files (max 10)
         sample_files = readonly_files[:max_sample_files]
         for file_path in sample_files:
-            warning_message += f"  {file_path}\n"
+            error_message += f"  {file_path}\n"
 
         if len(readonly_files) > max_sample_files:
-            warning_message += f"  ... (showing first {max_sample_files} of {file_count} files)\n"
+            error_message += f"  ... (showing first {max_sample_files} of {file_count} files)\n"
 
-        warning_message += "\nYou need to make these files writable or packaging will fail."
+        error_message += "\nTo fix this issue, run:\n  chmod +w <files>\n\nOr use --force to bypass all checks."
 
-        # Create and display the warning panel
-        console = Console()
-        console.print(warning_panel(warning_message, title="Read-only files detected!"))
+        # Log the error for record keeping
+        self.logger.error(f"Packaging failed: {file_count} read-only files detected that cannot be written")
 
-        # Also log the warning for record keeping
-        self.logger.warning(f"Read-only files detected during packaging: {file_count} files cannot be written")
-
-        # Prompt user with Y/n format (y is default)
-        self._prompt_user_for_readonly_continuation()
-
-    def _prompt_user_for_readonly_continuation(self) -> None:
-        """Prompt user to continue with read-only file packaging or abort."""
-        try:
-            response = typer.prompt("Continue anyway? [Y/n]", type=str, default="y")
-            if response.lower() in ["n", "no"]:
-                self.logger.info("Packaging aborted by user due to read-only file warning")
-                raise typer.Exit(code=1) from None
-        except (KeyboardInterrupt, EOFError) as exc:
-            self.logger.info("Packaging aborted by user (interrupted)")
-            raise typer.Exit(code=1) from exc
+        # Raise custom exception with the error message (panel will be shown in main)
+        raise ProjectWrapper.ReadOnlyFilesError(error_message)
 
     @staticmethod
     def check_name(name: str) -> None:

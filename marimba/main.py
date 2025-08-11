@@ -333,6 +333,9 @@ def package_command(
         project_wrapper.logger.exception(error_message)
         print(error_panel(error_message))
         raise typer.Exit from None
+    except ProjectWrapper.ReadOnlyFilesError as e:
+        print(error_panel(str(e), title="Packaging failed: Read-only files detected"))
+        raise typer.Exit from None
     except Exception as e:
         project_wrapper.logger.exception(e)
         print(error_panel(f"Could not package collection: {e}"))
