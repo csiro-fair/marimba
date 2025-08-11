@@ -149,7 +149,7 @@ processing:
 <a name="installation"></a>
 ## Installation
 
-Marimba can be installed using the Python pip package manager. Ensure that Python version 3.10 or greater is installed 
+Marimba can be installed using the Python pip package manager. Ensure that Python version 3.12 or greater is installed 
 in your environment before proceeding.
 
 To install Marimba, open your terminal or command prompt and run the following command:
@@ -167,12 +167,37 @@ marimba
 
 ![](docs/img/marimba-help.png "marimba-help")
 
-Marimba has minimal system level dependencies, such as `ffmpeg`, which are required for its operation. On Ubuntu you can 
-install `ffmpeg` with:
+### System Dependencies
 
+Marimba requires two system-level dependencies for its operation:
+
+- **ExifTool**: Required for EXIF metadata reading and writing
+- **FFmpeg**: Required for video processing functionality
+
+**Ubuntu/Debian:**
 ```bash
-sudo apt install ffmpeg
+sudo apt install libimage-exiftool-perl ffmpeg
 ```
+
+**macOS:**
+```bash
+brew install exiftool ffmpeg
+```
+
+**RHEL/CentOS/Fedora:**
+```bash
+# RHEL/CentOS (with EPEL repository enabled)
+sudo yum install perl-Image-ExifTool ffmpeg
+
+# Fedora
+sudo dnf install perl-Image-ExifTool ffmpeg
+```
+
+**Windows:**
+- ExifTool: Download from [https://exiftool.org/](https://exiftool.org/) and add to PATH
+- FFmpeg: Download from [https://ffmpeg.org/](https://ffmpeg.org/) and add to PATH
+
+For other platforms or installation methods, please refer to the official documentation for [ExifTool](https://exiftool.org/) and [FFmpeg](https://ffmpeg.org/).
 
 To set up a Marimba development environment, please refer to the [Environment Setup Guide](docs/environment.md), which 
 provides detailed instructions and guidelines for configuring your development environment.

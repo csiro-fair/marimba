@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 import exiftool
+from exiftool.exceptions import ExifToolException
 
 from marimba.core.utils.dependencies import ToolDependency, show_dependency_error_and_exit
 
@@ -43,5 +44,5 @@ def get_dict(path: str | Path) -> Any:  # noqa: ANN401
         if "exiftool" in str(e).lower():
             show_dependency_error_and_exit(ToolDependency.EXIFTOOL, str(e))
         return None
-    except exiftool.ExifToolException:
+    except ExifToolException:
         return None

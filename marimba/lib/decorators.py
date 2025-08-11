@@ -79,6 +79,6 @@ def multithreaded(max_workers: int | None = None) -> Callable[[T], T]:
                         log.exception(f"Error processing {item}: {e}")
             return results
 
-        return cast(T, wrapper)
+        return cast("T", wrapper)
 
     return decorator

@@ -359,6 +359,8 @@ def apply_clahe(
     destination = Path(destination) if destination is not None else path
 
     img = cv2.imread(str(path), 0)
+    if img is None:
+        raise ValueError(f"Could not read image from {path}")
 
     # Apply CLAHE to the image
     clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
@@ -384,6 +386,8 @@ def gaussian_blur(
     destination = Path(destination) if destination is not None else path
 
     img = cv2.imread(str(path))
+    if img is None:
+        raise ValueError(f"Could not read image from {path}")
 
     # Apply Gaussian blur to the image
     img_blur = cv2.GaussianBlur(img, kernel_size, 0)
@@ -403,6 +407,8 @@ def sharpen(path: str | Path, destination: str | Path | None = None) -> None:
     destination = Path(destination) if destination is not None else path
 
     img = cv2.imread(str(path))
+    if img is None:
+        raise ValueError(f"Could not read image from {path}")
 
     # Apply sharpening to the image
     kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])

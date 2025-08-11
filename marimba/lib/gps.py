@@ -84,9 +84,10 @@ def read_exif_location(path: str | Path) -> tuple[float | None, float | None]:
         if "exiftool" in str(e).lower():
             show_dependency_error_and_exit(ToolDependency.EXIFTOOL, str(e))
         return None, None
-    except (KeyError, ValueError, TypeError, Exception):
+    except (KeyError, ValueError, TypeError, AttributeError, IndexError):
         # KeyError: Missing expected EXIF data structure
         # ValueError: Invalid EXIF data format
         # TypeError: Unexpected data type in EXIF fields
-        # Exception: Any exiftool errors
+        # AttributeError: Missing expected attributes in EXIF data
+        # IndexError: Unexpected EXIF data structure
         return None, None

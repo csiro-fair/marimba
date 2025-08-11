@@ -36,7 +36,7 @@ import json
 from pathlib import Path
 
 import typer
-from rich import print
+from rich import print as rprint
 
 from marimba.core.utils.constants import PROJECT_DIR_HELP
 from marimba.core.utils.log import get_logger
@@ -78,10 +78,10 @@ def project(
     except FileExistsError as e:
         error_message = f'A {MARIMBA} {format_entity("project")} already exists at: "{project_dir}"'
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
 
-    print(
+    rprint(
         success_panel(
             f'Created new {MARIMBA} {format_entity("project")} at: "{project_wrapper.root_dir}"',
         ),
@@ -109,7 +109,7 @@ def pipeline(
     except json.JSONDecodeError as e:
         error_message = f"Error parsing configuration JSON: {e}"
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit from e
 
     project_dir = find_project_dir_or_exit(project_dir)
@@ -129,24 +129,24 @@ def pipeline(
     except ProjectWrapper.InvalidNameError as e:
         error_message = f"Invalid pipeline name: {e}"
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
     except Exception as e:
         error_message = f"Could not create pipeline: {e}"
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
 
     # Use warning panel if no pipeline implementation found
     if pipeline_wrapper is None:
-        print(
+        rprint(
             warning_panel(
                 f'Repository cloned at "{pipeline_wrapper.root_dir}", but no Pipeline implementation found. '
                 f'Add a Pipeline implementation before using "{pipeline_name}" to process data.',
             ),
         )
     else:
-        print(
+        rprint(
             success_panel(
                 f'Created new {MARIMBA} {format_entity("pipeline")} "{pipeline_name}" at: '
                 f'"{pipeline_wrapper.root_dir}"',
@@ -175,7 +175,7 @@ def collection(
     except json.JSONDecodeError as e:
         error_message = f"Error parsing configuration JSON: {e}"
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit from e
 
     project_dir = find_project_dir_or_exit(project_dir)
@@ -199,23 +199,23 @@ def collection(
         )
     except ProjectWrapper.InvalidNameError as e:
         logger.exception(e)
-        print(error_panel(f"Invalid collection name: {e}"))
+        rprint(error_panel(f"Invalid collection name: {e}"))
         raise typer.Exit(code=1) from e
     except ProjectWrapper.NoSuchCollectionError as e:
         logger.exception(e)
-        print(error_panel(f"No such parent collection: {e}"))
+        rprint(error_panel(f"No such parent collection: {e}"))
         raise typer.Exit(code=1) from e
     except ProjectWrapper.CreateCollectionError as e:
         logger.exception(e)
-        print(error_panel(f"Could not create collection: {e}"))
+        rprint(error_panel(f"Could not create collection: {e}"))
         raise typer.Exit(code=1) from e
     except Exception as e:
         error_message = f"Could not create collection: {e}"
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
 
-    print(
+    rprint(
         success_panel(
             f'Created new {MARIMBA} {format_entity("collection")} "{collection_name}" at: '
             f'"{collection_wrapper.root_dir}"',
@@ -251,20 +251,20 @@ def target(
     except ProjectWrapper.InvalidNameError as e:
         error_message = f"Invalid target name: {e}"
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
     except FileExistsError as e:
         error_message = f'A {MARIMBA} {format_entity("target")} already exists at: "{project_dir / target_name}"'
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
     except Exception as e:
         error_message = f"Could not create target: {e}"
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
 
-    print(
+    rprint(
         success_panel(
             f'Created new {MARIMBA} {format_entity("target")} "{target_name}" at: '
             f'"{distribution_target_wrapper.config_path}"',

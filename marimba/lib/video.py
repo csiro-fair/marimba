@@ -148,7 +148,7 @@ def save_thumbnail(frame: av.video.frame.VideoFrame, output_path: Path) -> None:
         IOError: If there's an issue saving the image to the specified output path.
         TypeError: If the input frame is not of the expected type.
     """
-    img = frame.to_image()
+    img = frame.to_image()  # type: ignore[no-untyped-call]
     max_size = (300, 300)
     img.thumbnail(max_size, Image.Resampling.LANCZOS)  # type: ignore[no-untyped-call]
     img.save(output_path)

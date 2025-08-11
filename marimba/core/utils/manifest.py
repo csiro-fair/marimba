@@ -41,6 +41,10 @@ class Manifest:
     hashes: dict[Path, str]
     logger: logging.Logger | None = None
 
+    def __hash__(self) -> int:
+        """Enable use in sets and as dictionary keys."""
+        return hash(tuple(sorted(self.hashes.items())))
+
     @staticmethod
     def _validate_directory(directory: Path) -> None:
         """

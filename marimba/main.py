@@ -38,7 +38,7 @@ import time
 from pathlib import Path
 
 import typer
-from rich import print
+from rich import print as rprint
 
 from marimba.core.cli import delete, new
 from marimba.core.distribution.base import DistributionTargetBase
@@ -73,6 +73,17 @@ __email__ = "chris.jackett@csiro.au"
 __status__ = "Development"
 
 
+def version_callback(value: bool) -> None:
+    """Handle --version flag."""
+    if value:
+        try:
+            version = importlib.metadata.version("marimba")
+            rprint(f"Marimba v{version}")
+        except Exception:  # noqa: BLE001
+            rprint("Marimba version: unknown (not installed as package)")
+        raise typer.Exit
+
+
 marimba_cli = typer.Typer(
     name="Marimba",
     help="""Marimba\n
@@ -82,21 +93,30 @@ marimba_cli = typer.Typer(
     pretty_exceptions_show_locals=False,
 )
 
+
 marimba_cli.add_typer(new.app, name="new")
 marimba_cli.add_typer(delete.app, name="delete")
 
 logger = get_logger(__name__)
 
 
-@marimba_cli.callback()
+@marimba_cli.callback(invoke_without_command=True)
 def global_options(
+    ctx: typer.Context,
     level: LogLevel = typer.Option(LogLevel.WARNING, help="Logging level."),
+    version: bool = typer.Option(False, "--version", help="Show version and exit"),
 ) -> None:
     """
     Global options for Marimba CLI.
     """
+    if version:
+        version_callback(True)
     get_rich_handler().setLevel(logging.getLevelName(level.value))
     logger.info(f"Initialised Marimba CLI v{__version__}")
+
+    if ctx.invoked_subcommand is None:
+        rprint(ctx.get_help())
+        ctx.exit()
 
 
 @marimba_cli.command("import")
@@ -155,7 +175,7 @@ def import_command(
     except json.JSONDecodeError as e:
         error_message = f"Error parsing configuration JSON: {e}"
         project_wrapper.logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit from None
 
     # Get the collection (create if appropriate)
@@ -170,12 +190,12 @@ def import_command(
         except ProjectWrapper.InvalidNameError as e:
             error_message = f"Invalid collection name: {e}"
             project_wrapper.logger.exception(error_message)
-            print(error_panel(error_message))
+            rprint(error_panel(error_message))
             raise typer.Exit from None
     elif not overwrite:
         error_message = f"Collection {collection_name} already exists, and the overwrite flag is not set."
         project_wrapper.logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit from None
 
     # If no pipeline names are specified, process all pipelines
@@ -196,7 +216,7 @@ def import_command(
             [f"  - {source_path.resolve().absolute()}" for source_path in source_paths],
         )
         elapsed_time = time.time() - start_time
-        print(
+        rprint(
             success_panel(
                 f'Imported data into collection "{format_entity(collection_name)}" from the following source paths in '
                 f"{elapsed_time:.2f} seconds:\n{pretty_source_paths}",
@@ -205,7 +225,7 @@ def import_command(
     except Exception as e:
         error_message = f"Error during import: {e}"
         project_wrapper.logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit from None
 
 
@@ -303,7 +323,7 @@ def package_command(
         )
 
         elapsed_time = time.time() - start_time
-        print(
+        rprint(
             success_panel(
                 f'Packaged dataset "{format_entity(dataset_name)}" at {dataset_wrapper.root_dir} in '
                 f"{elapsed_time:.2f} seconds",
@@ -311,34 +331,34 @@ def package_command(
         )
     except ProjectWrapper.CompositionError as e:
         project_wrapper.logger.exception(e)
-        print(error_panel(str(e)))
+        rprint(error_panel(str(e)))
         raise typer.Exit from None
     except ProjectWrapper.NoSuchPipelineError as e:
         error_message = f"No such pipeline: {e}"
         project_wrapper.logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit from None
     except ProjectWrapper.NoSuchCollectionError as e:
         error_message = f"No such collection: {e}"
         project_wrapper.logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit from None
     except DatasetWrapper.ManifestError as e:
         error_message = f"Dataset is inconsistent with manifest at {e}"
         project_wrapper.logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit from None
     except FileExistsError as e:
         error_message = f"Dataset already exists: {e}"
         project_wrapper.logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit from None
     except ProjectWrapper.ReadOnlyFilesError as e:
         print(error_panel(str(e), title="Packaging failed: Read-only files detected"))
         raise typer.Exit from None
     except Exception as e:
         project_wrapper.logger.exception(e)
-        print(error_panel(f"Could not package collection: {e}"))
+        rprint(error_panel(f"Could not package collection: {e}"))
         raise typer.Exit from None
 
 
@@ -392,7 +412,7 @@ def process_command(
         collection_label = "collection" if len(collection_names) == 1 else "collections"
 
         elapsed_time = time.time() - start_time
-        print(
+        rprint(
             success_panel(
                 f"Processed data for {pipeline_label} {pretty_pipelines} and "
                 f"{collection_label} {pretty_collections} in {elapsed_time:.2f} seconds",
@@ -401,12 +421,12 @@ def process_command(
     except NetworkConnectionError as e:
         error_message = f"No internet connection: {e}"
         project_wrapper.logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit from None
     except Exception as e:
         error_message = f"Error during processing: {e}"
         project_wrapper.logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit from None
 
 
@@ -435,7 +455,7 @@ def distribute_command(
     try:
         project_wrapper.distribute(dataset_name, target_name, validate)
         elapsed_time = time.time() - start_time
-        print(
+        rprint(
             success_panel(
                 f"Successfully distributed dataset {dataset_name} in {elapsed_time:.2f} seconds",
             ),
@@ -443,26 +463,26 @@ def distribute_command(
     except ProjectWrapper.NoSuchDatasetError as e:
         error_message = f"No such dataset: {e}"
         project_wrapper.logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit from None
     except ProjectWrapper.NoSuchTargetError as e:
         error_message = f"No such target: {e}"
         project_wrapper.logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit from None
     except DatasetWrapper.ManifestError as e:
         error_message = f"Dataset is inconsistent with manifest at {e}"
         project_wrapper.logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit from None
     except DistributionTargetBase.DistributionError as e:
         error_message = f"Could not distribute dataset: {e}"
         project_wrapper.logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit from None
     except Exception as e:
         project_wrapper.logger.exception(e)
-        print(error_panel(f"Could not distribute dataset: {e}"))
+        rprint(error_panel(f"Could not distribute dataset: {e}"))
         raise typer.Exit from None
 
 
@@ -478,10 +498,10 @@ def update_command(
 
     try:
         project_wrapper.update_pipelines()
-        print(success_panel("Successfully updated (pulled) all pipeline repositories"))
+        rprint(success_panel("Successfully updated (pulled) all pipeline repositories"))
     except Exception as e:
         project_wrapper.logger.exception(e)
-        print(error_panel(f"Could not update pipelines: {e}"))
+        rprint(error_panel(f"Could not update pipelines: {e}"))
         raise typer.Exit from None
 
 
@@ -497,11 +517,21 @@ def install_command(
 
     try:
         project_wrapper.install_pipelines()
-        print(success_panel("Successfully installed all pipeline dependencies"))
+        rprint(success_panel("Successfully installed all pipeline dependencies"))
     except Exception as e:
         project_wrapper.logger.exception(e)
-        print(error_panel(f"Could not install pipelines: {e}"))
+        rprint(error_panel(f"Could not install pipelines: {e}"))
         raise typer.Exit from None
+
+
+@marimba_cli.command("version")
+def version_command() -> None:
+    """Display the Marimba version."""
+    try:
+        version = importlib.metadata.version("marimba")
+        rprint(f"Marimba v{version}")
+    except Exception:  # noqa: BLE001
+        rprint("Marimba version: unknown (not installed as package)")
 
 
 if __name__ == "__main__":

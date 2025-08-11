@@ -241,5 +241,5 @@ class DistributionTargetWrapper:
             target_class = DistributionTargetWrapper.CLASS_MAP.get(target_type)
             if target_class:
                 # Use cast to assure Mypy of the return type
-                return cast(DistributionTargetBase, target_class(**target_args))
+                return cast("DistributionTargetBase", target_class(**target_args))
         return None

@@ -7,6 +7,7 @@ This guide provides a detailed walkthrough for setting up a development environm
 
 - [Clone the Repository](#clone-the-repository)
 - [Project Structure](#project-structure)
+- [System Dependencies](#system-dependencies)
 - [Set up UV Environment](#set-up-uv-environment)
 - [Code Quality Tools](#code-quality-tools)
 - [Build Marimba](#build-marimba)
@@ -72,6 +73,47 @@ marimba/
 
 ---
 
+<a name="system-dependencies"></a>
+## System Dependencies
+
+Before setting up the Python environment, you'll need to install system-level dependencies:
+
+### Required System Tools
+
+**ExifTool**: Required for EXIF metadata reading and writing
+**FFmpeg**: Required for video processing functionality
+
+### Installation Instructions
+
+**Ubuntu/Debian:**
+```bash
+sudo apt install libimage-exiftool-perl ffmpeg
+```
+
+**macOS:**
+```bash
+brew install exiftool ffmpeg
+```
+
+**RHEL/CentOS/Fedora:**
+```bash
+# RHEL/CentOS (with EPEL repository enabled)
+sudo yum install perl-Image-ExifTool ffmpeg
+
+# Fedora
+sudo dnf install perl-Image-ExifTool ffmpeg
+```
+
+**Windows:**
+- ExifTool: Download from [https://exiftool.org/](https://exiftool.org/) and add to PATH
+- FFmpeg: Download from [https://ffmpeg.org/](https://ffmpeg.org/) and add to PATH
+
+For other platforms, please refer to the official documentation for [ExifTool](https://exiftool.org/) and [FFmpeg](https://ffmpeg.org/).
+
+<p align="right">(<a href="#marimba-development-environment-setup-guide-top">back to top</a>)</p>
+
+---
+
 <a name="set-up-uv-environment"></a>
 ## Set up UV Environment
 
@@ -80,7 +122,7 @@ The Python dependencies for Marimba are managed using [UV](https://github.com/as
 ```bash
 # Install the package in development mode with dev dependencies
 # This creates a virtual environment automatically and installs all dependencies
-uv sync --group dev --python 3.10
+uv sync --group dev --python 3.12
 
 # Activate the virtual environment (if not already activated) on Linux/Mac
 source .venv/bin/activate
