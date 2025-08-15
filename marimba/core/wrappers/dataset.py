@@ -390,6 +390,7 @@ class DatasetWrapper(LogMixin):
         operation: Operation = Operation.copy,
         zoom: int | None = None,
         max_workers: int | None = None,
+        exif_chunk_size: int | None = None,
     ) -> None:
         """
 
@@ -411,6 +412,7 @@ class DatasetWrapper(LogMixin):
             operation: An Operation enum specifying whether to copy or move files (default: Operation.copy).
             zoom: An optional integer specifying the zoom level for the dataset map generation (default: None).
             max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
+            exif_chunk_size: Chunk size for EXIF metadata processing. If None, uses adaptive sizing (default: None).
 
 
         Raises:
@@ -426,7 +428,7 @@ class DatasetWrapper(LogMixin):
         reduced_dataset_mapping = flatten_middle_mapping(dataset_mapping)
         self.check_dataset_mapping(reduced_dataset_mapping, max_workers)
         mapped_dataset_items = self._populate_files(dataset_mapping, operation, max_workers)
-        self._process_files_with_metadata(reduced_dataset_mapping, max_workers)
+        self._process_files_with_metadata(reduced_dataset_mapping, max_workers, exif_chunk_size)
         self.generate_metadata(dataset_name, mapped_dataset_items, mapping_processor_decorator, max_workers)
         dataset_items = flatten_mapping(flatten_middle_mapping(mapped_dataset_items))
 
@@ -553,6 +555,7 @@ class DatasetWrapper(LogMixin):
             dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
         ],
         max_workers: int | None = None,
+        exif_chunk_size: int | None = None,
     ) -> None:
         """
         Process files with their associated metadata types.
@@ -560,6 +563,7 @@ class DatasetWrapper(LogMixin):
         Args:
             dataset_mapping: The dataset mapping containing source and destination paths.
             max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
+            exif_chunk_size: Chunk size for EXIF metadata processing. If None, uses adaptive sizing.
         """
         # Group files by metadata type
         files_by_type: dict[
@@ -591,6 +595,7 @@ class DatasetWrapper(LogMixin):
                 dataset_mapping=files,
                 max_workers=max_workers,
                 dry_run=self.dry_run,
+                chunk_size=exif_chunk_size,
             )
 
         total_files = sum(len(files) for files in files_by_type.values())

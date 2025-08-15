@@ -276,6 +276,10 @@ def package_command(
         False,
         help="Force packaging without prompting for hard-link warnings.",
     ),
+    exif_chunk_size: int | None = typer.Option(
+        None,
+        help="Chunk size for EXIF metadata processing. If not specified, uses adaptive sizing based on dataset size.",
+    ),
 ) -> None:
     """
     Package up a Marimba collection ready for distribution.
@@ -320,6 +324,7 @@ def package_command(
             max_workers=max_workers,
             metadata_saver_overwrite=metadata_saver_overwrite,
             force=force,
+            exif_chunk_size=exif_chunk_size,
         )
 
         elapsed_time = time.time() - start_time

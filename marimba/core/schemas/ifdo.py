@@ -21,6 +21,7 @@ Classes:
 
 import json
 import logging
+import os
 import tempfile
 import uuid
 from collections.abc import Callable
@@ -51,6 +52,72 @@ else:
 
 
 logger = get_logger(__name__)
+
+# Configuration for batch processing
+DEFAULT_CHUNK_SIZE = 50  # Number of files to process in each batch
+
+# Constants for adaptive chunk sizing
+_VERY_SMALL_DATASET_THRESHOLD = 20
+_SMALL_DATASET_THRESHOLD = 100
+_MEDIUM_DATASET_THRESHOLD = 500
+_LARGE_DATASET_THRESHOLD = 2000
+
+
+def _calculate_optimal_chunk_size(dataset_size: int, max_workers: int | None = None) -> int:
+    """
+    Calculate optimal chunk size based on dataset size and available workers.
+
+    Args:
+        dataset_size: Total number of files to process
+        max_workers: Maximum number of worker threads
+
+    Returns:
+        Optimal chunk size for the given dataset
+
+    Environment Variables:
+        MARIMBA_EXIF_CHUNK_SIZE: Override chunk size calculation
+        MARIMBA_EXIF_MIN_CHUNK_SIZE: Minimum chunk size (default: 1)
+        MARIMBA_EXIF_MAX_CHUNK_SIZE: Maximum chunk size (default: 200)
+    """
+    # Check for environment variable override
+    env_chunk_size = os.environ.get("MARIMBA_EXIF_CHUNK_SIZE")
+    if env_chunk_size:
+        try:
+            return max(1, int(env_chunk_size))
+        except ValueError:
+            pass  # Fall back to calculation
+
+    # Get configuration from environment
+    min_chunk_size = int(os.environ.get("MARIMBA_EXIF_MIN_CHUNK_SIZE", "1"))
+    max_chunk_size = int(os.environ.get("MARIMBA_EXIF_MAX_CHUNK_SIZE", "200"))
+
+    # Determine effective worker count
+    effective_workers = max_workers if max_workers else os.cpu_count() or 4
+
+    # Calculate base chunk size to ensure good thread utilization
+    # Aim for 2-4 chunks per worker to allow for load balancing
+    target_chunks = effective_workers * 3
+    base_chunk_size = max(1, dataset_size // target_chunks)
+
+    # Apply size-based adjustments
+    if dataset_size <= _VERY_SMALL_DATASET_THRESHOLD:
+        # Very small datasets: process all files in single chunk to minimize overhead
+        calculated_size = dataset_size
+    elif dataset_size <= _SMALL_DATASET_THRESHOLD:
+        # Small datasets: use smaller chunks but not too small
+        calculated_size = max(base_chunk_size, min(dataset_size // 4, _VERY_SMALL_DATASET_THRESHOLD))
+    elif dataset_size <= _MEDIUM_DATASET_THRESHOLD:
+        # Medium datasets: balanced approach
+        calculated_size = max(base_chunk_size, min(dataset_size // 6, 75))
+    elif dataset_size <= _LARGE_DATASET_THRESHOLD:
+        # Large datasets: larger chunks for efficiency
+        calculated_size = max(base_chunk_size, min(dataset_size // 8, 150))
+    else:
+        # Very large datasets: optimize for memory and stability
+        calculated_size = max(base_chunk_size, min(dataset_size // 10, 200))
+
+    # Apply environment-based constraints
+    return max(min_chunk_size, min(calculated_size, max_chunk_size))
 
 
 class iFDOMetadata(BaseMetadata):  # noqa: N801
@@ -296,6 +363,30 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         if not dry_run:
             saver(root_dir, output_name, ifdo.model_dump(mode="json", by_alias=True, exclude_none=True))
 
+    @staticmethod
+    def _chunk_dataset(
+        dataset_mapping: dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
+        chunk_size: int = DEFAULT_CHUNK_SIZE,
+    ) -> list[list[tuple[Path, tuple[list[BaseMetadata], dict[str, Any] | None]]]]:
+        """
+        Split the dataset into chunks for batch processing.
+
+        Args:
+            dataset_mapping: The dataset mapping to chunk.
+            chunk_size: Number of files per chunk.
+
+        Returns:
+            List of chunks, where each chunk is a list of (file_path, metadata) tuples.
+        """
+        items = list(dataset_mapping.items())
+        chunks = []
+
+        for i in range(0, len(items), chunk_size):
+            chunk = items[i : i + chunk_size]
+            chunks.append(chunk)
+
+        return chunks
+
     @classmethod
     def process_files(
         cls,
@@ -304,73 +395,224 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         logger: logging.Logger | None = None,
         *,
         dry_run: bool = False,
+        chunk_size: int | None = None,
     ) -> None:
-        """Process dataset_mapping using metadata."""
+        """Process dataset_mapping using metadata with chunked batch processing."""
         if dry_run:
             return
 
         # Use the provided logger if available, otherwise use the module logger
         log = logger or get_logger(__name__)
 
+        # Calculate optimal chunk size if not provided
+        if chunk_size is None:
+            chunk_size = _calculate_optimal_chunk_size(len(dataset_mapping), max_workers)
+            log.info(f"Auto-calculated chunk size: {chunk_size} for {len(dataset_mapping)} files")
+
+        # Split dataset into chunks for batch processing
+        chunks = cls._chunk_dataset(dataset_mapping, chunk_size)
+        log.info(f"Processing {len(dataset_mapping)} files in {len(chunks)} chunks of up to {chunk_size} files each")
+
         @multithreaded(max_workers=max_workers)
-        def process_file(
+        def process_chunk(
             cls: type[iFDOMetadata],
             thread_num: str,
-            item: tuple[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
+            item: list[tuple[Path, tuple[list[BaseMetadata], dict[str, Any] | None]]],
             logger: logging.Logger,
             progress: Progress | None = None,
             task: TaskID | None = None,
         ) -> None:
-            file_path, (metadata_items, ancillary_data) = item
+            chunk = item
+            exif_batch, non_exif_files = cls._prepare_chunk_for_processing(chunk, logger)
+            cls._process_exif_batch(exif_batch, thread_num, logger)
+            cls._log_non_exif_files(non_exif_files, thread_num, logger)
 
-            file_extension = file_path.suffix.lower()
-
-            try:
-                # If it's an EXIF-supported file, process EXIF metadata
-                if file_extension in EXIF_SUPPORTED_EXTENSIONS:
-                    try:
-                        # Get the ImageData from the metadata items
-                        ifdo_metadata_items = [item for item in metadata_items if isinstance(item, iFDOMetadata)]
-
-                        if ifdo_metadata_items:
-                            # Use the primary ImageData from the first iFDO metadata item
-                            image_data = ifdo_metadata_items[0].primary_image_data
-
-                            # Open image file for processing with proper context management
-                            with Image.open(file_path) as image_file:
-                                # Extract image properties first while image is still open
-                                cls._extract_image_properties(image_file, image_data)
-
-                                # Apply EXIF metadata using exiftool
-                                cls._inject_metadata_with_exiftool(
-                                    file_path,
-                                    image_data,
-                                    ancillary_data,
-                                    image_file,
-                                    logger,
-                                )
-
-                            logger.debug(
-                                f"Thread {thread_num} - Applied iFDO metadata to EXIF tags for image {file_path}",
-                            )
-                    except (OSError, ExifToolException) as e:
-                        logger.warning(
-                            f"Failed to process EXIF metadata for {file_path}: {e}",
-                        )
-                else:
-                    # For non-EXIF files (like videos), just log that we're skipping EXIF processing
-                    logger.debug(
-                        f"Thread {thread_num} - Skipping EXIF processing for non-supported file: {file_path}",
-                    )
-
-            finally:
-                # Always increment the progress bar, regardless of file type or processing success
-                if progress and task is not None:
-                    progress.advance(task)
+            # Update progress for entire chunk
+            if progress and task is not None:
+                progress.advance(task, advance=len(chunk))
 
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             task = progress.add_task("[green]Processing files with metadata (4/12)", total=len(dataset_mapping))
-            process_file(cls, items=dataset_mapping.items(), progress=progress, task=task, logger=log)  # type: ignore[call-arg]
+            process_chunk(cls, items=chunks, progress=progress, task=task, logger=log)  # type: ignore[call-arg]
+
+    @classmethod
+    def _prepare_chunk_for_processing(
+        cls,
+        chunk: list[tuple[Path, tuple[list[BaseMetadata], dict[str, Any] | None]]],
+        logger: logging.Logger,
+    ) -> tuple[list[tuple[Path, ImageData, dict[str, Any] | None, Image.Image]], list[Path]]:
+        """Prepare a chunk of files for EXIF processing."""
+        exif_batch = []
+        non_exif_files = []
+
+        for file_path, (metadata_items, ancillary_data) in chunk:
+            file_extension = file_path.suffix.lower()
+
+            if file_extension in EXIF_SUPPORTED_EXTENSIONS:
+                # Get the ImageData from the metadata items
+                ifdo_metadata_items = [item for item in metadata_items if isinstance(item, iFDOMetadata)]
+
+                if ifdo_metadata_items:
+                    # Use the primary ImageData from the first iFDO metadata item
+                    image_data = ifdo_metadata_items[0].primary_image_data
+
+                    try:
+                        # Open image file for processing with proper context management
+                        with Image.open(file_path) as image_file:
+                            # Extract image properties first while image is still open
+                            cls._extract_image_properties(image_file, image_data)
+
+                            # Add to batch for exiftool processing
+                            exif_batch.append((file_path, image_data, ancillary_data, image_file.copy()))
+
+                    except OSError as e:
+                        logger.warning(f"Failed to open image file {file_path}: {e}")
+            else:
+                non_exif_files.append(file_path)
+
+        return exif_batch, non_exif_files
+
+    @classmethod
+    def _process_exif_batch(
+        cls,
+        exif_batch: list[tuple[Path, ImageData, dict[str, Any] | None, Image.Image]],
+        thread_num: str,
+        logger: logging.Logger,
+    ) -> None:
+        """Process a batch of EXIF files."""
+        if exif_batch:
+            try:
+                cls._inject_metadata_with_exiftool_batch(exif_batch, logger)
+                logger.debug(f"Thread {thread_num} - Processed batch of {len(exif_batch)} EXIF files")
+            except (OSError, ExifToolException) as e:
+                logger.warning(f"Thread {thread_num} - Failed to process EXIF batch: {e}")
+
+    @classmethod
+    def _log_non_exif_files(
+        cls,
+        non_exif_files: list[Path],
+        thread_num: str,
+        logger: logging.Logger,
+    ) -> None:
+        """Log non-EXIF files that were skipped."""
+        for file_path in non_exif_files:
+            logger.debug(f"Thread {thread_num} - Skipping EXIF processing for non-supported file: {file_path}")
+
+    @staticmethod
+    def _inject_metadata_with_exiftool_batch(
+        file_batch: list[tuple[Path, ImageData, dict[str, Any] | None, Image.Image]],
+        logger: logging.Logger,
+    ) -> None:
+        """
+        Inject metadata into EXIF for a batch of files using a single exiftool instance.
+
+        Args:
+            file_batch: List of tuples containing (file_path, image_data, ancillary_data, image_file).
+            logger: Logger instance.
+        """
+        if not file_batch:
+            return
+
+        try:
+            with exiftool.ExifToolHelper() as et:
+                existing_exif_map = iFDOMetadata._get_existing_metadata_map(et, file_batch)
+                batch_file_tags = iFDOMetadata._build_batch_tags(file_batch, existing_exif_map)
+                iFDOMetadata._apply_batch_tags(et, batch_file_tags)
+                iFDOMetadata._add_batch_thumbnails(file_batch, logger)
+
+                logger.debug(f"Successfully processed batch of {len(file_batch)} files with exiftool")
+
+        except FileNotFoundError as e:
+            if "exiftool" in str(e).lower():
+                show_dependency_error_and_exit(ToolDependency.EXIFTOOL, str(e))
+            else:
+                logger.warning(f"File not found during batch EXIF processing: {e}")
+        except ExifToolException as e:
+            logger.warning(f"Failed to inject EXIF metadata in batch with exiftool: {e}")
+
+    @staticmethod
+    def _get_existing_metadata_map(
+        et: exiftool.ExifToolHelper,
+        file_batch: list[tuple[Path, ImageData, dict[str, Any] | None, Image.Image]],
+    ) -> dict[str, dict[str, Any]]:
+        """Get existing EXIF metadata for all files in the batch."""
+        file_paths = [str(item[0]) for item in file_batch]
+        existing_metadata_list = et.get_metadata(file_paths)
+
+        existing_exif_map = {}
+        for i, metadata in enumerate(existing_metadata_list):
+            existing_exif_map[file_paths[i]] = metadata if metadata else {}
+
+        return existing_exif_map
+
+    @staticmethod
+    def _build_batch_tags(
+        file_batch: list[tuple[Path, ImageData, dict[str, Any] | None, Image.Image]],
+        existing_exif_map: dict[str, dict[str, Any]],
+    ) -> dict[str, dict[str, Any]]:
+        """Build EXIF tags for all files in the batch."""
+        batch_file_tags: dict[str, dict[str, Any]] = {}
+
+        for file_path, image_data, ancillary_data, image_file in file_batch:
+            file_path_str = str(file_path)
+            existing_exif = existing_exif_map.get(file_path_str, {})
+
+            exif_tags: dict[str, Any] = {}
+
+            # Build EXIF tags using helper methods
+            iFDOMetadata._add_image_dimensions(exif_tags, existing_exif, image_file)
+            iFDOMetadata._add_datetime_tags(exif_tags, image_data)
+            iFDOMetadata._add_identifier_tags(exif_tags, image_data)
+            iFDOMetadata._add_gps_tags(exif_tags, image_data)
+            iFDOMetadata._add_user_comment(exif_tags, image_data, ancillary_data)
+
+            if exif_tags:
+                batch_file_tags[file_path_str] = exif_tags
+
+        return batch_file_tags
+
+    @staticmethod
+    def _apply_batch_tags(
+        et: exiftool.ExifToolHelper,
+        batch_file_tags: dict[str, dict[str, Any]],
+    ) -> None:
+        """Apply EXIF tags to all files in the batch."""
+        if batch_file_tags:
+            # Apply tags per file using batch mode
+            for file_path_str, tags in batch_file_tags.items():
+                et.set_tags([file_path_str], tags, params=["-overwrite_original_in_place"])
+
+    @staticmethod
+    def _add_batch_thumbnails(
+        file_batch: list[tuple[Path, ImageData, dict[str, Any] | None, Image.Image]],
+        logger: logging.Logger,
+    ) -> None:
+        """Add thumbnails to all files in the batch."""
+        failed_thumbnails = []
+
+        # Process all thumbnails and collect failures
+        for file_path, _image_data, _ancillary_data, image_file in file_batch:
+            error = iFDOMetadata._safe_add_thumbnail(file_path, image_file, logger)
+            if error:
+                failed_thumbnails.append((file_path, error))
+
+        # Log all failures at once
+        for file_path, error in failed_thumbnails:
+            logger.warning(f"Failed to add thumbnail for {file_path}: {error}")
+
+    @staticmethod
+    def _safe_add_thumbnail(
+        file_path: Path,
+        image_file: Image.Image,
+        logger: logging.Logger,
+    ) -> str | None:
+        """Safely add thumbnail and return error message if failed."""
+        try:
+            iFDOMetadata._add_thumbnail_to_exif(file_path, image_file, logger)
+        except (OSError, ExifToolException) as e:
+            return str(e)
+        else:
+            return None
 
     @staticmethod
     def _inject_metadata_with_exiftool(
@@ -381,7 +623,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         logger: logging.Logger,
     ) -> None:
         """
-        Inject metadata into EXIF using exiftool.
+        Inject metadata into EXIF using exiftool (single file fallback).
 
         Args:
             file_path: Path to the image file.
@@ -390,34 +632,11 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             image_file: PIL Image object for extracting dimensions.
             logger: Logger instance.
         """
-        try:
-            with exiftool.ExifToolHelper() as et:
-                existing_metadata = et.get_metadata(str(file_path))
-                existing_exif = existing_metadata[0] if existing_metadata else {}
-
-                exif_tags: dict[str, Any] = {}
-
-                # Build EXIF tags using helper methods
-                iFDOMetadata._add_image_dimensions(exif_tags, existing_exif, image_file)
-                iFDOMetadata._add_datetime_tags(exif_tags, image_data)
-                iFDOMetadata._add_identifier_tags(exif_tags, image_data)
-                iFDOMetadata._add_gps_tags(exif_tags, image_data)
-                iFDOMetadata._add_user_comment(exif_tags, image_data, ancillary_data)
-
-                # Apply all tags at once
-                if exif_tags:
-                    et.set_tags([str(file_path)], exif_tags, params=["-overwrite_original_in_place"])
-
-                # Add thumbnail after applying other EXIF tags
-                iFDOMetadata._add_thumbnail_to_exif(file_path, image_file, logger)
-
-        except FileNotFoundError as e:
-            if "exiftool" in str(e).lower():
-                show_dependency_error_and_exit(ToolDependency.EXIFTOOL, str(e))
-            else:
-                logger.warning(f"File not found during EXIF processing: {e}")
-        except ExifToolException as e:
-            logger.warning(f"Failed to inject EXIF metadata with exiftool: {e}")
+        # Use batch processing with single file for consistency
+        iFDOMetadata._inject_metadata_with_exiftool_batch(
+            [(file_path, image_data, ancillary_data, image_file)],
+            logger,
+        )
 
     @staticmethod
     def _add_image_dimensions(

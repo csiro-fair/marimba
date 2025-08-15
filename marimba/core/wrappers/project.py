@@ -1204,6 +1204,7 @@ class ProjectWrapper(LogMixin):
         metadata_saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
         *,
         force: bool = False,
+        exif_chunk_size: int | None = None,
     ) -> DatasetWrapper:
         """
         Create a Marimba dataset from a dataset mapping.
@@ -1222,6 +1223,7 @@ class ProjectWrapper(LogMixin):
             metadata_saver_overwrite: Saving function overwriting the default metadata saving function.
                 Defaults to None.
             force: Skip hard-link warning prompts and proceed with packaging. Defaults to False.
+            exif_chunk_size: Chunk size for EXIF metadata processing. If None, uses adaptive sizing. Defaults to None.
 
         Returns:
             A DatasetWrapper instance representing the created dataset.
@@ -1265,6 +1267,7 @@ class ProjectWrapper(LogMixin):
             operation=operation,
             zoom=zoom,
             max_workers=max_workers,
+            exif_chunk_size=exif_chunk_size,
         )
 
         # Validate it

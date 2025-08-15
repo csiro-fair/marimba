@@ -96,6 +96,7 @@ class BaseMetadata(ABC):
         logger: logging.Logger | None = None,
         *,
         dry_run: bool = False,
+        chunk_size: int | None = None,
     ) -> None:
         """Process files according to the metadata type's requirements."""
         raise NotImplementedError
