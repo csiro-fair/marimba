@@ -73,6 +73,9 @@ def darwin_complete_implementation() -> type[DarwinCoreMetadata]:
             *,
             dry_run: bool = False,
             saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
+            pipeline_instance: Any | None = None,
+            context: str = "dataset",
+            collection_config: dict[str, Any] | None = None,
         ) -> None:
             pass
 

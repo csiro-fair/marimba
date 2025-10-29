@@ -68,6 +68,9 @@ def complete_metadata_class():
             *,
             dry_run: bool = False,
             saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
+            pipeline_instance: Any | None = None,
+            context: str = "dataset",
+            collection_config: dict[str, Any] | None = None,
         ) -> None:
             pass
 
@@ -142,6 +145,9 @@ def none_values_metadata_class():
             *,
             dry_run: bool = False,
             saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
+            pipeline_instance: Any | None = None,
+            context: str = "dataset",
+            collection_config: dict[str, Any] | None = None,
         ) -> None:
             pass
 

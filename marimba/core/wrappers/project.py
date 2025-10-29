@@ -1278,6 +1278,19 @@ class ProjectWrapper(LogMixin):
         if not force and operation == Operation.link:
             self._check_hardlinks_and_warn(dataset_mapping)
 
+        # Build mappings of pipeline names to instances and collection names to configs
+        pipeline_instances = {
+            name: instance
+            for name, wrapper in self.pipeline_wrappers.items()
+            if name in dataset_mapping and (instance := wrapper.get_instance()) is not None
+        }
+        collection_configs = {
+            name: wrapper.load_config()
+            for name, wrapper in self.collection_wrappers.items()
+            # Check if this collection appears in any pipeline's mapping
+            if any(name in pipeline_mapping for pipeline_mapping in dataset_mapping.values())
+        }
+
         # Populate it
         dataset_wrapper.populate(
             dataset_name,
@@ -1292,6 +1305,8 @@ class ProjectWrapper(LogMixin):
             max_workers=max_workers,
             exif_chunk_size=exif_chunk_size,
             allow_destination_collisions=allow_destination_collisions,
+            pipeline_instances=pipeline_instances,
+            collection_configs=collection_configs,
         )
 
         # Validate it

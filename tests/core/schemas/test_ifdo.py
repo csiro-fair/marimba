@@ -10,7 +10,7 @@ from ifdo.models import ImageData
 if TYPE_CHECKING:
     from marimba.core.schemas.base import BaseMetadata
 
-from marimba.core.schemas.ifdo import iFDOMetadata
+from marimba.core.schemas.ifdo import IFDO_VERSION, iFDOMetadata
 
 
 class TestiFDOMetadataProperties:
@@ -1246,7 +1246,6 @@ class TestiFDOMetadataDatasetCreation:
     @pytest.mark.unit
     def test_create_dataset_metadata_basic_functionality(
         self,
-        sample_image_metadata: iFDOMetadata,
         mocker: pytest_mock.MockerFixture,
     ) -> None:
         """Test create_dataset_metadata produces correct iFDO structure with standard inputs.
@@ -1258,7 +1257,13 @@ class TestiFDOMetadataDatasetCreation:
         # Arrange
         dataset_name = "TestDataSet"
         root_dir = Path("/tmp")
-        items = {"image.jpg": [cast("BaseMetadata", sample_image_metadata)]}
+        # Create two images with different altitudes to prevent deduplication
+        image1_metadata = iFDOMetadata([ImageData(image_altitude_meters=100.0)])
+        image2_metadata = iFDOMetadata([ImageData(image_altitude_meters=200.0)])
+        items = {
+            "image1.jpg": [cast("BaseMetadata", image1_metadata)],
+            "image2.jpg": [cast("BaseMetadata", image2_metadata)],
+        }
 
         mock_saver = mocker.Mock()
 
@@ -1305,18 +1310,27 @@ class TestiFDOMetadataDatasetCreation:
 
         assert header["image-set-handle"] == "", "Header handle should be empty string"
         assert (
-            header["image-set-ifdo-version"] == "v2.1.0"
-        ), f"Header version should be 'v2.1.0', got '{header['image-set-ifdo-version']}'"
+            header["image-set-ifdo-version"] == IFDO_VERSION
+        ), f"Header version should be '{IFDO_VERSION}', got '{header['image-set-ifdo-version']}'"
 
         # Assert - Verify image-set-items structure and content
         items_data = actual_data["image-set-items"]
-        assert "image.jpg" in items_data, "Items should contain the input image filename"
-        image_data = items_data["image.jpg"]
-        assert isinstance(image_data, dict), f"Image data should be a dict, got {type(image_data)}"
-        assert "image-altitude-meters" in image_data, "Image data should contain altitude from source ImageData"
+        assert "image1.jpg" in items_data, "Items should contain image1.jpg"
+        assert "image2.jpg" in items_data, "Items should contain image2.jpg"
+
+        # Verify both images have their altitude data (not deduplicated since they differ)
+        image1_data = items_data["image1.jpg"]
+        assert isinstance(image1_data, dict), f"Image data should be a dict, got {type(image1_data)}"
+        assert "image-altitude-meters" in image1_data, "Image1 data should contain altitude"
         assert (
-            image_data["image-altitude-meters"] == 100.0
-        ), f"Altitude should match sample metadata value: expected 100.0, got {image_data['image-altitude-meters']}"
+            image1_data["image-altitude-meters"] == 100.0
+        ), f"Image1 altitude should be 100.0, got {image1_data['image-altitude-meters']}"
+
+        image2_data = items_data["image2.jpg"]
+        assert "image-altitude-meters" in image2_data, "Image2 data should contain altitude"
+        assert (
+            image2_data["image-altitude-meters"] == 200.0
+        ), f"Image2 altitude should be 200.0, got {image2_data['image-altitude-meters']}"
 
     @pytest.mark.unit
     def test_create_dataset_metadata_custom_name(
@@ -1429,9 +1443,10 @@ class TestiFDOMetadataDatasetCreation:
         ), f"Header should contain valid UUID format, got '{header['image-set-uuid']}'"
 
         assert header["image-set-handle"] == "", "Header handle should be empty string"
-        assert (
-            header["image-set-ifdo-version"] == "v2.1.0"
-        ), f"Header should contain correct iFDO version: expected 'v2.1.0', got '{header['image-set-ifdo-version']}'"
+        assert header["image-set-ifdo-version"] == IFDO_VERSION, (
+            f"Header should contain correct iFDO version: expected '{IFDO_VERSION}', "
+            f"got '{header['image-set-ifdo-version']}'"
+        )
 
         # Assert - Verify video file processing creates list structure
         assert "video.mp4" in captured_data["image-set-items"], "Video file should be present in image-set-items"

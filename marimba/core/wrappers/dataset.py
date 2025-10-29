@@ -42,11 +42,14 @@ from collections.abc import Callable, Iterable
 from math import isnan
 from pathlib import Path
 from shutil import copy2, copytree, ignore_patterns
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
+
+if TYPE_CHECKING:
+    from marimba.core.pipeline import BasePipeline
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.dataset import (
     DATASET_MAPPING_TYPE,
@@ -401,6 +404,8 @@ class DatasetWrapper(LogMixin):
         exif_chunk_size: int | None = None,
         *,
         allow_destination_collisions: bool = False,
+        pipeline_instances: dict[str, "BasePipeline"] | None = None,
+        collection_configs: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         """
 
@@ -425,6 +430,8 @@ class DatasetWrapper(LogMixin):
             exif_chunk_size: Chunk size for EXIF metadata processing. If None, uses adaptive sizing (default: None).
             allow_destination_collisions: Allow multiple source files to map to the same destination path.
                 Uses the first source file encountered (default: False).
+            pipeline_instances: Optional dict mapping pipeline names to BasePipeline instances for metadata generation.
+            collection_configs: Optional dict mapping collection names to configuration dicts for metadata generation.
 
 
         Raises:
@@ -432,6 +439,10 @@ class DatasetWrapper(LogMixin):
             IOError: If there are issues reading from or writing to files or directories.
             MetadataError: If there are problems processing or generating metadata.
         """
+        # Store pipeline instances and collection configs for metadata generation
+        self._pipeline_instances = pipeline_instances or {}
+        self._collection_configs = collection_configs or {}
+
         pipeline_label = "pipeline" if len(dataset_mapping) == 1 else "pipelines"
         self.logger.info(
             f'Started packaging dataset "{dataset_name}" containing {len(dataset_mapping)} {pipeline_label}',
@@ -703,8 +714,67 @@ class DatasetWrapper(LogMixin):
         dataset_name: str,
         grouped_items: dict[type[BaseMetadata], dict[str, list[BaseMetadata]]],
         collection_name: str | None = None,
+        pipeline_instance: "BasePipeline | None" = None,
+        context: str = "dataset",
+        collection_config: dict[str, Any] | None = None,
     ) -> None:
         """Create metadata files for each type."""
+        # Determine context from collection_name pattern if not explicitly provided
+        # collection_name format: None (dataset), "pipeline" (pipeline), "collection.pipeline" (collection)
+        if context == "dataset" and collection_name is not None:
+            actual_context = "collection" if "." in collection_name else "pipeline"
+        else:
+            actual_context = context
+
+        # Look up pipeline instance and collection config from stored mappings
+        actual_pipeline_instance = pipeline_instance
+        actual_collection_config = collection_config
+
+        if not hasattr(self, "_pipeline_instances"):
+            # Backward compatibility: if _pipeline_instances doesn't exist, use passed values
+            actual_pipeline_instance = pipeline_instance
+            actual_collection_config = collection_config
+            self.logger.debug(f"No _pipeline_instances found, using passed values. collection_name={collection_name}")
+        elif collection_name:
+            # Parse collection_name to extract pipeline and collection names
+            # Format: "collection.pipeline" (collection level) or "pipeline" (pipeline level)
+            if "." in collection_name:
+                collection_part, pipeline_part = collection_name.split(".", 1)
+                actual_pipeline_instance = self._pipeline_instances.get(pipeline_part, pipeline_instance)
+                actual_collection_config = self._collection_configs.get(collection_part, collection_config)
+                self.logger.debug(
+                    f"Collection level: collection_name={collection_name}, "
+                    f"pipeline_part={pipeline_part}, collection_part={collection_part}, "
+                    f"has_instance={actual_pipeline_instance is not None}, "
+                    f"has_config={actual_collection_config is not None}",
+                )
+            else:
+                # Pipeline level: collection_name is actually the pipeline name
+                actual_pipeline_instance = self._pipeline_instances.get(collection_name, pipeline_instance)
+                self.logger.debug(
+                    f"Pipeline level: collection_name={collection_name}, "
+                    f"has_instance={actual_pipeline_instance is not None}",
+                )
+        # Dataset level: collection_name is None, use first pipeline instance that has get_metadata_header
+        elif self._pipeline_instances:
+            # Try to find a pipeline with overridden get_metadata_header method
+            for candidate_pipeline in self._pipeline_instances.values():
+                # Check if the method is defined in the subclass (not just inherited from BasePipeline)
+                method = type(candidate_pipeline).get_metadata_header
+                if method.__qualname__.split(".")[0] != "BasePipeline":
+                    actual_pipeline_instance = candidate_pipeline
+                    break
+            else:
+                # Fallback to first pipeline if none have overridden the method
+                actual_pipeline_instance = next(iter(self._pipeline_instances.values()))
+
+            self.logger.debug(
+                f"Dataset level: collection_name=None, "
+                f"has_instance={actual_pipeline_instance is not None}, "
+                f"has_method={hasattr(actual_pipeline_instance, 'get_metadata_header') if actual_pipeline_instance else False}, "  # noqa: E501
+                f"available_pipelines={list(self._pipeline_instances.keys())}",
+            )
+
         for metadata_type, type_items in grouped_items.items():
             metadata_type.create_dataset_metadata(
                 dataset_name=dataset_name,
@@ -713,6 +783,9 @@ class DatasetWrapper(LogMixin):
                 metadata_name=collection_name,
                 dry_run=self.dry_run,
                 saver_overwrite=self._metadata_saver_overwrite,
+                pipeline_instance=actual_pipeline_instance,
+                context=actual_context,
+                collection_config=actual_collection_config,
             )
 
     def _log_metadata_summary(
