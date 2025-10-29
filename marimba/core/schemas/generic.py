@@ -10,10 +10,13 @@ import logging
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Union, cast
+from typing import TYPE_CHECKING, Any, Union, cast
 
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.metadata import yaml_saver
+
+if TYPE_CHECKING:
+    from marimba.core.pipeline import BasePipeline
 
 
 class GenericMetadata(BaseMetadata):
@@ -202,33 +205,187 @@ class GenericMetadata(BaseMetadata):
         *,
         dry_run: bool = False,
         saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
+        pipeline_instance: "BasePipeline | None" = None,
+        context: str = "dataset",
+        collection_config: dict[str, Any] | None = None,
     ) -> None:
         """Create dataset-level metadata by combining all items into a YAML file."""
         saver = yaml_saver if saver_overwrite is None else saver_overwrite
 
+        # Get user metadata from pipeline if available
+        user_metadata = {}
+        if pipeline_instance:
+            user_metadata = pipeline_instance.get_metadata_header(
+                context=context,
+                collection_config=collection_config,
+            )
+
+        # Extract common fields from all items for deduplication
+        common_fields = cls._extract_common_fields(items)
+
+        # Log deduplication statistics
+        if common_fields:
+            logging.getLogger(__name__).debug(
+                f"Deduplicated {len(common_fields)} common field(s) to header: {', '.join(common_fields.keys())}",
+            )
+        else:
+            logging.getLogger(__name__).debug("No common fields found for deduplication")
+
+        # Build header from user metadata and common fields
+        header = cls._build_header(
+            dataset_name=dataset_name,
+            metadata_name=metadata_name,
+            user_metadata=user_metadata,
+            common_fields=common_fields,
+            context=context,
+        )
+
+        # Remove common fields from items to avoid duplication
+        deduplicated_items = cls._deduplicate_items(items, common_fields)
+
+        # Construct final metadata structure
         dataset_metadata = {
-            "dataset_name": dataset_name,
-            "items": {
-                path: [
-                    {
-                        "datetime": item.datetime.isoformat() if item.datetime else None,
-                        "latitude": item.latitude,
-                        "longitude": item.longitude,
-                        "altitude": item.altitude,
-                        "context": item.context,
-                        "license": item.license,
-                        "creators": item.creators,
-                        "hash_sha256": item.format_hash() if hasattr(item, "format_hash") else None,
-                    }
-                    for item in metadata_items
-                ]
-                for path, metadata_items in items.items()
-            },
+            "header": header,
+            "items": deduplicated_items,
         }
 
         output_name = metadata_name or cls.DEFAULT_METADATA_NAME
         if not dry_run:
             saver(root_dir, output_name, dataset_metadata)
+
+    @classmethod
+    def _extract_common_fields(
+        cls,
+        items: dict[str, list["BaseMetadata"]],
+    ) -> dict[str, Any]:
+        """
+        Extract fields that are identical across all metadata items.
+
+        Args:
+            items: Mapping of file paths to metadata items
+
+        Returns:
+            Dictionary of field names to values that are common across all items
+        """
+        if not items:
+            return {}
+
+        # Flatten all metadata items
+        all_items = [item for metadata_list in items.values() for item in metadata_list]
+        if not all_items:
+            return {}
+
+        # Fields to check for commonality (exclude datetime as it usually varies)
+        fields_to_check = ["latitude", "longitude", "altitude", "context", "license", "creators"]
+
+        common_fields = {}
+        for field in fields_to_check:
+            # Get all non-None values for this field
+            values = [getattr(item, field) for item in all_items if getattr(item, field) is not None]
+
+            # If all items have the same value, it's common
+            if values and all(v == values[0] for v in values):
+                common_fields[field] = values[0]
+
+        return common_fields
+
+    @classmethod
+    def _build_header(
+        cls,
+        dataset_name: str,
+        metadata_name: str | None,
+        user_metadata: dict[str, Any],
+        common_fields: dict[str, Any],
+        context: str,
+    ) -> dict[str, Any]:
+        """
+        Build header from user metadata and common fields.
+
+        Priority order:
+        1. User-specified metadata (from pipeline.get_metadata_header())
+        2. Smart defaults based on context
+        3. Auto-deduplicated common fields
+
+        Args:
+            dataset_name: Name of the dataset
+            metadata_name: Optional metadata file name (format: "collection.pipeline" or "pipeline")
+            user_metadata: Generic metadata from pipeline.get_metadata_header()
+            common_fields: Fields extracted as common across all items
+            context: One of 'dataset', 'pipeline', or 'collection'
+
+        Returns:
+            Header dictionary
+        """
+        header = {}
+
+        # Extract pipeline and collection names from metadata_name
+        pipeline_name = None
+        collection_name = None
+        if metadata_name:
+            parts = metadata_name.split(".")
+            min_parts_for_collection = 2
+            if len(parts) == min_parts_for_collection:
+                collection_name, pipeline_name = parts
+            elif len(parts) == 1:
+                pipeline_name = parts[0]
+
+        # Add user-specified name (highest priority)
+        if "name" in user_metadata:
+            header["name"] = user_metadata["name"]
+        # Smart defaults based on context
+        elif context == "collection" and pipeline_name and collection_name:
+            header["name"] = f"{dataset_name} - {pipeline_name} - {collection_name}"
+        elif context == "pipeline" and pipeline_name:
+            header["name"] = f"{dataset_name} - {pipeline_name}"
+        else:  # dataset level
+            header["name"] = dataset_name
+
+        # Add other user metadata
+        header.update({key: value for key, value in user_metadata.items() if key != "name" and value is not None})
+
+        # Add common fields (only if not already set by user)
+        for field_name, field_value in common_fields.items():
+            if field_name not in header:
+                header[field_name] = field_value
+
+        return header
+
+    @classmethod
+    def _deduplicate_items(
+        cls,
+        items: dict[str, list["BaseMetadata"]],
+        common_fields: dict[str, Any],
+    ) -> dict[str, list[dict[str, Any]]]:
+        """
+        Remove common fields from items since they're in the header.
+
+        Args:
+            items: Original items mapping
+            common_fields: Fields that are in the header
+
+        Returns:
+            Deduplicated items as dictionaries
+        """
+        deduplicated: dict[str, list[dict[str, Any]]] = {}
+
+        for path, metadata_items in items.items():
+            deduplicated[path] = []
+            for item in metadata_items:
+                item_dict = {
+                    "datetime": item.datetime.isoformat() if item.datetime else None,
+                    "latitude": item.latitude if "latitude" not in common_fields else None,
+                    "longitude": item.longitude if "longitude" not in common_fields else None,
+                    "altitude": item.altitude if "altitude" not in common_fields else None,
+                    "context": item.context if "context" not in common_fields else None,
+                    "license": item.license if "license" not in common_fields else None,
+                    "creators": item.creators if "creators" not in common_fields else None,
+                    "hash_sha256": item.format_hash() if hasattr(item, "format_hash") else None,
+                }
+                # Remove None values to keep output clean
+                item_dict = {k: v for k, v in item_dict.items() if v is not None}
+                deduplicated[path].append(item_dict)
+
+        return deduplicated
 
     @classmethod
     def process_files(

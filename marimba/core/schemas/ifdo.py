@@ -29,12 +29,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import exiftool
 import psutil
 from exiftool.exceptions import ExifToolException
-from ifdo import ImageData, ImageSetHeader
+from ifdo import ImageContext, ImageData, ImageLicense, ImageSetHeader
 from ifdo.models.ifdo import iFDO
 from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
@@ -48,6 +48,9 @@ from marimba.core.utils.rich import get_default_columns
 from marimba.lib import image
 from marimba.lib.decorators import multithreaded
 
+if TYPE_CHECKING:
+    from marimba.core.pipeline import BasePipeline
+
 logger = get_logger(__name__)
 
 # Memory-aware batch processing (no fixed chunk size)
@@ -55,6 +58,9 @@ logger = get_logger(__name__)
 # Memory management constants
 _ESTIMATED_IMAGE_MEMORY_MB = 100  # Conservative estimate per 24MP image
 _MEMORY_SAFETY_FACTOR = 0.7  # Use 70% of available memory
+
+# iFDO specification version
+IFDO_VERSION = "v2.1.0"
 
 
 @dataclass
@@ -373,27 +379,15 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         return image_data
 
     @classmethod
-    def create_dataset_metadata(
+    def _convert_items_to_image_data(
         cls,
-        dataset_name: str,
-        root_dir: Path,
         items: dict[str, list["BaseMetadata"]],
-        metadata_name: str | None = None,
-        *,
-        dry_run: bool = False,
-        saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
-    ) -> None:
-        """Create an iFDO from the metadata items."""
-        saver = yaml_saver if saver_overwrite is None else saver_overwrite
-
-        # Convert BaseMetadata items to ImageData for iFDO
-        # Use filename only as keys per iFDO standard instead of full paths
+    ) -> dict[str, ImageData | list[ImageData]]:
+        """Convert BaseMetadata items to ImageData for iFDO."""
         image_set_items = {}
         for path_str, metadata_items in items.items():
             path = Path(path_str)
             filename = path.name
-
-            # Check if this is a video file
             is_video = cls._is_video_file(filename)
 
             ifdo_items = [item for item in metadata_items if isinstance(item, iFDOMetadata)]
@@ -408,24 +402,290 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 image_data = cls._process_image_metadata(ifdo_items, path)
                 image_set_items[filename] = image_data
 
-        ifdo = iFDO(
-            image_set_header=ImageSetHeader(
-                image_set_name=dataset_name,
-                image_set_uuid=str(uuid.uuid4()),
-                image_set_handle="",  # TODO @<cjackett>: Populate from distribution target URL
-            ),
-            image_set_items=image_set_items,
-        )
+        return image_set_items
 
-        # If no metadata_name provided, use default
+    @classmethod
+    def _get_user_metadata_from_pipeline(
+        cls,
+        pipeline_instance: "BasePipeline | None",
+        context: str,
+        collection_config: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Get user metadata from pipeline if available."""
+        if pipeline_instance and hasattr(pipeline_instance, "get_metadata_header"):
+            return pipeline_instance.get_metadata_header(
+                context=context,
+                collection_config=collection_config,
+            )
+        return {}
+
+    @classmethod
+    def _parse_names_from_metadata_name(
+        cls,
+        metadata_name: str | None,
+    ) -> tuple[str | None, str | None]:
+        """Extract pipeline and collection names from metadata_name."""
         if not metadata_name:
-            output_name = cls.DEFAULT_METADATA_NAME
-        # If metadata_name is provided but missing extension, add it
+            return None, None
+
+        parts = metadata_name.split(".")
+        min_parts_for_collection = 2
+        if len(parts) >= min_parts_for_collection:
+            return parts[1], parts[0]  # pipeline_name, collection_name
+        if len(parts) == 1 and not metadata_name.endswith(".ifdo"):
+            return parts[0], None  # pipeline_name, no collection
+        return None, None
+
+    @classmethod
+    def _get_output_name(cls, metadata_name: str | None) -> str:
+        """Determine output filename from metadata_name."""
+        if not metadata_name:
+            return cls.DEFAULT_METADATA_NAME
+        return metadata_name if metadata_name.endswith(".ifdo") else f"{metadata_name}.ifdo"
+
+    @classmethod
+    def create_dataset_metadata(
+        cls,
+        dataset_name: str,
+        root_dir: Path,
+        items: dict[str, list["BaseMetadata"]],
+        metadata_name: str | None = None,
+        *,
+        dry_run: bool = False,
+        saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
+        pipeline_instance: "BasePipeline | None" = None,
+        context: str = "dataset",
+        collection_config: dict[str, Any] | None = None,
+    ) -> None:
+        """Create an iFDO from the metadata items."""
+        saver = yaml_saver if saver_overwrite is None else saver_overwrite
+
+        # Convert items to iFDO format
+        image_set_items = cls._convert_items_to_image_data(items)
+
+        # Get user metadata and extract common fields
+        user_metadata = cls._get_user_metadata_from_pipeline(pipeline_instance, context, collection_config)
+        common_fields = cls._extract_common_header_fields(image_set_items)
+
+        # Log deduplication statistics
+        if common_fields:
+            logger.debug(
+                f"Deduplicated {len(common_fields)} common field(s) to header: {', '.join(common_fields.keys())}",
+            )
         else:
-            output_name = metadata_name if metadata_name.endswith(".ifdo") else f"{metadata_name}.ifdo"
+            logger.debug("No common fields found for deduplication")
+
+        # Parse names for smart defaults
+        pipeline_name, collection_name = cls._parse_names_from_metadata_name(metadata_name)
+
+        # Build header and deduplicate
+        image_set_header = cls._build_header_from_metadata(
+            dataset_name=dataset_name,
+            user_metadata=user_metadata,
+            common_fields=common_fields,
+            context=context,
+            pipeline_name=pipeline_name,
+            collection_name=collection_name,
+        )
+        deduplicated_items = cls._remove_common_fields(image_set_items, set(common_fields.keys()))
+
+        # Create and save iFDO
+        ifdo = iFDO(image_set_header=image_set_header, image_set_items=deduplicated_items)
+        output_name = cls._get_output_name(metadata_name)
 
         if not dry_run:
             saver(root_dir, output_name, ifdo.model_dump(mode="json", by_alias=True, exclude_none=True))
+
+    @classmethod
+    def _extract_common_header_fields(
+        cls,
+        image_set_items: dict[str, ImageData | list[ImageData]],
+    ) -> dict[str, Any]:
+        """
+        Extract fields that are identical across ALL images.
+
+        Scans all ImageData objects and identifies fields where every image
+        has the same value. These fields can be promoted to the header to
+        reduce file size.
+
+        Args:
+            image_set_items: Dict mapping filenames to ImageData objects or lists of ImageData
+
+        Returns:
+            Dict of field names to values that are common across all images.
+            Only includes fields that are non-None and identical for every image.
+        """
+        if not image_set_items:
+            return {}
+
+        # Flatten video items (lists) into individual ImageData objects
+        all_items: list[ImageData] = []
+        for item in image_set_items.values():
+            if isinstance(item, list):
+                all_items.extend(item)
+            else:
+                all_items.append(item)
+
+        if not all_items:
+            return {}
+
+        changing_fields: set[str] = set()
+        common_fields: dict[str, Any] = {}
+
+        # Single pass through all images
+        for item in all_items:
+            # Get all non-None fields as dict
+            item_dict = item.model_dump(exclude_none=True)
+
+            for key, value in item_dict.items():
+                # Skip already-identified changing fields
+                if key in changing_fields:
+                    continue
+
+                # First time seeing this field - assume it's common
+                if key not in common_fields:
+                    common_fields[key] = value
+                # Field exists but has different value - mark as changing
+                elif common_fields[key] != value:
+                    changing_fields.add(key)
+                    del common_fields[key]
+
+        return common_fields
+
+    @classmethod
+    def _get_smart_default_name(
+        cls,
+        dataset_name: str,
+        context: str,
+        pipeline_name: str | None,
+        collection_name: str | None,
+    ) -> str:
+        """Generate smart default name based on context."""
+        if context == "collection" and pipeline_name and collection_name:
+            return f"{dataset_name} - {pipeline_name} - {collection_name}"
+        if context == "pipeline" and pipeline_name:
+            return f"{dataset_name} - {pipeline_name}"
+        return dataset_name
+
+    @classmethod
+    def _map_user_metadata_to_header(
+        cls,
+        user_metadata: dict[str, Any],
+        header_data: dict[str, Any],
+    ) -> None:
+        """Map generic user metadata to iFDO header fields."""
+        if "description" in user_metadata:
+            header_data["image_abstract"] = user_metadata["description"]
+
+        if "copyright" in user_metadata:
+            header_data["image_copyright"] = user_metadata["copyright"]
+
+        if "context_name" in user_metadata or "context_uri" in user_metadata:
+            header_data["image_context"] = ImageContext(
+                name=user_metadata.get("context_name"),
+                uri=user_metadata.get("context_uri"),
+            )
+
+        if "project_name" in user_metadata or "project_uri" in user_metadata:
+            header_data["image_project"] = ImageContext(
+                name=user_metadata.get("project_name"),
+                uri=user_metadata.get("project_uri"),
+            )
+
+        if "license_name" in user_metadata or "license_uri" in user_metadata:
+            header_data["image_license"] = ImageLicense(
+                name=user_metadata.get("license_name"),
+                uri=user_metadata.get("license_uri"),
+            )
+
+    @classmethod
+    def _build_header_from_metadata(
+        cls,
+        dataset_name: str,
+        user_metadata: dict[str, Any],
+        common_fields: dict[str, Any],
+        context: str = "dataset",
+        pipeline_name: str | None = None,
+        collection_name: str | None = None,
+    ) -> ImageSetHeader:
+        """
+        Build iFDO ImageSetHeader from user metadata and common fields.
+
+        Priority order:
+        1. User-specified metadata (from pipeline.get_metadata_header())
+        2. Smart defaults based on context
+        3. Auto-deduplicated common fields
+        4. Auto-generated values (UUID, version)
+        """
+        # Start with required auto-generated fields
+        header_data: dict[str, Any] = {
+            "image_set_uuid": str(uuid.uuid4()),
+            "image_set_handle": "",
+            "image_set_ifdo_version": IFDO_VERSION,
+        }
+
+        # Add name (user-specified or smart default)
+        if "name" in user_metadata:
+            header_data["image_set_name"] = user_metadata["name"]
+        else:
+            header_data["image_set_name"] = cls._get_smart_default_name(
+                dataset_name,
+                context,
+                pipeline_name,
+                collection_name,
+            )
+
+        # Map other user metadata to iFDO fields
+        cls._map_user_metadata_to_header(user_metadata, header_data)
+
+        # Add common fields (only if not already set by user)
+        header_data.update({k: v for k, v in common_fields.items() if k not in header_data})
+
+        return ImageSetHeader(**header_data)
+
+    @classmethod
+    def _remove_common_fields(
+        cls,
+        image_set_items: dict[str, ImageData | list[ImageData]],
+        common_field_names: set[str],
+    ) -> dict[str, ImageData | list[ImageData]]:
+        """
+        Remove fields from individual images that are in the header.
+
+        Creates new ImageData objects with common fields set to None,
+        since they're now in the header.
+
+        Args:
+            image_set_items: Original image items
+            common_field_names: Names of fields that are in the header
+
+        Returns:
+            New dict with deduplicated ImageData objects
+        """
+        deduplicated: dict[str, ImageData | list[ImageData]] = {}
+
+        for filename, image_data in image_set_items.items():
+            if isinstance(image_data, list):
+                # Handle video files (list of ImageData)
+                deduplicated_list = []
+                for img in image_data:
+                    data_dict = img.model_dump()
+                    # Remove common fields
+                    for field_name in common_field_names:
+                        if field_name in data_dict:
+                            data_dict[field_name] = None
+                    deduplicated_list.append(ImageData(**data_dict))
+                deduplicated[filename] = deduplicated_list
+            else:
+                # Handle regular image files
+                data_dict = image_data.model_dump()
+                # Remove common fields
+                for field_name in common_field_names:
+                    if field_name in data_dict:
+                        data_dict[field_name] = None
+                deduplicated[filename] = ImageData(**data_dict)
+
+        return deduplicated
 
     @staticmethod
     def _chunk_dataset(

@@ -186,6 +186,9 @@ class TestBasePipelineInitialization:
                 *,
                 dry_run: bool = False,
                 saver_overwrite: Any | None = None,
+                pipeline_instance: Any | None = None,
+                context: str = "dataset",
+                collection_config: dict[str, Any] | None = None,
             ) -> None:
                 pass
 
@@ -434,6 +437,86 @@ class TestBasePipelineStaticMethods:
         assert (
             collection_schema["collection_key"] == 123
         ), "Expected custom collection key to have the correct integer value from overridden implementation"
+
+    @pytest.mark.unit
+    def test_get_metadata_header_default(self) -> None:
+        """Test that the default get_metadata_header implementation returns an empty dictionary."""
+        # Arrange
+        pipeline = ConcretePipeline("/test")
+
+        # Act
+        result_dataset = pipeline.get_metadata_header(context="dataset")
+        result_pipeline = pipeline.get_metadata_header(context="pipeline")
+        result_collection = pipeline.get_metadata_header(context="collection", collection_config={"test": "config"})
+
+        # Assert
+        assert result_dataset == {}, "Expected get_metadata_header to return empty dict for dataset context by default"
+        assert isinstance(result_dataset, dict), "Expected result to be a dictionary instance"
+
+        assert (
+            result_pipeline == {}
+        ), "Expected get_metadata_header to return empty dict for pipeline context by default"
+        assert isinstance(result_pipeline, dict), "Expected result to be a dictionary instance"
+
+        assert (
+            result_collection == {}
+        ), "Expected get_metadata_header to return empty dict for collection context by default"
+        assert isinstance(result_collection, dict), "Expected result to be a dictionary instance"
+
+    @pytest.mark.unit
+    def test_get_metadata_header_can_be_overridden(self) -> None:
+        """Test that get_metadata_header can be overridden in pipeline subclasses."""
+
+        # Arrange
+        class CustomMetadataPipeline(ConcretePipeline):
+            def get_metadata_header(
+                self,
+                context: str,
+                collection_config: dict[str, Any] | None = None,
+            ) -> dict[str, Any]:
+                metadata = {
+                    "copyright": "CSIRO",
+                    "license_name": "CC BY-NC 4.0",
+                }
+
+                if context == "dataset":
+                    metadata["name"] = "Full Dataset"
+                elif context == "pipeline":
+                    metadata["name"] = "Pipeline Data"
+                elif context == "collection" and collection_config:
+                    deployment = collection_config.get("deployment_id", "Unknown")
+                    metadata["name"] = f"Collection {deployment}"
+
+                return metadata
+
+        pipeline = CustomMetadataPipeline("/test", config={"platform": "test"})
+
+        # Act
+        dataset_metadata = pipeline.get_metadata_header(context="dataset")
+        pipeline_metadata = pipeline.get_metadata_header(context="pipeline")
+        collection_metadata = pipeline.get_metadata_header(
+            context="collection",
+            collection_config={"deployment_id": "D001"},
+        )
+
+        # Assert
+        assert dataset_metadata == {
+            "copyright": "CSIRO",
+            "license_name": "CC BY-NC 4.0",
+            "name": "Full Dataset",
+        }, "Expected dataset context to return correct metadata with dataset-specific name"
+
+        assert pipeline_metadata == {
+            "copyright": "CSIRO",
+            "license_name": "CC BY-NC 4.0",
+            "name": "Pipeline Data",
+        }, "Expected pipeline context to return correct metadata with pipeline-specific name"
+
+        assert collection_metadata == {
+            "copyright": "CSIRO",
+            "license_name": "CC BY-NC 4.0",
+            "name": "Collection D001",
+        }, "Expected collection context to return correct metadata with collection-specific name using config"
 
 
 class TestBasePipelineAbstractMethods:

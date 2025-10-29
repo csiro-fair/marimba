@@ -10,7 +10,10 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from marimba.core.pipeline import BasePipeline
 
 
 class BaseMetadata(ABC):
@@ -83,8 +86,24 @@ class BaseMetadata(ABC):
         *,
         dry_run: bool = False,
         saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
+        pipeline_instance: "BasePipeline | None" = None,
+        context: str = "dataset",
+        collection_config: dict[str, Any] | None = None,
     ) -> None:
-        """Create dataset-level metadata from a collection of items."""
+        """
+        Create dataset-level metadata from a collection of items.
+
+        Args:
+            dataset_name: Name of the dataset
+            root_dir: Root directory for output
+            items: Mapping of file paths to metadata items
+            metadata_name: Optional name for the metadata file
+            dry_run: If True, don't actually write files
+            saver_overwrite: Optional custom saver function
+            pipeline_instance: Pipeline instance for accessing get_metadata_header()
+            context: Metadata context level ('dataset', 'pipeline', or 'collection')
+            collection_config: Collection configuration (when context='collection')
+        """
         raise NotImplementedError
 
     @classmethod

@@ -94,6 +94,64 @@ class BasePipeline(ABC, LogMixin):
         """
         return {}
 
+    def get_metadata_header(
+        self,
+        context: str,  # noqa: ARG002
+        collection_config: dict[str, Any] | None = None,  # noqa: ARG002
+    ) -> dict[str, Any]:
+        """
+        Return generic header metadata for the given context.
+
+        This method allows pipelines to provide metadata that will be used in dataset-level headers (e.g.,
+        iFDO image-set-header). The metadata is generic and schema-agnostic - each metadata class (iFDOMetadata,
+        GenericMetadata, etc.) will interpret it according to its own schema.
+
+        Args:
+            context: The granularity level for this header. One of:
+                - 'dataset': Header for entire packaged dataset (all pipelines, all collections)
+                - 'pipeline': Header for all collections within this pipeline
+                - 'collection': Header for a specific collection
+            collection_config: The collection configuration dict. Only provided when
+                context='collection'. Contains collection-level config like deployment_id,
+                site_id, etc.
+
+        Returns:
+            Dictionary with generic metadata keys. Common keys include:
+                - 'name': Display name for this dataset/pipeline/collection
+                - 'description': Human-readable description/abstract
+                - 'context_name': Survey/project context name
+                - 'context_uri': URI for survey/project context
+                - 'project_name': Project name
+                - 'project_uri': Project URI
+                - 'copyright': Copyright statement
+                - 'license_name': License name (e.g., "CC BY-NC 4.0")
+                - 'license_uri': License URI
+
+            Note: All keys are optional. Return empty dict to use automatic
+            deduplication and smart defaults only.
+
+        Example:
+            ```python
+            def get_metadata_header(self, context, collection_config=None):
+                base = {
+                    "description": f"Marine survey {self.config['voyage_id']}",
+                    "copyright": "CSIRO",
+                    "license_name": "CC BY-NC 4.0",
+                    "license_uri": "https://creativecommons.org/licenses/by-nc/4.0/",
+                }
+
+                if context == "collection" and collection_config:
+                    base["name"] = f"{self.config['platform_id']} - {collection_config.get('deployment_id')}"
+                elif context == "pipeline":
+                    base["name"] = f"{self.config['platform_id']} Camera System"
+                elif context == "dataset":
+                    base["name"] = f"Complete {self.config['voyage_id']} Dataset"
+
+                return base
+            ```
+        """
+        return {}
+
     @property
     def config(self) -> dict[str, Any] | None:
         """

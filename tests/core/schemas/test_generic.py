@@ -617,16 +617,19 @@ class TestGenericMetadata:
 
         # Verify metadata structure passed to custom saver
         metadata_dict = call_args[0][2]
-        assert "dataset_name" in metadata_dict, "Metadata should contain dataset_name field"
+        assert "header" in metadata_dict, "Metadata should contain header field"
         assert "items" in metadata_dict, "Metadata should contain items field"
-        assert metadata_dict["dataset_name"] == "test_dataset", "Dataset name should match input value"
+        assert metadata_dict["header"]["name"] == "test_dataset", "Header name should match dataset name"
         assert "file1.jpg" in metadata_dict["items"], "Items should contain the input file key"
 
-        # Verify file metadata structure
+        # Verify header contains common fields (deduplicated)
+        header = metadata_dict["header"]
+        assert header["latitude"] == 37.7749, "Latitude should be in header (common across all items)"
+        assert header["context"] == "test", "Context should be in header (common across all items)"
+
+        # Verify file metadata structure (datetime should still be per-item)
         file_metadata = metadata_dict["items"]["file1.jpg"][0]
         assert file_metadata["datetime"] == sample_datetime.isoformat(), "Datetime should be serialized as ISO format"
-        assert file_metadata["latitude"] == 37.7749, "Latitude should match input value"
-        assert file_metadata["context"] == "test", "Context should match input value"
 
     @pytest.mark.unit
     def test_create_dataset_metadata_with_custom_name(
@@ -664,9 +667,9 @@ class TestGenericMetadata:
 
         # Verify the structure of the metadata dictionary
         metadata_dict = call_args[0][2]
-        assert "dataset_name" in metadata_dict, "Metadata should contain dataset_name field"
+        assert "header" in metadata_dict, "Metadata should contain header field"
         assert "items" in metadata_dict, "Metadata should contain items field"
-        assert metadata_dict["dataset_name"] == "test_dataset", "Dataset name should match input"
+        assert metadata_dict["header"]["name"] == "test_dataset", "Header name should match dataset name"
 
     @pytest.mark.unit
     def test_create_dataset_metadata_with_items_missing_format_hash(
@@ -712,23 +715,32 @@ class TestGenericMetadata:
 
         # Verify metadata structure contains expected top-level fields
         metadata_dict = call_args[0][2]
-        assert "dataset_name" in metadata_dict, "Metadata should contain dataset_name field"
+        assert "header" in metadata_dict, "Metadata should contain header field"
         assert "items" in metadata_dict, "Metadata should contain items field"
-        assert metadata_dict["dataset_name"] == "test_dataset", "Dataset name should match input value"
+        assert metadata_dict["header"]["name"] == "test_dataset", "Header name should match dataset name"
         assert "file1.jpg" in metadata_dict["items"], "Items should contain the input file key"
 
-        # Verify hash handling for items without format_hash method
-        file_metadata = metadata_dict["items"]["file1.jpg"][0]
-        assert file_metadata["hash_sha256"] is None, "Missing format_hash method should result in None hash_sha256"
+        # Verify common fields are in header (deduplicated from items)
+        header = metadata_dict["header"]
+        assert header["latitude"] == 42.0, "Common latitude should be in header"
+        assert header["longitude"] == -71.0, "Common longitude should be in header"
+        assert header["context"] == "test context", "Common context should be in header"
 
-        # Verify all other BaseMetadata fields are properly transferred
-        assert file_metadata["datetime"] is None, "Datetime should be None when mock has None datetime"
-        assert file_metadata["latitude"] == 42.0, "Latitude should match mock value"
-        assert file_metadata["longitude"] == -71.0, "Longitude should match mock value"
-        assert file_metadata["altitude"] == 10.0, "Altitude should match mock value"
-        assert file_metadata["context"] == "test context", "Context should match mock value"
-        assert file_metadata["license"] == "MIT", "License should match mock value"
-        assert file_metadata["creators"] == ["Test Creator"], "Creators should match mock value"
+        # Verify hash handling for items without format_hash method
+        # Hash should not be in items since it's None and we filter None values
+        file_metadata = metadata_dict["items"]["file1.jpg"][0]
+        assert "hash_sha256" not in file_metadata, "None hash_sha256 should be filtered out"
+
+        # Datetime should be filtered out since it's None
+        assert "datetime" not in file_metadata, "None datetime should be filtered out"
+
+        # All other fields should NOT be in items since they're common and moved to header
+        assert "latitude" not in file_metadata, "Common latitude should be in header, not items"
+        assert "longitude" not in file_metadata, "Common longitude should be in header, not items"
+        assert "altitude" not in file_metadata, "Common altitude should be in header, not items"
+        assert "context" not in file_metadata, "Common context should be in header, not items"
+        assert "license" not in file_metadata, "Common license should be in header, not items"
+        assert "creators" not in file_metadata, "Common creators should be in header, not items"
 
     @pytest.mark.unit
     def test_process_files_method_noop_with_empty_mapping(self) -> None:

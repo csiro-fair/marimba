@@ -28,6 +28,11 @@ processing capabilities in the Marimba standard library.
         - [Example `get_pipeline_config_schema` Implementation](#example-get_pipeline_config_schema-implementation)
    - [Implementing the `get_collection_config_schema` Method](#implementing-the-get_collection_config_schema-method)
         - [Example `get_collection_config_schema` Implementation](#example-get_collection_config_schema-implementation)
+   - [Implementing the `get_metadata_header` Method (Optional)](#implementing-the-get_metadata_header-method-optional)
+        - [Example `get_metadata_header` Implementation](#example-get_metadata_header-implementation)
+        - [Generic Metadata Keys](#generic-metadata-keys)
+        - [Smart Defaults](#smart-defaults)
+        - [Automatic Deduplication](#automatic-deduplication)
    - [Implementing the `_import` Method](#implementing-the-_import-method)
         - [Example `_import` Implementation](#example-_import-implementation)
         - [Dry Run Mode](#dry-run-mode)
@@ -507,10 +512,102 @@ class MyPipeline(BasePipeline):
         }
 ```
 
-Similar to the Pipeline-level config schema, users will be prompted to input values for each element defined in this 
-schema when setting up a new Marimba Collection. This allows for the capture of Collection-level metadata and results 
-in the creation of a new Collection metadata file located at `collections/my-collection-name/collection.yml`, which 
+Similar to the Pipeline-level config schema, users will be prompted to input values for each element defined in this
+schema when setting up a new Marimba Collection. This allows for the capture of Collection-level metadata and results
+in the creation of a new Collection metadata file located at `collections/my-collection-name/collection.yml`, which
 will store all the entered Collection metadata.
+
+
+### Implementing the `get_metadata_header` Method (Optional)
+
+The `get_metadata_header()` method allows pipelines to provide header-level metadata for iFDO files and other metadata
+schemas. This method is **optional** - if not implemented, Marimba will automatically generate smart defaults based on
+the dataset, pipeline, and collection names.
+
+This method is called at three different levels during dataset packaging:
+- **Dataset level**: For the root dataset metadata file (e.g., `ifdo.yml`)
+- **Pipeline level**: For pipeline-specific metadata files (e.g., `PIPELINE_NAME.ifdo.yml`)
+- **Collection level**: For collection-specific metadata files (e.g., `COLLECTION_NAME.PIPELINE_NAME.ifdo.yml`)
+
+The method should return a generic dictionary of metadata that is schema-agnostic. Marimba will map these generic keys
+to the appropriate fields for the metadata schema being used (iFDO, GenericMetadata, DarwinCore, etc.).
+
+#### Example `get_metadata_header` Implementation
+
+```python
+from typing import Any
+from marimba.core.pipeline import BasePipeline
+
+class MyPipeline(BasePipeline):
+
+    def get_metadata_header(
+        self,
+        context: str,
+        collection_config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Return generic header metadata for the given context.
+
+        Args:
+            context: One of 'dataset', 'pipeline', or 'collection'
+            collection_config: Collection configuration (only when context='collection')
+
+        Returns:
+            Dictionary with generic metadata keys
+        """
+        # Base metadata common to all levels
+        metadata = {
+            "description": f"Marine imagery from voyage {self.config['voyage_id']}",
+            "copyright": "CSIRO",
+            "license_name": "CC BY-NC 4.0",
+            "license_uri": "https://creativecommons.org/licenses/by-nc/4.0/",
+            "context_name": "Deep-sea habitat survey",
+        }
+
+        # Context-specific name (optional - will use smart defaults if not specified)
+        if context == "collection" and collection_config:
+            deployment = collection_config.get("deployment_id", "Unknown")
+            metadata["name"] = f"Voyage {self.config['voyage_id']} - {self.config['platform_id']} - {deployment}"
+        elif context == "pipeline":
+            metadata["name"] = f"Voyage {self.config['voyage_id']} - {self.config['platform_id']}"
+        elif context == "dataset":
+            metadata["name"] = f"Complete {self.config['voyage_id']} Dataset"
+
+        return metadata
+```
+
+#### Generic Metadata Keys
+
+The `get_metadata_header()` method should return a dictionary with these optional generic keys:
+
+- `name`: Display name for the dataset/pipeline/collection (if not specified, smart defaults are used)
+- `description`: Human-readable description or abstract
+- `copyright`: Copyright statement
+- `license_name`: License name (e.g., "CC BY-NC 4.0")
+- `license_uri`: License URI
+- `context_name`: Survey/project context name
+- `context_uri`: URI for the survey/project context
+- `project_name`: Project name
+- `project_uri`: Project URI
+
+All keys are optional. If you don't implement this method or return an empty dictionary, Marimba will use smart
+defaults and automatic deduplication.
+
+#### Smart Defaults
+
+If you don't specify a `name` in the returned metadata, Marimba automatically generates context-aware names:
+
+- **Dataset level**: Uses the dataset name (e.g., `"DATASET_NAME"`)
+- **Pipeline level**: Combines dataset and pipeline names (e.g., `"DATASET_NAME - PIPELINE_NAME"`)
+- **Collection level**: Combines all three names (e.g., `"DATASET_NAME - PIPELINE_NAME - COLLECTION_NAME"`)
+
+This ensures that each iFDO file has a unique, descriptive `image-set-name` even without custom implementation.
+
+#### Automatic Deduplication
+
+In addition to the metadata you provide, Marimba automatically extracts fields that are identical across all images
+in the dataset and promotes them to the header. This can reduce file sizes significantly while maintaining full
+metadata coverage.
 
 
 ### Implementing the `_import` Method
