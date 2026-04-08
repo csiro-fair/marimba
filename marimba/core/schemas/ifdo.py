@@ -463,7 +463,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             else:
                 all_items.append(item)
 
-        if not all_items:
+        if len(all_items) < 2:  # noqa: PLR2004
             return {}
 
         return cls._find_common_fields(all_items)

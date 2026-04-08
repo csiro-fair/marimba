@@ -1308,15 +1308,14 @@ class TestiFDOMetadataDatasetCreation:
             header["image-set-ifdo-version"] == "v2.1.0"
         ), f"Header version should be 'v2.1.0', got '{header['image-set-ifdo-version']}'"
 
-        # Assert - Verify image-set-items structure; common fields are deduplicated to header
+        # Assert - Verify image-set-items structure; single-item datasets are not deduplicated
         items_data = actual_data["image-set-items"]
         assert "image.jpg" in items_data, "Items should contain the input image filename"
         image_data = items_data["image.jpg"]
         assert isinstance(image_data, dict), f"Image data should be a dict, got {type(image_data)}"
-        # Altitude is a common field (only one image), so it should be promoted to the header
-        assert "image-altitude-meters" in header, "Common altitude field should be deduplicated to header"
-        assert header["image-altitude-meters"] == 100.0, "Deduplicated altitude should match sample metadata value"
-        assert "image-altitude-meters" not in image_data, "Common altitude field should not remain in item data"
+        # With a single image, deduplication is skipped to keep required fields in the item
+        assert "image-altitude-meters" not in header, "Single-item datasets should not deduplicate fields to header"
+        assert "image-altitude-meters" in image_data, "Altitude should remain in item data for single-item datasets"
 
     @pytest.mark.unit
     def test_create_dataset_metadata_custom_name(
@@ -1516,6 +1515,15 @@ class TestiFDOMetadataDeduplication:
     def test_extract_common_header_fields_empty(self) -> None:
         """Empty input returns empty dict."""
         assert iFDOMetadata._extract_common_header_fields({}) == {}
+
+    @pytest.mark.unit
+    def test_extract_common_header_fields_single_item_not_deduplicated(self) -> None:
+        """Single image item returns no common fields to prevent required fields being promoted to header."""
+        items: dict[str, ImageData | list[ImageData]] = {
+            "img1.jpg": ImageData(image_uuid="abcdefg"),
+        }
+        result = iFDOMetadata._extract_common_header_fields(items)
+        assert result == {}
 
     @pytest.mark.unit
     def test_extract_common_header_fields_video_items(self) -> None:
