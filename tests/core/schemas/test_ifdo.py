@@ -1531,6 +1531,28 @@ class TestiFDOMetadataDeduplication:
         assert result["image_latitude"] == 45.0
 
     @pytest.mark.unit
+    def test_extract_common_header_fields_none_value_not_deduplicated(self) -> None:
+        """A field that is None for any image is not treated as common, even if others share a value."""
+        items: dict[str, ImageData | list[ImageData]] = {
+            "img1.jpg": ImageData(image_latitude=45.0, image_altitude_meters=100.0),
+            "img2.jpg": ImageData(image_latitude=45.0, image_altitude_meters=None),
+        }
+        result = iFDOMetadata._extract_common_header_fields(items)
+        assert result.get("image_latitude") == 45.0
+        assert "image_altitude_meters" not in result
+
+    @pytest.mark.unit
+    def test_extract_common_header_fields_none_first_value_second_not_deduplicated(self) -> None:
+        """None appearing before a non-None value is also not treated as common."""
+        items: dict[str, ImageData | list[ImageData]] = {
+            "img1.jpg": ImageData(image_latitude=45.0, image_altitude_meters=None),
+            "img2.jpg": ImageData(image_latitude=45.0, image_altitude_meters=100.0),
+        }
+        result = iFDOMetadata._extract_common_header_fields(items)
+        assert result.get("image_latitude") == 45.0
+        assert "image_altitude_meters" not in result
+
+    @pytest.mark.unit
     def test_remove_common_fields_sets_to_none(self) -> None:
         """Common fields are set to None in individual items."""
         items: dict[str, ImageData | list[ImageData]] = {

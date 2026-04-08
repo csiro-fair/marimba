@@ -401,6 +401,39 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
         return image_set_items
 
+    @staticmethod
+    def _find_common_fields(all_items: list["ImageData"]) -> dict[str, Any]:
+        """
+        Single-pass scan of flattened ImageData objects.
+
+        Returns fields whose non-None value is identical across every item.
+        Fields that are None in any item are excluded even if non-None elsewhere.
+        """
+        changing_fields: set[str] = set()
+        common_fields: dict[str, Any] = {}
+        none_fields: set[str] = set()
+
+        for item in all_items:
+            for key, value in item.model_dump().items():
+                if key in changing_fields:
+                    continue
+                if value is None:
+                    if key in common_fields:
+                        changing_fields.add(key)
+                        del common_fields[key]
+                    else:
+                        none_fields.add(key)
+                elif key in none_fields:
+                    changing_fields.add(key)
+                    none_fields.discard(key)
+                elif key not in common_fields:
+                    common_fields[key] = value
+                elif common_fields[key] != value:
+                    changing_fields.add(key)
+                    del common_fields[key]
+
+        return common_fields
+
     @classmethod
     def _extract_common_header_fields(
         cls,
@@ -410,8 +443,8 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         Extract fields that are identical across ALL images.
 
         Scans all ImageData objects and identifies fields where every image
-        has the same value. These fields can be promoted to the header to
-        reduce file size.
+        has the same non-None value. These fields can be promoted to the header
+        to reduce file size.
 
         Args:
             image_set_items: Dict mapping filenames to ImageData objects or lists of ImageData
@@ -423,7 +456,6 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         if not image_set_items:
             return {}
 
-        # Flatten video items (lists) into individual ImageData objects
         all_items: list[ImageData] = []
         for item in image_set_items.values():
             if isinstance(item, list):
@@ -434,24 +466,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         if not all_items:
             return {}
 
-        changing_fields: set[str] = set()
-        common_fields: dict[str, Any] = {}
-
-        # Single pass through all images
-        for item in all_items:
-            item_dict = item.model_dump(exclude_none=True)
-
-            for key, value in item_dict.items():
-                if key in changing_fields:
-                    continue
-
-                if key not in common_fields:
-                    common_fields[key] = value
-                elif common_fields[key] != value:
-                    changing_fields.add(key)
-                    del common_fields[key]
-
-        return common_fields
+        return cls._find_common_fields(all_items)
 
     @classmethod
     def _remove_common_fields(
