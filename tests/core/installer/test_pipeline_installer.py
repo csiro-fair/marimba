@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from unittest.mock import call
 
 import pytest
 import pytest_mock
@@ -51,15 +52,22 @@ class TestPipelineInstaller:
         logger = logging.getLogger("marimba.test.requirements")
         output_message = "Installation successful"
         error_message = ""
-        mock_executor = mocker.Mock(return_value=ExecutorResult(output_message, error_message))
+        mock_executor = mocker.Mock(
+            side_effect=[
+                ExecutorResult("", ""),  # freeze: empty environment
+                ExecutorResult(output_message, error_message),  # install
+            ],
+        )
         installer = PipelineInstaller(pipeline_path_with_requirements, logger, mock_executor)
 
         with caplog.at_level(logging.DEBUG, logger="marimba.test.requirements"):
             # Act
             installer()
 
-        # Assert - Verify executor was called with correct arguments
-        mock_executor.assert_called_once_with(
+        # Assert - Verify executor was called twice: freeze then install
+        assert mock_executor.call_count == 2
+        assert mock_executor.call_args_list[0] == call("freeze")
+        assert mock_executor.call_args_list[1] == call(
             "install",
             "-r",
             str(pipeline_path_with_requirements / "requirements.txt"),
@@ -103,15 +111,22 @@ class TestPipelineInstaller:
         logger = logging.getLogger("marimba.test.pyproject")
         output_message = "Successfully installed test-pipeline-0.1.0"
         error_message = "Some deprecation warnings"
-        mock_executor = mocker.Mock(return_value=ExecutorResult(output_message, error_message))
+        mock_executor = mocker.Mock(
+            side_effect=[
+                ExecutorResult("", ""),  # freeze: empty environment
+                ExecutorResult(output_message, error_message),  # install
+            ],
+        )
         installer = PipelineInstaller(pipeline_path_with_pyproject, logger, mock_executor)
 
         with caplog.at_level(logging.DEBUG, logger="marimba.test.pyproject"):
             # Act
             installer()
 
-        # Assert - Verify executor was called with correct arguments
-        mock_executor.assert_called_once_with(
+        # Assert - Verify executor was called twice: freeze then install
+        assert mock_executor.call_count == 2
+        assert mock_executor.call_args_list[0] == call("freeze")
+        assert mock_executor.call_args_list[1] == call(
             "install",
             str(pipeline_path_with_pyproject),
         )
@@ -190,7 +205,12 @@ class TestPipelineInstaller:
         # Arrange
         logger = logging.getLogger("test")
         uv_error_message = "UV installation failed"
-        mock_executor = mocker.Mock(side_effect=UvExecutor.UvError(uv_error_message))
+        mock_executor = mocker.Mock(
+            side_effect=[
+                ExecutorResult("", ""),  # freeze: empty environment
+                UvExecutor.UvError(uv_error_message),  # install fails
+            ],
+        )
         installer = PipelineInstaller(pipeline_path_with_requirements, logger, mock_executor)
 
         # Act & Assert
@@ -202,8 +222,10 @@ class TestPipelineInstaller:
         assert isinstance(exc_info.value.__cause__, UvExecutor.UvError)
         assert str(exc_info.value.__cause__) == uv_error_message
 
-        # Verify executor was called with correct arguments before the error
-        mock_executor.assert_called_once_with(
+        # Verify freeze was called first, then install was attempted
+        assert mock_executor.call_count == 2
+        assert mock_executor.call_args_list[0] == call("freeze")
+        assert mock_executor.call_args_list[1] == call(
             "install",
             "-r",
             str(pipeline_path_with_requirements / "requirements.txt"),
@@ -224,7 +246,12 @@ class TestPipelineInstaller:
         # Arrange
         output_message = "Package installed successfully"
         error_message = "Warning: deprecated dependency"
-        mock_executor = mocker.Mock(return_value=ExecutorResult(output_message, error_message))
+        mock_executor = mocker.Mock(
+            side_effect=[
+                ExecutorResult("", ""),  # freeze: empty environment
+                ExecutorResult(output_message, error_message),  # install
+            ],
+        )
 
         # Use a logger that will be captured by caplog
         logger = logging.getLogger("marimba.test")
@@ -266,8 +293,10 @@ class TestPipelineInstaller:
             completion_record.message == "Pipeline dependencies installed"
         ), "Fourth message should be completion text"
 
-        # Verify executor was called with correct arguments
-        mock_executor.assert_called_once_with(
+        # Verify executor was called twice: freeze then install
+        assert mock_executor.call_count == 2
+        assert mock_executor.call_args_list[0] == call("freeze")
+        assert mock_executor.call_args_list[1] == call(
             "install",
             "-r",
             str(pipeline_path_with_requirements / "requirements.txt"),
@@ -317,6 +346,39 @@ class TestPipelineInstaller:
         assert (
             installer.py_project_path == tmp_path / "pyproject.toml"
         ), f"Expected py_project_path to be {tmp_path / 'pyproject.toml'}, but got {installer.py_project_path}"
+
+    @pytest.mark.unit
+    def test_installer_uses_freeze_as_constraints_to_prevent_downgrade(
+        self,
+        pipeline_path_with_requirements: Path,
+        mocker: pytest_mock.MockerFixture,
+    ) -> None:
+        """Test that existing packages are passed as constraints to prevent downgrades.
+
+        When packages are already installed (non-empty freeze output), the installer
+        must pass them as a constraints file so uv cannot select a lower compatible version.
+        """
+        # Arrange
+        logger = logging.getLogger("test")
+        frozen_packages = "ifdo-py==1.3.0\nnumpy==1.26.0\n"
+        mock_executor = mocker.Mock(
+            side_effect=[
+                ExecutorResult(frozen_packages, ""),  # freeze: packages already installed
+                ExecutorResult("", ""),  # install with constraints
+            ],
+        )
+        installer = PipelineInstaller(pipeline_path_with_requirements, logger, mock_executor)
+
+        # Act
+        installer()
+
+        # Assert - install was called with a -c constraints flag
+        assert mock_executor.call_count == 2
+        install_args = mock_executor.call_args_list[1][0]
+        assert install_args[0] == "install"
+        assert "-c" in install_args, "Constraints flag must be passed when packages are already installed"
+        constraints_path = install_args[install_args.index("-c") + 1]
+        assert constraints_path.endswith("constraints.txt"), "Constraints file should have expected name"
 
     @pytest.mark.unit
     def test_installer_validate_exists_error(self, tmp_path: Path) -> None:

@@ -10,6 +10,8 @@ Classes:
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from marimba.core.installer.uv_executor import ExecutorResult, UvExecutor
@@ -17,7 +19,6 @@ from marimba.core.installer.uv_executor import ExecutorResult, UvExecutor
 if TYPE_CHECKING:
     import logging
     from collections.abc import Callable
-    from pathlib import Path
 
 
 class PipelineInstaller:
@@ -98,17 +99,59 @@ class PipelineInstaller:
             self._logger.exception("Error installing pipeline dependencies")
             raise PipelineInstaller.InstallError from e
 
+    @staticmethod
+    def _freeze_to_constraints(freeze_output: str) -> str:
+        """Filter freeze output to only lines usable as pip constraints.
+
+        Editable installs (-e ...) and direct URL references (pkg @ file://...)
+        are not valid in a constraints file and must be excluded.
+
+        Args:
+            freeze_output: Raw output from uv pip freeze.
+
+        Returns:
+            Filtered string suitable for use as a constraints file.
+        """
+        lines = [
+            line
+            for line in freeze_output.splitlines()
+            if line.strip() and not line.startswith("-e ") and "@ file://" not in line
+        ]
+        return "\n".join(lines)
+
+    def _install_with_constraints(self, *install_args: str) -> ExecutorResult:
+        """Install packages while preventing downgrades of already-installed dependencies.
+
+        Freezes the current environment and passes it as a constraints file so that
+        packages already installed at a compatible version are not downgraded.
+
+        Args:
+            *install_args: Arguments to pass to uv pip install.
+
+        Returns:
+            ExecutorResult from the install command.
+        """
+        freeze_result = self._executor("freeze")
+        constraints = self._freeze_to_constraints(freeze_result.output)
+        if not constraints:
+            return self._executor("install", *install_args)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            constraints_path = Path(tmp_dir) / "constraints.txt"
+            constraints_path.write_text(constraints)
+            return self._executor("install", *install_args, "-c", str(constraints_path))
+
     def _install(self) -> None:
         if self.requirements_path.is_file():
             abs_path = self.requirements_path.absolute()
             self._validate_exists(abs_path)
 
-            result = self._executor("install", "-r", str(abs_path))
+            result = self._install_with_constraints("-r", str(abs_path))
         elif self.py_project_path.is_file():
             abs_path = self.py_project_path.absolute()
             self._validate_exists(abs_path)
 
-            result = self._executor("install", str(abs_path.parent))
+            result = self._install_with_constraints(str(abs_path.parent))
         else:
             error_msg = f"Pipeline does not defines dependencies: {self.requirements_path} / {self.py_project_path}"
             self._logger.exception(error_msg)
