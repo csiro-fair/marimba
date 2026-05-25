@@ -82,6 +82,9 @@ jobs:
       - name: Run tests
         run: uv run pytest --rootdir . -c config/pytest.ini -m "not slow and not e2e and not network"
 
+      - name: Run non-regression e2e tests
+        run: uv run pytest --rootdir . -c config/pytest.ini --no-cov -m "e2e and not slow and not network" tests/e2e/
+
       - name: Upload coverage
         if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v4
