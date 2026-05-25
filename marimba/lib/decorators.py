@@ -30,12 +30,22 @@ from marimba.core.utils.log import get_logger
 T = TypeVar("T", bound=Callable[..., Any])
 
 
-def multithreaded(max_workers: int | None = None) -> Callable[[T], T]:
+def multithreaded(
+    max_workers: int | None = None,
+    *,
+    allow_partial: bool = False,
+) -> Callable[[T], T]:
     """
     Multithreaded method decorator.
 
+    By default, a worker exception is logged and then re-raised after all in-flight workers settle (mirroring the
+    abort-on-first-failure semantics of ``concurrent.futures.ProcessPoolExecutor`` callers in ``ProjectWrapper``).
+    Set ``allow_partial=True`` to suppress the re-raise and return a partial-results list instead.
+
     Args:
         max_workers: Maximum number of worker threads to use. Defaults to None (uses ThreadPoolExecutor default).
+        allow_partial: If True, log worker exceptions and return a partial-results list. If False (default),
+            log and re-raise the first worker exception after the executor drains.
 
     Returns:
         The decorated function.
@@ -58,6 +68,7 @@ def multithreaded(max_workers: int | None = None) -> Callable[[T], T]:
             log = logger or get_logger(__name__)
 
             results = []
+            first_exception: BaseException | None = None
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
                     executor.submit(
@@ -76,8 +87,13 @@ def multithreaded(max_workers: int | None = None) -> Callable[[T], T]:
                     try:
                         result = future.result()
                         results.append(result)
-                    except Exception:
+                    except Exception as exc:
                         log.exception(f"Error processing {item}")
+                        if first_exception is None:
+                            first_exception = exc
+
+            if first_exception is not None and not allow_partial:
+                raise first_exception
             return results
 
         return cast("T", wrapper)
