@@ -103,7 +103,10 @@ ipython_config.py
 #poetry.lock
 
 # uv
-uv.lock
+#   Lockfile committed for reproducible dev + CI environments. Library
+#   consumers still resolve from pyproject.toml constraints; uv.lock only
+#   governs marimba's own development and test environment.
+#uv.lock
 
 # pdm
 #   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
