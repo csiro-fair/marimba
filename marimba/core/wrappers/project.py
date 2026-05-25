@@ -1745,24 +1745,37 @@ class ProjectWrapper(LogMixin):
         self.logger.info(f"Provided collection config={final_config}")
         return final_config
 
+    class UpdatePipelinesError(Exception):
+        """Raised when one or more pipeline updates fail."""
+
     def update_pipelines(self) -> None:
         """
         Update all pipelines in the project.
+
+        Raises:
+            ProjectWrapper.UpdatePipelinesError: If one or more pipelines fail to update.
         """
+        failed_pipelines: list[str] = []
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
             self.logger.info(f'Updating pipeline "{pipeline_name}"')
             try:
                 pipeline_wrapper.update()
-                self.logger.info(f'Updated pipeline "{pipeline_name}"')
-            # TODO @<cjackett>: Raise these exceptions and handle in marimba.py
             except (OSError, ValueError):
                 self.logger.exception(
                     f'Failed to update pipeline "{pipeline_name}" due to an I/O or value error',
                 )
+                failed_pipelines.append(pipeline_name)
             except Exception:
                 self.logger.exception(
                     f'Failed to update pipeline "{pipeline_name}" due to an unexpected error',
                 )
+                failed_pipelines.append(pipeline_name)
+            else:
+                self.logger.info(f'Updated pipeline "{pipeline_name}"')
+
+        if failed_pipelines:
+            msg = f"Failed to update pipeline(s): {', '.join(failed_pipelines)}"
+            raise ProjectWrapper.UpdatePipelinesError(msg)
 
     class InstallPipelinesError(Exception):
         """Raised when one or more pipeline dependency installs fail."""
