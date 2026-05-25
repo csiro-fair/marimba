@@ -502,7 +502,6 @@ class TestDistributionWorkflows:
 
         # The workflow completed successfully with mocked S3 operations
 
-    @pytest.mark.unit
     def test_distribute_command_help_and_options(self, runner: CliRunner) -> None:
         """Test distribute command help displays all available options.
 
