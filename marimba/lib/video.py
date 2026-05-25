@@ -19,15 +19,16 @@ Functions:
     generate_video_thumbnails: Creates thumbnail images from a video file at specified intervals.
 """
 
-import logging
 from pathlib import Path
 
 import av
 from PIL import Image
 
+from marimba.core.utils.constants import DEFAULT_IMAGE_THUMBNAIL_SIZE
 from marimba.core.utils.dependencies import ToolDependency, show_dependency_error_and_exit
+from marimba.core.utils.log import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def get_stream_properties(
@@ -150,8 +151,7 @@ def save_thumbnail(frame: av.video.frame.VideoFrame, output_path: Path) -> None:
         TypeError: If the input frame is not of the expected type.
     """
     img = frame.to_image()  # type: ignore[no-untyped-call]
-    max_size = (300, 300)
-    img.thumbnail(max_size, Image.Resampling.LANCZOS)  # type: ignore[no-untyped-call]
+    img.thumbnail(DEFAULT_IMAGE_THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
     img.save(output_path)
 
 
@@ -179,7 +179,7 @@ def generate_video_thumbnails(
     output_directory.mkdir(parents=True, exist_ok=True)
 
     try:
-        container = av.open(str(video))  # type: ignore[attr-defined]
+        container = av.open(str(video))
     except Exception as e:  # av.AVError is dynamically created, so use generic Exception
         if "No such file or directory" in str(e) and "ffmpeg" in str(e).lower():
             show_dependency_error_and_exit(ToolDependency.FFMPEG, f"PyAV requires FFmpeg libraries: {e}")

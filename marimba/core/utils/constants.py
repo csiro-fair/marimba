@@ -16,6 +16,18 @@ PROJECT_DIR_HELP = (
     "working directory and its parents."
 )
 
+# Maximum number of sample files to show when warning/erroring on hard-linked / read-only files during packaging.
+MAX_SAMPLE_FILES_IN_WARNING = 10
+
+# Default image thumbnail dimensions (width, height) used by lib.image.generate_image_thumbnail and lib.video.
+DEFAULT_IMAGE_THUMBNAIL_SIZE = (300, 300)
+
+# Default EXIF-embedded thumbnail dimensions for iFDO image processing.
+DEFAULT_EXIF_THUMBNAIL_SIZE = (160, 120)
+
+# S3 multipart-upload threshold in bytes (100 MB). Files larger than this are uploaded in parts.
+S3_MULTIPART_THRESHOLD_BYTES = 100 * 1024 * 1024
+
 # File extensions that support EXIF metadata writing
 EXIF_SUPPORTED_EXTENSIONS = {
     # Standard formats with native EXIF support

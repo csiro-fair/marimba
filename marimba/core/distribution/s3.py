@@ -33,6 +33,7 @@ from botocore.exceptions import ClientError
 from rich.progress import DownloadColumn, Progress, SpinnerColumn
 
 from marimba.core.distribution.base import DistributionTargetBase
+from marimba.core.utils.constants import S3_MULTIPART_THRESHOLD_BYTES
 from marimba.core.utils.rich import get_default_columns
 from marimba.core.wrappers.dataset import DatasetWrapper
 
@@ -74,7 +75,7 @@ class S3DistributionTarget(DistributionTargetBase):
 
         # Define the transfer config
         self._config = TransferConfig(
-            multipart_threshold=100 * 1024 * 1024,
+            multipart_threshold=S3_MULTIPART_THRESHOLD_BYTES,
         )
 
         # TODO @<cjackett>: The _check_bucket() method currently fails on the CSIRO DAP S3

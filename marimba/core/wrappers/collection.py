@@ -144,13 +144,11 @@ class CollectionWrapper:
             The path to the pipeline data directory.
         """
         pipeline_data_dir = self._get_pipeline_data_dir(pipeline_name)
-        if pipeline_data_dir.is_dir():
+        try:
+            pipeline_data_dir.mkdir(parents=True, exist_ok=False)
+        except FileExistsError as exc:
             msg = f'Pipeline data directory "{pipeline_data_dir}" already exists'
-            raise FileExistsError(
-                msg,
-            )
-
-        pipeline_data_dir.mkdir(parents=True)
+            raise FileExistsError(msg) from exc
         return pipeline_data_dir
 
     def _get_pipeline_data_dir(self, pipeline_name: str) -> Path:

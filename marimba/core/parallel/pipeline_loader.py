@@ -127,7 +127,7 @@ def _find_pipeline_class(module: types.ModuleType) -> type[BasePipeline]:
 
     for obj in module.__dict__.values():
         if isinstance(obj, type) and _is_valid_pipeline_class(obj):
-            return obj  # type: ignore[return-value]  # We know it's a Type[BasePipeline] due to _is_valid_pipeline_class
+            return obj  # _is_valid_pipeline_class already enforces it's a type[BasePipeline] subclass
 
     msg = "Pipeline class has not been set or could not be found"
     raise ImportError(msg)

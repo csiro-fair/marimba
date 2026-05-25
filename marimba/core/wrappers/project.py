@@ -51,7 +51,7 @@ from marimba.core.installer.pipeline_installer import PipelineInstaller
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
 from marimba.core.pipeline import BasePipeline
 from marimba.core.schemas.base import BaseMetadata
-from marimba.core.utils.constants import EXIF_SUPPORTED_EXTENSIONS, Operation
+from marimba.core.utils.constants import EXIF_SUPPORTED_EXTENSIONS, MAX_SAMPLE_FILES_IN_WARNING, Operation
 from marimba.core.utils.dataset import DECORATOR_TYPE
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.paths import (
@@ -434,6 +434,7 @@ class ProjectWrapper(LogMixin):
         ] = {}  # target name -> DistributionTargetWrapper instance
 
         self._check_file_structure()
+        self._ensure_subdirectories()
         self._setup_logging()
 
         self._load_pipelines()
@@ -527,6 +528,11 @@ class ProjectWrapper(LogMixin):
                 )
 
         check_dir_exists(self.root_dir)
+
+    def _ensure_subdirectories(self) -> None:
+        """Create the project's standard subdirectories at construction time if they don't exist."""
+        for sub in ("pipelines", "collections", "datasets", "targets", ".marimba"):
+            (self._root_dir / sub).mkdir(exist_ok=True)
 
     def _setup_logging(self) -> None:
         """
@@ -667,6 +673,18 @@ class ProjectWrapper(LogMixin):
 
         # Add the pipeline to the project
         self._pipeline_wrappers[name] = pipeline_wrapper
+
+        # Install pipeline dependencies before introspecting its config schema.
+        # prompt_pipeline_config dynamically imports the pipeline module via load_pipeline_instance, which fails
+        # if the pipeline declares third-party deps that haven't been installed yet. Installing here lets a fresh
+        # `marimba new pipeline` work without a separate `marimba install` step.
+        try:
+            pipeline_wrapper.install()
+        except PipelineInstaller.InstallError:
+            self.logger.exception(
+                f'Failed to install dependencies for new pipeline "{name}"; '
+                "config-schema introspection may fail if the pipeline imports third-party packages",
+            )
 
         # Configure the pipeline from the command line
         pipeline_config = pipeline_wrapper.prompt_pipeline_config(
@@ -828,18 +846,6 @@ class ProjectWrapper(LogMixin):
             collection_wrappers_to_run[collection_name] = collection_wrapper
 
         return pipeline_wrappers_to_run, collection_wrappers_to_run
-
-    def _check_command_exists(
-        self,
-        pipelines_to_run: dict[str, Any],
-        command_name: str,
-    ) -> None:
-        for run_pipeline_name, run_pipeline in pipelines_to_run.items():
-            if not hasattr(run_pipeline, command_name):
-                msg = f'Command "{command_name}" does not exist for pipeline "{run_pipeline_name}".'
-                raise ProjectWrapper.RunCommandError(
-                    msg,
-                )
 
     def _create_command_tasks(
         self,
@@ -1758,32 +1764,50 @@ class ProjectWrapper(LogMixin):
                     f'Failed to update pipeline "{pipeline_name}" due to an unexpected error',
                 )
 
+    class InstallPipelinesError(Exception):
+        """Raised when one or more pipeline dependency installs fail."""
+
     def install_pipelines(self) -> None:
         """
         Install all pipelines dependencies in the project into the current environment.
+
+        Raises:
+            ProjectWrapper.InstallPipelinesError: If one or more pipelines fail to install.
         """
+        failed_pipelines: list[str] = []
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
-            self._install_single_pipeline(pipeline_name, pipeline_wrapper)
+            if not self._install_single_pipeline(pipeline_name, pipeline_wrapper):
+                failed_pipelines.append(pipeline_name)
+
+        if failed_pipelines:
+            msg = f"Failed to install dependencies for pipeline(s): {', '.join(failed_pipelines)}"
+            raise ProjectWrapper.InstallPipelinesError(msg)
 
     def _install_single_pipeline(
         self,
         pipeline_name: str,
         pipeline_wrapper: PipelineWrapper,
-    ) -> None:
+    ) -> bool:
         """
         Install a single pipeline and log the result.
 
         Args:
             pipeline_name: Name of the pipeline to install
             pipeline_wrapper: Pipeline wrapper instance to install
+
+        Returns:
+            True if installation succeeded, False otherwise.
         """
         try:
             pipeline_wrapper.install()
-            self.logger.info(f'Installed dependencies for pipeline "{pipeline_name}"')
         except PipelineInstaller.InstallError:
             self.logger.exception(
                 f'Failed to install dependencies for pipeline "{pipeline_name}"',
             )
+            return False
+        else:
+            self.logger.info(f'Installed dependencies for pipeline "{pipeline_name}"')
+            return True
 
     @property
     def pipeline_wrappers(self) -> dict[str, PipelineWrapper]:
@@ -1822,48 +1846,28 @@ class ProjectWrapper(LogMixin):
 
     @property
     def pipelines_dir(self) -> Path:
-        """
-        The pipelines directory of the project.
-        """
-        pipelines_dir = self.root_dir / "pipelines"
-        pipelines_dir.mkdir(exist_ok=True)
-        return pipelines_dir
+        """The pipelines directory of the project (ensured to exist at construction)."""
+        return self.root_dir / "pipelines"
 
     @property
     def collections_dir(self) -> Path:
-        """
-        The collections directory of the project.
-        """
-        collections_dir = self.root_dir / "collections"
-        collections_dir.mkdir(exist_ok=True)
-        return collections_dir
+        """The collections directory of the project (ensured to exist at construction)."""
+        return self.root_dir / "collections"
 
     @property
     def datasets_dir(self) -> Path:
-        """
-        The datasets directory of the project.
-        """
-        distributions_dir = self.root_dir / "datasets"
-        distributions_dir.mkdir(exist_ok=True)
-        return distributions_dir
+        """The datasets directory of the project (ensured to exist at construction)."""
+        return self.root_dir / "datasets"
 
     @property
     def marimba_dir(self) -> Path:
-        """
-        The Marimba directory of the project.
-        """
-        marimba_dir = self.root_dir / ".marimba"
-        marimba_dir.mkdir(exist_ok=True)
-        return marimba_dir
+        """The Marimba directory of the project (ensured to exist at construction)."""
+        return self.root_dir / ".marimba"
 
     @property
     def targets_dir(self) -> Path:
-        """
-        The distribution targets directory of the project.
-        """
-        targets_dir = self.root_dir / "targets"
-        targets_dir.mkdir(exist_ok=True)
-        return targets_dir
+        """The distribution targets directory of the project (ensured to exist at construction)."""
+        return self.root_dir / "targets"
 
     @property
     def log_path(self) -> Path:
@@ -1905,8 +1909,7 @@ class ProjectWrapper(LogMixin):
         Raises:
             typer.Exit: If the user chooses to abort packaging
         """
-        # Constants
-        max_sample_files = 10
+        max_sample_files = MAX_SAMPLE_FILES_IN_WARNING
 
         # Collect all files that will have EXIF metadata written
         files_to_check = []
@@ -1984,8 +1987,7 @@ class ProjectWrapper(LogMixin):
         Raises:
             typer.Exit: Always exits if read-only files are found
         """
-        # Constants
-        max_sample_files = 10
+        max_sample_files = MAX_SAMPLE_FILES_IN_WARNING
 
         # Collect all files that will have EXIF metadata written (same logic as hard-link check)
         files_to_check = []

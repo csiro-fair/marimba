@@ -40,7 +40,7 @@ from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
-from marimba.core.utils.constants import EXIF_SUPPORTED_EXTENSIONS
+from marimba.core.utils.constants import DEFAULT_EXIF_THUMBNAIL_SIZE, EXIF_SUPPORTED_EXTENSIONS
 from marimba.core.utils.dependencies import ToolDependency, show_dependency_error_and_exit
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.metadata import yaml_saver
@@ -806,7 +806,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         """Create thumbnail data as bytes (no file I/O)."""
         # Create thumbnail
         thumbnail = image_file.copy()
-        thumbnail.thumbnail((160, 120), Image.Resampling.LANCZOS)
+        thumbnail.thumbnail(DEFAULT_EXIF_THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
 
         # Convert to bytes
         buffer = io.BytesIO()

@@ -13,7 +13,10 @@ from pathlib import Path
 from typing import Any, Union, cast
 
 from marimba.core.schemas.base import BaseMetadata
+from marimba.core.utils.log import get_logger
 from marimba.core.utils.metadata import yaml_saver
+
+logger = get_logger(__name__)
 
 
 class GenericMetadata(BaseMetadata):
@@ -276,7 +279,7 @@ class GenericMetadata(BaseMetadata):
         common_fields = cls._extract_common_fields(items)
 
         if common_fields:
-            logging.getLogger(__name__).debug(
+            logger.debug(
                 f"Deduplicated {len(common_fields)} common field(s) to header: {', '.join(common_fields.keys())}",
             )
 

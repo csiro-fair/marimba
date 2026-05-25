@@ -146,7 +146,7 @@ class DistributionTargetWrapper:
             )
 
         # Ensure that target_class.__init__ is a method
-        if not isinstance(target_class.__init__, FunctionType):  # type: ignore[attr-defined]
+        if not isinstance(target_class.__init__, FunctionType):
             msg = f"__init__ of target class {target_type} is not a method"
             raise TypeError(msg)
 

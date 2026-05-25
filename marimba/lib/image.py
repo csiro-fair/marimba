@@ -50,6 +50,8 @@ import numpy as np
 from PIL import Image
 from PIL.Image import Image as PILImage
 
+from marimba.core.utils.constants import DEFAULT_IMAGE_THUMBNAIL_SIZE
+
 
 def generate_image_thumbnail(
     image: Path,
@@ -72,7 +74,7 @@ def generate_image_thumbnail(
     output_filename = image.stem + suffix + image.suffix
     output_path = output_directory / output_filename
     if not output_path.exists():
-        resize_fit(image, 300, 300, output_path)
+        resize_fit(image, *DEFAULT_IMAGE_THUMBNAIL_SIZE, output_path)
     return output_path
 
 
@@ -212,7 +214,7 @@ def rotate_clockwise(
     destination = Path(destination) if destination is not None else path
 
     with Image.open(path) as img:
-        rotated_img = img.rotate(-degrees, expand=expand)  # type: ignore[no-untyped-call]
+        rotated_img = img.rotate(-degrees, expand=expand)
         rotated_img.save(destination)
 
 

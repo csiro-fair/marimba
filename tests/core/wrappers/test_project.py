@@ -1241,17 +1241,12 @@ version: 1.0
         mock_logger_info.assert_called_once_with(expected_message)
 
     @pytest.mark.integration
-    def test_install_pipelines_with_installation_error_logs_exception_and_continues(
+    def test_install_pipelines_with_installation_error_logs_and_raises(
         self,
         mocker: pytest_mock.MockerFixture,
         project_wrapper: ProjectWrapper,
     ) -> None:
-        """Test that install_pipelines handles installation errors gracefully and logs exceptions.
-
-        This integration test verifies that when a pipeline's install() method raises a
-        PipelineInstaller.InstallError, the install_pipelines method catches the exception,
-        logs it appropriately, and continues processing other pipelines without failing.
-        """
+        """install_pipelines processes every pipeline, then raises InstallPipelinesError naming the failures."""
         # Arrange
         failing_pipeline_name = "failing_pipeline"
         successful_pipeline_name = "successful_pipeline"
@@ -1275,11 +1270,11 @@ version: 1.0
         mock_logger_exception = mocker.patch.object(project_wrapper.logger, "exception")
         mock_logger_info = mocker.patch.object(project_wrapper.logger, "info")
 
-        # Act
-        project_wrapper.install_pipelines()
+        # Act / Assert
+        with pytest.raises(ProjectWrapper.InstallPipelinesError, match=failing_pipeline_name):
+            project_wrapper.install_pipelines()
 
-        # Assert
-        # Verify install() was called for both pipelines
+        # Verify install() was called for both pipelines (all-or-nothing aggregation)
         mock_failing_wrapper.install.assert_called_once_with()
         mock_successful_wrapper.install.assert_called_once_with()
 
