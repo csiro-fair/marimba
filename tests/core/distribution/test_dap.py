@@ -174,3 +174,83 @@ class TestCSIRODapDistributionTarget:
             aws_access_key_id=dap_credentials["access_key"],  # DAP access_key mapped to aws_access_key_id
             aws_secret_access_key=dap_credentials["secret_access_key"],  # Direct mapping
         )
+
+
+class TestCSIRODapDistributionTargetEdgeCases:
+    """Wrapper-specific edge cases.
+
+    Retry / error behaviour is exercised via the inherited S3DistributionTarget
+    tests at tests/core/distribution/test_s3.py (lines 459, 507, 553, 597) —
+    DAP is a thin convenience wrapper that adds only the remote_directory
+    parsing on top of S3, so the dap-specific tests stay focused on the
+    wrapper-specific behaviour.
+    """
+
+    @pytest.fixture
+    def dap_credentials(self) -> dict[str, str]:
+        return {
+            "endpoint_url": "https://dap.example.com",
+            "access_key": "test_key",
+            "secret_access_key": "test_secret",
+        }
+
+    @pytest.mark.unit
+    def test_empty_remote_directory_yields_empty_bucket(
+        self,
+        dap_credentials: dict[str, str],
+        mocker: MockerFixture,
+    ) -> None:
+        """An empty remote_directory parses to empty bucket + empty prefix without raising."""
+        mocker.patch("marimba.core.distribution.s3.resource")
+
+        target = CSIRODapDistributionTarget(remote_directory="", **dap_credentials)
+
+        assert target._bucket_name == ""
+        assert target._base_prefix == ""
+
+    @pytest.mark.unit
+    def test_only_slash_remote_directory(
+        self,
+        dap_credentials: dict[str, str],
+        mocker: MockerFixture,
+    ) -> None:
+        """A bare "/" remote_directory parses to empty bucket + empty prefix."""
+        mocker.patch("marimba.core.distribution.s3.resource")
+
+        target = CSIRODapDistributionTarget(remote_directory="/", **dap_credentials)
+
+        assert target._bucket_name == ""
+        assert target._base_prefix == ""
+
+    @pytest.mark.unit
+    def test_inherits_s3_resource_construction(
+        self,
+        dap_credentials: dict[str, str],
+        mocker: MockerFixture,
+    ) -> None:
+        """DAP delegates s3 resource construction to S3DistributionTarget unchanged."""
+        mock_resource = mocker.patch("marimba.core.distribution.s3.resource")
+
+        CSIRODapDistributionTarget(remote_directory="any-bucket/some/prefix", **dap_credentials)
+
+        # Confirm boto3.resource was called exactly once with the s3 service tag.
+        assert mock_resource.call_count == 1
+        positional, _ = mock_resource.call_args
+        assert positional == ("s3",)
+
+    @pytest.mark.unit
+    def test_remote_directory_with_dotted_bucket(
+        self,
+        dap_credentials: dict[str, str],
+        mocker: MockerFixture,
+    ) -> None:
+        """Buckets with dots (legal in S3 naming) parse intact."""
+        mocker.patch("marimba.core.distribution.s3.resource")
+
+        target = CSIRODapDistributionTarget(
+            remote_directory="my.org.bucket/path/file",
+            **dap_credentials,
+        )
+
+        assert target._bucket_name == "my.org.bucket"
+        assert target._base_prefix == "path/file"

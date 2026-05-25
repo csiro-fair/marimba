@@ -1295,5 +1295,56 @@ class MockTestPipeline(BasePipeline):
         mock_configure_logging.assert_not_called()
 
 
+class TestFindPipelineClassFailureIsolation:
+    """Pin the failure-isolation contract: a bad object mid-iteration must not derail the search."""
+
+    @pytest.mark.unit
+    def test_problematic_class_does_not_abort_search(self) -> None:
+        """A class whose isinstance check raises TypeError is skipped; the valid one is still found."""
+        import types
+
+        from marimba.core.parallel.pipeline_loader import _find_pipeline_class
+
+        class ProblematicClass:
+            @property  # type: ignore[misc]
+            def __class__(self) -> Any:
+                msg = "Can't determine class"
+                raise TypeError(msg)
+
+        # Construct a synthetic module with the problematic object BEFORE the valid pipeline class.
+        module = types.ModuleType("fake_module")
+        module.__dict__["bad"] = ProblematicClass
+        module.__dict__["good"] = MockTestPipeline
+
+        result = _find_pipeline_class(module)
+
+        assert result is MockTestPipeline
+
+    @pytest.mark.unit
+    def test_module_without_dict_raises_import_error(self) -> None:
+        """A module-like object without __dict__ raises ImportError with a clear message."""
+        from marimba.core.parallel.pipeline_loader import _find_pipeline_class
+
+        class FakeModule:
+            __slots__ = ()
+
+        with pytest.raises(ImportError, match="no __dict__ attribute"):
+            _find_pipeline_class(FakeModule())  # type: ignore[arg-type]
+
+    @pytest.mark.unit
+    def test_module_with_only_invalid_classes_raises_import_error(self) -> None:
+        """If no valid pipeline class is found, raise a descriptive ImportError."""
+        import types
+
+        from marimba.core.parallel.pipeline_loader import _find_pipeline_class
+
+        module = types.ModuleType("fake_module")
+        module.__dict__["a"] = int
+        module.__dict__["b"] = str
+
+        with pytest.raises(ImportError, match="not been set or could not be found"):
+            _find_pipeline_class(module)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

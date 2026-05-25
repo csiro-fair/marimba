@@ -1624,3 +1624,79 @@ class TestiFDOMetadataDeduplication:
             item = data["image-set-items"][filename]
             assert "image-latitude" not in item, "Latitude should not remain in item after deduplication"
             assert "image-altitude-meters" not in item, "Altitude should not remain in item after deduplication"
+
+
+class TestiFDOMetadataInvalidConstruction:
+    """Pin behaviour on malformed / edge-case inputs to iFDOMetadata construction and serialisation.
+
+    The bulk of property-level wrong-type assertions live in TestiFDOMetadataProperties
+    above. This class focuses on construction-time and serialisation-time edge cases.
+    """
+
+    @pytest.mark.unit
+    def test_construct_with_empty_image_data(self) -> None:
+        """IFDOMetadata accepts an empty ImageData (all fields None) without raising."""
+        meta = iFDOMetadata(ImageData())
+
+        assert meta.primary_image_data is not None
+        assert meta.datetime is None
+        assert meta.latitude is None
+        assert meta.longitude is None
+        assert meta.altitude is None
+
+    @pytest.mark.unit
+    def test_construct_with_extreme_coordinate_values(self) -> None:
+        """IFDOMetadata accepts extreme but representable coordinate values; no clamping at construction."""
+        meta = iFDOMetadata(
+            ImageData(
+                image_latitude=89.999999,
+                image_longitude=-179.999999,
+                image_altitude_meters=-10000.0,
+            ),
+        )
+
+        assert meta.latitude == pytest.approx(89.999999)
+        assert meta.longitude == pytest.approx(-179.999999)
+        assert meta.altitude == pytest.approx(-10000.0)
+
+    @pytest.mark.unit
+    def test_construct_with_zero_coordinates(self) -> None:
+        """Zero is a valid coordinate (null island, sea level) and must round-trip."""
+        meta = iFDOMetadata(
+            ImageData(
+                image_latitude=0.0,
+                image_longitude=0.0,
+                image_altitude_meters=0.0,
+            ),
+        )
+
+        assert meta.latitude == 0.0
+        assert meta.longitude == 0.0
+        assert meta.altitude == 0.0
+
+    @pytest.mark.unit
+    def test_hash_sha256_assignment_with_empty_string(self) -> None:
+        """Empty-string hash is a "not yet hashed" sentinel; reads back as empty."""
+        meta = iFDOMetadata(ImageData())
+
+        meta.hash_sha256 = ""
+
+        assert meta.hash_sha256 == ""
+
+    @pytest.mark.unit
+    def test_create_dataset_metadata_with_empty_items_succeeds(self) -> None:
+        """An empty image-set-items dict is a valid edge case (empty dataset)."""
+        captured: list[dict[str, Any]] = []
+
+        def mock_saver(_root: Path, _name: str, data: dict[str, Any]) -> None:
+            captured.append(data)
+
+        iFDOMetadata.create_dataset_metadata(
+            "EmptyDataset",
+            Path("/tmp"),
+            {},
+            saver_overwrite=mock_saver,
+        )
+
+        assert len(captured) == 1
+        assert captured[0]["image-set-items"] == {}
