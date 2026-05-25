@@ -4,22 +4,6 @@ Marimba Path Utilities.
 This module provides utility functions to work with the directory structure of a Marimba project, including locating
 the project root directory and managing subdirectories.
 
-
-Imports:
-    - os: Provides access to operating system functionality.
-    - pathlib: Provides classes for working with file paths.
-    - typer: A library for building command line interfaces.
-    - rich: A library for rich text formatting in the terminal.
-    - marimba.core.utils.log: Provides logging functionality.
-    - marimba.core.utils.rich: Provides utility functions for formatting output using Rich.
-
-Functions:
-    - find_project_dir: Locates the project root directory starting from a specified path.
-    - find_project_dir_or_exit: Locates the project root directory or exits with an error if not found.
-    - remove_directory_tree: Recursively deletes a directory and all of its contents.
-    - detect_hardlinked_files: Detects files that are hard-linked (have multiple links).
-    - detect_readonly_files: Detects files that are read-only and cannot be written to.
-    - format_path_for_logging: Converts an absolute path to a path relative to the project root.
 """
 
 import os

@@ -4,17 +4,6 @@ Marimba Standard Library Decorators.
 This module provides a decorator for easily processing items in a multithreaded manner,
 as well as supporting type definitions and common imports.
 
-Imports:
-    - logging: Logging utilities for recording errors and other events.
-    - concurrent.futures.ThreadPoolExecutor: A thread pool executor for concurrent processing.
-    - concurrent.futures.as_completed: A function to iterate over completed futures.
-    - functools.wraps: A decorator to preserve metadata of wrapped functions.
-    - typing.Any: A type hint indicating any type is accepted.
-    - typing.Callable: A type hint for callable objects such as functions.
-    - typing.Iterable: A type hint for objects that can be iterated over.
-
-Functions:
-    - multithreaded: A decorator to process items in a multithreaded manner.
 """
 
 import logging

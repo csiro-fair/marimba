@@ -5,16 +5,6 @@ This module provides functionality to create and validate manifests for datasets
 manifest from a directory, validation of a directory against a manifest, and saving/loading manifests to/from files.
 The module uses SHA-256 hashing to ensure data integrity and supports multithreaded processing for improved performance.
 
-Imports:
-    hashlib: Provides cryptographic hash functions.
-    dataclasses: Offers decorator and functions for automatically adding generated special methods to classes.
-    pathlib: Offers classes representing filesystem paths.
-    typing: Provides support for type hints.
-    rich.progress: Offers rich text and beautiful formatting in the terminal.
-    marimba.lib.decorators: Custom decorators for the marimba library.
-
-Classes:
-    Manifest: Represents a dataset manifest for validation and integrity checking.
 """
 
 import logging

@@ -3,41 +3,6 @@
 This module offers a comprehensive set of functions for various image processing tasks, including resizing,
 cropping, rotating, and applying filters. It also includes utilities for image analysis and grid creation.
 
-Imports:
-    - collections.abc: Provides abstract base classes for collections.
-    - dataclasses: Provides a decorator and functions for automatically adding generated special methods to classes.
-    - pathlib: Offers classes representing filesystem paths with semantics appropriate for different operating systems.
-    - shutil: Offers a number of high-level operations on files and collections of files.
-    - typing: Provides runtime support for type hints.
-    - cv2: OpenCV library for computer vision tasks.
-    - numpy: Fundamental package for scientific computing with Python.
-    - PIL: Python Imaging Library for opening, manipulating, and saving many different image file formats.
-
-Classes:
-    - GridDimensions: Defines dimensions and configuration for grid image creation.
-    - GridRow: Represents a single row in an image grid.
-    - GridImageProcessor: Processes images into grid layouts.
-    - OutputPathManager: Manages the creation of output paths for grid images.
-
-Functions:
-    - generate_image_thumbnail: Create a thumbnail version of an image.
-    - convert_to_jpeg: Convert an image to JPEG format.
-    - resize_fit: Resize an image to fit within specified dimensions.
-    - resize_exact: Resize an image to exact dimensions.
-    - scale: Scale an image by a given factor.
-    - rotate_clockwise: Rotate an image clockwise by a specified number of degrees.
-    - turn_clockwise: Turn an image clockwise in 90-degree increments.
-    - flip_vertical: Flip an image vertically.
-    - flip_horizontal: Flip an image horizontally.
-    - is_blurry: Determine if an image is blurry.
-    - crop: Crop an image to a specified size and position.
-    - apply_clahe: Apply Contrast Limited Adaptive Histogram Equalization to an image.
-    - gaussian_blur: Apply Gaussian blur to an image.
-    - sharpen: Sharpen an image.
-    - get_width_height: Get the dimensions of an image.
-    - create_grid_image: Create a grid image from multiple images.
-    - get_shannon_entropy: Calculate the Shannon entropy of an image.
-    - get_average_image_color: Calculate the average color of an image.
 """
 
 from collections.abc import Iterable

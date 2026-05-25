@@ -4,19 +4,6 @@ This module offers functionality to generate thumbnail images from a video file 
 for video processing and Pillow for image handling. The generated thumbnails are saved to a specified output directory
 with customizable naming conventions.
 
-Imports:
-    logging: Provides a flexible framework for generating log messages.
-    pathlib: Offers classes representing filesystem paths with semantics appropriate for different operating systems.
-    typing: Provides support for type hints.
-    av: A Pythonic binding for FFmpeg libraries.
-    PIL: Python Imaging Library (Pillow fork) for opening, manipulating, and saving image files.
-
-Functions:
-    get_stream_properties: Extracts key properties from a video stream.
-    generate_potential_filenames: Creates potential filenames for video frames.
-    filter_existing_thumbnails: Identifies and filters existing thumbnail files.
-    save_thumbnail: Converts a video frame to a thumbnail image and saves it.
-    generate_video_thumbnails: Creates thumbnail images from a video file at specified intervals.
 """
 
 from pathlib import Path

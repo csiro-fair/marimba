@@ -4,32 +4,6 @@ Marimba CLI Module - delete and manage Marimba project components.
 This module provides a command-line interface for deleting Marimba projects, pipelines, collections, and
 distribution targets. It utilizes Typer for defining CLI commands and Rich for formatting output.
 
-
-Imports:
-    - os: Provides access to operating system functionality.
-    - pathlib: Provides classes for working with file paths.
-    - typing: Provides type hinting classes.
-    - typer: A library for building command line interfaces.
-    - rich: A library for rich text formatting in the terminal.
-    - marimba.core.utils.constants: Provides constants used in the Marimba project.
-    - marimba.core.utils.log: Provides logging functionality.
-    - marimba.core.utils.prompt: Provides functionality for prompting the user for input.
-    - marimba.core.utils.rich: Provides utility functions for formatting output using Rich.
-    - marimba.core.wrappers.project: Provides a wrapper class for working with Marimba projects.
-    - marimba.core.wrappers.target: Provides a wrapper class for working with Marimba distribution targets.
-
-Classes:
-    - ProjectWrapper: A wrapper class for working with Marimba projects.
-        - NameError: Raised when an invalid name is provided for a project entity.
-        - NoSuchCollectionError: Raised when a specified parent collection does not exist.
-        - CreateCollectionError: Raised when an error occurs while creating a collection.
-    - DistributionTargetWrapper: A wrapper class for working with Marimba distribution targets.
-
-Functions:
-    - project: Creates a new Marimba project.
-    - pipeline: Creates and configures a new Marimba pipeline in a project.
-    - collection: Creates and configures a new Marimba collection in a project.
-    - target: Creates and configures a new distribution target in a project.
 """
 
 from collections.abc import Callable

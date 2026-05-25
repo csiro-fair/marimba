@@ -5,18 +5,6 @@ This module provides functionality for handling iFDO metadata, including creatio
 metadata in image files. It implements the BaseMetadata interface for iFDO-specific metadata and offers methods
 for creating dataset metadata and processing image files with EXIF data.
 
-Imports:
-    json: Handles JSON data encoding and decoding
-    datetime: Supplies classes for working with dates and times
-    Path: Offers object-oriented filesystem paths
-    typing: Provides support for type hints
-    uuid: Generates universally unique identifiers
-    exiftool: Handles reading and writing of EXIF data in images via ExifTool
-    PIL: Python Imaging Library for opening, manipulating, and saving image files
-    rich: Offers rich text and beautiful formatting in the terminal
-
-Classes:
-    iFDOMetadata: Implements the BaseMetadata interface for iFDO-specific metadata
 """
 
 import io

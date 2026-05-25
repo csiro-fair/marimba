@@ -4,15 +4,6 @@ Marimba Standard Library - EXIF.
 It uses the exiftool library to load and parse the EXIF data from a given file path. If the file does not contain
 valid EXIF data, it returns None instead.
 
-Imports:
-    - pathlib.Path: Provides an object-oriented interface for working with file paths.
-    - typing.Any: Specifies that a variable can be of any type.
-    - exiftool: A Python wrapper for the exiftool application.
-
-Functions:
-    - get_dict(path: Union[str, Path]) -> Any: Retrieves the EXIF data from the specified file path as a dictionary,
-    or returns None if no valid EXIF data is found.
-
 """
 
 from pathlib import Path

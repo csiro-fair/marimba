@@ -4,23 +4,6 @@ Marimba S3 Distribution Target.
 This module provides an S3 distribution target class for distributing datasets to an S3 bucket. It allows uploading
 dataset files to a specified S3 bucket using the provided credentials and configuration.
 
-Imports:
-    - pathlib.Path: Provides classes for working with file system paths.
-    - typing.Iterable: Provides generic type hints for iterable objects.
-    - typing.Tuple: Provides generic type hints for tuple objects.
-    - boto3.resource: Provides a resource service client for interacting with AWS services.
-    - boto3.exceptions.S3UploadFailedError: Represents an exception raised when an S3 upload fails.
-    - boto3.s3.transfer.TransferConfig: Represents the configuration for an S3 transfer.
-    - botocore.exceptions.ClientError: Represents an exception raised when an AWS client encounters an error.
-    - rich.progress.DownloadColumn: Provides a progress bar column for tracking download progress.
-    - rich.progress.Progress: Provides a progress bar for tracking the progress of an operation.
-    - rich.progress.SpinnerColumn: Provides a spinning progress indicator column.
-    - marimba.core.distribution.bases.DistributionTargetBase: Provides a base class for distribution targets.
-    - marimba.core.utils.rich.get_default_columns: Provides default columns for the progress bar.
-    - marimba.core.wrappers.dataset.DatasetWrapper: Provides a wrapper class for datasets.
-
-Classes:
-    - S3DistributionTarget: Represents an S3 bucket distribution target for datasets.
 """
 
 from collections.abc import Iterable

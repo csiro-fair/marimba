@@ -8,23 +8,6 @@ The PipelineWrapper class allows for creating a new pipeline directory from a re
 saving pipeline configurations, and retrieving instances of the pipeline implementation. It also provides functionality
 for updating the pipeline repository and installing pipeline dependencies.
 
-Imports:
-    - logging: Python logging module for logging messages.
-    - shutil: High-level operations on files and collections of files.
-    - subprocess: Subprocess management module for running external commands.
-    - sys: System-specific parameters and functions.
-    - importlib.util: Utility functions for importing modules.
-    - pathlib.Path: Object-oriented filesystem paths.
-    - typing: Support for type hints.
-    - git.Repo: GitPython library for interacting with Git repositories.
-    - marimba.core.pipeline.BasePipeline: Base class for pipeline implementations.
-    - marimba.core.utils.config: Utility functions for loading and saving configuration files.
-    - marimba.core.utils.log.LogMixin: Mixin class for adding logging functionality.
-    - marimba.core.utils.log.get_file_handler: Function for creating a file handler for logging.
-
-Classes:
-    - PipelineWrapper: Pipeline directory wrapper class for managing pipeline directories.
-        - InvalidStructureError: Exception raised when the project file structure is invalid.
 """
 
 import logging

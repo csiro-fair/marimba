@@ -5,19 +5,6 @@ This module provides functionality to generate comprehensive summaries of imager
 image and video statistics, and other file information. It uses the ImagerySummary class to process and analyze
 dataset contents, calculate various metrics, and present the information in a structured format.
 
-Imports:
-    - json: For parsing JSON data.
-    - subprocess: For running external commands.
-    - dataclasses: For creating data classes.
-    - datetime: For handling dates and times.
-    - pathlib: For working with file paths.
-    - typing: For type annotations.
-    - PIL: For image processing.
-    - tabulate: For creating formatted tables.
-
-Classes:
-    - ImagerySummary: Represents a summary of an imagery collection, including methods for data processing and
-    formatting.
 """
 
 import json

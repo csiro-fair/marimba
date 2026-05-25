@@ -5,34 +5,6 @@ This module provides various utilities and classes for handling image datasets i
 functionality for managing datasets, creating and validating manifests, summarizing imagery collections, and applying
 EXIF metadata.
 
-Imports:
-    - hashlib: Provides hash functions for generating hashes.
-    - io: Core tools for working with streams.
-    - json: JSON encoding and decoding library.
-    - logging: Logging facility for Python.
-    - collections.OrderedDict: Dictionary that remembers the order entries were added.
-    - dataclasses.dataclass: A decorator for generating special methods.
-    - datetime.timezone: Timezone information objects.
-    - fractions.Fraction: Rational number arithmetic.
-    - pathlib.Path: Object-oriented filesystem paths.
-    - shutil: High-level file operations.
-    - textwrap.dedent: Remove any common leading whitespace from every line.
-    - typing: Type hints for function signatures and variables.
-    - uuid: Generate unique identifiers.
-    - exiftool: Library to insert and extract EXIF metadata from images.
-    - ifdo.models: Data models for images.
-    - PIL.Image: Python Imaging Library for opening, manipulating, and saving image files.
-    - rich.progress: Utilities for creating progress bars.
-    - marimba.core.utils.log: Utilities for logging.
-    - marimba.core.utils.map: Utility for creating summary maps.
-    - marimba.core.utils.rich: Utility for default columns in rich progress.
-    - marimba.lib.image: Library for image processing.
-    - marimba.lib.gps: Utility for GPS coordinate conversion.
-
-Classes:
-    - ImagerySummary: A summary of an imagery collection.
-    - Manifest: A dataset manifest used to validate datasets for corruption or modification.
-    - DatasetWrapper: A wrapper class for handling dataset directories.
 """
 
 import logging

@@ -5,24 +5,6 @@ This module provides functionality to load and configure a pipeline instance fro
 It includes methods for finding the pipeline implementation file, loading the module, instantiating the pipeline
 class, and setting up logging for the pipeline instance.
 
-Imports:
-    sys: Provides access to some variables used or maintained by the Python interpreter.
-    types: Provides runtime support for type hints.
-    importlib.machinery: Provides the low-level import machinery used by importlib.
-    importlib.util: Utility code for implementers of the import system.
-    pathlib.Path: Offers classes representing filesystem paths.
-    marimba.core.pipeline.BasePipeline: Base class for pipeline implementations.
-    marimba.core.utils.config.load_config: Function to load configuration from a file.
-    marimba.core.utils.log: Module containing logging utilities.
-
-Functions:
-    _find_pipeline_module_path: Find the pipeline implementation file in the repository.
-    _log_empty_repo_warning: Log a warning message for an empty repository case.
-    _load_pipeline_module: Load the pipeline module from the given path.
-    _is_valid_pipeline_class: Check if an object is a valid pipeline class.
-    _find_pipeline_class: Find the pipeline class in the module.
-    _configure_pipeline_logging: Configure logging for the pipeline instance.
-    load_pipeline_instance: Load a pipeline instance from a given repository directory.
 """
 
 import sys
