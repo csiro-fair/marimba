@@ -10,7 +10,6 @@ Imports:
     dataclasses: Offers decorator and functions for automatically adding generated special methods to classes.
     pathlib: Offers classes representing filesystem paths.
     typing: Provides support for type hints.
-    distlib.util: Utilities for distribution-related operations.
     rich.progress: Offers rich text and beautiful formatting in the terminal.
     marimba.lib.decorators: Custom decorators for the marimba library.
 
@@ -24,8 +23,7 @@ from copy import copy
 from dataclasses import dataclass
 from pathlib import Path
 
-from distlib.util import Progress
-from rich.progress import TaskID
+from rich.progress import Progress, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.hash import compute_hash
