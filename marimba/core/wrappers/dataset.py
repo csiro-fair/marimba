@@ -420,8 +420,7 @@ class DatasetWrapper(LogMixin):
         self.generate_metadata(dataset_name, mapped_dataset_items, mapping_processor_decorator, max_workers)
         dataset_items = flatten_mapping(flatten_middle_mapping(mapped_dataset_items))
 
-        self.generate_dataset_summary(dataset_items)
-        # TODO @<cjackett>: Generate summary method currently does not use multithreading
+        self.generate_dataset_summary(dataset_items, max_workers=max_workers)
         self._generate_dataset_map(dataset_items, zoom)
         self._copy_pipelines(project_pipelines_dir)
         self._copy_logs(project_log_path, pipeline_log_paths)
@@ -787,6 +786,7 @@ class DatasetWrapper(LogMixin):
     def generate_dataset_summary(
         self,
         dataset_items: dict[str, list[BaseMetadata]],
+        max_workers: int | None = None,
         *,
         progress: bool = True,
     ) -> None:
@@ -795,11 +795,13 @@ class DatasetWrapper(LogMixin):
 
         Args:
             dataset_items: The dictionary of dataset items to summarize.
+            max_workers: Maximum number of worker threads for the per-file stat / ffprobe pass.
+                ``None`` lets :class:`ThreadPoolExecutor` choose; pass an integer to cap concurrency.
             progress: A flag to indicate whether to show a progress bar.
         """
 
         def generate_summary() -> None:
-            summary = self.summarise(dataset_items)
+            summary = self.summarise(dataset_items, max_workers=max_workers)
             if not self.dry_run:
                 self.summary_path.write_text(str(summary))
             self.logger.info(
@@ -989,14 +991,22 @@ class DatasetWrapper(LogMixin):
                 f"files and paths at {format_path_for_logging(self.manifest_path, self._project_dir)}",
             )
 
-    def summarise(self, dataset_items: dict[str, list[BaseMetadata]]) -> ImagerySummary:
+    def summarise(
+        self,
+        dataset_items: dict[str, list[BaseMetadata]],
+        max_workers: int | None = None,
+    ) -> ImagerySummary:
         """
         Create an imagery summary for this dataset.
+
+        Args:
+            dataset_items: The dictionary of dataset items to summarize.
+            max_workers: Maximum number of worker threads for the per-file stat / ffprobe pass.
 
         Returns:
             An imagery summary.
         """
-        return ImagerySummary.from_dataset(self, dataset_items)
+        return ImagerySummary.from_dataset(self, dataset_items, max_workers=max_workers)
 
     def check_dataset_mapping(
         self,
