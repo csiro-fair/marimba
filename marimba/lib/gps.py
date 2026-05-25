@@ -1,12 +1,17 @@
 """
 GPS functions.
+
+For batched workflows, prefer reading EXIF via :func:`marimba.lib.exif.session`
+and parsing locations with :func:`parse_location_from_metadata` — that path
+shares one ExifTool subprocess across many files. :func:`read_exif_location`
+remains as a one-shot convenience but pays the full Perl-startup cost on every
+call.
 """
 
 from pathlib import Path
+from typing import Any
 
-import exiftool
-
-from marimba.core.utils.dependencies import ToolDependency, show_dependency_error_and_exit
+from marimba.lib import exif
 
 
 def convert_gps_coordinate_to_degrees(
@@ -48,46 +53,52 @@ def convert_degrees_to_gps_coordinate(degrees: float) -> tuple[int, int, int]:
     return d, m, s
 
 
+def parse_location_from_metadata(metadata: dict[str, Any] | None) -> tuple[float | None, float | None]:
+    """
+    Extract (latitude, longitude) from an ExifTool metadata dict.
+
+    Units are decimal degrees, with negative values for south and west. Returns
+    ``(None, None)`` when the metadata does not carry a usable GPS pair. Cheap;
+    does not spawn any subprocess.
+
+    Args:
+        metadata: An ExifTool metadata dict (as returned by
+            :meth:`marimba.lib.exif.ExifSession.get_dict`). May be ``None``.
+
+    Returns:
+        A tuple ``(latitude, longitude)``, or ``(None, None)`` when missing.
+    """
+    if not metadata:
+        return None, None
+
+    try:
+        latitude = metadata.get("Composite:GPSLatitude") or metadata.get("EXIF:GPSLatitude")
+        longitude = metadata.get("Composite:GPSLongitude") or metadata.get("EXIF:GPSLongitude")
+        if latitude is not None and longitude is not None:
+            return float(latitude), float(longitude)
+    except (KeyError, ValueError, TypeError, AttributeError, IndexError):
+        return None, None
+
+    return None, None
+
+
 def read_exif_location(path: str | Path) -> tuple[float | None, float | None]:
     """
     Read the latitude and longitude from a file EXIF metadata.
 
-    Units are decimal degrees, with negative values for south and west.
+    One-shot path: spawns a fresh ExifTool subprocess (~100-300 ms of Perl startup)
+    per call. For batch reads prefer::
+
+        with exif.session() as et:
+            for path in paths:
+                lat, lon = parse_location_from_metadata(et.get_dict(path))
 
     Args:
         path: The path to the file.
 
     Returns:
-        A tuple containing the latitude and longitude, or (None, None) if the location could not be found.
+        A tuple containing the latitude and longitude, or ``(None, None)`` if
+        the location could not be found.
     """
-    path = Path(path)
-
-    try:
-        with exiftool.ExifToolHelper() as et:
-            metadata = et.get_metadata(str(path.absolute()))
-            if not metadata:
-                return None, None
-
-            data = metadata[0]
-
-            # ExifTool returns GPS coordinates in decimal degrees directly
-            # Try Composite tags first as they handle coordinate conversion automatically
-            latitude = data.get("Composite:GPSLatitude") or data.get("EXIF:GPSLatitude")
-            longitude = data.get("Composite:GPSLongitude") or data.get("EXIF:GPSLongitude")
-
-            if latitude is not None and longitude is not None:
-                return float(latitude), float(longitude)
-
-            return None, None
-
-    except FileNotFoundError as e:
-        if "exiftool" in str(e).lower():
-            show_dependency_error_and_exit(ToolDependency.EXIFTOOL, str(e))
-        return None, None
-    except (KeyError, ValueError, TypeError, AttributeError, IndexError):
-        # KeyError: Missing expected EXIF data structure
-        # ValueError: Invalid EXIF data format
-        # TypeError: Unexpected data type in EXIF fields
-        # AttributeError: Missing expected attributes in EXIF data
-        # IndexError: Unexpected EXIF data structure
-        return None, None
+    with exif.session() as et:
+        return parse_location_from_metadata(et.get_dict(Path(path).absolute()))
