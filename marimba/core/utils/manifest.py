@@ -24,9 +24,14 @@ from marimba.lib.decorators import multithreaded
 class Manifest:
     """
     Dataset manifest. Used to validate datasets to check if the underlying data has been corrupted or modified.
+
+    ``hashes`` maps the *relative-posix path string* of each tracked file to its SHA-256 digest.
+    Stored as ``dict[str, str]`` rather than ``dict[Path, str]`` because ``Path`` objects carry an
+    internal parsed-parts cache that costs ~3x the memory of the equivalent string at million-file
+    scale; the manifest is the single largest in-memory accumulator during packaging.
     """
 
-    hashes: dict[Path, str]
+    hashes: dict[str, str]
     logger: logging.Logger | None = None
 
     def __hash__(self) -> int:
@@ -105,9 +110,9 @@ class Manifest:
         directory: Path,
         dataset_items: dict[str, list[BaseMetadata]] | None,
         logger: logging.Logger | None,
-    ) -> tuple[Path, str] | None:
+    ) -> tuple[str, str] | None:
         """
-        Process a single file and return its relative path and hash.
+        Process a single file and return its relative-posix path string and hash.
 
         Args:
             item: The file to process.
@@ -116,7 +121,7 @@ class Manifest:
             logger: Logger for recording information.
 
         Returns:
-            Tuple of (relative_path, hash) if successful, None if file should be skipped.
+            Tuple of ``(relative_posix_string, hash)`` if successful, None if file should be skipped.
 
         Raises:
             OSError: If there are issues computing the hash.
@@ -124,15 +129,18 @@ class Manifest:
         try:
             # Get relative path without the data/ prefix
             rel_path = item.resolve().relative_to(directory.resolve())
-            metadata_path = str(rel_path.relative_to("data")) if str(rel_path).startswith("data/") else str(rel_path)
+            rel_path_str = rel_path.as_posix()
+            metadata_path = (
+                rel_path.relative_to("data").as_posix() if rel_path_str.startswith("data/") else rel_path_str
+            )
 
             # Try to get hash from metadata first
             existing_hash = cls._get_hash_from_metadata(metadata_path, dataset_items)
             if existing_hash is not None:
-                return rel_path, existing_hash
+                return rel_path_str, existing_hash
 
             # Compute new hash if needed
-            return rel_path, compute_hash(item, directory)
+            return rel_path_str, compute_hash(item, directory)
         except (OSError, PermissionError) as e:
             if logger:
                 logger.exception(f"Failed to process file {item}")
@@ -150,7 +158,7 @@ class Manifest:
         task: TaskID | None,
         logger: logging.Logger | None,
         max_workers: int | None,
-    ) -> dict[Path, str]:
+    ) -> dict[str, str]:
         """
         Process multiple files with progress tracking and threading.
 
@@ -165,12 +173,12 @@ class Manifest:
             max_workers: Maximum number of worker processes.
 
         Returns:
-            Dictionary of processed files and their hashes.
+            Dictionary of ``{relative_posix_string: hash}`` for the processed files.
 
         Raises:
             RuntimeError: If file processing fails.
         """
-        hashes: dict[Path, str] = {}
+        hashes: dict[str, str] = {}
         manifest_instance = cls({}, logger=logger)
 
         @multithreaded(max_workers=max_workers)
@@ -180,7 +188,7 @@ class Manifest:
             item: Path,
             directory: Path,
             exclude_paths: set[Path],
-            hashes: dict[Path, str],
+            hashes: dict[str, str],
             dataset_items: dict[str, list[BaseMetadata]] | None = None,
             logger: logging.Logger | None = None,
             progress: Progress | None = None,
@@ -200,8 +208,8 @@ class Manifest:
                     logger,
                 )
                 if result:
-                    rel_path, file_hash = result
-                    hashes[rel_path] = file_hash
+                    rel_path_str, file_hash = result
+                    hashes[rel_path_str] = file_hash
             except Exception as e:
                 if logger:
                     logger.exception(f"Error processing file {item}")
@@ -220,7 +228,9 @@ class Manifest:
             task=task,
         )  # type: ignore[call-arg]
 
-        return dict(sorted(hashes.items(), key=lambda item: item[0]))
+        # Sort by Path so the on-disk manifest preserves byte-for-byte compatibility with the
+        # pre-string-keyed implementation; storage is dict[str, str] but ordering is Path-aware.
+        return dict(sorted(hashes.items(), key=lambda item: Path(item[0])))
 
     @classmethod
     def from_dir(
@@ -377,8 +387,9 @@ class Manifest:
         files.update(subdirectories)
 
         deleted_files = {path for path in files if not path.exists()}
-        relative_deleted_files = {path.resolve().relative_to(directory.resolve()) for path in deleted_files}
-        self.hashes = {path: value for path, value in self.hashes.items() if path not in relative_deleted_files}
+        resolved_directory = directory.resolve()
+        relative_deleted_strs = {path.resolve().relative_to(resolved_directory).as_posix() for path in deleted_files}
+        self.hashes = {path: value for path, value in self.hashes.items() if path not in relative_deleted_strs}
 
         changed_files = files - deleted_files
 
@@ -422,8 +433,8 @@ class Manifest:
         """
         try:
             with path.open("w") as f:
-                for file_path, file_hash in self.hashes.items():
-                    f.write(f"{file_path.as_posix()}:{file_hash}\n")
+                for file_path_str, file_hash in self.hashes.items():
+                    f.write(f"{file_path_str}:{file_hash}\n")
         except OSError as e:
             if logger:
                 logger.exception(f"Failed to save manifest to {path}")
@@ -442,13 +453,13 @@ class Manifest:
             A manifest.
         """
         try:
-            hashes = {}
+            hashes: dict[str, str] = {}
             with path.open("r") as f:
                 for line in f:
                     if line:
                         try:
                             path_str, hash_str = line.strip().split(":")
-                            hashes[Path(path_str)] = hash_str
+                            hashes[path_str] = hash_str
                         except ValueError as e:
                             msg = f"Invalid manifest file format at line: {line.strip()}"
                             raise ValueError(
