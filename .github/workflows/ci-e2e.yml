@@ -13,7 +13,7 @@ name: E2E Regression
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
     branches: [main]
   workflow_dispatch:
