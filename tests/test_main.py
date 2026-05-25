@@ -9,8 +9,10 @@ import typer
 from _pytest.capture import CaptureFixture
 from typer.testing import CliRunner
 
+from marimba.core.distribution.base import DistributionTargetBase
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.log import LogLevel
+from marimba.core.wrappers.project import ProjectWrapper
 from marimba.main import (
     global_options,
     marimba_cli,
@@ -972,7 +974,7 @@ class TestCLI:
         mock_project_wrapper_class = mocker.patch("marimba.main.ProjectWrapper")
         mock_project = mocker.Mock()
         mock_project_wrapper_class.return_value = mock_project
-        mock_project.install_pipelines.side_effect = RuntimeError("Installation failed")
+        mock_project.install_pipelines.side_effect = ProjectWrapper.InstallPipelinesError("Installation failed")
         mock_find_project.return_value = mock_project_dir
 
         # Act
@@ -1284,7 +1286,7 @@ class TestCommandErrorHandling:
 
         # Configure run_process to raise a generic exception
         test_error_message = "Processing error"
-        mock_project.run_process.side_effect = Exception(test_error_message)
+        mock_project.run_process.side_effect = ProjectWrapper.MarimbaProcessError(test_error_message)
 
         # Set up required wrapper attributes
         mock_project.collection_wrappers = {"test_collection": mocker.Mock()}
@@ -1378,9 +1380,10 @@ class TestCommandErrorHandling:
         mock_project.collection_wrappers = {"test_collection": mocker.Mock()}
         mock_project.pipeline_wrappers = {"pipeline1": mocker.Mock()}
 
-        # Configure compose to raise a generic error (not a specific exception type)
+        # Configure compose to raise a generic MarimbaError that misses the per-type handlers and falls
+        # through to the catch-all "Could not package collection" branch.
         test_error_message = "Compose operation failed"
-        mock_project.compose.side_effect = Exception(test_error_message)
+        mock_project.compose.side_effect = ProjectWrapper.RunCommandError(test_error_message)
 
         # Mock the rich handler for dry-run configuration
         mock_get_rich_handler = mocker.patch("marimba.main.get_rich_handler")
@@ -1452,7 +1455,6 @@ class TestCommandErrorHandling:
         """
         # Arrange
         # Import the real classes to preserve exception classes
-        from marimba.core.distribution.base import DistributionTargetBase
         from marimba.core.wrappers.dataset import DatasetWrapper
         from marimba.core.wrappers.project import ProjectWrapper
 
@@ -1477,7 +1479,7 @@ class TestCommandErrorHandling:
 
         # Configure distribute to raise a generic error (not one of the specific exception types)
         test_error_message = "Distribution error"
-        mock_project.distribute.side_effect = RuntimeError(test_error_message)
+        mock_project.distribute.side_effect = DistributionTargetBase.DistributionError(test_error_message)
         mock_find_project.return_value = mock_project_dir
 
         # Mock the rich handler for dry-run setup

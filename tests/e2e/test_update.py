@@ -6,6 +6,7 @@ import pytest
 import pytest_mock
 from typer.testing import CliRunner
 
+from marimba.core.wrappers.project import ProjectWrapper
 from marimba.main import marimba_cli as app
 from tests.conftest import assert_cli_success, run_cli_command
 
@@ -43,7 +44,7 @@ class TestUpdateWorkflow:
 
         mocker.patch(
             "marimba.main.ProjectWrapper.update_pipelines",
-            side_effect=RuntimeError("network unreachable"),
+            side_effect=ProjectWrapper.UpdatePipelinesError("network unreachable"),
         )
 
         result = runner.invoke(app, ["update", "--project-dir", str(project_dir)])

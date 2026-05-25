@@ -31,6 +31,7 @@ from typing import Any, ClassVar, cast
 
 from rich.prompt import Prompt
 
+from marimba.core import MarimbaError
 from marimba.core.distribution.base import DistributionTargetBase
 from marimba.core.distribution.dap import CSIRODapDistributionTarget
 from marimba.core.distribution.s3 import S3DistributionTarget
@@ -59,7 +60,7 @@ class DistributionTargetWrapper:
         "dap": CSIRODapDistributionTarget,
     }
 
-    class InvalidConfigError(Exception):
+    class InvalidConfigError(MarimbaError):
         """
         Raised when the configuration file is invalid.
         """

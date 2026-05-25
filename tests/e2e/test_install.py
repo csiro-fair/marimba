@@ -6,6 +6,7 @@ import pytest
 import pytest_mock
 from typer.testing import CliRunner
 
+from marimba.core.wrappers.project import ProjectWrapper
 from marimba.main import marimba_cli as app
 from tests.conftest import assert_cli_success, run_cli_command
 
@@ -43,7 +44,7 @@ class TestInstallWorkflow:
 
         mocker.patch(
             "marimba.main.ProjectWrapper.install_pipelines",
-            side_effect=RuntimeError("uv binary missing"),
+            side_effect=ProjectWrapper.InstallPipelinesError("uv binary missing"),
         )
 
         result = runner.invoke(app, ["install", "--project-dir", str(project_dir)])

@@ -10,6 +10,8 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 from staticmap import CircleMarker, StaticMap
 
+from marimba.core import MarimbaError
+
 # Type variable for comparable types
 T = TypeVar("T", bound="SupportsRichComparison")
 SupportsRichComparison = object
@@ -31,7 +33,7 @@ PADDING_PER_DECIMAL = 8  # Additional padding per decimal place
 MIN_DECIMAL_PLACES = 2  # Minimum number of decimal places
 
 
-class NetworkConnectionError(Exception):
+class NetworkConnectionError(MarimbaError):
     """
     Raised when there is a network connection error.
     """

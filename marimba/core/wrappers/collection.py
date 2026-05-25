@@ -19,6 +19,7 @@ Classes:
 from pathlib import Path
 from typing import Any
 
+from marimba.core import MarimbaError
 from marimba.core.utils.config import load_config, save_config
 
 
@@ -27,12 +28,12 @@ class CollectionWrapper:
     Collection directory wrapper.
     """
 
-    class InvalidStructureError(Exception):
+    class InvalidStructureError(MarimbaError):
         """
         Raised when the collection directory structure is invalid.
         """
 
-    class NoSuchPipelineError(Exception):
+    class NoSuchPipelineError(MarimbaError):
         """
         Raised when a pipeline is not found.
         """

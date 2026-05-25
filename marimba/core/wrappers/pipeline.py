@@ -33,6 +33,7 @@ from typing import Any
 
 from git import Repo
 
+from marimba.core import MarimbaError
 from marimba.core.installer.pipeline_installer import PipelineInstaller
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
 from marimba.core.pipeline import BasePipeline
@@ -46,7 +47,7 @@ class PipelineWrapper(LogMixin):
     Pipeline directory wrapper.
     """
 
-    class InvalidStructureError(Exception):
+    class InvalidStructureError(MarimbaError):
         """
         Raised when the project file structure is invalid.
         """

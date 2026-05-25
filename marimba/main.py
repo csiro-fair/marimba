@@ -40,6 +40,7 @@ from pathlib import Path
 import typer
 from rich import print as rprint
 
+from marimba.core import MarimbaError
 from marimba.core.cli import delete, new
 from marimba.core.distribution.base import DistributionTargetBase
 from marimba.core.utils.constants import PROJECT_DIR_HELP, MetadataGenerationLevelOptions, Operation
@@ -229,7 +230,7 @@ def import_command(
                 f"{elapsed_time:.2f} seconds:\n{pretty_source_paths}",
             ),
         )
-    except Exception as e:
+    except MarimbaError as e:
         error_message = f"Error during import: {e}"
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
@@ -374,7 +375,7 @@ def package_command(  # noqa: PLR0915
     except ProjectWrapper.ReadOnlyFilesError as e:
         rprint(error_panel(str(e), title="Packaging failed: Read-only files detected"))
         raise typer.Exit(1) from None
-    except Exception as e:
+    except MarimbaError as e:
         project_wrapper.logger.exception("Operation failed")
         rprint(error_panel(f"Could not package collection: {e}"))
         raise typer.Exit(1) from None
@@ -444,7 +445,7 @@ def process_command(
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
         raise typer.Exit(1) from None
-    except Exception as e:
+    except MarimbaError as e:
         error_message = f"Error during processing: {e}"
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
@@ -501,7 +502,7 @@ def distribute_command(
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
         raise typer.Exit(1) from None
-    except Exception as e:
+    except MarimbaError as e:
         project_wrapper.logger.exception("Operation failed")
         rprint(error_panel(f"Could not distribute dataset: {e}"))
         raise typer.Exit(1) from None
@@ -520,7 +521,7 @@ def update_command(
     try:
         project_wrapper.update_pipelines()
         rprint(success_panel("Successfully updated (pulled) all pipeline repositories"))
-    except Exception as e:
+    except MarimbaError as e:
         project_wrapper.logger.exception("Operation failed")
         rprint(error_panel(f"Could not update pipelines: {e}"))
         raise typer.Exit(1) from None
@@ -539,7 +540,7 @@ def install_command(
     try:
         project_wrapper.install_pipelines()
         rprint(success_panel("Successfully installed all pipeline dependencies"))
-    except Exception as e:
+    except MarimbaError as e:
         project_wrapper.logger.exception("Operation failed")
         rprint(error_panel(f"Could not install pipelines: {e}"))
         raise typer.Exit(1) from None

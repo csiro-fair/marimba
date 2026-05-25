@@ -16,6 +16,7 @@ Classes:
 
 from abc import ABC, abstractmethod
 
+from marimba.core import MarimbaError
 from marimba.core.utils.log import LogMixin
 from marimba.core.wrappers.dataset import DatasetWrapper
 
@@ -25,7 +26,7 @@ class DistributionTargetBase(ABC, LogMixin):
     Marimba distribution target base class. Defines the interface for all distribution targets of Marimba datasets.
     """
 
-    class DistributionError(Exception):
+    class DistributionError(MarimbaError):
         """
         Base class for all distribution errors.
         """

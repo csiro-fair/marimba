@@ -14,6 +14,8 @@ import dataclasses
 import shutil
 import subprocess
 
+from marimba.core import MarimbaError
+
 
 @dataclasses.dataclass
 class ExecutorResult:
@@ -30,7 +32,7 @@ class UvExecutor:
     Executor for uv pip commands.
     """
 
-    class UvError(Exception):
+    class UvError(MarimbaError):
         """
         Exception raised when a uv pip command fails.
         """

@@ -47,6 +47,7 @@ import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn
 
+from marimba.core import MarimbaError
 from marimba.core.installer.pipeline_installer import PipelineInstaller
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
 from marimba.core.pipeline import BasePipeline
@@ -328,72 +329,72 @@ class ProjectWrapper(LogMixin):
     ```
     """
 
-    class InvalidStructureError(Exception):
+    class InvalidStructureError(MarimbaError):
         """
         Raised when the project file structure is invalid.
         """
 
-    class CreatePipelineError(Exception):
+    class CreatePipelineError(MarimbaError):
         """
         Raised when a pipeline cannot be created.
         """
 
-    class CreateCollectionError(Exception):
+    class CreateCollectionError(MarimbaError):
         """
         Raised when a collection cannot be created.
         """
 
-    class RunCommandError(Exception):
+    class RunCommandError(MarimbaError):
         """
         Raised when a command cannot be run.
         """
 
-    class CompositionError(Exception):
+    class CompositionError(MarimbaError):
         """
         Raised when a pipeline cannot compose its data.
         """
 
-    class NoSuchPipelineError(Exception):
+    class NoSuchPipelineError(MarimbaError):
         """
         Raised when a pipeline does not exist in the project.
         """
 
-    class NoSuchCollectionError(Exception):
+    class NoSuchCollectionError(MarimbaError):
         """
         Raised when a collection does not exist in the project.
         """
 
-    class NoSuchDatasetError(Exception):
+    class NoSuchDatasetError(MarimbaError):
         """
         Raised when a dataset does not exist in the project.
         """
 
-    class NoSuchTargetError(Exception):
+    class NoSuchTargetError(MarimbaError):
         """
         Raised when a distribution target does not exist in the project.
         """
 
-    class InvalidNameError(Exception):
+    class InvalidNameError(MarimbaError):
         """
         Raised when an invalid name is used.
         """
 
-    class ReadOnlyFilesError(Exception):
+    class ReadOnlyFilesError(MarimbaError):
         """
         Raised when read-only files are detected during packaging.
         """
 
-    class DeletePipelineError(Exception):
+    class DeletePipelineError(MarimbaError):
         """
         Raised when a Pipeline cannot be deleted.
         """
 
-    class MarimbaThreadError(Exception):
+    class MarimbaThreadError(MarimbaError):
         """
         Raised when an error occurs within a Marimba thread.
         """
 
-    class MarimbaProcessError(Exception):
+    class MarimbaProcessError(MarimbaError):
         """
         Raised when an error occurs within a Marimba process.
         """
@@ -1745,7 +1746,7 @@ class ProjectWrapper(LogMixin):
         self.logger.info(f"Provided collection config={final_config}")
         return final_config
 
-    class UpdatePipelinesError(Exception):
+    class UpdatePipelinesError(MarimbaError):
         """Raised when one or more pipeline updates fail."""
 
     def update_pipelines(self) -> None:
@@ -1777,7 +1778,7 @@ class ProjectWrapper(LogMixin):
             msg = f"Failed to update pipeline(s): {', '.join(failed_pipelines)}"
             raise ProjectWrapper.UpdatePipelinesError(msg)
 
-    class InstallPipelinesError(Exception):
+    class InstallPipelinesError(MarimbaError):
         """Raised when one or more pipeline dependency installs fail."""
 
     def install_pipelines(self) -> None:

@@ -46,6 +46,7 @@ from typing import Any
 
 from rich.progress import Progress, SpinnerColumn, TaskID
 
+from marimba.core import MarimbaError
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.dataset import (
@@ -71,17 +72,17 @@ class DatasetWrapper(LogMixin):
     Dataset directory wrapper.
     """
 
-    class InvalidStructureError(Exception):
+    class InvalidStructureError(MarimbaError):
         """
         Raised when the dataset directory structure is invalid.
         """
 
-    class InvalidDatasetMappingError(Exception):
+    class InvalidDatasetMappingError(MarimbaError):
         """
         Raised when a path mapping dictionary is invalid.
         """
 
-    class ManifestError(Exception):
+    class ManifestError(MarimbaError):
         """
         Raised when the dataset is inconsistent with its manifest.
         """

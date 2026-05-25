@@ -14,6 +14,7 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from marimba.core import MarimbaError
 from marimba.core.installer.uv_executor import ExecutorResult, UvExecutor
 
 if TYPE_CHECKING:
@@ -29,7 +30,7 @@ class PipelineInstaller:
     REQUIREMENTS_TXT = "requirements.txt"
     PY_PROJECT = "pyproject.toml"
 
-    class InstallError(Exception):
+    class InstallError(MarimbaError):
         """
         Raised when there is an error installing pipeline dependencies.
         """
