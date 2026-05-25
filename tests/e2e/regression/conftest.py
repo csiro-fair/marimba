@@ -224,6 +224,18 @@ class MarimbaRunner:
             "--accept-defaults",
         )
 
+    def install(self) -> subprocess.CompletedProcess[str]:
+        """Run `marimba install` to install pipeline dependencies into marimba's venv.
+
+        `marimba new pipeline` only clones the pipeline repo; pipeline Python
+        deps from its requirements.txt are installed by the separate
+        `marimba install` command. Worked locally without this step only
+        because pre-existing development venvs happened to carry the deps
+        (e.g. pandas); on a clean CI venv the pipeline module fails to
+        import as soon as `marimba process` or any introspection touches it.
+        """
+        return self.run("install", "--project-dir", str(self.project_dir))
+
     def import_collection(self, name: str, source: Path) -> subprocess.CompletedProcess[str]:
         return self.run(
             "import",
@@ -290,6 +302,10 @@ def imported_project(
     t0 = time.monotonic()
     marimba_run.new_pipeline("MRITC", cached_pipeline)
     timings["new_pipeline_s"] = time.monotonic() - t0
+
+    t0 = time.monotonic()
+    marimba_run.install()
+    timings["install_s"] = time.monotonic() - t0
 
     t0 = time.monotonic()
     for src_dir in COLLECTION_SOURCE_DIRS:

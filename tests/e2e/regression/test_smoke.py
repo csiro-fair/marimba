@@ -57,6 +57,11 @@ def test_smoke_cache_and_import(
     assert pipeline_dir.is_dir(), "MRITC pipeline did not install"
     assert (pipeline_dir / "repo").is_dir(), "pipeline repo subdirectory missing"
 
+    # `marimba install` is a separate command from `new pipeline` — it
+    # installs each pipeline's requirements.txt into marimba's venv. Without
+    # it, `process` fails on the first dynamic-import of the pipeline module.
+    marimba_run.install()
+
     for src in COLLECTION_SOURCE_DIRS:
         name = f"{COLLECTION_PREFIX}{src}"
         marimba_run.import_collection(name=name, source=cached_data / src)
