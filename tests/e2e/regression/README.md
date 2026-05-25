@@ -127,7 +127,7 @@ Asserts structural counts. Failures dump the exact category that drifted (e.g. "
 
 ### Tier C — `test_tier_c_scrubbed_manifest_byte_equality`
 
-The load-bearing tier. Asserts every non-log dataset file's scrubbed content matches the golden. Failures dump the first 20 differing manifest lines plus the line-count delta if any.
+The load-bearing tier. Asserts every dataset file's scrubbed content matches the golden, with two carve-outs (entries kept in the manifest for path + ordering, hash replaced with placeholder): log files under `logs/`, and `map.png`. `map.png` is excluded because `staticmap` renders by fetching tiles from a remote OSM-backed server, so its bytes change over wall-clock time as upstream tile data updates — same project state produces different bytes a day later. Failures dump the first 20 differing manifest lines plus the line-count delta if any.
 
 **Common causes:**
 

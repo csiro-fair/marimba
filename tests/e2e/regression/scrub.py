@@ -105,10 +105,33 @@ def scrub_jpeg_bytes(raw: bytes) -> bytes:
 
 
 def is_log_path(rel_path: Path) -> bool:
-    """True if this dataset-relative path should be excluded from comparison."""
+    """True if this dataset-relative path is a log file."""
     if rel_path.suffix.lower() in _LOG_SUFFIXES:
         return True
     return bool(rel_path.parts) and rel_path.parts[0] == "logs"
+
+
+def has_volatile_content(rel_path: Path) -> bool:
+    """True if this file's bytes vary unpredictably across runs.
+
+    Used by `rebuild_manifest` to placeholder the hash slot for files whose
+    content can't be reproduced from project state alone. Currently:
+
+    - Log files (`logs/...` and `.log` suffix): timestamps, durations,
+      ordering under parallelism.
+    - `map.png` at the dataset root: staticmap renders by fetching tiles
+      from a remote OSM-backed server, so the bytes change over wall-clock
+      time as upstream tile data updates. Same project state -> different
+      bytes a day later. Tier A still asserts the file exists and is a
+      valid non-empty PNG; this just excludes it from byte-level comparison.
+
+    Distinct from `is_log_path` — the latter is also consumed by the
+    inventory classifier in `golden/regenerate.py` to bucket logs as a file
+    class, where `map.png` is correctly classified as an image.
+    """
+    if is_log_path(rel_path):
+        return True
+    return rel_path == Path("map.png")
 
 
 def scrubbed_hash(path: Path) -> str:
@@ -144,12 +167,13 @@ def rebuild_manifest(manifest_text: str, dataset_root: Path) -> str:
 
     Preserves the line ordering of the input manifest, so a regression in
     marimba's manifest sort order surfaces as a byte diff against the golden.
-    Log entries (per `is_log_path`) keep their relative-path slot but have
-    their hash replaced with `SHA256_PLACEHOLDER`: log content is inherently
-    non-deterministic, but the presence + path + ordering of a log entry in
-    the manifest is still load-bearing. Malformed lines and lines pointing at
-    a missing file are passed through unchanged so the comparison fails
-    loudly rather than silently swallowing the drift.
+    Entries with volatile content (per `has_volatile_content`: log files
+    and `map.png`) keep their relative-path slot but have their hash
+    replaced with `SHA256_PLACEHOLDER` — those files' bytes can't be
+    reproduced from project state alone, but the presence + path +
+    ordering of the manifest entry is still load-bearing. Malformed lines
+    and lines pointing at a missing file are passed through unchanged so
+    the comparison fails loudly rather than silently swallowing the drift.
     """
     out: list[str] = []
     for line in manifest_text.splitlines():
@@ -162,7 +186,7 @@ def rebuild_manifest(manifest_text: str, dataset_root: Path) -> str:
         if not target.is_file():
             out.append(line)
             continue
-        if is_log_path(rel):
+        if has_volatile_content(rel):
             out.append(f"{rel}:{SHA256_PLACEHOLDER}")
         else:
             out.append(f"{rel}:{scrubbed_hash(target)}")

@@ -8,7 +8,7 @@ This directory holds the checked-in golden expected output that
 | File | What it is |
 |---|---|
 | `invariants.json` | Structural totals: file counts by class, per-pipeline / per-collection / per-kind counts, top-level-file inventory, scrubbed-manifest sha256, manifest line count. Small, human-reviewable. |
-| `manifest.scrubbed.txt` | The dataset's `manifest.txt` with every hash replaced by a hash of the file's *scrubbed* bytes (per `scrub.py`). Log-file entries keep their path slot but their hash is replaced by `SHA256_PLACEHOLDER` (log content is inherently non-deterministic). |
+| `manifest.scrubbed.txt` | The dataset's `manifest.txt` with every hash replaced by a hash of the file's *scrubbed* bytes (per `scrub.py`). Entries with intrinsically volatile content (log files, plus `map.png` whose tiles come from a remote OSM-backed server and drift over wall-clock time) keep their path slot but their hash is replaced by `SHA256_PLACEHOLDER`. |
 | `regenerate.py` | Generator script. Re-run after any deliberate marimba or pipeline change rotates the expected output. |
 
 ## Regenerating
