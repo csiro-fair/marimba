@@ -185,18 +185,30 @@ class MarimbaRunner:
     def run(self, *args: str, timeout: float = 600.0) -> subprocess.CompletedProcess[str]:
         """Invoke marimba with the given args; returns the completed process.
 
-        Captures stdout/stderr as text. Raises CalledProcessError on non-zero exit.
+        Captures stdout/stderr as text. On non-zero exit, raises a
+        RuntimeError whose message embeds the captured streams so failures
+        are diagnosable in CI logs (subprocess.CalledProcessError.__str__
+        only includes cmd + exit code, swallowing the stdout/stderr that
+        contains the actual marimba error).
         """
         cmd = ["uv", "run", "marimba", *args]
-        return subprocess.run(
+        result = subprocess.run(
             cmd,
             cwd=self._repo_root,
-            check=True,
+            check=False,
             capture_output=True,
             text=True,
             timeout=timeout,
             env={**os.environ, "PYTHONUNBUFFERED": "1"},
         )
+        if result.returncode != 0:
+            msg = (
+                f"marimba command failed (exit {result.returncode}): {' '.join(cmd)}\n"
+                f"=== STDOUT ===\n{result.stdout}\n"
+                f"=== STDERR ===\n{result.stderr}"
+            )
+            raise RuntimeError(msg)
+        return result
 
     def new_project(self) -> subprocess.CompletedProcess[str]:
         return self.run("new", "project", str(self.project_dir))
