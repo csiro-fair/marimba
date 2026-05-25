@@ -26,6 +26,7 @@ Functions:
 """
 
 import sys
+import threading
 import types
 from importlib import machinery
 from importlib.util import module_from_spec, spec_from_file_location
@@ -34,6 +35,12 @@ from pathlib import Path
 from marimba.core.pipeline import BasePipeline
 from marimba.core.utils.config import load_config
 from marimba.core.utils.log import LogPrefixFilter, get_file_handler, get_logger
+
+# Serialises the sys.path.insert / exec_module / sys.path.pop block in load_pipeline_instance.
+# sys.path is process-global; if two pipelines load concurrently from threads, their insert/pop pairs can
+# interleave and pop each other's entries. ProcessPoolExecutor paths are isolated per worker, but
+# multithreaded callers (current or future) need this guarantee.
+_PIPELINE_IMPORT_LOCK = threading.Lock()
 
 
 def _find_pipeline_module_path(
@@ -190,15 +197,17 @@ def load_pipeline_instance(
     # Load the pipeline module
     module_name, module, module_spec = _load_pipeline_module(module_path)
 
-    # Enable repo-relative imports
-    sys.path.insert(0, str(repo_dir.absolute()))
-    try:
-        if module_spec.loader is None:
-            msg = f"Module loader is None for {module_name}"
-            raise ImportError(msg)
-        module_spec.loader.exec_module(module)
-    finally:
-        sys.path.pop(0)
+    # Enable repo-relative imports. sys.path is process-global; serialise so concurrent thread loads
+    # don't interleave each other's insert/pop pairs.
+    with _PIPELINE_IMPORT_LOCK:
+        sys.path.insert(0, str(repo_dir.absolute()))
+        try:
+            if module_spec.loader is None:
+                msg = f"Module loader is None for {module_name}"
+                raise ImportError(msg)
+            module_spec.loader.exec_module(module)
+        finally:
+            sys.path.pop(0)
 
     # Find and instantiate the pipeline class
     pipeline_class = _find_pipeline_class(module)
