@@ -214,7 +214,7 @@ class TestS3DistributionTarget:
 
         # Extract paths and keys for detailed verification
         discovered_files = {}
-        for path, key in path_key_pairs:
+        for path, key, _size in path_key_pairs:
             filename = path.name
             discovered_files[filename] = {
                 "path": path,
@@ -301,7 +301,7 @@ class TestS3DistributionTarget:
 
         # Extract paths and keys for verification
         discovered_files = {}
-        for path, key in path_key_pairs:
+        for path, key, _size in path_key_pairs:
             filename = path.name
             discovered_files[filename] = {"path": path, "key": key}
 

@@ -232,6 +232,7 @@ class Manifest:
         task: TaskID | None = None,
         logger: logging.Logger | None = None,
         max_workers: int | None = None,
+        files: list[Path] | None = None,
     ) -> "Manifest":
         """
         Create a manifest from a directory.
@@ -244,6 +245,9 @@ class Manifest:
             task: A task ID associated with the progress bar.
             logger: A logger object for logging information.
             max_workers: Maximum number of worker processes to use.
+            files: Optional pre-walked file list (skips the internal ``glob("**/*")``).
+                Callers that have already walked ``directory`` can pass the result
+                to avoid a second walk.
 
         Returns:
             Manifest: A new Manifest object containing the processed files and their hashes.
@@ -254,11 +258,11 @@ class Manifest:
         """
         try:
             cls._validate_directory(directory)
-            files = cls._get_files_from_directory(directory, logger)
+            walked_files = files if files is not None else cls._get_files_from_directory(directory, logger)
             exclude_set = set(exclude_paths) if exclude_paths is not None else set()
 
             hashes = cls._process_files_with_progress(
-                files=files,
+                files=walked_files,
                 directory=directory,
                 exclude_paths=exclude_set,
                 dataset_items=dataset_items,
@@ -283,6 +287,7 @@ class Manifest:
         progress: Progress | None = None,
         task: TaskID | None = None,
         logger: logging.Logger | None = None,
+        files: list[Path] | None = None,
     ) -> bool:
         """
         Validate a directory against the manifest.
@@ -296,6 +301,8 @@ class Manifest:
             progress: An optional Progress object for tracking the validation process.
             task: An optional TaskID object for associating the validation with a specific task.
             logger (logging.Logger | None, optional): A Logger object for logging validation progress and results.
+            files: Optional pre-walked file list, forwarded to :meth:`from_dir` so callers can
+                avoid a second ``rglob`` when they have already walked ``directory``.
 
         Returns:
             A boolean value indicating whether the directory is valid (True) or not (False).
@@ -312,6 +319,7 @@ class Manifest:
                 progress=progress,
                 task=task,
                 logger=logger,
+                files=files,
             )
         except Exception as e:
             if logger:

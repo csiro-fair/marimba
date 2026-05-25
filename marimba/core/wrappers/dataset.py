@@ -312,9 +312,17 @@ class DatasetWrapper(LogMixin):
         self,
         progress: Progress | None = None,
         task: TaskID | None = None,
+        files: list[Path] | None = None,
     ) -> None:
         """
         Validate the dataset. If the dataset is inconsistent with its manifest (if present), raise a ManifestError.
+
+        Args:
+            progress: Rich progress instance to advance during the validate pass.
+            task: Rich task ID to update.
+            files: Optional pre-walked file list (the manifest module will walk
+                ``self.root_dir`` itself when omitted). Pass a cached walk to avoid
+                duplicate ``rglob`` over very large datasets.
 
         Raises:
             DatasetWrapper.ManifestError: If the dataset is inconsistent with its manifest.
@@ -327,6 +335,7 @@ class DatasetWrapper(LogMixin):
                 progress=progress,
                 task=task,
                 logger=self.logger,
+                files=files,
             ):
                 raise DatasetWrapper.ManifestError(self.manifest_path)
 
@@ -984,6 +993,7 @@ class DatasetWrapper(LogMixin):
                 task=task,
                 logger=self.logger,
                 max_workers=max_workers,
+                files=globbed_files,
             )
             manifest.save(self.manifest_path, logger=self.logger)
             self.logger.info(

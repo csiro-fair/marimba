@@ -8,6 +8,7 @@ dataset files to a specified S3 bucket using the provided credentials and config
 
 from collections.abc import Iterable
 from pathlib import Path
+from stat import S_ISREG
 
 from boto3 import resource
 from boto3.exceptions import S3UploadFailedError
@@ -79,15 +80,18 @@ class S3DistributionTarget(DistributionTargetBase):
     def _iterate_dataset_wrapper(
         self,
         dataset_wrapper: DatasetWrapper,
-    ) -> Iterable[tuple[Path, str]]:
+    ) -> Iterable[tuple[Path, str, int]]:
         """
-        Iterate over a dataset structure and generate (path, key) tuples.
+        Iterate over a dataset structure and generate (path, key, size) tuples.
+
+        Walks the dataset tree once; ``stat()`` is invoked per file on the way through
+        so callers don't need a second pass to compute total upload size.
 
         Args:
             dataset_wrapper: The dataset wrapper to iterate over.
 
         Returns:
-            An iterable of (path, key) tuples.
+            An iterable of ``(path, key, size_bytes)`` tuples, one per file.
         """
 
         def path_to_key(path: Path) -> str:
@@ -104,10 +108,16 @@ class S3DistributionTarget(DistributionTargetBase):
             parts = (self._base_prefix, *rel_path.parts)
             return "/".join(parts)
 
-        # Iterate over all files in the dataset
+        # Single tree walk: stat each file on the way through so the size totalling
+        # doesn't need a second pass.
         for path in dataset_wrapper.root_dir.glob("**/*"):
-            if path.is_file():
-                yield path, path_to_key(path)
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+            if not S_ISREG(stat.st_mode):
+                continue
+            yield path, path_to_key(path), stat.st_size
 
     def _upload(self, path: Path, key: str) -> None:
         """
@@ -120,36 +130,23 @@ class S3DistributionTarget(DistributionTargetBase):
         self._bucket.upload_file(str(path.absolute()), key, Config=self._config)
 
     def _distribute(self, dataset_wrapper: DatasetWrapper) -> None:
+        # Single tree walk: collect (path, key, size) triples in one pass.
         with Progress(SpinnerColumn(), *get_default_columns()) as collection_progress:
-            # Add task for collecting path-key pairs
             collection_task = collection_progress.add_task(
                 "[green]Collecting files to upload",
                 total=None,
             )
             self.logger.info("Started collecting files for upload")
 
-            path_key_tups = []
-            for path_key in self._iterate_dataset_wrapper(dataset_wrapper):
-                path_key_tups.append(path_key)
+            path_key_size_tups: list[tuple[Path, str, int]] = []
+            total_bytes = 0
+            for path, key, size_bytes in self._iterate_dataset_wrapper(dataset_wrapper):
+                path_key_size_tups.append((path, key, size_bytes))
+                total_bytes += size_bytes
                 collection_progress.update(collection_task, advance=1)
 
             collection_progress.update(collection_task)
-            self.logger.info(f"Found {len(path_key_tups)} files to upload")
-
-        # Calculate total size with progress bar
-        with Progress(SpinnerColumn(), *get_default_columns()) as size_progress:
-            size_task = size_progress.add_task(
-                "[green]Calculating total upload size",
-                total=len(path_key_tups),
-            )
-            self.logger.info("Started calculating total upload size")
-
-            total_bytes = 0
-            for path, _ in path_key_tups:
-                total_bytes += path.stat().st_size
-                size_progress.update(size_task, advance=1)
-
-            size_progress.update(size_task)
+            self.logger.info(f"Found {len(path_key_size_tups)} files to upload")
             self.logger.info(f"Total upload size: {total_bytes / (1024 * 1024):.2f} MB")
 
         with Progress(
@@ -159,9 +156,7 @@ class S3DistributionTarget(DistributionTargetBase):
         ) as progress:
             task = progress.add_task("[green]Uploading dataset", total=total_bytes)
 
-            for path, key in path_key_tups:
-                file_bytes = path.stat().st_size
-
+            for path, key, file_bytes in path_key_size_tups:
                 try:
                     self._upload(path, key)
                 except S3UploadFailedError as e:

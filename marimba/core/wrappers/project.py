@@ -1271,14 +1271,15 @@ class ProjectWrapper(LogMixin):
             allow_destination_collisions=allow_destination_collisions,
         )
 
-        # Validate it
+        # Validate it. Walk the dataset tree once and reuse the list across the
+        # progress total and the manifest-validate hash pass.
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             globbed_files = list(dataset_wrapper.root_dir.glob("**/*"))
             task = progress.add_task(
                 "[green]Validating dataset (12/12)",
                 total=len(globbed_files),
             )
-            dataset_wrapper.validate(progress, task)
+            dataset_wrapper.validate(progress, task, files=globbed_files)
             dataset_wrapper.logger.info(
                 f'Packaged dataset "{dataset_name}" has been validated against the manifest',
             )
@@ -1450,7 +1451,8 @@ class ProjectWrapper(LogMixin):
         if dataset_wrapper is None:
             raise ProjectWrapper.NoSuchDatasetError(dataset_name)
 
-        # Validate the dataset
+        # Validate the dataset. One tree walk feeds both the progress total and
+        # the manifest-validate hash pass.
         if validate:
             with Progress(SpinnerColumn(), *get_default_columns()) as progress:
                 globbed_files = list(dataset_wrapper.root_dir.glob("**/*"))
@@ -1458,7 +1460,7 @@ class ProjectWrapper(LogMixin):
                     f"[green]Validating dataset {dataset_name}",
                     total=len(globbed_files),
                 )
-                dataset_wrapper.validate(progress, task)
+                dataset_wrapper.validate(progress, task, files=globbed_files)
                 progress.advance(task)
 
         # Get the distribution target wrapper
