@@ -109,8 +109,10 @@ requirements:
 
 @pytest.fixture
 def cli_runner() -> CliRunner:
-    """CLI runner for testing typer commands."""
-    return CliRunner()
+    # COLUMNS=200 + NO_COLOR=1 pins help-text width so Rich does not soft-wrap
+    # at the 80-col CI fallback (no-TTY default), which would otherwise split
+    # hyphenated option names across lines and break substring-matching tests.
+    return CliRunner(env={"COLUMNS": "200", "NO_COLOR": "1"})
 
 
 # Test data constants

@@ -23,9 +23,8 @@ class TestCLI:
     """Test CLI functionality."""
 
     @pytest.fixture
-    def runner(self):
-        """Create a CLI test runner."""
-        return CliRunner()
+    def runner(self, cli_runner: CliRunner) -> CliRunner:
+        return cli_runner
 
     @pytest.fixture
     def mock_project_dir(self, tmp_path):
@@ -1191,9 +1190,8 @@ class TestCommandErrorHandling:
         return tmp_path / "test_project"
 
     @pytest.fixture
-    def runner(self):
-        """Create a CLI test runner."""
-        return CliRunner()
+    def runner(self, cli_runner: CliRunner) -> CliRunner:
+        return cli_runner
 
     @pytest.mark.unit
     def test_import_command_project_wrapper_initialization_error(
@@ -1525,9 +1523,8 @@ class TestCLIIntegration:
     """Test CLI integration scenarios."""
 
     @pytest.fixture
-    def runner(self):
-        """Create a CLI test runner."""
-        return CliRunner()
+    def runner(self, cli_runner: CliRunner) -> CliRunner:
+        return cli_runner
 
     @pytest.mark.integration
     def test_version_flag_in_global_options(
