@@ -24,6 +24,13 @@ from marimba.core.utils.log import LogPrefixFilter, get_file_handler, get_logger
 # multithreaded callers (current or future) need this guarantee.
 _PIPELINE_IMPORT_LOCK = threading.Lock()
 
+# Process-local cache of already-imported pipeline modules, keyed by the absolute path
+# to the .pipeline.py file. Avoids re-executing the module body on every load_pipeline_instance
+# call within the same process — relevant when the parent process resolves multiple post-package
+# processors against the same pipeline (one full exec_module per call would otherwise dominate
+# parent-side pipeline orchestration cost on N-pipeline projects).
+_PIPELINE_MODULE_CACHE: dict[Path, types.ModuleType] = {}
+
 
 def _find_pipeline_module_path(
     repo_dir: Path,
@@ -176,20 +183,27 @@ def load_pipeline_instance(
     if module_path is None:
         return None
 
-    # Load the pipeline module
-    module_name, module, module_spec = _load_pipeline_module(module_path)
+    # Resolve the cache key once so the lock window is small.
+    cache_key = module_path.absolute()
 
-    # Enable repo-relative imports. sys.path is process-global; serialise so concurrent thread loads
-    # don't interleave each other's insert/pop pairs.
+    # Reuse an already-imported module when possible; only exec_module under lock.
+    # sys.path is process-global, so even cache lookups happen under the import lock
+    # to ensure threaded callers see a consistent view.
     with _PIPELINE_IMPORT_LOCK:
-        sys.path.insert(0, str(repo_dir.absolute()))
-        try:
-            if module_spec.loader is None:
-                msg = f"Module loader is None for {module_name}"
-                raise ImportError(msg)
-            module_spec.loader.exec_module(module)
-        finally:
-            sys.path.pop(0)
+        cached = _PIPELINE_MODULE_CACHE.get(cache_key)
+        if cached is not None:
+            module = cached
+        else:
+            module_name, module, module_spec = _load_pipeline_module(module_path)
+            sys.path.insert(0, str(repo_dir.absolute()))
+            try:
+                if module_spec.loader is None:
+                    msg = f"Module loader is None for {module_name}"
+                    raise ImportError(msg)
+                module_spec.loader.exec_module(module)
+            finally:
+                sys.path.pop(0)
+            _PIPELINE_MODULE_CACHE[cache_key] = module
 
     # Find and instantiate the pipeline class
     pipeline_class = _find_pipeline_class(module)
