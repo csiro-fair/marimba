@@ -107,12 +107,41 @@ requirements:
     }
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _stabilise_rich_rendering() -> Generator[None, None, None]:
+    # GitHub Actions sets GITHUB_ACTIONS=true, which Rich treats as a hint to
+    # force terminal-mode rendering — that produces ANSI bold codes between
+    # span boundaries (e.g. "-\x1b[0m\x1b[1m-collection\x1b[0m\x1b[1m-name\x1b[0m"),
+    # breaking substring assertions against rendered CLI output even when
+    # NO_COLOR is set. Pin TERM=dumb + NO_COLOR=1 session-wide so Rich emits
+    # plain text. Deliberately leave COLUMNS untouched so default-width
+    # tracebacks (e.g. in test_delete_project_invalid_structure) stay at the
+    # narrow width tests were written for; tests that need wide output use
+    # the cli_runner fixture below to set COLUMNS=200 explicitly.
+    import os
+
+    overrides = {"NO_COLOR": "1", "TERM": "dumb"}
+    old: dict[str, str | None] = {k: os.environ.get(k) for k in overrides}
+    for k, v in overrides.items():
+        os.environ[k] = v
+    try:
+        yield
+    finally:
+        for k, prev in old.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+
+
 @pytest.fixture
 def cli_runner() -> CliRunner:
-    # COLUMNS=200 + NO_COLOR=1 pins help-text width so Rich does not soft-wrap
-    # at the 80-col CI fallback (no-TTY default), which would otherwise split
-    # hyphenated option names across lines and break substring-matching tests.
-    return CliRunner(env={"COLUMNS": "200", "NO_COLOR": "1"})
+    # COLUMNS=200, NO_COLOR=1, TERM=dumb pin help-text width and disable
+    # Rich's terminal-mode rendering. CI runners set GITHUB_ACTIONS=true,
+    # which Rich treats as a hint to force terminal mode; without TERM=dumb,
+    # Rich emits ANSI codes between span boundaries (e.g. between the dashes
+    # of --collection-name) and breaks substring assertions.
+    return CliRunner(env={"COLUMNS": "200", "NO_COLOR": "1", "TERM": "dumb"})
 
 
 # Test data constants
