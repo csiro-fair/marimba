@@ -7,6 +7,7 @@ dataset files to a specified S3 bucket using the provided credentials and config
 """
 
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from stat import S_ISREG
 
@@ -17,7 +18,7 @@ from botocore.exceptions import ClientError
 from rich.progress import DownloadColumn, Progress, SpinnerColumn
 
 from marimba.core.distribution.base import DistributionTargetBase
-from marimba.core.utils.constants import S3_MULTIPART_THRESHOLD_BYTES
+from marimba.core.utils.constants import S3_MULTIPART_THRESHOLD_BYTES, S3_UPLOAD_MAX_WORKERS
 from marimba.core.utils.rich import get_default_columns
 from marimba.core.wrappers.dataset import DatasetWrapper
 
@@ -156,26 +157,29 @@ class S3DistributionTarget(DistributionTargetBase):
         ) as progress:
             task = progress.add_task("[green]Uploading dataset", total=total_bytes)
 
-            for path, key, file_bytes in path_key_size_tups:
-                try:
-                    self._upload(path, key)
-                except S3UploadFailedError as e:
-                    msg = f"S3 upload failed while uploading {path} to {key}:\n{e}"
-                    raise DistributionTargetBase.DistributionError(
-                        msg,
-                    ) from e
-                except ClientError as e:
-                    msg = f"AWS client error while uploading {path} to {key}:\n{e}"
-                    raise DistributionTargetBase.DistributionError(
-                        msg,
-                    ) from e
-                except Exception as e:
-                    msg = f"Failed to upload {path} to {key}:\n{e}"
-                    raise DistributionTargetBase.DistributionError(
-                        msg,
-                    ) from e
+            # Upload files in parallel. boto3's TransferConfig already parallelises *parts within
+            # a single multipart file*; this loop adds parallelism *between files* so a dataset of
+            # many small-to-medium files saturates available bandwidth instead of stalling per file.
+            with ThreadPoolExecutor(max_workers=S3_UPLOAD_MAX_WORKERS) as executor:
+                futures = {
+                    executor.submit(self._upload, path, key): (path, key, file_bytes)
+                    for path, key, file_bytes in path_key_size_tups
+                }
+                for future in as_completed(futures):
+                    path, key, file_bytes = futures[future]
+                    try:
+                        future.result()
+                    except S3UploadFailedError as e:
+                        msg = f"S3 upload failed while uploading {path} to {key}:\n{e}"
+                        raise DistributionTargetBase.DistributionError(msg) from e
+                    except ClientError as e:
+                        msg = f"AWS client error while uploading {path} to {key}:\n{e}"
+                        raise DistributionTargetBase.DistributionError(msg) from e
+                    except Exception as e:
+                        msg = f"Failed to upload {path} to {key}:\n{e}"
+                        raise DistributionTargetBase.DistributionError(msg) from e
 
-                progress.update(task, advance=file_bytes)
+                    progress.update(task, advance=file_bytes)
 
     def distribute(self, dataset_wrapper: DatasetWrapper) -> None:
         """

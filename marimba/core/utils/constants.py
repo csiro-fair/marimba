@@ -28,6 +28,12 @@ DEFAULT_EXIF_THUMBNAIL_SIZE = (160, 120)
 # S3 multipart-upload threshold in bytes (100 MB). Files larger than this are uploaded in parts.
 S3_MULTIPART_THRESHOLD_BYTES = 100 * 1024 * 1024
 
+# Maximum number of file-level upload threads for S3 distribution. boto3's TransferConfig
+# already parallelises *parts within a single multipart upload* (max_concurrency=10 default);
+# this controls how many *files* are in flight at once. 10 is a reasonable default for
+# typical link bandwidth — bump to 20-40 on 10 Gbps links, drop to 2-4 on slow links.
+S3_UPLOAD_MAX_WORKERS = 10
+
 # File extensions that support EXIF metadata writing
 EXIF_SUPPORTED_EXTENSIONS = {
     # Standard formats with native EXIF support
