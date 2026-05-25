@@ -31,13 +31,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install system dependencies
         run: sudo apt-get install -y libimage-exiftool-perl ffmpeg
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v8
         with:
           enable-cache: true
 
@@ -51,7 +51,7 @@ jobs:
       # ~20s data clone. Keyed on the pinned SHAs declared in the conftest;
       # bumping either invalidates the cache automatically.
       - name: Cache e2e fixture repos
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .cache/marimba-e2e
           key: e2e-cache-${{ hashFiles('tests/e2e/regression/conftest.py') }}
@@ -64,7 +64,7 @@ jobs:
       # excluded (too large for routine artifacts; can be added on demand).
       - name: Upload failed dataset metadata
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: failed-dataset-metadata
           path: |
