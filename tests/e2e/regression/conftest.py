@@ -224,18 +224,6 @@ class MarimbaRunner:
             "--accept-defaults",
         )
 
-    def install(self) -> subprocess.CompletedProcess[str]:
-        """Run `marimba install` to install pipeline dependencies into marimba's venv.
-
-        `marimba new pipeline` only clones the pipeline repo; pipeline Python
-        deps from its requirements.txt are installed by the separate
-        `marimba install` command. Worked locally without this step only
-        because pre-existing development venvs happened to carry the deps
-        (e.g. pandas); on a clean CI venv the pipeline module fails to
-        import as soon as `marimba process` or any introspection touches it.
-        """
-        return self.run("install", "--project-dir", str(self.project_dir))
-
     def import_collection(self, name: str, source: Path) -> subprocess.CompletedProcess[str]:
         return self.run(
             "import",
@@ -274,6 +262,36 @@ class MarimbaRunner:
         )
 
 
+def preinstall_pipeline_requirements(pipeline_repo: Path) -> None:
+    """Install a pipeline's requirements.txt into marimba's venv before `new pipeline`.
+
+    Workaround for a marimba lifecycle ordering bug: `marimba new pipeline`
+    dynamic-loads the pipeline module during config-prompt introspection
+    (`PipelineWrapper.prompt_pipeline_config -> get_instance -> importlib`),
+    so any pipeline whose top-level imports include a non-marimba dep
+    (mritc_demo.pipeline.py imports pandas) fails the import before the
+    separate `marimba install` command gets a chance to install
+    requirements.txt. The dev-loop "works" only when the developer's venv
+    already carries the deps from a prior pipeline install — fresh-venv
+    setups (and CI) are broken.
+
+    Pre-install via `uv pip install -r ...` against the cwd-resolved venv
+    (the same venv `uv run marimba` uses). Worth flagging as a codebase-
+    review finding for a future cycle.
+    """
+    req = pipeline_repo / "requirements.txt"
+    if not req.is_file():
+        return
+    subprocess.run(
+        ["uv", "pip", "install", "-r", str(req)],  # noqa: S607
+        cwd=_REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+
 # Dataset name used by the package fixture. Stays in sync with the goldens.
 PACKAGED_DATASET_NAME = "IN2018_V06"
 
@@ -300,12 +318,12 @@ def imported_project(
     timings["new_project_s"] = time.monotonic() - t0
 
     t0 = time.monotonic()
-    marimba_run.new_pipeline("MRITC", cached_pipeline)
-    timings["new_pipeline_s"] = time.monotonic() - t0
+    preinstall_pipeline_requirements(cached_pipeline)
+    timings["preinstall_pipeline_deps_s"] = time.monotonic() - t0
 
     t0 = time.monotonic()
-    marimba_run.install()
-    timings["install_s"] = time.monotonic() - t0
+    marimba_run.new_pipeline("MRITC", cached_pipeline)
+    timings["new_pipeline_s"] = time.monotonic() - t0
 
     t0 = time.monotonic()
     for src_dir in COLLECTION_SOURCE_DIRS:

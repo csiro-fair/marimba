@@ -14,6 +14,7 @@ import pytest
 from tests.e2e.regression.conftest import (
     COLLECTION_PREFIX,
     COLLECTION_SOURCE_DIRS,
+    preinstall_pipeline_requirements,
 )
 
 if TYPE_CHECKING:
@@ -52,15 +53,16 @@ def test_smoke_cache_and_import(
     assert (project_dir / "pipelines").is_dir()
     assert (project_dir / "datasets").is_dir()
 
+    # Pre-install pipeline requirements before `new pipeline` —
+    # workaround for a marimba lifecycle ordering bug where `new pipeline`
+    # dynamic-loads the module during config introspection before deps
+    # can be installed. See conftest.preinstall_pipeline_requirements.
+    preinstall_pipeline_requirements(cached_pipeline)
+
     marimba_run.new_pipeline("MRITC", cached_pipeline)
     pipeline_dir = project_dir / "pipelines" / "MRITC"
     assert pipeline_dir.is_dir(), "MRITC pipeline did not install"
     assert (pipeline_dir / "repo").is_dir(), "pipeline repo subdirectory missing"
-
-    # `marimba install` is a separate command from `new pipeline` — it
-    # installs each pipeline's requirements.txt into marimba's venv. Without
-    # it, `process` fails on the first dynamic-import of the pipeline module.
-    marimba_run.install()
 
     for src in COLLECTION_SOURCE_DIRS:
         name = f"{COLLECTION_PREFIX}{src}"
