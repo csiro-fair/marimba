@@ -40,14 +40,13 @@ from pathlib import Path
 import typer
 from rich import print as rprint
 
-from marimba.core import MarimbaError
+from marimba.core import MarimbaError, NetworkConnectionError
 from marimba.core.cli import delete, new
 from marimba.core.distribution.base import DistributionTargetBase
 from marimba.core.utils.constants import PROJECT_DIR_HELP, MetadataGenerationLevelOptions, Operation
 from marimba.core.utils.dataset import get_mapping_processor_decorator
 from marimba.core.utils.dependencies import ToolDependency, validate_dependencies
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
-from marimba.core.utils.map import NetworkConnectionError
 from marimba.core.utils.metadata import MetadataSaverTypes, get_saver
 from marimba.core.utils.paths import find_project_dir_or_exit
 from marimba.core.utils.rich import error_panel, format_entity, success_panel

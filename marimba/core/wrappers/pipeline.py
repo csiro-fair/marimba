@@ -14,8 +14,6 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from git import Repo
-
 from marimba.core import MarimbaError
 from marimba.core.installer.pipeline_installer import PipelineInstaller
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
@@ -167,6 +165,8 @@ class PipelineWrapper(LogMixin):
 
         # Clone the pipeline repository
         repo_dir = root_dir / "repo"
+        from git import Repo  # noqa: PLC0415 - lazy-imported; gitpython is ~17ms at import time
+
         Repo.clone_from(url, repo_dir)
 
         # Create the pipeline configuration file (initialize as empty)
@@ -281,6 +281,8 @@ class PipelineWrapper(LogMixin):
         """
         Update the pipeline repository by issuing a git pull.
         """
+        from git import Repo  # noqa: PLC0415 - lazy-imported; see PipelineWrapper.create
+
         repo = Repo(self.repo_dir)
         repo.remotes.origin.pull()
 

@@ -33,7 +33,6 @@ from marimba.core.utils.dependencies import ToolDependency, show_dependency_erro
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.metadata import yaml_saver
 from marimba.core.utils.rich import get_default_columns
-from marimba.lib import image
 from marimba.lib.decorators import multithreaded
 
 logger = get_logger(__name__)
@@ -989,6 +988,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             image_file: The PIL Image object from which to extract properties.
             image_data: The ImageData object to update with extracted properties.
         """
-        # Inject the image entropy and average image color into the iFDO
+        # Inject the image entropy and average image color into the iFDO.
+        # Lazy-imported to keep cv2 / numpy / PIL out of CLI startup.
+        from marimba.lib import image  # noqa: PLC0415
+
         image_data.image_entropy = image.get_shannon_entropy(image_file)
         image_data.image_average_color = image.get_average_image_color(image_file)

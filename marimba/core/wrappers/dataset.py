@@ -32,7 +32,6 @@ from marimba.core.utils.dataset import (
 from marimba.core.utils.hash import compute_hash
 from marimba.core.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.core.utils.manifest import Manifest
-from marimba.core.utils.map import make_summary_map
 from marimba.core.utils.paths import format_path_for_logging
 from marimba.core.utils.rich import get_default_columns
 from marimba.core.utils.summary import ImagerySummary
@@ -886,6 +885,9 @@ class DatasetWrapper(LogMixin):
                 )
             ]
             if geolocations:
+                # Lazy-imported to keep requests / staticmap / PIL out of CLI startup.
+                from marimba.core.utils.map import make_summary_map  # noqa: PLC0415
+
                 summary_map = make_summary_map(geolocations, zoom=zoom)
                 if summary_map is not None:
                     map_path = self.root_dir / "map.png"

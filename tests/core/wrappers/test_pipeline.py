@@ -477,7 +477,7 @@ class TestPipelineWrapperCreate:
         git_url = "https://github.com/example/pipeline.git"
 
         # Mock external dependencies only (git operations, file operations, logging)
-        mock_repo_class = mocker.patch("marimba.core.wrappers.pipeline.Repo")
+        mock_repo_class = mocker.patch("git.Repo")
         mock_save_config = mocker.patch("marimba.core.wrappers.pipeline.save_config")
 
         # Mock logging and installer to avoid side effects in integration test
@@ -583,7 +583,7 @@ class TestPipelineWrapperCreate:
         git_url = "https://github.com/example/pipeline.git"
 
         # Mock external dependencies only (git operations, file operations, logging)
-        mock_repo_class = mocker.patch("marimba.core.wrappers.pipeline.Repo")
+        mock_repo_class = mocker.patch("git.Repo")
         mock_save_config = mocker.patch("marimba.core.wrappers.pipeline.save_config")
 
         # Mock logging and installer to avoid side effects in integration test
@@ -1397,7 +1397,7 @@ class TestPipelineWrapperRepositoryOperations:
         - Assert: Verify correct git operations were called with expected parameters
         """
         # Arrange: Set up mock git repository and remote operations
-        mock_repo_class = mocker.patch("marimba.core.wrappers.pipeline.Repo")
+        mock_repo_class = mocker.patch("git.Repo")
         mock_repo = mocker.Mock()
         mock_origin = mocker.Mock()
         mock_repo.remotes.origin = mock_origin
@@ -1509,7 +1509,7 @@ class TestPipelineWrapperErrorHandling:
         expected_error_message = "fatal: not a git repository (or any of the parent directories): .git"
 
         # Mock external dependencies to avoid side effects in unit test
-        mock_repo_class = mocker.patch("marimba.core.wrappers.pipeline.Repo")
+        mock_repo_class = mocker.patch("git.Repo")
         mock_repo_class.side_effect = GitError(expected_error_message)
 
         mocker.patch.object(PipelineWrapper, "_setup_logging")
@@ -1551,7 +1551,7 @@ class TestPipelineWrapperErrorHandling:
         )
 
         # Mock external dependencies to isolate unit under test
-        mock_repo_class = mocker.patch("marimba.core.wrappers.pipeline.Repo")
+        mock_repo_class = mocker.patch("git.Repo")
         mock_repo = mocker.Mock()
         mock_origin = mocker.Mock()
         mock_origin.pull.side_effect = GitError(expected_error_message)
@@ -1608,7 +1608,7 @@ class TestPipelineWrapperErrorHandling:
         expected_error_message = "fatal: repository 'https://github.com/example/invalid-repo.git/' not found"
 
         # Mock external dependencies to isolate unit under test
-        mock_repo_class = mocker.patch("marimba.core.wrappers.pipeline.Repo")
+        mock_repo_class = mocker.patch("git.Repo")
         mock_save_config = mocker.patch("marimba.core.wrappers.pipeline.save_config")
         mock_repo_class.clone_from.side_effect = GitError(expected_error_message)
 

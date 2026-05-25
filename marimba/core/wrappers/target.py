@@ -7,6 +7,7 @@ prompting for creating a new distribution target configuration.
 
 """
 
+import importlib
 from inspect import getfullargspec, isclass
 from pathlib import Path
 from types import FunctionType
@@ -16,9 +17,11 @@ from rich.prompt import Prompt
 
 from marimba.core import MarimbaError
 from marimba.core.distribution.base import DistributionTargetBase
-from marimba.core.distribution.dap import CSIRODapDistributionTarget
-from marimba.core.distribution.s3 import S3DistributionTarget
 from marimba.core.utils.config import load_config, save_config
+
+# Lazy class resolution keeps boto3 (~25 ms) out of the `marimba --help` import path.
+# Resolved on demand by ``_resolve_target_class``; only loads when a distribute command
+# actually instantiates or prompts for a target.
 
 
 class DistributionTargetWrapper:
@@ -38,10 +41,24 @@ class DistributionTargetWrapper:
 
     """
 
-    CLASS_MAP: ClassVar[dict[str, type]] = {
-        "s3": S3DistributionTarget,
-        "dap": CSIRODapDistributionTarget,
+    CLASS_MAP: ClassVar[dict[str, str]] = {
+        "s3": "marimba.core.distribution.s3:S3DistributionTarget",
+        "dap": "marimba.core.distribution.dap:CSIRODapDistributionTarget",
     }
+
+    @staticmethod
+    def _resolve_target_class(target_type: str) -> type | None:
+        """Resolve a CLASS_MAP entry to the concrete distribution-target class.
+
+        Imports the target module on demand so the boto3 / botocore chain
+        stays out of CLI startup.
+        """
+        qualname = DistributionTargetWrapper.CLASS_MAP.get(target_type)
+        if qualname is None:
+            return None
+        module_path, _, class_name = qualname.partition(":")
+        module = importlib.import_module(module_path)
+        return getattr(module, class_name, None)
 
     class InvalidConfigError(MarimbaError):
         """
@@ -111,8 +128,8 @@ class DistributionTargetWrapper:
         # Prompt for the distribution target type
         target_type = Prompt.ask("Distribution target type", choices=choices)
 
-        # Get the distribution target class
-        target_class = DistributionTargetWrapper.CLASS_MAP.get(target_type)
+        # Get the distribution target class (lazy-resolved)
+        target_class = DistributionTargetWrapper._resolve_target_class(target_type)
         if target_class is None:
             msg = f"No target class found for type {target_type}"
             raise ValueError(msg)
@@ -231,7 +248,7 @@ class DistributionTargetWrapper:
         target_args = self.config.get("config")
 
         if isinstance(target_type, str) and isinstance(target_args, dict):
-            target_class = DistributionTargetWrapper.CLASS_MAP.get(target_type)
+            target_class = DistributionTargetWrapper._resolve_target_class(target_type)
             if target_class:
                 # Use cast to assure Mypy of the return type
                 return cast("DistributionTargetBase", target_class(**target_args))
