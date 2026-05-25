@@ -196,22 +196,15 @@ class TestCalculateVideoEncodingDetails:
 
 
 class TestCalculateVideoFrameRate:
-    """Cover the video-frame-rate helper.
-
-    NOTE: production currently applies the ``.2f`` format spec to a string set
-    element (summary.py:630, 632), which raises ValueError on any non-empty
-    input. The empty path is the only one reachable today; the buggy non-empty
-    path is pinned via characterisation-of-absence below pending a follow-up
-    fix.
-    """
+    """Cover the video-frame-rate helper."""
 
     @pytest.mark.unit
-    def test_single_frame_rate_raises_due_to_str_format_spec_bug(self) -> None:
-        # Characterisation-of-absence: assert the buggy current behaviour so
-        # the fix is auditable when it lands (test will need to flip to the
-        # expected "29.97 fps" output).
-        with pytest.raises(ValueError, match="Unknown format code"):
-            ImagerySummary.calculate_video_frame_rate({"29.97"})
+    def test_single_frame_rate(self) -> None:
+        assert ImagerySummary.calculate_video_frame_rate({29.97}) == "29.97 fps"
+
+    @pytest.mark.unit
+    def test_multiple_frame_rates_render_as_range(self) -> None:
+        assert ImagerySummary.calculate_video_frame_rate({23.976, 29.97, 59.94}) == "23.98 fps to 59.94 fps"
 
     @pytest.mark.unit
     def test_empty(self) -> None:

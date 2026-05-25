@@ -182,7 +182,7 @@ def import_command(
         error_message = f"Error parsing configuration JSON: {e}"
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
 
     # Get the collection (create if appropriate)
     collection_wrapper = project_wrapper.collection_wrappers.get(collection_name, None)
@@ -198,12 +198,12 @@ def import_command(
             error_message = f"Invalid collection name: {e}"
             project_wrapper.logger.exception(error_message)
             rprint(error_panel(error_message))
-            raise typer.Exit from None
+            raise typer.Exit(1) from None
     elif not overwrite:
         error_message = f"Collection {collection_name} already exists, and the overwrite flag is not set."
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
 
     # If no pipeline names are specified, process all pipelines
     pipeline_names = pipeline_name if pipeline_name else list(project_wrapper.pipeline_wrappers.keys())
@@ -233,7 +233,7 @@ def import_command(
         error_message = f"Error during import: {e}"
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
 
 
 @marimba_cli.command("package")
@@ -350,34 +350,34 @@ def package_command(  # noqa: PLR0915
     except ProjectWrapper.CompositionError as e:
         project_wrapper.logger.exception("Operation failed")
         rprint(error_panel(str(e)))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
     except ProjectWrapper.NoSuchPipelineError as e:
         error_message = f"No such pipeline: {e}"
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
     except ProjectWrapper.NoSuchCollectionError as e:
         error_message = f"No such collection: {e}"
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
     except DatasetWrapper.ManifestError as e:
         error_message = f"Dataset is inconsistent with manifest at {e}"
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
     except FileExistsError as e:
         error_message = f"Dataset already exists: {e}"
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
     except ProjectWrapper.ReadOnlyFilesError as e:
         rprint(error_panel(str(e), title="Packaging failed: Read-only files detected"))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
     except Exception as e:
         project_wrapper.logger.exception("Operation failed")
         rprint(error_panel(f"Could not package collection: {e}"))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
     finally:
         if dataset_wrapper:
             dataset_wrapper.close()
@@ -443,12 +443,12 @@ def process_command(
         error_message = f"No internet connection: {e}"
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
     except Exception as e:
         error_message = f"Error during processing: {e}"
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
 
 
 @marimba_cli.command("distribute")
@@ -485,26 +485,26 @@ def distribute_command(
         error_message = f"No such dataset: {e}"
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
     except ProjectWrapper.NoSuchTargetError as e:
         error_message = f"No such target: {e}"
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
     except DatasetWrapper.ManifestError as e:
         error_message = f"Dataset is inconsistent with manifest at {e}"
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
     except DistributionTargetBase.DistributionError as e:
         error_message = f"Could not distribute dataset: {e}"
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
     except Exception as e:
         project_wrapper.logger.exception("Operation failed")
         rprint(error_panel(f"Could not distribute dataset: {e}"))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
 
 
 @marimba_cli.command("update")
@@ -523,7 +523,7 @@ def update_command(
     except Exception as e:
         project_wrapper.logger.exception("Operation failed")
         rprint(error_panel(f"Could not update pipelines: {e}"))
-        raise typer.Exit from None
+        raise typer.Exit(1) from None
 
 
 @marimba_cli.command("install")

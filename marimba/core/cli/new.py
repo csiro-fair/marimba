@@ -116,7 +116,7 @@ def pipeline(
         error_message = f"Error parsing configuration JSON: {e}"
         logger.exception(error_message)
         rprint(error_panel(error_message))
-        raise typer.Exit from e
+        raise typer.Exit(1) from e
 
     project_dir = find_project_dir_or_exit(project_dir)
 
@@ -189,7 +189,7 @@ def collection(
         error_message = f"Error parsing configuration JSON: {e}"
         logger.exception(error_message)
         rprint(error_panel(error_message))
-        raise typer.Exit from e
+        raise typer.Exit(1) from e
 
     project_dir = find_project_dir_or_exit(project_dir)
 

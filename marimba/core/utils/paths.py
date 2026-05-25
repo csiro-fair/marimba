@@ -28,6 +28,7 @@ from os import R_OK, access
 from pathlib import Path
 
 import typer
+from rich import print as rprint
 
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.rich import MARIMBA, error_panel, format_entity
@@ -75,8 +76,8 @@ def find_project_dir_or_exit(project_dir: str | Path | None = None) -> Path:
     # Check if a project directory was found
     if found_project_dir is None:
         error_message = f"Could not find a {MARIMBA} project."
-        logger.exception(error_message)
-        print(error_panel(error_message))  # noqa: T201
+        logger.error(error_message)
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1)
 
     return found_project_dir
@@ -97,8 +98,8 @@ def remove_directory_tree(directory: str | Path, entity: str, dry_run: bool) -> 
     dir_path = Path(directory)
     if not dir_path.is_dir():
         error_message = f"Invalid directory: {dir_path}"
-        logger.exception(error_message)
-        print(error_panel(error_message))  # noqa: T201
+        logger.error(error_message)
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from None
 
     try:
@@ -109,7 +110,7 @@ def remove_directory_tree(directory: str | Path, entity: str, dry_run: bool) -> 
     except Exception as e:
         error_message = f"Error occurred while deleting the directory: {e}"
         logger.exception(error_message)
-        print(error_panel(error_message))  # noqa: T201
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
 
 

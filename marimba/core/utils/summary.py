@@ -612,7 +612,7 @@ class ImagerySummary:
         return ", ".join(codecs) if codecs else "N/A"
 
     @staticmethod
-    def calculate_video_frame_rate(frame_rates: set[str]) -> str:
+    def calculate_video_frame_rate(frame_rates: set[float]) -> str:
         """
         Calculate and formats the video frame rate based on a set of frame rates.
 
@@ -621,7 +621,7 @@ class ImagerySummary:
         it returns a range from the minimum to the maximum. If the set is empty, it returns 'N/A'.
 
         Args:
-            frame_rates: A set of strings representing frame rates.
+            frame_rates: A set of floats representing frame rates in fps.
 
         Returns:
             A formatted string representing the frame rate or range of frame rates.

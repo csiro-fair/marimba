@@ -798,6 +798,10 @@ class DatasetWrapper(LogMixin):
         return changed_files
 
     def _update_manifest(self, changed_files: set[Path], max_worker: int | None = None) -> None:
+        if self.dry_run:
+            # _generate_manifest is skipped in dry-run, so there is no manifest on disk to load/update.
+            return
+
         manifest = Manifest.load(self.manifest_path)
         manifest.update(
             changed_files,
@@ -806,9 +810,7 @@ class DatasetWrapper(LogMixin):
             logger=self.logger,
             max_workers=max_worker,
         )
-
-        if not self.dry_run:
-            manifest.save(self.manifest_path)
+        manifest.save(self.manifest_path)
 
     def generate_dataset_summary(
         self,
@@ -984,8 +986,13 @@ class DatasetWrapper(LogMixin):
         """
         Generate and save the manifest for the dataset, excluding certain paths.
 
-        The manifest provides a comprehensive list of files and their hashes for verification.
+        The manifest provides a comprehensive list of files and their hashes for verification. Skipped in dry-run
+        mode since no files are actually written, so there are no real files to hash.
         """
+        if self.dry_run:
+            self.logger.info("Skipping manifest generation (dry-run)")
+            return
+
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             globbed_files = list(self.root_dir.glob("**/*"))
             task = progress.add_task(
@@ -1001,8 +1008,7 @@ class DatasetWrapper(LogMixin):
                 logger=self.logger,
                 max_workers=max_workers,
             )
-            if not self.dry_run:
-                manifest.save(self.manifest_path, logger=self.logger)
+            manifest.save(self.manifest_path, logger=self.logger)
             self.logger.info(
                 f"Generated manifest for {len(globbed_files)} "
                 f"files and paths at {format_path_for_logging(self.manifest_path, self._project_dir)}",

@@ -1311,9 +1311,8 @@ class TestCommandErrorHandling:
             "Error during processing: Processing error" in output
         ), f"Error message should contain 'Error during processing: Processing error', got: {output}"
 
-        # Assert - Verify command exits with code 0 (typer.Exit default, no explicit code)
-        # This is the actual behavior in main.py:444
-        assert result.exit_code == 0, f"Command should exit with code 0 (typer.Exit default), got {result.exit_code}"
+        # Assert - Verify command exits with code 1 on processing failure
+        assert result.exit_code == 1, f"Command should exit with code 1 on failure, got {result.exit_code}"
 
         # Assert - Verify run_process method was attempted with correct parameters
         mock_project.run_process.assert_called_once_with(
@@ -1403,9 +1402,8 @@ class TestCommandErrorHandling:
             test_error_message in output
         ), f"Error message should contain specific error '{test_error_message}', got: {output}"
 
-        # Assert - Verify command exits gracefully (typer.Exit() without code defaults to 0)
-        # This is the actual behavior in main.py:373 for the generic exception handler
-        assert result.exit_code == 0, f"Command should exit with code 0 (typer.Exit default), got {result.exit_code}"
+        # Assert - Verify command exits with code 1 on packaging failure
+        assert result.exit_code == 1, f"Command should exit with code 1 on failure, got {result.exit_code}"
 
         # Assert - Verify project directory resolution occurred
         mock_find_project.assert_called_once_with(
@@ -1494,15 +1492,14 @@ class TestCommandErrorHandling:
         )
 
         # Assert - Verify command displays error message with details
-        # Note: typer.Exit without code defaults to 0, which is the actual behavior in main.py:500
         output = result.output or result.stdout
         assert (
             "Could not distribute dataset" in output
         ), f"Error message should contain 'Could not distribute dataset', got: {output}"
         assert test_error_message in output, f"Error message should contain '{test_error_message}', got: {output}"
 
-        # Assert - Verify the command exited (exit code 0 is used by typer.Exit() without arguments)
-        assert result.exit_code == 0, f"Command should exit with code 0 (typer.Exit default), got {result.exit_code}"
+        # Assert - Verify the command exits with code 1 on distribute failure
+        assert result.exit_code == 1, f"Command should exit with code 1 on failure, got {result.exit_code}"
 
         # Assert - Verify project directory resolution and wrapper instantiation
         mock_find_project.assert_called_once_with(mock_project_dir)
