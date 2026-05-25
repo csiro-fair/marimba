@@ -148,24 +148,29 @@ def cached_pipeline(e2e_cache_root: Path) -> Path:
     )
 
 
-@pytest.fixture
-def scratch_project(tmp_path: Path) -> Path:
-    """Per-test scratch path for a fresh marimba project.
+@pytest.fixture(scope="module")
+def scratch_project(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Module-scoped scratch path for a fresh marimba project.
 
-    Returns a `<tmp_path>/project` path that does not yet exist; the test or
-    the `marimba new project` invocation creates it. tmp_path is cleaned up
-    by pytest automatically.
+    Returns a `<unique-tmp>/project` path that does not yet exist; the test
+    or the `marimba new project` invocation creates it. Module scope means
+    every test in a single test file shares one project — the regression
+    tests under this directory are read-only against the packaged dataset
+    so they don't need per-test isolation, and sharing one bootstrap drops
+    wall-clock from ~30s x N tests to ~30s once per module. pytest cleans
+    up the tmp tree at session end.
     """
-    return tmp_path / "project"
+    return tmp_path_factory.mktemp("scratch") / "project"
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def marimba_run(scratch_project: Path) -> MarimbaRunner:
     """Subprocess-based marimba CLI invoker scoped to scratch_project.
 
     Uses subprocess rather than typer.testing.CliRunner because the pipeline
     install path imports the cloned pipeline module via importlib, which
     interacts poorly with CliRunner's in-process invocation and module cache.
+    Module-scoped to match scratch_project (one runner per test file).
     """
     return MarimbaRunner(project_dir=scratch_project)
 
@@ -216,8 +221,40 @@ class MarimbaRunner:
             str(self.project_dir),
         )
 
+    def process(self) -> subprocess.CompletedProcess[str]:
+        return self.run("process", "--project-dir", str(self.project_dir), timeout=1200)
 
-@pytest.fixture
+    def package(self, dataset_name: str) -> subprocess.CompletedProcess[str]:
+        return self.run(
+            "package",
+            dataset_name,
+            "--project-dir",
+            str(self.project_dir),
+            "--operation",
+            "link",
+            "--version",
+            "1.0",
+            "--contact-name",
+            "Test Contact",
+            "--contact-email",
+            "test@example.com",
+            "--metadata-level",
+            "project",
+            "--metadata-level",
+            "pipeline",
+            "--metadata-level",
+            "collection",
+            "--zoom",
+            "9",
+            timeout=1200,
+        )
+
+
+# Dataset name used by the package fixture. Stays in sync with the goldens.
+PACKAGED_DATASET_NAME = "IN2018_V06"
+
+
+@pytest.fixture(scope="module")
 def imported_project(
     marimba_run: MarimbaRunner,
     cached_data: Path,
@@ -226,11 +263,11 @@ def imported_project(
     """A fresh marimba project with the MRITC pipeline + all 10 collections imported.
 
     Returns (project_dir, timings) where timings is a dict of per-stage
-    wall-clock seconds for the phase-1 smoke test to report on.
+    wall-clock seconds for the calling test to report on.
 
     Performs `new project`, `new pipeline`, and 10x `import` against the
-    cached data. Stops before `process` / `package` — those land in later
-    phases.
+    cached data. Stops before `process` / `package` — use `packaged_dataset`
+    for the full cycle. Module-scoped: one import sequence per test file.
     """
     timings: dict[str, float] = {}
 
@@ -251,3 +288,35 @@ def imported_project(
     timings["import_all_s"] = time.monotonic() - t0
 
     return marimba_run.project_dir, timings
+
+
+@pytest.fixture(scope="module")
+def packaged_dataset(
+    marimba_run: MarimbaRunner,
+    imported_project: tuple[Path, dict[str, float]],
+) -> tuple[Path, dict[str, float]]:
+    """Full marimba cycle: imported_project + `process` + `package`.
+
+    Returns (dataset_dir, timings) where dataset_dir is
+    `<project>/datasets/<PACKAGED_DATASET_NAME>` and timings extends the
+    imported_project timings dict with `process_s` and `package_s` entries.
+
+    Module-scoped: every test in the calling test file shares one packaged
+    dataset. The regression tests are read-only against the dataset so this
+    is safe; sharing the bootstrap cuts wall-clock from ~30s x N to ~30s
+    once. If a future test needs an isolated packaged dataset (e.g. to
+    mutate then re-package), override this fixture at function scope in
+    that test file.
+    """
+    project_dir, timings = imported_project
+
+    t0 = time.monotonic()
+    marimba_run.process()
+    timings["process_s"] = time.monotonic() - t0
+
+    t0 = time.monotonic()
+    marimba_run.package(PACKAGED_DATASET_NAME)
+    timings["package_s"] = time.monotonic() - t0
+
+    dataset_dir = project_dir / "datasets" / PACKAGED_DATASET_NAME
+    return dataset_dir, timings
