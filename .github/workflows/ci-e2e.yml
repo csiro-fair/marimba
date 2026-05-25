@@ -55,3 +55,19 @@ jobs:
 
       - name: Run e2e regression suite
         run: uv run pytest --rootdir . -c config/pytest.ini --no-cov -m "e2e and slow" tests/e2e/regression/ -v
+
+      # On failure, upload the packaged dataset's metadata + manifest so the
+      # specific drift can be diagnosed locally. JPEG and video bytes are
+      # excluded (too large for routine artifacts; can be added on demand).
+      - name: Upload failed dataset metadata
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-dataset-metadata
+          path: |
+            /tmp/pytest-of-runner/**/datasets/IN2018_V06/*.yml
+            /tmp/pytest-of-runner/**/datasets/IN2018_V06/*.md
+            /tmp/pytest-of-runner/**/datasets/IN2018_V06/manifest.txt
+            /tmp/pytest-of-runner/**/datasets/IN2018_V06/map.png
+          if-no-files-found: warn
+          retention-days: 7
