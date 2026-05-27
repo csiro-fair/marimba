@@ -11,9 +11,15 @@ identified three drift sources between two identical-input runs:
 3. `image-hash-sha256` field in each per-image YAML entry: an indirect
    consequence of (1) — the image bytes differ, so their SHA differs.
 
-Every other dataset file is byte-deterministic, including videos, CSVs, the
-top-level summary.md / metadata.yml / MRITC.ifdo.yml, and the pipeline source
-copy under `pipelines/`. Logs are excluded from comparison entirely (timestamps,
+Plus one further drift source identified after the initial harness landed:
+
+4. `Creation Date` row in `summary.md`, populated via `datetime.now()` by
+   `marimba/core/utils/summary.py`. Drifts across runs on different days
+   even with identical inputs.
+
+Every other dataset file is byte-deterministic, including videos, CSVs,
+`metadata.yml`, `MRITC.ifdo.yml`, and the pipeline source copy under
+`pipelines/`. Logs are excluded from comparison entirely (timestamps,
 durations).
 
 Scrubber strategy:
@@ -73,6 +79,21 @@ _YAML_SUFFIXES = frozenset({".yml", ".yaml"})
 # Suffixes for which we apply JPEG byte scrubbing.
 _JPEG_SUFFIXES = frozenset({".jpg", ".jpeg"})
 
+# Suffixes for which we apply markdown scrubbing. summary.md is the only
+# dataset-level .md file and embeds today's date in the Creation Date row
+# (marimba/core/utils/summary.py uses datetime.now() to populate it), so its
+# bytes drift across runs on different days even with identical inputs.
+_MARKDOWN_SUFFIXES = frozenset({".md"})
+
+# Patterns for markdown scrubbing. Each match's value is replaced by a fixed
+# placeholder. Length-preserving is not required — the test compares hashes.
+_MARKDOWN_FIELD_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(r"(?P<lead>^\|\s*Creation Date\s*\|)[^|]*(?P<trail>\|)", re.MULTILINE),
+        r"\g<lead> CREATION_DATE_PLACEHOLDER \g<trail>",
+    ),
+)
+
 # Files whose name (case-insensitive) we treat as logs and exclude from any
 # comparison entirely. The dataset puts them all under `logs/` so the path
 # prefix is sufficient, but the suffix check is a belt-and-braces guard.
@@ -85,6 +106,19 @@ def scrub_yaml_text(text: str) -> str:
     Idempotent: scrubbing already-scrubbed text returns the same text.
     """
     for pattern, replacement in _YAML_FIELD_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
+def scrub_markdown_text(text: str) -> str:
+    """Replace volatile markdown field values with placeholders.
+
+    Currently normalises the `Creation Date` row in summary.md, which marimba
+    populates with `datetime.now()` at packaging time.
+
+    Idempotent: scrubbing already-scrubbed text returns the same text.
+    """
+    for pattern, replacement in _MARKDOWN_FIELD_PATTERNS:
         text = pattern.sub(replacement, text)
     return text
 
@@ -152,6 +186,13 @@ def scrubbed_hash(path: Path) -> str:
 
     if suffix in _JPEG_SUFFIXES:
         return hashlib.sha256(scrub_jpeg_bytes(raw)).hexdigest()
+
+    if suffix in _MARKDOWN_SUFFIXES:
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            return hashlib.sha256(raw).hexdigest()
+        return hashlib.sha256(scrub_markdown_text(text).encode("utf-8")).hexdigest()
 
     return hashlib.sha256(raw).hexdigest()
 
