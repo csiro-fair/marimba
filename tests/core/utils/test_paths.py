@@ -53,6 +53,7 @@ class TestFindProjectDir:
 
         # Assert
         assert result == project_root, f"Expected project root {project_root}, but got {result}"
+        assert result is not None
         assert (result / ".marimba").is_dir(), "Returned project should contain .marimba directory"
 
     @pytest.mark.unit
@@ -72,6 +73,7 @@ class TestFindProjectDir:
 
         # Assert
         assert result == project_root, f"Expected project root {project_root}, but got {result}"
+        assert result is not None
         assert (result / ".marimba").is_dir(), "Returned project should contain .marimba directory"
         assert result.is_dir(), f"Returned project root {result} should be a directory"
 
@@ -94,6 +96,7 @@ class TestFindProjectDir:
 
         # Assert
         assert result == project_root, f"Expected project root {project_root}, but got {result}"
+        assert result is not None
         assert (result / ".marimba").is_dir(), "Returned project should contain .marimba directory"
         assert isinstance(string_path, str), "Test validation: input should be string type"
         assert isinstance(result, Path), "Function should return Path object even with string input"

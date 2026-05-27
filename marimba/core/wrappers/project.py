@@ -1158,7 +1158,7 @@ class ProjectWrapper(LogMixin):
                 for future in as_completed(futures):
                     pipeline_name, collection_name, log_string_prefix = futures[future]
                     try:
-                        (pipeline_data_mapping, message) = future.result()
+                        pipeline_data_mapping, message = future.result()
                         self.logger.info(f"{log_string_prefix}{message}")
                         dataset_mapping[pipeline_name][collection_name].update(pipeline_data_mapping)
                     except Exception as e:

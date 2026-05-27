@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [1.1.0] – 2026-04-07
+## [1.1.0] – 2026-05-27
 
 ### Added
 - PyExifTool integration replacing `piexif` for all EXIF metadata writing, with support for embedded thumbnails and a much wider range of image formats.
@@ -14,7 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `--accept-defaults` flag on the `package` command for fully non-interactive runs suitable for CI/CD pipelines and scripted workflows.
 - System dependency checker providing platform-specific installation instructions for required system tools (ExifTool, FFmpeg) when they are missing, replacing generic error messages.
 - Marimba version recorded in dataset summary files for provenance tracking.
-- Comprehensive test suite: 947 tests at 80%+ coverage with unit, integration, and end-to-end tests across every major module.
+- Comprehensive test suite: nearly 1,000 tests at 80%+ coverage with unit, integration, and end-to-end tests across every major module.
+- Curated public API on the top-level `marimba` package (`BasePipeline`, `BaseMetadata`, `GenericMetadata`, `iFDOMetadata`, `Operation`); lazy submodule loading in `marimba.lib` so `import marimba.lib` is cheap.
+- `MarimbaError` exception base class so CLI handlers can catch the broad case while typed `except` for specific failure modes stay narrow.
+- CI and nightly GitHub Actions workflows, Dependabot coverage for pip and GitHub Actions, tracked `uv.lock` for reproducible dev and CI environments, and a tiered end-to-end regression harness against the `mritc-demo` dataset that runs both as a pre-push gate and on every CI run.
 
 ### Changed
 - `image-datetime` values now serialised using the iFDO spec-defined format (`%Y-%m-%d %H:%M:%S.%f`) instead of ISO 8601; existing files with ISO 8601 datetime strings continue to load without error.
@@ -22,6 +25,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Hard-linked files trigger a warning prompt before packaging proceeds, since EXIF writes propagate to all linked paths.
 - `PipExecutor` replaced by `UvExecutor`; pipelines must be managed through `uv`.
 - Python 3.12 or later is now required (previously 3.10+).
+- Repository-wide performance pass: lazy imports of heavy native dependencies roughly halve cold CLI startup; a batched ExifTool session shared per pipeline run accelerates EXIF metadata writing; per-file dataset summarisation and S3 distribution uploads are parallelised; dataset-tree walks consolidated into a single pass; pipeline modules cached on first import within a process.
+- CLI failures now exit with non-zero status codes (previously exited 0 on errors).
+- `marimba update` aggregates per-pipeline failures into a single raised error rather than swallowing them.
+- `Manifest.hashes` now keyed by `str` (POSIX-style relative path) rather than `pathlib.Path` for lower memory footprint during packaging.
+- `@multithreaded` decorator is fail-fast by default: the first worker exception is re-raised rather than swallowed.
 
 ### Removed
 - `piexif` dependency removed; replaced by `PyExifTool`.

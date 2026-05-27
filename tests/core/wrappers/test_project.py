@@ -718,14 +718,14 @@ created: 2024-01-01T00:00:00Z
         ), "PipelineWrapper.create should be called with correct directory, URL and dry_run flag"
 
         # Assert - Verify pipeline configuration workflow executed correctly
-        mock_pipeline_wrapper.prompt_pipeline_config.assert_called_once_with(
+        mock_pipeline_wrapper.prompt_pipeline_config.assert_called_once_with(  # type: ignore[attr-defined]
             input_config,
             project_logger=project_wrapper.logger,
             allow_empty=True,
             accept_defaults=False,
         ), "prompt_pipeline_config should be called with input config and project logger"
 
-        mock_pipeline_wrapper.save_config.assert_called_once_with(
+        mock_pipeline_wrapper.save_config.assert_called_once_with(  # type: ignore[attr-defined]
             processed_config,
         ), "save_config should be called with the processed configuration"
 
