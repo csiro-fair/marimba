@@ -5,34 +5,6 @@ This module provides various utilities and classes for handling image datasets i
 functionality for managing datasets, creating and validating manifests, summarizing imagery collections, and applying
 EXIF metadata.
 
-Imports:
-    - hashlib: Provides hash functions for generating hashes.
-    - io: Core tools for working with streams.
-    - json: JSON encoding and decoding library.
-    - logging: Logging facility for Python.
-    - collections.OrderedDict: Dictionary that remembers the order entries were added.
-    - dataclasses.dataclass: A decorator for generating special methods.
-    - datetime.timezone: Timezone information objects.
-    - fractions.Fraction: Rational number arithmetic.
-    - pathlib.Path: Object-oriented filesystem paths.
-    - shutil: High-level file operations.
-    - textwrap.dedent: Remove any common leading whitespace from every line.
-    - typing: Type hints for function signatures and variables.
-    - uuid: Generate unique identifiers.
-    - exiftool: Library to insert and extract EXIF metadata from images.
-    - ifdo.models: Data models for images.
-    - PIL.Image: Python Imaging Library for opening, manipulating, and saving image files.
-    - rich.progress: Utilities for creating progress bars.
-    - marimba.core.utils.log: Utilities for logging.
-    - marimba.core.utils.map: Utility for creating summary maps.
-    - marimba.core.utils.rich: Utility for default columns in rich progress.
-    - marimba.lib.image: Library for image processing.
-    - marimba.lib.gps: Utility for GPS coordinate conversion.
-
-Classes:
-    - ImagerySummary: A summary of an imagery collection.
-    - Manifest: A dataset manifest used to validate datasets for corruption or modification.
-    - DatasetWrapper: A wrapper class for handling dataset directories.
 """
 
 import logging
@@ -46,6 +18,7 @@ from typing import Any
 
 from rich.progress import Progress, SpinnerColumn, TaskID
 
+from marimba.core import MarimbaError
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.dataset import (
@@ -59,7 +32,6 @@ from marimba.core.utils.dataset import (
 from marimba.core.utils.hash import compute_hash
 from marimba.core.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.core.utils.manifest import Manifest
-from marimba.core.utils.map import make_summary_map
 from marimba.core.utils.paths import format_path_for_logging
 from marimba.core.utils.rich import get_default_columns
 from marimba.core.utils.summary import ImagerySummary
@@ -71,17 +43,17 @@ class DatasetWrapper(LogMixin):
     Dataset directory wrapper.
     """
 
-    class InvalidStructureError(Exception):
+    class InvalidStructureError(MarimbaError):
         """
         Raised when the dataset directory structure is invalid.
         """
 
-    class InvalidDatasetMappingError(Exception):
+    class InvalidDatasetMappingError(MarimbaError):
         """
         Raised when a path mapping dictionary is invalid.
         """
 
-    class ManifestError(Exception):
+    class ManifestError(MarimbaError):
         """
         Raised when the dataset is inconsistent with its manifest.
         """
@@ -340,9 +312,17 @@ class DatasetWrapper(LogMixin):
         self,
         progress: Progress | None = None,
         task: TaskID | None = None,
+        files: list[Path] | None = None,
     ) -> None:
         """
         Validate the dataset. If the dataset is inconsistent with its manifest (if present), raise a ManifestError.
+
+        Args:
+            progress: Rich progress instance to advance during the validate pass.
+            task: Rich task ID to update.
+            files: Optional pre-walked file list (the manifest module will walk
+                ``self.root_dir`` itself when omitted). Pass a cached walk to avoid
+                duplicate ``rglob`` over very large datasets.
 
         Raises:
             DatasetWrapper.ManifestError: If the dataset is inconsistent with its manifest.
@@ -355,6 +335,7 @@ class DatasetWrapper(LogMixin):
                 progress=progress,
                 task=task,
                 logger=self.logger,
+                files=files,
             ):
                 raise DatasetWrapper.ManifestError(self.manifest_path)
 
@@ -448,8 +429,7 @@ class DatasetWrapper(LogMixin):
         self.generate_metadata(dataset_name, mapped_dataset_items, mapping_processor_decorator, max_workers)
         dataset_items = flatten_mapping(flatten_middle_mapping(mapped_dataset_items))
 
-        self.generate_dataset_summary(dataset_items)
-        # TODO @<cjackett>: Generate summary method currently does not use multithreading
+        self.generate_dataset_summary(dataset_items, max_workers=max_workers)
         self._generate_dataset_map(dataset_items, zoom)
         self._copy_pipelines(project_pipelines_dir)
         self._copy_logs(project_log_path, pipeline_log_paths)
@@ -798,6 +778,10 @@ class DatasetWrapper(LogMixin):
         return changed_files
 
     def _update_manifest(self, changed_files: set[Path], max_worker: int | None = None) -> None:
+        if self.dry_run:
+            # _generate_manifest is skipped in dry-run, so there is no manifest on disk to load/update.
+            return
+
         manifest = Manifest.load(self.manifest_path)
         manifest.update(
             changed_files,
@@ -806,13 +790,12 @@ class DatasetWrapper(LogMixin):
             logger=self.logger,
             max_workers=max_worker,
         )
-
-        if not self.dry_run:
-            manifest.save(self.manifest_path)
+        manifest.save(self.manifest_path)
 
     def generate_dataset_summary(
         self,
         dataset_items: dict[str, list[BaseMetadata]],
+        max_workers: int | None = None,
         *,
         progress: bool = True,
     ) -> None:
@@ -821,11 +804,13 @@ class DatasetWrapper(LogMixin):
 
         Args:
             dataset_items: The dictionary of dataset items to summarize.
+            max_workers: Maximum number of worker threads for the per-file stat / ffprobe pass.
+                ``None`` lets :class:`ThreadPoolExecutor` choose; pass an integer to cap concurrency.
             progress: A flag to indicate whether to show a progress bar.
         """
 
         def generate_summary() -> None:
-            summary = self.summarise(dataset_items)
+            summary = self.summarise(dataset_items, max_workers=max_workers)
             if not self.dry_run:
                 self.summary_path.write_text(str(summary))
             self.logger.info(
@@ -911,6 +896,9 @@ class DatasetWrapper(LogMixin):
                 )
             ]
             if geolocations:
+                # Lazy-imported to keep requests / staticmap / PIL out of CLI startup.
+                from marimba.core.utils.map import make_summary_map  # noqa: PLC0415
+
                 summary_map = make_summary_map(geolocations, zoom=zoom)
                 if summary_map is not None:
                     map_path = self.root_dir / "map.png"
@@ -984,8 +972,13 @@ class DatasetWrapper(LogMixin):
         """
         Generate and save the manifest for the dataset, excluding certain paths.
 
-        The manifest provides a comprehensive list of files and their hashes for verification.
+        The manifest provides a comprehensive list of files and their hashes for verification. Skipped in dry-run
+        mode since no files are actually written, so there are no real files to hash.
         """
+        if self.dry_run:
+            self.logger.info("Skipping manifest generation (dry-run)")
+            return
+
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             globbed_files = list(self.root_dir.glob("**/*"))
             task = progress.add_task(
@@ -1000,22 +993,30 @@ class DatasetWrapper(LogMixin):
                 task=task,
                 logger=self.logger,
                 max_workers=max_workers,
+                files=globbed_files,
             )
-            if not self.dry_run:
-                manifest.save(self.manifest_path, logger=self.logger)
+            manifest.save(self.manifest_path, logger=self.logger)
             self.logger.info(
                 f"Generated manifest for {len(globbed_files)} "
                 f"files and paths at {format_path_for_logging(self.manifest_path, self._project_dir)}",
             )
 
-    def summarise(self, dataset_items: dict[str, list[BaseMetadata]]) -> ImagerySummary:
+    def summarise(
+        self,
+        dataset_items: dict[str, list[BaseMetadata]],
+        max_workers: int | None = None,
+    ) -> ImagerySummary:
         """
         Create an imagery summary for this dataset.
+
+        Args:
+            dataset_items: The dictionary of dataset items to summarize.
+            max_workers: Maximum number of worker threads for the per-file stat / ffprobe pass.
 
         Returns:
             An imagery summary.
         """
-        return ImagerySummary.from_dataset(self, dataset_items)
+        return ImagerySummary.from_dataset(self, dataset_items, max_workers=max_workers)
 
     def check_dataset_mapping(
         self,

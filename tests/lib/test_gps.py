@@ -349,7 +349,7 @@ class TestGPSUtilities:
         from marimba.core.utils.dependencies import ToolDependency
 
         mock_exiftool_helper = mocker.patch("exiftool.ExifToolHelper")
-        mock_show_error = mocker.patch("marimba.lib.gps.show_dependency_error_and_exit")
+        mock_show_error = mocker.patch("marimba.lib.exif.show_dependency_error_and_exit")
         exiftool_error = FileNotFoundError("exiftool not found")
         mock_exiftool_helper.side_effect = exiftool_error
         mock_show_error.side_effect = typer.Exit(1)  # Simulate the actual behavior
@@ -382,7 +382,7 @@ class TestGPSUtilities:
         mock_exiftool_helper = mocker.patch("exiftool.ExifToolHelper")
         mock_et = mocker.Mock()
         mock_exiftool_helper.return_value.__enter__.return_value = mock_et
-        mock_show_error = mocker.patch("marimba.lib.gps.show_dependency_error_and_exit")
+        mock_show_error = mocker.patch("marimba.lib.exif.show_dependency_error_and_exit")
         # Simulate an error that occurs during metadata extraction but doesn't mention exiftool
         image_error = FileNotFoundError("No such file or directory: '/path/to/missing_image.jpg'")
         mock_et.get_metadata.side_effect = image_error

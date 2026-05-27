@@ -231,79 +231,67 @@ class TestMultithreadedDecorator:
         ), f"Should process all expected items. Expected: {set(expected_items)}, Got: {result_items}"
 
     @pytest.mark.integration
-    def test_multithreaded_with_exceptions_handling(
+    def test_multithreaded_default_reraises_first_worker_exception(
         self,
         test_target_class: Any,
         mock_logger: Any,
     ) -> None:
-        """Test multithreaded decorator handling of exceptions during processing.
-
-        This integration test verifies that the decorator properly handles exceptions
-        from individual item processing, logs the errors appropriately, and continues
-        processing other items without stopping the entire operation.
-        """
-        # Arrange
+        """Default behaviour is fail-fast: worker exceptions are logged and the first is re-raised."""
         test_items = [1, 2, 3, 4, 5]
-        expected_successful_items = {1, 3, 5}  # Odd numbers should succeed
-        expected_failed_items = {2, 4}  # Even numbers should fail
 
         @multithreaded()
+        def process_item_with_errors(
+            self: Any,  # noqa: ARG001
+            item: int,
+            thread_num: str,  # noqa: ARG001
+            logger: logging.Logger,  # noqa: ARG001
+        ) -> str:
+            if item % 2 == 0:
+                msg = f"Processing failed for item {item}"
+                raise ValueError(msg)
+            return f"success_{item}"
+
+        with pytest.raises(ValueError, match="Processing failed for item"):
+            process_item_with_errors(test_target_class, items=test_items, logger=mock_logger)  # type: ignore[call-arg]
+
+        # Every failing worker still logs before the re-raise.
+        assert mock_logger.exception.call_count >= 1, (
+            "Expected at least one worker exception to be logged before the re-raise; "
+            f"got {mock_logger.exception.call_count}"
+        )
+
+    @pytest.mark.integration
+    def test_multithreaded_allow_partial_returns_successful_results(
+        self,
+        test_target_class: Any,
+        mock_logger: Any,
+    ) -> None:
+        """allow_partial=True opts back into the previous swallow-and-continue semantics."""
+        test_items = [1, 2, 3, 4, 5]
+        expected_successful_items = {1, 3, 5}
+        expected_failed_items = {2, 4}
+
+        @multithreaded(allow_partial=True)
         def process_item_with_errors(
             self: Any,  # noqa: ARG001
             item: int,
             thread_num: str,
             logger: logging.Logger,  # noqa: ARG001
         ) -> str:
-            """Process item but raise exception for even numbers."""
             if item % 2 == 0:
                 msg = f"Processing failed for item {item}"
                 raise ValueError(msg)
             return f"success_{item}_{thread_num}"
 
-        # Act
         results = process_item_with_errors(test_target_class, items=test_items, logger=mock_logger)  # type: ignore[call-arg]
 
-        # Assert
-        assert isinstance(results, list), "Decorated function should return a list even when some items fail processing"
-        assert len(results) == len(expected_successful_items), (
-            f"Should return {len(expected_successful_items)} results for successful items "
-            f"({expected_successful_items}), but got {len(results)} results"
-        )
+        assert isinstance(results, list)
+        assert len(results) == len(expected_successful_items)
 
-        # Verify only odd numbers were processed successfully
-        processed_items = set()
-        for result in results:
-            assert result.startswith(
-                "success_",
-            ), f"All successful results should have 'success_' prefix, but got: {result}"
-            parts = result.split("_")
-            assert len(parts) >= 3, f"Result should have format 'success_<item>_<thread>', but got: {result}"
+        processed_items = {int(r.split("_")[1]) for r in results}
+        assert processed_items == expected_successful_items
 
-            item_num = int(parts[1])
-            processed_items.add(item_num)
-            assert (
-                item_num % 2 == 1
-            ), f"Only odd items should succeed, but got successful result for even item {item_num}"
-
-        assert (
-            processed_items == expected_successful_items
-        ), f"Should process exactly the odd items {expected_successful_items}, but got {processed_items}"
-
-        # Verify that exceptions were logged appropriately for failed items
-        expected_exception_count = len(expected_failed_items)
-        assert mock_logger.exception.call_count == expected_exception_count, (
-            f"Should log exactly {expected_exception_count} exceptions for failed items {expected_failed_items}, "
-            f"but logged {mock_logger.exception.call_count} exceptions"
-        )
-
-        # Verify log messages contain specific error information for each failed item
-        logged_messages = [call.args[0] for call in mock_logger.exception.call_args_list]
-        for failed_item in expected_failed_items:
-            expected_error_msg = f"Error processing {failed_item}"
-            assert any(expected_error_msg in msg for msg in logged_messages), (
-                f"Should log error message '{expected_error_msg}' for failed item {failed_item}, "
-                f"but logged messages were: {logged_messages}"
-            )
+        assert mock_logger.exception.call_count == len(expected_failed_items)
 
     @pytest.mark.unit
     def test_multithreaded_invalid_items_type_error(

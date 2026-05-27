@@ -17,6 +17,14 @@ from tests.conftest import assert_cli_failure, assert_cli_success
 
 runner = CliRunner()
 
+# Per-invocation env override for tests that need wide rendering (e.g.
+# success / error panels containing long macOS /private/var/folders/...
+# tmpdir paths). Don't apply at the module-level CliRunner because some
+# tests (e.g. test_delete_project_invalid_structure) assert on what's
+# present in narrow tracebacks where widening exposes additional source-
+# code lines.
+WIDE_RUNNER_ENV = {"COLUMNS": "200", "NO_COLOR": "1", "TERM": "dumb"}
+
 
 @pytest.fixture
 def setup_project_dir(tmp_path: Path) -> Path:
@@ -832,10 +840,12 @@ class TestDeleteProjectCommand:
         mock_project_wrapper_instance.delete_project.return_value = expected_deleted_path
         mock_project_wrapper_class.return_value = mock_project_wrapper_instance
 
-        # Act
+        # Act — pass WIDE_RUNNER_ENV so the long macOS /private/var/folders/...
+        # path fits in the Rich success panel without wrapping.
         result = runner.invoke(
             marimba_cli,
             ["delete", "project", "--project-dir", str(setup_project_dir), "--dry-run"],
+            env=WIDE_RUNNER_ENV,
         )
 
         # Assert

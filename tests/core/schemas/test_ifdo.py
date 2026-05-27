@@ -1308,15 +1308,14 @@ class TestiFDOMetadataDatasetCreation:
             header["image-set-ifdo-version"] == "v2.1.0"
         ), f"Header version should be 'v2.1.0', got '{header['image-set-ifdo-version']}'"
 
-        # Assert - Verify image-set-items structure; common fields are deduplicated to header
+        # Assert - Verify image-set-items structure; single-item datasets are not deduplicated
         items_data = actual_data["image-set-items"]
         assert "image.jpg" in items_data, "Items should contain the input image filename"
         image_data = items_data["image.jpg"]
         assert isinstance(image_data, dict), f"Image data should be a dict, got {type(image_data)}"
-        # Altitude is a common field (only one image), so it should be promoted to the header
-        assert "image-altitude-meters" in header, "Common altitude field should be deduplicated to header"
-        assert header["image-altitude-meters"] == 100.0, "Deduplicated altitude should match sample metadata value"
-        assert "image-altitude-meters" not in image_data, "Common altitude field should not remain in item data"
+        # With a single image, deduplication is skipped to keep required fields in the item
+        assert "image-altitude-meters" not in header, "Single-item datasets should not deduplicate fields to header"
+        assert "image-altitude-meters" in image_data, "Altitude should remain in item data for single-item datasets"
 
     @pytest.mark.unit
     def test_create_dataset_metadata_custom_name(
@@ -1518,6 +1517,15 @@ class TestiFDOMetadataDeduplication:
         assert iFDOMetadata._extract_common_header_fields({}) == {}
 
     @pytest.mark.unit
+    def test_extract_common_header_fields_single_item_not_deduplicated(self) -> None:
+        """Single image item returns no common fields to prevent required fields being promoted to header."""
+        items: dict[str, ImageData | list[ImageData]] = {
+            "img1.jpg": ImageData(image_uuid="abcdefg"),
+        }
+        result = iFDOMetadata._extract_common_header_fields(items)
+        assert result == {}
+
+    @pytest.mark.unit
     def test_extract_common_header_fields_video_items(self) -> None:
         """Video lists are flattened before comparison."""
         items: dict[str, ImageData | list[ImageData]] = {
@@ -1529,6 +1537,28 @@ class TestiFDOMetadataDeduplication:
         }
         result = iFDOMetadata._extract_common_header_fields(items)
         assert result["image_latitude"] == 45.0
+
+    @pytest.mark.unit
+    def test_extract_common_header_fields_none_value_not_deduplicated(self) -> None:
+        """A field that is None for any image is not treated as common, even if others share a value."""
+        items: dict[str, ImageData | list[ImageData]] = {
+            "img1.jpg": ImageData(image_latitude=45.0, image_altitude_meters=100.0),
+            "img2.jpg": ImageData(image_latitude=45.0, image_altitude_meters=None),
+        }
+        result = iFDOMetadata._extract_common_header_fields(items)
+        assert result.get("image_latitude") == 45.0
+        assert "image_altitude_meters" not in result
+
+    @pytest.mark.unit
+    def test_extract_common_header_fields_none_first_value_second_not_deduplicated(self) -> None:
+        """None appearing before a non-None value is also not treated as common."""
+        items: dict[str, ImageData | list[ImageData]] = {
+            "img1.jpg": ImageData(image_latitude=45.0, image_altitude_meters=None),
+            "img2.jpg": ImageData(image_latitude=45.0, image_altitude_meters=100.0),
+        }
+        result = iFDOMetadata._extract_common_header_fields(items)
+        assert result.get("image_latitude") == 45.0
+        assert "image_altitude_meters" not in result
 
     @pytest.mark.unit
     def test_remove_common_fields_sets_to_none(self) -> None:
@@ -1594,3 +1624,79 @@ class TestiFDOMetadataDeduplication:
             item = data["image-set-items"][filename]
             assert "image-latitude" not in item, "Latitude should not remain in item after deduplication"
             assert "image-altitude-meters" not in item, "Altitude should not remain in item after deduplication"
+
+
+class TestiFDOMetadataInvalidConstruction:
+    """Pin behaviour on malformed / edge-case inputs to iFDOMetadata construction and serialisation.
+
+    The bulk of property-level wrong-type assertions live in TestiFDOMetadataProperties
+    above. This class focuses on construction-time and serialisation-time edge cases.
+    """
+
+    @pytest.mark.unit
+    def test_construct_with_empty_image_data(self) -> None:
+        """IFDOMetadata accepts an empty ImageData (all fields None) without raising."""
+        meta = iFDOMetadata(ImageData())
+
+        assert meta.primary_image_data is not None
+        assert meta.datetime is None
+        assert meta.latitude is None
+        assert meta.longitude is None
+        assert meta.altitude is None
+
+    @pytest.mark.unit
+    def test_construct_with_extreme_coordinate_values(self) -> None:
+        """IFDOMetadata accepts extreme but representable coordinate values; no clamping at construction."""
+        meta = iFDOMetadata(
+            ImageData(
+                image_latitude=89.999999,
+                image_longitude=-179.999999,
+                image_altitude_meters=-10000.0,
+            ),
+        )
+
+        assert meta.latitude == pytest.approx(89.999999)
+        assert meta.longitude == pytest.approx(-179.999999)
+        assert meta.altitude == pytest.approx(-10000.0)
+
+    @pytest.mark.unit
+    def test_construct_with_zero_coordinates(self) -> None:
+        """Zero is a valid coordinate (null island, sea level) and must round-trip."""
+        meta = iFDOMetadata(
+            ImageData(
+                image_latitude=0.0,
+                image_longitude=0.0,
+                image_altitude_meters=0.0,
+            ),
+        )
+
+        assert meta.latitude == 0.0
+        assert meta.longitude == 0.0
+        assert meta.altitude == 0.0
+
+    @pytest.mark.unit
+    def test_hash_sha256_assignment_with_empty_string(self) -> None:
+        """Empty-string hash is a "not yet hashed" sentinel; reads back as empty."""
+        meta = iFDOMetadata(ImageData())
+
+        meta.hash_sha256 = ""
+
+        assert meta.hash_sha256 == ""
+
+    @pytest.mark.unit
+    def test_create_dataset_metadata_with_empty_items_succeeds(self) -> None:
+        """An empty image-set-items dict is a valid edge case (empty dataset)."""
+        captured: list[dict[str, Any]] = []
+
+        def mock_saver(_root: Path, _name: str, data: dict[str, Any]) -> None:
+            captured.append(data)
+
+        iFDOMetadata.create_dataset_metadata(
+            "EmptyDataset",
+            Path("/tmp"),
+            {},
+            saver_overwrite=mock_saver,
+        )
+
+        assert len(captured) == 1
+        assert captured[0]["image-set-items"] == {}

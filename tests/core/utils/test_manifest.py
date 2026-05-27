@@ -224,3 +224,66 @@ class TestManifest:
             f"Expected subdirectories {expected_subdirs}, but got {result}. "
             f"Absolute paths should be handled correctly and stop at base directory."
         )
+
+
+class TestManifestIdempotence:
+    """Pin the FAIR-load-bearing manifest invariants: stability under re-run + save/load round-trip."""
+
+    @pytest.mark.integration
+    def test_from_dir_idempotent_across_runs(self, tmp_path: Path) -> None:
+        """Re-running from_dir on the same directory produces an equal Manifest."""
+        data = tmp_path / "data"
+        data.mkdir()
+        (data / "a.txt").write_text("alpha")
+        (data / "b.txt").write_text("beta")
+        (data / "sub").mkdir()
+        (data / "sub" / "c.txt").write_text("gamma")
+
+        first = Manifest.from_dir(data)
+        second = Manifest.from_dir(data)
+
+        assert first == second
+
+    @pytest.mark.integration
+    def test_from_dir_hashes_deterministic_across_runs(self, tmp_path: Path) -> None:
+        """Per-file hashes are byte-identical across re-runs."""
+        data = tmp_path / "data"
+        data.mkdir()
+        (data / "fixed.bin").write_bytes(b"deterministic content \x00\x01\x02")
+
+        first = Manifest.from_dir(data)
+        second = Manifest.from_dir(data)
+
+        assert sorted(first.hashes.items()) == sorted(second.hashes.items())
+
+    @pytest.mark.integration
+    def test_save_load_round_trip_preserves_equality(self, tmp_path: Path) -> None:
+        """Save then load reconstructs an equal Manifest."""
+        data = tmp_path / "data"
+        data.mkdir()
+        (data / "x.txt").write_text("hello")
+        (data / "y.txt").write_text("world")
+
+        original = Manifest.from_dir(data)
+        manifest_path = tmp_path / "manifest.txt"
+        original.save(manifest_path)
+
+        loaded = Manifest.load(manifest_path)
+
+        assert original == loaded
+
+    @pytest.mark.integration
+    def test_save_byte_equal_across_writes(self, tmp_path: Path) -> None:
+        """Writing the same Manifest twice produces byte-equal files."""
+        data = tmp_path / "data"
+        data.mkdir()
+        (data / "a.txt").write_text("alpha")
+        (data / "b.txt").write_text("beta")
+
+        manifest = Manifest.from_dir(data)
+        path1 = tmp_path / "manifest1.txt"
+        path2 = tmp_path / "manifest2.txt"
+        manifest.save(path1)
+        manifest.save(path2)
+
+        assert path1.read_bytes() == path2.read_bytes()

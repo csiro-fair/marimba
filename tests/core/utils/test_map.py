@@ -6,8 +6,8 @@ import pytest
 import pytest_mock
 import requests.exceptions
 
+from marimba.core import NetworkConnectionError
 from marimba.core.utils.map import (
-    NetworkConnectionError,
     add_axes,
     calculate_grid_intervals,
     calculate_visible_bounds,

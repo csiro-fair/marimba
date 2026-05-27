@@ -151,10 +151,9 @@ class TestDistributionTargetWrapperValidation:
     def test_class_map_contains_expected_types(self) -> None:
         """Test that the CLASS_MAP contains expected target types and correct class mappings.
 
-        This test verifies that the DistributionTargetWrapper's CLASS_MAP class variable
-        contains the correct mapping of target type strings to their corresponding
-        distribution target classes. This ensures that the wrapper can properly instantiate
-        the correct target types during runtime operations.
+        Entries are lazy ``module:Class`` strings; ``_resolve_target_class`` imports
+        the target module on demand so boto3 stays out of CLI startup. Verifies both
+        the registry shape and that each entry resolves to the expected class.
         """
         # Arrange
         expected_classes = {
@@ -171,14 +170,14 @@ class TestDistributionTargetWrapperValidation:
             f"but found {len(actual_class_map)}: {list(actual_class_map.keys())}"
         )
 
-        # Assert - Check that all expected types are present and correctly mapped
+        # Assert - Check that all expected types are present and correctly resolve to the right class
         for target_type, expected_class in expected_classes.items():
             assert target_type in actual_class_map, f"CLASS_MAP should contain target type '{target_type}'"
 
-            actual_class = actual_class_map[target_type]
-            assert actual_class == expected_class, (
-                f"CLASS_MAP['{target_type}'] should map to {expected_class.__name__}, "
-                f"but found {actual_class.__name__}"
+            resolved = DistributionTargetWrapper._resolve_target_class(target_type)
+            assert resolved is expected_class, (
+                f"_resolve_target_class('{target_type}') should resolve to {expected_class.__name__}, "
+                f"but resolved to {resolved}"
             )
 
     def test_load_config_called_during_init(self, tmp_path: Path) -> None:
@@ -638,13 +637,18 @@ class TestDistributionTargetWrapperPromptEdgeCases:
         a method. Built-in types have __init__ as built-in method descriptors, not
         FunctionType instances, which is what the source code checks for at line 149.
         """
-        # Arrange - Backup original CLASS_MAP and inject invalid entry
+        # Arrange - Backup original CLASS_MAP, inject invalid registry entry, mock the resolver
         original_class_map = DistributionTargetWrapper.CLASS_MAP.copy()
         invalid_target_type = "invalid_type"
         # Use str class - it has __init__ but as a built-in method descriptor, not FunctionType
         invalid_class_entry = str
 
-        DistributionTargetWrapper.CLASS_MAP[invalid_target_type] = invalid_class_entry  # type: ignore[assignment]
+        DistributionTargetWrapper.CLASS_MAP[invalid_target_type] = "tests.fixture:Invalid"
+        mocker.patch.object(
+            DistributionTargetWrapper,
+            "_resolve_target_class",
+            return_value=invalid_class_entry,
+        )
         mock_prompt_ask = mocker.patch("rich.prompt.Prompt.ask", return_value=invalid_target_type)
 
         try:
@@ -825,10 +829,15 @@ class TestDistributionTargetWrapperPromptEdgeCases:
         class MockTargetClass:
             """Mock target class for testing."""
 
-        # Backup original CLASS_MAP and inject entry
+        # Backup original CLASS_MAP, inject registry entry, mock the resolver to return MockTargetClass
         original_class_map = DistributionTargetWrapper.CLASS_MAP.copy()
         invalid_target_type = "no_init_type"
-        DistributionTargetWrapper.CLASS_MAP[invalid_target_type] = MockTargetClass  # type: ignore[assignment]
+        DistributionTargetWrapper.CLASS_MAP[invalid_target_type] = "tests.fixture:MockTargetClass"
+        mocker.patch.object(
+            DistributionTargetWrapper,
+            "_resolve_target_class",
+            return_value=MockTargetClass,
+        )
 
         mock_prompt_ask = mocker.patch("rich.prompt.Prompt.ask", return_value=invalid_target_type)
 

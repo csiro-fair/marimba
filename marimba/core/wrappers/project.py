@@ -5,32 +5,6 @@ This module provides functionality for managing Marimba project directories, inc
 and interacting with projects. It includes utility functions and classes to handle keyword arguments, project structure,
 logging, and various wrappers for pipelines, collections, datasets, and distribution targets.
 
-Imports:
-    - ast: Abstract Syntax Trees for parsing Python syntax.
-    - logging: Logging facility for Python.
-    - pathlib.Path: Object-oriented filesystem paths.
-    - typing: Type hints for function signatures and variables.
-    - rich.progress.Progress, rich.progress.SpinnerColumn: Utilities for creating progress bars.
-    - marimba.core.utils.log.LogMixin, marimba.core.utils.log.get_file_handler:
-      Utilities for logging.
-    - marimba.core.utils.prompt.prompt_schema: Utility for prompting schema.
-    - marimba.core.utils.rich.get_default_columns: Utility for default columns in rich progress.
-    - marimba.core.wrappers.collection.CollectionWrapper: Wrapper for collections.
-    - marimba.core.wrappers.dataset.DatasetWrapper: Wrapper for datasets.
-    - marimba.core.wrappers.pipeline.PipelineWrapper: Wrapper for pipelines.
-    - marimba.core.wrappers.target.DistributionTargetWrapper: Wrapper for
-      distribution targets.
-
-Classes:
-    - ProjectWrapper: A class to manage Marimba project directories.
-        - Nested exceptions for various project-related errors.
-        - Methods for creating and wrapping projects, checking file structures, setting up logging, loading pipelines,
-        collections, datasets, and targets, running commands, composing datasets, creating datasets and targets,
-        distributing datasets, importing collections, prompting collection configurations, updating pipelines,
-        and installing pipeline dependencies.
-
-Functions:
-    - get_merged_keyword_args: Merges extra key-value arguments with other keyword arguments.
 """
 
 import ast
@@ -43,25 +17,22 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-import typer
-from rich.console import Console
 from rich.progress import Progress, SpinnerColumn
 
+from marimba.core import MarimbaError
 from marimba.core.installer.pipeline_installer import PipelineInstaller
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
 from marimba.core.pipeline import BasePipeline
 from marimba.core.schemas.base import BaseMetadata
-from marimba.core.utils.constants import EXIF_SUPPORTED_EXTENSIONS, Operation
+from marimba.core.utils.constants import Operation
 from marimba.core.utils.dataset import DECORATOR_TYPE
 from marimba.core.utils.log import LogMixin, get_file_handler
 from marimba.core.utils.paths import (
-    detect_hardlinked_files,
-    detect_readonly_files,
     format_path_for_logging,
     remove_directory_tree,
 )
-from marimba.core.utils.prompt import prompt_schema
-from marimba.core.utils.rich import get_default_columns, warning_panel
+from marimba.core.utils.rich import get_default_columns
+from marimba.core.wrappers import _collection_schema, _safety
 from marimba.core.wrappers.collection import CollectionWrapper
 from marimba.core.wrappers.dataset import DatasetWrapper
 from marimba.core.wrappers.pipeline import PipelineWrapper
@@ -328,72 +299,72 @@ class ProjectWrapper(LogMixin):
     ```
     """
 
-    class InvalidStructureError(Exception):
+    class InvalidStructureError(MarimbaError):
         """
         Raised when the project file structure is invalid.
         """
 
-    class CreatePipelineError(Exception):
+    class CreatePipelineError(MarimbaError):
         """
         Raised when a pipeline cannot be created.
         """
 
-    class CreateCollectionError(Exception):
+    class CreateCollectionError(MarimbaError):
         """
         Raised when a collection cannot be created.
         """
 
-    class RunCommandError(Exception):
+    class RunCommandError(MarimbaError):
         """
         Raised when a command cannot be run.
         """
 
-    class CompositionError(Exception):
+    class CompositionError(MarimbaError):
         """
         Raised when a pipeline cannot compose its data.
         """
 
-    class NoSuchPipelineError(Exception):
+    class NoSuchPipelineError(MarimbaError):
         """
         Raised when a pipeline does not exist in the project.
         """
 
-    class NoSuchCollectionError(Exception):
+    class NoSuchCollectionError(MarimbaError):
         """
         Raised when a collection does not exist in the project.
         """
 
-    class NoSuchDatasetError(Exception):
+    class NoSuchDatasetError(MarimbaError):
         """
         Raised when a dataset does not exist in the project.
         """
 
-    class NoSuchTargetError(Exception):
+    class NoSuchTargetError(MarimbaError):
         """
         Raised when a distribution target does not exist in the project.
         """
 
-    class InvalidNameError(Exception):
+    class InvalidNameError(MarimbaError):
         """
         Raised when an invalid name is used.
         """
 
-    class ReadOnlyFilesError(Exception):
+    class ReadOnlyFilesError(MarimbaError):
         """
         Raised when read-only files are detected during packaging.
         """
 
-    class DeletePipelineError(Exception):
+    class DeletePipelineError(MarimbaError):
         """
         Raised when a Pipeline cannot be deleted.
         """
 
-    class MarimbaThreadError(Exception):
+    class MarimbaThreadError(MarimbaError):
         """
         Raised when an error occurs within a Marimba thread.
         """
 
-    class MarimbaProcessError(Exception):
+    class MarimbaProcessError(MarimbaError):
         """
         Raised when an error occurs within a Marimba process.
         """
@@ -434,6 +405,7 @@ class ProjectWrapper(LogMixin):
         ] = {}  # target name -> DistributionTargetWrapper instance
 
         self._check_file_structure()
+        self._ensure_subdirectories()
         self._setup_logging()
 
         self._load_pipelines()
@@ -527,6 +499,11 @@ class ProjectWrapper(LogMixin):
                 )
 
         check_dir_exists(self.root_dir)
+
+    def _ensure_subdirectories(self) -> None:
+        """Create the project's standard subdirectories at construction time if they don't exist."""
+        for sub in ("pipelines", "collections", "datasets", "targets", ".marimba"):
+            (self._root_dir / sub).mkdir(exist_ok=True)
 
     def _setup_logging(self) -> None:
         """
@@ -667,6 +644,18 @@ class ProjectWrapper(LogMixin):
 
         # Add the pipeline to the project
         self._pipeline_wrappers[name] = pipeline_wrapper
+
+        # Install pipeline dependencies before introspecting its config schema.
+        # prompt_pipeline_config dynamically imports the pipeline module via load_pipeline_instance, which fails
+        # if the pipeline declares third-party deps that haven't been installed yet. Installing here lets a fresh
+        # `marimba new pipeline` work without a separate `marimba install` step.
+        try:
+            pipeline_wrapper.install()
+        except PipelineInstaller.InstallError:
+            self.logger.exception(
+                f'Failed to install dependencies for new pipeline "{name}"; '
+                "config-schema introspection may fail if the pipeline imports third-party packages",
+            )
 
         # Configure the pipeline from the command line
         pipeline_config = pipeline_wrapper.prompt_pipeline_config(
@@ -828,18 +817,6 @@ class ProjectWrapper(LogMixin):
             collection_wrappers_to_run[collection_name] = collection_wrapper
 
         return pipeline_wrappers_to_run, collection_wrappers_to_run
-
-    def _check_command_exists(
-        self,
-        pipelines_to_run: dict[str, Any],
-        command_name: str,
-    ) -> None:
-        for run_pipeline_name, run_pipeline in pipelines_to_run.items():
-            if not hasattr(run_pipeline, command_name):
-                msg = f'Command "{command_name}" does not exist for pipeline "{run_pipeline_name}".'
-                raise ProjectWrapper.RunCommandError(
-                    msg,
-                )
 
     def _create_command_tasks(
         self,
@@ -1294,14 +1271,15 @@ class ProjectWrapper(LogMixin):
             allow_destination_collisions=allow_destination_collisions,
         )
 
-        # Validate it
+        # Validate it. Walk the dataset tree once and reuse the list across the
+        # progress total and the manifest-validate hash pass.
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             globbed_files = list(dataset_wrapper.root_dir.glob("**/*"))
             task = progress.add_task(
                 "[green]Validating dataset (12/12)",
                 total=len(globbed_files),
             )
-            dataset_wrapper.validate(progress, task)
+            dataset_wrapper.validate(progress, task, files=globbed_files)
             dataset_wrapper.logger.info(
                 f'Packaged dataset "{dataset_name}" has been validated against the manifest',
             )
@@ -1473,7 +1451,8 @@ class ProjectWrapper(LogMixin):
         if dataset_wrapper is None:
             raise ProjectWrapper.NoSuchDatasetError(dataset_name)
 
-        # Validate the dataset
+        # Validate the dataset. One tree walk feeds both the progress total and
+        # the manifest-validate hash pass.
         if validate:
             with Progress(SpinnerColumn(), *get_default_columns()) as progress:
                 globbed_files = list(dataset_wrapper.root_dir.glob("**/*"))
@@ -1481,7 +1460,7 @@ class ProjectWrapper(LogMixin):
                     f"[green]Validating dataset {dataset_name}",
                     total=len(globbed_files),
                 )
-                dataset_wrapper.validate(progress, task)
+                dataset_wrapper.validate(progress, task, files=globbed_files)
                 progress.advance(task)
 
         # Get the distribution target wrapper
@@ -1663,58 +1642,32 @@ class ProjectWrapper(LogMixin):
         return self._collect_final_config(resolved_collection_schema, config, accept_defaults=accept_defaults)
 
     def _get_unified_collection_schema(self) -> dict[str, Any]:
-        """Aggregate collection config schemas from all pipelines in the project."""
-        schema: dict[str, Any] = {}
-        for pipeline_wrapper in self.pipeline_wrappers.values():
-            pipeline = pipeline_wrapper.get_instance()
-            if pipeline is None:
-                msg = (
-                    f"Failed to load pipeline instance for '{pipeline_wrapper.name}'. "
-                    "Pipeline may be invalid or empty."
-                )
-                raise RuntimeError(
-                    msg,
-                )
-            schema.update(pipeline.get_collection_config_schema())
-        return schema
+        return _collection_schema.get_unified_collection_schema(self.pipeline_wrappers)
 
-    def _resolve_parent_collection_name(
-        self,
-        parent_collection_name: str | None,
-    ) -> str | None:
-        """Determine the appropriate parent collection name if not specified."""
-        if parent_collection_name is None:
-            parent_collection_name = self._get_last_modified_collection_name()
-            if parent_collection_name:
-                self.logger.info(
-                    f'Using last collection "{parent_collection_name}" as parent',
-                )
-        return parent_collection_name
+    def _resolve_parent_collection_name(self, parent_collection_name: str | None) -> str | None:
+        return _collection_schema.resolve_parent_collection_name(
+            parent_collection_name,
+            self.collection_wrappers,
+            self.logger,
+        )
 
     def _get_last_modified_collection_name(self) -> str | None:
-        """Fetch the name of the last modified collection."""
-        if not self.collection_wrappers:
-            return None
-        return max(
-            self.collection_wrappers,
-            key=lambda k: self.collection_wrappers[k].root_dir.stat().st_mtime,
-        )
+        return _collection_schema.get_last_modified_collection_name(self.collection_wrappers)
 
     def _update_schema_with_parent_config(
         self,
         schema: dict[str, Any],
         parent_collection_name: str | None,
     ) -> None:
-        """Update the schema based on the configuration of the parent collection, if applicable."""
-        if parent_collection_name:
-            parent_wrapper = self.collection_wrappers.get(parent_collection_name)
-            if parent_wrapper is None:
-                raise ProjectWrapper.NoSuchCollectionError(parent_collection_name)
-            parent_config = parent_wrapper.load_config()
-            schema.update(parent_config)
-            self.logger.info(
-                f'Using parent collection "{parent_collection_name}" with config: {parent_config}',
+        try:
+            _collection_schema.update_schema_with_parent_config(
+                schema,
+                parent_collection_name,
+                self.collection_wrappers,
+                self.logger,
             )
+        except _collection_schema.NoSuchParentCollectionError as exc:
+            raise ProjectWrapper.NoSuchCollectionError(str(exc)) from exc
 
     def _collect_final_config(
         self,
@@ -1723,67 +1676,89 @@ class ProjectWrapper(LogMixin):
         *,
         accept_defaults: bool = False,
     ) -> dict[str, Any]:
-        """Combine the user-provided config with additional prompted entries from the schema."""
-        final_config = provided_config or {}
-        # Prepopulate with existing config and remove keys that will not be prompted
-        for key in list(schema.keys()):
-            if key in final_config:
-                del schema[key]  # Remove the key so it won't be prompted
+        return _collection_schema.collect_final_config(
+            schema,
+            provided_config,
+            self.logger,
+            accept_defaults=accept_defaults,
+        )
 
-        # Prompt for additional configuration and update
-        if schema:
-            additional_config = prompt_schema(schema, accept_defaults=accept_defaults)
-            if additional_config:  # Ensure additional_config is not None
-                final_config.update(additional_config)
-
-        self.logger.info(f"Provided collection config={final_config}")
-        return final_config
+    class UpdatePipelinesError(MarimbaError):
+        """Raised when one or more pipeline updates fail."""
 
     def update_pipelines(self) -> None:
         """
         Update all pipelines in the project.
+
+        Raises:
+            ProjectWrapper.UpdatePipelinesError: If one or more pipelines fail to update.
         """
+        failed_pipelines: list[str] = []
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
             self.logger.info(f'Updating pipeline "{pipeline_name}"')
             try:
                 pipeline_wrapper.update()
-                self.logger.info(f'Updated pipeline "{pipeline_name}"')
-            # TODO @<cjackett>: Raise these exceptions and handle in marimba.py
             except (OSError, ValueError):
                 self.logger.exception(
                     f'Failed to update pipeline "{pipeline_name}" due to an I/O or value error',
                 )
+                failed_pipelines.append(pipeline_name)
             except Exception:
                 self.logger.exception(
                     f'Failed to update pipeline "{pipeline_name}" due to an unexpected error',
                 )
+                failed_pipelines.append(pipeline_name)
+            else:
+                self.logger.info(f'Updated pipeline "{pipeline_name}"')
+
+        if failed_pipelines:
+            msg = f"Failed to update pipeline(s): {', '.join(failed_pipelines)}"
+            raise ProjectWrapper.UpdatePipelinesError(msg)
+
+    class InstallPipelinesError(MarimbaError):
+        """Raised when one or more pipeline dependency installs fail."""
 
     def install_pipelines(self) -> None:
         """
         Install all pipelines dependencies in the project into the current environment.
+
+        Raises:
+            ProjectWrapper.InstallPipelinesError: If one or more pipelines fail to install.
         """
+        failed_pipelines: list[str] = []
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
-            self._install_single_pipeline(pipeline_name, pipeline_wrapper)
+            if not self._install_single_pipeline(pipeline_name, pipeline_wrapper):
+                failed_pipelines.append(pipeline_name)
+
+        if failed_pipelines:
+            msg = f"Failed to install dependencies for pipeline(s): {', '.join(failed_pipelines)}"
+            raise ProjectWrapper.InstallPipelinesError(msg)
 
     def _install_single_pipeline(
         self,
         pipeline_name: str,
         pipeline_wrapper: PipelineWrapper,
-    ) -> None:
+    ) -> bool:
         """
         Install a single pipeline and log the result.
 
         Args:
             pipeline_name: Name of the pipeline to install
             pipeline_wrapper: Pipeline wrapper instance to install
+
+        Returns:
+            True if installation succeeded, False otherwise.
         """
         try:
             pipeline_wrapper.install()
-            self.logger.info(f'Installed dependencies for pipeline "{pipeline_name}"')
         except PipelineInstaller.InstallError:
             self.logger.exception(
                 f'Failed to install dependencies for pipeline "{pipeline_name}"',
             )
+            return False
+        else:
+            self.logger.info(f'Installed dependencies for pipeline "{pipeline_name}"')
+            return True
 
     @property
     def pipeline_wrappers(self) -> dict[str, PipelineWrapper]:
@@ -1822,48 +1797,28 @@ class ProjectWrapper(LogMixin):
 
     @property
     def pipelines_dir(self) -> Path:
-        """
-        The pipelines directory of the project.
-        """
-        pipelines_dir = self.root_dir / "pipelines"
-        pipelines_dir.mkdir(exist_ok=True)
-        return pipelines_dir
+        """The pipelines directory of the project (ensured to exist at construction)."""
+        return self.root_dir / "pipelines"
 
     @property
     def collections_dir(self) -> Path:
-        """
-        The collections directory of the project.
-        """
-        collections_dir = self.root_dir / "collections"
-        collections_dir.mkdir(exist_ok=True)
-        return collections_dir
+        """The collections directory of the project (ensured to exist at construction)."""
+        return self.root_dir / "collections"
 
     @property
     def datasets_dir(self) -> Path:
-        """
-        The datasets directory of the project.
-        """
-        distributions_dir = self.root_dir / "datasets"
-        distributions_dir.mkdir(exist_ok=True)
-        return distributions_dir
+        """The datasets directory of the project (ensured to exist at construction)."""
+        return self.root_dir / "datasets"
 
     @property
     def marimba_dir(self) -> Path:
-        """
-        The Marimba directory of the project.
-        """
-        marimba_dir = self.root_dir / ".marimba"
-        marimba_dir.mkdir(exist_ok=True)
-        return marimba_dir
+        """The Marimba directory of the project (ensured to exist at construction)."""
+        return self.root_dir / ".marimba"
 
     @property
     def targets_dir(self) -> Path:
-        """
-        The distribution targets directory of the project.
-        """
-        targets_dir = self.root_dir / "targets"
-        targets_dir.mkdir(exist_ok=True)
-        return targets_dir
+        """The distribution targets directory of the project (ensured to exist at construction)."""
+        return self.root_dir / "targets"
 
     @property
     def log_path(self) -> Path:
@@ -1896,74 +1851,10 @@ class ProjectWrapper(LogMixin):
             ],
         ],
     ) -> None:
-        """
-        Check for hard-linked files that will be modified during packaging and warn the user.
-
-        Args:
-            dataset_mapping: The dataset mapping containing files to be packaged
-
-        Raises:
-            typer.Exit: If the user chooses to abort packaging
-        """
-        # Constants
-        max_sample_files = 10
-
-        # Collect all files that will have EXIF metadata written
-        files_to_check = []
-        for pipeline_data in dataset_mapping.values():
-            for collection_data in pipeline_data.values():
-                for source_path, (_dest_path, metadata_list, _) in collection_data.items():
-                    # Only check files that will have EXIF metadata written
-                    if source_path.suffix.lower() in EXIF_SUPPORTED_EXTENSIONS and metadata_list is not None:
-                        files_to_check.append(source_path)
-
-        if not files_to_check:
-            return
-
-        # Detect hard-linked files
-        hardlinked_files = detect_hardlinked_files(files_to_check)
-
-        if not hardlinked_files:
-            return
-
-        # Display warning using rich panel
-
-        file_count = len(hardlinked_files)
-        warning_message = (
-            f"During packaging, Marimba will destructively modify EXIF data in image files.\n"
-            f"The following {file_count} files are hard-linked to external sources and will be modified:\n\n"
-        )
-
-        # Show sample files (max 10)
-        sample_files = hardlinked_files[:max_sample_files]
-        for file_path in sample_files:
-            warning_message += f"  {file_path}\n"
-
-        if len(hardlinked_files) > max_sample_files:
-            warning_message += f"  ... (showing first {max_sample_files} of {file_count} files)\n"
-
-        warning_message += "\nThis means your original source files will be permanently modified."
-
-        # Create and display the warning panel
-        console = Console()
-        console.print(warning_panel(warning_message, title="Hard-linked files detected!"))
-
-        # Also log the warning for record keeping
-        self.logger.warning(f"Hard-linked files detected during packaging: {file_count} files will be modified")
-
-        # Prompt user with Y/n format (y is default)
-        self._prompt_user_for_hard_link_continuation()
+        _safety.check_hardlinks_and_warn(dataset_mapping, self.logger)
 
     def _prompt_user_for_hard_link_continuation(self) -> None:
-        """Prompt user to continue with hard-link packaging or abort."""
-        try:
-            response = typer.prompt("Continue anyway? [Y/n]", type=str, default="y")
-            if response.lower() in ["n", "no"]:
-                self.logger.info("Packaging aborted by user due to hard-link warning")
-                raise typer.Exit(code=1) from None
-        except (KeyboardInterrupt, EOFError) as exc:
-            self.logger.info("Packaging aborted by user (interrupted)")
-            raise typer.Exit(code=1) from exc
+        _safety.prompt_user_for_hard_link_continuation(self.logger)
 
     def _check_readonly_files_and_fail(
         self,
@@ -1975,59 +1866,7 @@ class ProjectWrapper(LogMixin):
             ],
         ],
     ) -> None:
-        """
-        Check for read-only files that will fail EXIF writing during packaging and exit immediately.
-
-        Args:
-            dataset_mapping: The dataset mapping containing files to be packaged
-
-        Raises:
-            typer.Exit: Always exits if read-only files are found
-        """
-        # Constants
-        max_sample_files = 10
-
-        # Collect all files that will have EXIF metadata written (same logic as hard-link check)
-        files_to_check = []
-        for pipeline_data in dataset_mapping.values():
-            for collection_data in pipeline_data.values():
-                for source_path, (_dest_path, metadata_list, _) in collection_data.items():
-                    # Only check files that will have EXIF metadata written
-                    if source_path.suffix.lower() in EXIF_SUPPORTED_EXTENSIONS and metadata_list is not None:
-                        files_to_check.append(source_path)
-
-        if not files_to_check:
-            return
-
-        # Detect read-only files
-        readonly_files = detect_readonly_files(files_to_check)
-
-        if not readonly_files:
-            return
-
-        # Display error using rich panel and exit immediately
-        file_count = len(readonly_files)
-        error_message = (
-            f"Cannot package dataset: {file_count} files are read-only and cannot be modified.\n"
-            f"Marimba requires write permissions to embed EXIF metadata during packaging.\n\n"
-            f"The following files need write permissions:\n\n"
-        )
-
-        # Show sample files (max 10)
-        sample_files = readonly_files[:max_sample_files]
-        for file_path in sample_files:
-            error_message += f"  {file_path}\n"
-
-        if len(readonly_files) > max_sample_files:
-            error_message += f"  ... (showing first {max_sample_files} of {file_count} files)\n"
-
-        error_message += "\nTo fix this issue, run:\n  chmod +w <files>"
-
-        # Log the error for record keeping
-        self.logger.error(f"Packaging failed: {file_count} read-only files detected that cannot be written")
-
-        # Raise custom exception with the error message (panel will be shown in main)
-        raise ProjectWrapper.ReadOnlyFilesError(error_message)
+        _safety.check_readonly_files_and_fail(dataset_mapping, self.logger, ProjectWrapper.ReadOnlyFilesError)
 
     @staticmethod
     def check_name(name: str) -> None:

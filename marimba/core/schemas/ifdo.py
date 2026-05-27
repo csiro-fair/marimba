@@ -5,18 +5,6 @@ This module provides functionality for handling iFDO metadata, including creatio
 metadata in image files. It implements the BaseMetadata interface for iFDO-specific metadata and offers methods
 for creating dataset metadata and processing image files with EXIF data.
 
-Imports:
-    json: Handles JSON data encoding and decoding
-    datetime: Supplies classes for working with dates and times
-    Path: Offers object-oriented filesystem paths
-    typing: Provides support for type hints
-    uuid: Generates universally unique identifiers
-    exiftool: Handles reading and writing of EXIF data in images via ExifTool
-    PIL: Python Imaging Library for opening, manipulating, and saving image files
-    rich: Offers rich text and beautiful formatting in the terminal
-
-Classes:
-    iFDOMetadata: Implements the BaseMetadata interface for iFDO-specific metadata
 """
 
 import io
@@ -40,12 +28,11 @@ from PIL import Image
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
-from marimba.core.utils.constants import EXIF_SUPPORTED_EXTENSIONS
+from marimba.core.utils.constants import DEFAULT_EXIF_THUMBNAIL_SIZE, EXIF_SUPPORTED_EXTENSIONS
 from marimba.core.utils.dependencies import ToolDependency, show_dependency_error_and_exit
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.metadata import yaml_saver
 from marimba.core.utils.rich import get_default_columns
-from marimba.lib import image
 from marimba.lib.decorators import multithreaded
 
 logger = get_logger(__name__)
@@ -401,6 +388,39 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
         return image_set_items
 
+    @staticmethod
+    def _find_common_fields(all_items: list["ImageData"]) -> dict[str, Any]:
+        """
+        Single-pass scan of flattened ImageData objects.
+
+        Returns fields whose non-None value is identical across every item.
+        Fields that are None in any item are excluded even if non-None elsewhere.
+        """
+        changing_fields: set[str] = set()
+        common_fields: dict[str, Any] = {}
+        none_fields: set[str] = set()
+
+        for item in all_items:
+            for key, value in item.model_dump().items():
+                if key in changing_fields:
+                    continue
+                if value is None:
+                    if key in common_fields:
+                        changing_fields.add(key)
+                        del common_fields[key]
+                    else:
+                        none_fields.add(key)
+                elif key in none_fields:
+                    changing_fields.add(key)
+                    none_fields.discard(key)
+                elif key not in common_fields:
+                    common_fields[key] = value
+                elif common_fields[key] != value:
+                    changing_fields.add(key)
+                    del common_fields[key]
+
+        return common_fields
+
     @classmethod
     def _extract_common_header_fields(
         cls,
@@ -410,8 +430,8 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         Extract fields that are identical across ALL images.
 
         Scans all ImageData objects and identifies fields where every image
-        has the same value. These fields can be promoted to the header to
-        reduce file size.
+        has the same non-None value. These fields can be promoted to the header
+        to reduce file size.
 
         Args:
             image_set_items: Dict mapping filenames to ImageData objects or lists of ImageData
@@ -423,7 +443,6 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         if not image_set_items:
             return {}
 
-        # Flatten video items (lists) into individual ImageData objects
         all_items: list[ImageData] = []
         for item in image_set_items.values():
             if isinstance(item, list):
@@ -431,27 +450,10 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             else:
                 all_items.append(item)
 
-        if not all_items:
+        if len(all_items) < 2:  # noqa: PLR2004
             return {}
 
-        changing_fields: set[str] = set()
-        common_fields: dict[str, Any] = {}
-
-        # Single pass through all images
-        for item in all_items:
-            item_dict = item.model_dump(exclude_none=True)
-
-            for key, value in item_dict.items():
-                if key in changing_fields:
-                    continue
-
-                if key not in common_fields:
-                    common_fields[key] = value
-                elif common_fields[key] != value:
-                    changing_fields.add(key)
-                    del common_fields[key]
-
-        return common_fields
+        return cls._find_common_fields(all_items)
 
     @classmethod
     def _remove_common_fields(
@@ -791,7 +793,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         """Create thumbnail data as bytes (no file I/O)."""
         # Create thumbnail
         thumbnail = image_file.copy()
-        thumbnail.thumbnail((160, 120), Image.Resampling.LANCZOS)
+        thumbnail.thumbnail(DEFAULT_EXIF_THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
 
         # Convert to bytes
         buffer = io.BytesIO()
@@ -986,6 +988,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             image_file: The PIL Image object from which to extract properties.
             image_data: The ImageData object to update with extracted properties.
         """
-        # Inject the image entropy and average image color into the iFDO
+        # Inject the image entropy and average image color into the iFDO.
+        # Lazy-imported to keep cv2 / numpy / PIL out of CLI startup.
+        from marimba.lib import image  # noqa: PLC0415
+
         image_data.image_entropy = image.get_shannon_entropy(image_file)
         image_data.image_average_color = image.get_average_image_color(image_file)

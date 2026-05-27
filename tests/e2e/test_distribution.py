@@ -325,8 +325,8 @@ class TestDistributionWorkflows:
         # Act: Attempt to distribute to non-existent target
         result = runner.invoke(app, ["distribute", "test_dataset", nonexistent_target, "--project-dir", str(project)])
 
-        # Assert: Should show clear error message about missing target
-        assert result.exit_code == 0, f"Expected exit code 0, got {result.exit_code}"
+        # Assert: Should show clear error message about missing target and exit non-zero
+        assert result.exit_code == 1, f"Expected exit code 1 on missing target, got {result.exit_code}"
         assert (
             "no such target" in result.stdout.lower()
         ), f"Should show specific target not found error. Output: {result.stdout}"
@@ -390,11 +390,10 @@ class TestDistributionWorkflows:
             ],
         )
 
-        # Assert: Should handle missing dataset gracefully with validate flag
-        assert result_validate.exit_code == 0, (
-            f"CLI should handle missing dataset gracefully in dry-run mode with --validate. "
-            f"Exit code: {result_validate.exit_code}"
-        )
+        # Assert: Should exit non-zero on missing dataset, with the dataset-not-found panel in stdout
+        assert (
+            result_validate.exit_code == 1
+        ), f"CLI should exit 1 when dataset is missing (--validate). Exit code: {result_validate.exit_code}"
         output_lower = result_validate.stdout.lower()
         assert (
             "no such dataset" in output_lower
@@ -414,11 +413,10 @@ class TestDistributionWorkflows:
             ],
         )
 
-        # Assert: Should handle missing dataset gracefully with no-validate flag
-        assert result_no_validate.exit_code == 0, (
-            f"CLI should handle missing dataset gracefully in dry-run mode with --no-validate. "
-            f"Exit code: {result_no_validate.exit_code}"
-        )
+        # Assert: Should exit non-zero on missing dataset, with the dataset-not-found panel in stdout
+        assert (
+            result_no_validate.exit_code == 1
+        ), f"CLI should exit 1 when dataset is missing (--no-validate). Exit code: {result_no_validate.exit_code}"
         output_lower = result_no_validate.stdout.lower()
         assert (
             "no such dataset" in output_lower
@@ -502,7 +500,6 @@ class TestDistributionWorkflows:
 
         # The workflow completed successfully with mocked S3 operations
 
-    @pytest.mark.unit
     def test_distribute_command_help_and_options(self, runner: CliRunner) -> None:
         """Test distribute command help displays all available options.
 

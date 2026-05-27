@@ -5,23 +5,11 @@ This module provides functionality to generate comprehensive summaries of imager
 image and video statistics, and other file information. It uses the ImagerySummary class to process and analyze
 dataset contents, calculate various metrics, and present the information in a structured format.
 
-Imports:
-    - json: For parsing JSON data.
-    - subprocess: For running external commands.
-    - dataclasses: For creating data classes.
-    - datetime: For handling dates and times.
-    - pathlib: For working with file paths.
-    - typing: For type annotations.
-    - PIL: For image processing.
-    - tabulate: For creating formatted tables.
-
-Classes:
-    - ImagerySummary: Represents a summary of an imagery collection, including methods for data processing and
-    formatting.
 """
 
 import json
 import subprocess  # nosec
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -612,7 +600,7 @@ class ImagerySummary:
         return ", ".join(codecs) if codecs else "N/A"
 
     @staticmethod
-    def calculate_video_frame_rate(frame_rates: set[str]) -> str:
+    def calculate_video_frame_rate(frame_rates: set[float]) -> str:
         """
         Calculate and formats the video frame rate based on a set of frame rates.
 
@@ -621,7 +609,7 @@ class ImagerySummary:
         it returns a range from the minimum to the maximum. If the set is empty, it returns 'N/A'.
 
         Args:
-            frame_rates: A set of strings representing frame rates.
+            frame_rates: A set of floats representing frame rates in fps.
 
         Returns:
             A formatted string representing the frame rate or range of frame rates.
@@ -708,6 +696,7 @@ class ImagerySummary:
         cls,
         dataset_wrapper: "DatasetWrapper",
         dataset_items: dict[str, list["BaseMetadata"]],
+        max_workers: int | None = None,
     ) -> "ImagerySummary":
         """
         Create an ImagerySummary object from a dataset and image set items.
@@ -718,16 +707,17 @@ class ImagerySummary:
         Args:
             dataset_wrapper: A DatasetWrapper object containing dataset information.
             dataset_items: The dictionary of dataset items.
+            max_workers: Maximum number of worker threads for the per-file stat / ffprobe pass.
+                ``None`` lets :class:`ThreadPoolExecutor` choose; pass an integer to cap concurrency.
 
         Returns:
             An ImagerySummary object containing comprehensive statistics and metadata about the dataset's imagery.
-
-        TODO @<cjackett>: Implement multithreading for this method
         """
         dataset_info = cls._extract_dataset_info(dataset_wrapper)
         image_data, video_data, other_data = cls._process_files(
             dataset_wrapper,
             dataset_items,
+            max_workers=max_workers,
         )
         file_stats = cls._calculate_file_stats(image_data, video_data, other_data)
 
@@ -830,6 +820,7 @@ class ImagerySummary:
         cls,
         dataset_wrapper: "DatasetWrapper",
         dataset_items: dict[str, list["BaseMetadata"]],
+        max_workers: int | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
         image_data: dict[str, Any] = {
             "files": [],
@@ -845,18 +836,40 @@ class ImagerySummary:
         }
         other_data: dict[str, list[str]] = {"files": []}
 
-        for path_str, dataset_item in dataset_items.items():
-            path = dataset_wrapper.root_dir / path_str
-            suffix = path.suffix.lower()
+        # Aggregate the cheap, ordering-sensitive shared sets up front so the threaded
+        # per-file pass can be lock-free.
+        for dataset_item in dataset_items.values():
             image_info = dataset_item[0]
-
             cls._update_common_data(image_data, image_info)
             cls._update_common_data(video_data, image_info)
 
+        # Thread the per-file stat() + ffprobe pass. _process_video calls
+        # is_video_corrupt_quick which runs ffprobe + 3x ffmpeg seek subprocesses;
+        # serialising those across a 10-collection dataset dominated package wall.
+        items = list(dataset_items.items())
+        root_dir = dataset_wrapper.root_dir
+
+        def build_record(item: tuple[str, list["BaseMetadata"]]) -> tuple[str, dict[str, Any]] | None:
+            path_str, dataset_item = item
+            path = root_dir / path_str
+            suffix = path.suffix.lower()
+            image_info = dataset_item[0]
             if suffix in cls.IMAGE_EXTENSIONS:
-                cls._process_image(image_data, path, image_info)
-            elif suffix in cls.VIDEO_EXTENSIONS:
-                cls._process_video(video_data, path, image_info)
+                return "image", cls._build_image_record(path, image_info)
+            if suffix in cls.VIDEO_EXTENSIONS:
+                return "video", cls._build_video_record(path, image_info)
+            return None
+
+        if items:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                for outcome in executor.map(build_record, items):
+                    if outcome is None:
+                        continue
+                    kind, record = outcome
+                    if kind == "image":
+                        image_data["files"].append(record)
+                    elif kind == "video":
+                        video_data["files"].append(record)
 
         cls._process_other_files(dataset_wrapper, other_data)
 
@@ -873,45 +886,33 @@ class ImagerySummary:
                 data["contributors"].append(creator)
 
     @classmethod
-    def _process_image(
-        cls,
-        image_data: dict[str, Any],
-        path: Path,
-        image_info: "BaseMetadata",
-    ) -> None:
-        image_data["files"].append(
-            {
-                "path": path,
-                "size": path.stat().st_size,
-                "type": path.suffix.lower().replace(".", ""),
-                "lat": image_info.latitude,
-                "lon": image_info.longitude,
-                "depth": image_info.altitude,
-                "datetime": image_info.datetime,
-                "directory": path.parent,
-            },
-        )
+    def _build_image_record(cls, path: Path, image_info: "BaseMetadata") -> dict[str, Any]:
+        """Build a single image record dict; called per-file from the threaded pass."""
+        return {
+            "path": path,
+            "size": path.stat().st_size,
+            "type": path.suffix.lower().replace(".", ""),
+            "lat": image_info.latitude,
+            "lon": image_info.longitude,
+            "depth": image_info.altitude,
+            "datetime": image_info.datetime,
+            "directory": path.parent,
+        }
 
     @classmethod
-    def _process_video(
-        cls,
-        video_data: dict[str, Any],
-        path: Path,
-        image_info: "BaseMetadata",
-    ) -> None:
-        video_data["files"].append(
-            {
-                "path": path,
-                "size": path.stat().st_size,
-                "type": path.suffix.lower().replace(".", ""),
-                "lat": image_info.latitude,
-                "lon": image_info.longitude,
-                "depth": image_info.altitude,
-                "datetime": image_info.datetime,
-                "directory": path.parent,
-                "is_corrupt": cls.is_video_corrupt_quick(str(path)),
-            },
-        )
+    def _build_video_record(cls, path: Path, image_info: "BaseMetadata") -> dict[str, Any]:
+        """Build a single video record dict; runs ffprobe + ffmpeg seeks for is_corrupt."""
+        return {
+            "path": path,
+            "size": path.stat().st_size,
+            "type": path.suffix.lower().replace(".", ""),
+            "lat": image_info.latitude,
+            "lon": image_info.longitude,
+            "depth": image_info.altitude,
+            "datetime": image_info.datetime,
+            "directory": path.parent,
+            "is_corrupt": cls.is_video_corrupt_quick(str(path)),
+        }
 
     @staticmethod
     def _process_other_files(

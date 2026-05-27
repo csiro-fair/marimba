@@ -9,23 +9,24 @@ import typer
 from _pytest.capture import CaptureFixture
 from typer.testing import CliRunner
 
+from marimba.core.distribution.base import DistributionTargetBase
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.log import LogLevel
+from marimba.core.wrappers.project import ProjectWrapper
 from marimba.main import (
     global_options,
     marimba_cli,
     version_callback,
 )
-from tests.conftest import assert_cli_failure, assert_cli_success
+from tests.conftest import assert_cli_failure, assert_cli_success, strip_ansi
 
 
 class TestCLI:
     """Test CLI functionality."""
 
     @pytest.fixture
-    def runner(self):
-        """Create a CLI test runner."""
-        return CliRunner()
+    def runner(self, cli_runner: CliRunner) -> CliRunner:
+        return cli_runner
 
     @pytest.fixture
     def mock_project_dir(self, tmp_path):
@@ -973,7 +974,7 @@ class TestCLI:
         mock_project_wrapper_class = mocker.patch("marimba.main.ProjectWrapper")
         mock_project = mocker.Mock()
         mock_project_wrapper_class.return_value = mock_project
-        mock_project.install_pipelines.side_effect = RuntimeError("Installation failed")
+        mock_project.install_pipelines.side_effect = ProjectWrapper.InstallPipelinesError("Installation failed")
         mock_find_project.return_value = mock_project_dir
 
         # Act
@@ -1069,11 +1070,13 @@ class TestCLI:
         # Assert - Verify successful help display
         assert_cli_success(result, context="Import command help")
 
-        # Assert - Verify required arguments are shown
+        # Assert - Verify required arguments are shown (strip ANSI: Rich may emit color codes
+        # between hyphen segments in CI, breaking literal substring matches)
+        stdout = strip_ansi(result.stdout)
         assert (
-            "source-path" in result.stdout or "SOURCE_PATH" in result.stdout
-        ), f"Help should show source-path argument, got: {result.stdout}"
-        assert "collection_name" in result.stdout, f"Help should show collection_name argument, got: {result.stdout}"
+            "source-path" in stdout or "SOURCE_PATH" in stdout
+        ), f"Help should show source-path argument, got: {stdout}"
+        assert "collection_name" in stdout, f"Help should show collection_name argument, got: {stdout}"
 
     @pytest.mark.unit
     def test_process_command_help(self, runner: CliRunner) -> None:
@@ -1092,11 +1095,11 @@ class TestCLI:
         # Assert - Verify successful help display
         assert_cli_success(result, context="Process command help")
 
-        # Assert - Verify collection-name option is shown
-        assert "collection-name" in result.stdout, f"Help should show collection-name option, got: {result.stdout}"
-
-        # Assert - Verify pipeline-name option is shown
-        assert "pipeline-name" in result.stdout, f"Help should show pipeline-name option, got: {result.stdout}"
+        # Assert - Verify collection-name and pipeline-name options are shown (strip ANSI: Rich
+        # may emit color codes between hyphen segments in CI, breaking literal substring matches)
+        stdout = strip_ansi(result.stdout)
+        assert "collection-name" in stdout, f"Help should show collection-name option, got: {stdout}"
+        assert "pipeline-name" in stdout, f"Help should show pipeline-name option, got: {stdout}"
 
     @pytest.mark.unit
     def test_package_command_help(self, runner: CliRunner) -> None:
@@ -1114,10 +1117,9 @@ class TestCLI:
 
         # Assert
         assert_cli_success(result, context="Package command help")
-        assert "dataset_name" in result.stdout, "Help should show dataset_name argument"
-        assert (
-            "collection-name" in result.stdout or "COLLECTION_NAME" in result.stdout
-        ), "Help should show collection-name option"
+        stdout = strip_ansi(result.stdout)
+        assert "dataset_name" in stdout, "Help should show dataset_name argument"
+        assert "collection-name" in stdout or "COLLECTION_NAME" in stdout, "Help should show collection-name option"
 
     @pytest.mark.unit
     def test_distribute_command_help(self, runner: CliRunner) -> None:
@@ -1155,12 +1157,13 @@ class TestCLI:
         assert_cli_success(result, context="Update command help")
 
         # Assert - Verify help describes update functionality with exact docstring text
+        stdout = strip_ansi(result.stdout)
         assert (
-            "Update (pull) all Marimba pipelines" in result.stdout
-        ), f"Help should describe update functionality with exact text, got: {result.stdout}"
+            "Update (pull) all Marimba pipelines" in stdout
+        ), f"Help should describe update functionality with exact text, got: {stdout}"
 
         # Assert - Verify project-dir option is shown (Typer formats it as --project-dir)
-        assert "--project-dir" in result.stdout, f"Help should show --project-dir option, got: {result.stdout}"
+        assert "--project-dir" in stdout, f"Help should show --project-dir option, got: {stdout}"
 
     @pytest.mark.unit
     def test_install_command_help(self, runner: CliRunner) -> None:
@@ -1178,8 +1181,9 @@ class TestCLI:
 
         # Assert
         assert_cli_success(result, context="Install command help")
-        assert "Install Python dependencies" in result.stdout, "Help should describe install functionality"
-        assert "project-dir" in result.stdout or "PROJECT_DIR" in result.stdout, "Help should show project-dir option"
+        stdout = strip_ansi(result.stdout)
+        assert "Install Python dependencies" in stdout, "Help should describe install functionality"
+        assert "project-dir" in stdout or "PROJECT_DIR" in stdout, "Help should show project-dir option"
 
 
 class TestCommandErrorHandling:
@@ -1191,9 +1195,8 @@ class TestCommandErrorHandling:
         return tmp_path / "test_project"
 
     @pytest.fixture
-    def runner(self):
-        """Create a CLI test runner."""
-        return CliRunner()
+    def runner(self, cli_runner: CliRunner) -> CliRunner:
+        return cli_runner
 
     @pytest.mark.unit
     def test_import_command_project_wrapper_initialization_error(
@@ -1286,7 +1289,7 @@ class TestCommandErrorHandling:
 
         # Configure run_process to raise a generic exception
         test_error_message = "Processing error"
-        mock_project.run_process.side_effect = Exception(test_error_message)
+        mock_project.run_process.side_effect = ProjectWrapper.MarimbaProcessError(test_error_message)
 
         # Set up required wrapper attributes
         mock_project.collection_wrappers = {"test_collection": mocker.Mock()}
@@ -1313,9 +1316,8 @@ class TestCommandErrorHandling:
             "Error during processing: Processing error" in output
         ), f"Error message should contain 'Error during processing: Processing error', got: {output}"
 
-        # Assert - Verify command exits with code 0 (typer.Exit default, no explicit code)
-        # This is the actual behavior in main.py:444
-        assert result.exit_code == 0, f"Command should exit with code 0 (typer.Exit default), got {result.exit_code}"
+        # Assert - Verify command exits with code 1 on processing failure
+        assert result.exit_code == 1, f"Command should exit with code 1 on failure, got {result.exit_code}"
 
         # Assert - Verify run_process method was attempted with correct parameters
         mock_project.run_process.assert_called_once_with(
@@ -1381,9 +1383,10 @@ class TestCommandErrorHandling:
         mock_project.collection_wrappers = {"test_collection": mocker.Mock()}
         mock_project.pipeline_wrappers = {"pipeline1": mocker.Mock()}
 
-        # Configure compose to raise a generic error (not a specific exception type)
+        # Configure compose to raise a generic MarimbaError that misses the per-type handlers and falls
+        # through to the catch-all "Could not package collection" branch.
         test_error_message = "Compose operation failed"
-        mock_project.compose.side_effect = Exception(test_error_message)
+        mock_project.compose.side_effect = ProjectWrapper.RunCommandError(test_error_message)
 
         # Mock the rich handler for dry-run configuration
         mock_get_rich_handler = mocker.patch("marimba.main.get_rich_handler")
@@ -1405,9 +1408,8 @@ class TestCommandErrorHandling:
             test_error_message in output
         ), f"Error message should contain specific error '{test_error_message}', got: {output}"
 
-        # Assert - Verify command exits gracefully (typer.Exit() without code defaults to 0)
-        # This is the actual behavior in main.py:373 for the generic exception handler
-        assert result.exit_code == 0, f"Command should exit with code 0 (typer.Exit default), got {result.exit_code}"
+        # Assert - Verify command exits with code 1 on packaging failure
+        assert result.exit_code == 1, f"Command should exit with code 1 on failure, got {result.exit_code}"
 
         # Assert - Verify project directory resolution occurred
         mock_find_project.assert_called_once_with(
@@ -1456,7 +1458,6 @@ class TestCommandErrorHandling:
         """
         # Arrange
         # Import the real classes to preserve exception classes
-        from marimba.core.distribution.base import DistributionTargetBase
         from marimba.core.wrappers.dataset import DatasetWrapper
         from marimba.core.wrappers.project import ProjectWrapper
 
@@ -1481,7 +1482,7 @@ class TestCommandErrorHandling:
 
         # Configure distribute to raise a generic error (not one of the specific exception types)
         test_error_message = "Distribution error"
-        mock_project.distribute.side_effect = RuntimeError(test_error_message)
+        mock_project.distribute.side_effect = DistributionTargetBase.DistributionError(test_error_message)
         mock_find_project.return_value = mock_project_dir
 
         # Mock the rich handler for dry-run setup
@@ -1496,15 +1497,14 @@ class TestCommandErrorHandling:
         )
 
         # Assert - Verify command displays error message with details
-        # Note: typer.Exit without code defaults to 0, which is the actual behavior in main.py:500
         output = result.output or result.stdout
         assert (
             "Could not distribute dataset" in output
         ), f"Error message should contain 'Could not distribute dataset', got: {output}"
         assert test_error_message in output, f"Error message should contain '{test_error_message}', got: {output}"
 
-        # Assert - Verify the command exited (exit code 0 is used by typer.Exit() without arguments)
-        assert result.exit_code == 0, f"Command should exit with code 0 (typer.Exit default), got {result.exit_code}"
+        # Assert - Verify the command exits with code 1 on distribute failure
+        assert result.exit_code == 1, f"Command should exit with code 1 on failure, got {result.exit_code}"
 
         # Assert - Verify project directory resolution and wrapper instantiation
         mock_find_project.assert_called_once_with(mock_project_dir)
@@ -1525,9 +1525,8 @@ class TestCLIIntegration:
     """Test CLI integration scenarios."""
 
     @pytest.fixture
-    def runner(self):
-        """Create a CLI test runner."""
-        return CliRunner()
+    def runner(self, cli_runner: CliRunner) -> CliRunner:
+        return cli_runner
 
     @pytest.mark.integration
     def test_version_flag_in_global_options(

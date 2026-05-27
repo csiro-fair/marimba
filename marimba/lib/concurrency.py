@@ -4,16 +4,6 @@ Marimba Standard Library Concurrency.
 This module provides parallelised functionality for tasks like generating thumbnails from a list of images or videos
 using multithreading.
 
-Imports:
-    Path: Represents file system paths
-    Lock: Provides thread synchronization
-    List, Optional: Type hints for function parameters
-    multithreaded: Decorator for multithreaded execution
-    generate_thumbnail: Function to create a thumbnail from an image
-
-Functions:
-    multithreaded_generate_image_thumbnails: Generates thumbnails for multiple images concurrently.
-    multithreaded_generate_video_thumbnails: Generates thumbnails for multiple videos concurrently.
 """
 
 import logging

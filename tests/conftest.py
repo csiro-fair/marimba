@@ -5,6 +5,7 @@ This module provides shared fixtures used across all test modules,
 including common test data, temporary directories, and testing utilities.
 """
 
+import re
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
@@ -14,6 +15,16 @@ import pytest
 import pytest_mock
 from click.testing import Result
 from typer.testing import CliRunner
+
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
+
+def strip_ansi(text: str) -> str:
+    # Rich emits ANSI bold / color codes between span boundaries even when NO_COLOR + TERM=dumb are set
+    # under some CI runner configurations, breaking substring assertions like `"collection-name" in stdout`
+    # because the literal becomes `\x1b[1;36m-collection\x1b[0m\x1b[1;36m-name\x1b[0m`. Strip ANSI before
+    # substring checks against rendered Rich/Typer output.
+    return _ANSI_ESCAPE_RE.sub("", text)
 
 
 @pytest.fixture
@@ -107,10 +118,41 @@ requirements:
     }
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _stabilise_rich_rendering() -> Generator[None, None, None]:
+    # GitHub Actions sets GITHUB_ACTIONS=true, which Rich treats as a hint to
+    # force terminal-mode rendering — that produces ANSI bold codes between
+    # span boundaries (e.g. "-\x1b[0m\x1b[1m-collection\x1b[0m\x1b[1m-name\x1b[0m"),
+    # breaking substring assertions against rendered CLI output even when
+    # NO_COLOR is set. Pin TERM=dumb + NO_COLOR=1 session-wide so Rich emits
+    # plain text. Deliberately leave COLUMNS untouched so default-width
+    # tracebacks (e.g. in test_delete_project_invalid_structure) stay at the
+    # narrow width tests were written for; tests that need wide output use
+    # the cli_runner fixture below to set COLUMNS=200 explicitly.
+    import os
+
+    overrides = {"NO_COLOR": "1", "TERM": "dumb"}
+    old: dict[str, str | None] = {k: os.environ.get(k) for k in overrides}
+    for k, v in overrides.items():
+        os.environ[k] = v
+    try:
+        yield
+    finally:
+        for k, prev in old.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+
+
 @pytest.fixture
 def cli_runner() -> CliRunner:
-    """CLI runner for testing typer commands."""
-    return CliRunner()
+    # COLUMNS=200, NO_COLOR=1, TERM=dumb pin help-text width and disable
+    # Rich's terminal-mode rendering. CI runners set GITHUB_ACTIONS=true,
+    # which Rich treats as a hint to force terminal mode; without TERM=dumb,
+    # Rich emits ANSI codes between span boundaries (e.g. between the dashes
+    # of --collection-name) and breaks substring assertions.
+    return CliRunner(env={"COLUMNS": "200", "NO_COLOR": "1", "TERM": "dumb"})
 
 
 # Test data constants

@@ -10,6 +10,8 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 from staticmap import CircleMarker, StaticMap
 
+from marimba.core import NetworkConnectionError
+
 # Type variable for comparable types
 T = TypeVar("T", bound="SupportsRichComparison")
 SupportsRichComparison = object
@@ -29,12 +31,6 @@ LABEL_WIDTH = 10  # Fixed width allocated for latitude labels
 BASE_DASH_PADDING = 60  # Base padding between label and dash
 PADDING_PER_DECIMAL = 8  # Additional padding per decimal place
 MIN_DECIMAL_PLACES = 2  # Minimum number of decimal places
-
-
-class NetworkConnectionError(Exception):
-    """
-    Raised when there is a network connection error.
-    """
 
 
 def lat_to_y(lat: float, zoom: int) -> float:

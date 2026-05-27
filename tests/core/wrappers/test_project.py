@@ -1241,17 +1241,12 @@ version: 1.0
         mock_logger_info.assert_called_once_with(expected_message)
 
     @pytest.mark.integration
-    def test_install_pipelines_with_installation_error_logs_exception_and_continues(
+    def test_install_pipelines_with_installation_error_logs_and_raises(
         self,
         mocker: pytest_mock.MockerFixture,
         project_wrapper: ProjectWrapper,
     ) -> None:
-        """Test that install_pipelines handles installation errors gracefully and logs exceptions.
-
-        This integration test verifies that when a pipeline's install() method raises a
-        PipelineInstaller.InstallError, the install_pipelines method catches the exception,
-        logs it appropriately, and continues processing other pipelines without failing.
-        """
+        """install_pipelines processes every pipeline, then raises InstallPipelinesError naming the failures."""
         # Arrange
         failing_pipeline_name = "failing_pipeline"
         successful_pipeline_name = "successful_pipeline"
@@ -1275,11 +1270,11 @@ version: 1.0
         mock_logger_exception = mocker.patch.object(project_wrapper.logger, "exception")
         mock_logger_info = mocker.patch.object(project_wrapper.logger, "info")
 
-        # Act
-        project_wrapper.install_pipelines()
+        # Act / Assert
+        with pytest.raises(ProjectWrapper.InstallPipelinesError, match=failing_pipeline_name):
+            project_wrapper.install_pipelines()
 
-        # Assert
-        # Verify install() was called for both pipelines
+        # Verify install() was called for both pipelines (all-or-nothing aggregation)
         mock_failing_wrapper.install.assert_called_once_with()
         mock_successful_wrapper.install.assert_called_once_with()
 
@@ -1342,24 +1337,18 @@ version: 1.0
         mock_pipeline_wrapper_2.update.assert_called_once_with()
 
     @pytest.mark.integration
-    def test_update_pipelines_continues_on_pipeline_errors(
+    def test_update_pipelines_aggregates_oserror_failures(
         self,
         mocker: pytest_mock.MockerFixture,
         project_wrapper: ProjectWrapper,
         mock_project_dir: Path,
     ) -> None:
-        """Test that update_pipelines continues updating other pipelines when one fails.
-
-        This integration test verifies that when a pipeline update fails with OSError or ValueError,
-        the update process continues for remaining pipelines and logs the error appropriately.
-        Tests the error recovery and continuation behavior of the pipeline update process.
-        """
+        """update_pipelines attempts every pipeline, then raises UpdatePipelinesError naming the failures."""
         # Arrange
         mock_pipeline_wrapper_1 = mocker.Mock()
         mock_pipeline_wrapper_2 = mocker.Mock()
         mock_pipeline_wrapper_3 = mocker.Mock()
 
-        # Configure first pipeline to raise OSError
         mock_pipeline_wrapper_1.update.side_effect = OSError("Git repository not found")
 
         project_wrapper._pipeline_wrappers = {
@@ -1376,25 +1365,22 @@ version: 1.0
             return_value=mock_logger,
         )
 
-        # Act
-        project_wrapper.update_pipelines()
+        # Act / Assert
+        with pytest.raises(ProjectWrapper.UpdatePipelinesError, match="failing_pipeline"):
+            project_wrapper.update_pipelines()
 
-        # Assert
-        # Verify all pipelines had update() called despite failure
+        # All pipelines were attempted (all-or-nothing aggregation, matching install_pipelines)
         mock_pipeline_wrapper_1.update.assert_called_once_with()
         mock_pipeline_wrapper_2.update.assert_called_once_with()
         mock_pipeline_wrapper_3.update.assert_called_once_with()
 
-        # Verify error logging behavior
-        assert mock_logger.exception.call_count == 1, "Should log exactly one exception for the failing pipeline"
-
-        # Verify logged error message contains expected content
+        # Failure for the bad pipeline was logged before re-raising
+        assert mock_logger.exception.call_count == 1
         logged_message = mock_logger.exception.call_args[0][0]
-        assert "Failed to update pipeline" in logged_message, "Should log pipeline update failure message"
-        assert "failing_pipeline" in logged_message, "Should include specific failing pipeline name in error"
-        assert "I/O or value error" in logged_message, "Should specify error type in logged message"
+        assert "failing_pipeline" in logged_message
+        assert "I/O or value error" in logged_message
 
-        # Verify info logging for successful pipelines
+        # Working pipelines emit start + success info; failing pipeline only emits start
         expected_info_calls = [
             mocker.call('Updating pipeline "failing_pipeline"'),
             mocker.call('Updating pipeline "working_pipeline_1"'),
@@ -1402,26 +1388,20 @@ version: 1.0
             mocker.call('Updating pipeline "working_pipeline_2"'),
             mocker.call('Updated pipeline "working_pipeline_2"'),
         ]
-        assert mock_logger.info.call_count == 5, "Should log info messages for all pipeline operations"
+        assert mock_logger.info.call_count == 5
         mock_logger.info.assert_has_calls(expected_info_calls, any_order=True)
 
     @pytest.mark.unit
-    def test_update_pipelines_continues_on_value_errors(
+    def test_update_pipelines_aggregates_value_error_failures(
         self,
         mocker: pytest_mock.MockerFixture,
         project_wrapper: ProjectWrapper,
     ) -> None:
-        """Test that update_pipelines continues when a pipeline raises ValueError.
-
-        This unit test verifies ValueError handling specifically, ensuring that
-        ValueError exceptions are caught and logged appropriately while other pipelines
-        continue to be processed.
-        """
+        """ValueError follows the same aggregation path as OSError."""
         # Arrange
         mock_pipeline_wrapper_1 = mocker.Mock()
         mock_pipeline_wrapper_2 = mocker.Mock()
 
-        # Configure first pipeline to raise ValueError
         mock_pipeline_wrapper_1.update.side_effect = ValueError("Invalid pipeline configuration")
 
         project_wrapper._pipeline_wrappers = {
@@ -1437,33 +1417,25 @@ version: 1.0
             return_value=mock_logger,
         )
 
-        # Act
-        project_wrapper.update_pipelines()
+        # Act / Assert
+        with pytest.raises(ProjectWrapper.UpdatePipelinesError, match="invalid_config_pipeline"):
+            project_wrapper.update_pipelines()
 
-        # Assert
-        # Verify both pipelines had update() called
         mock_pipeline_wrapper_1.update.assert_called_once_with()
         mock_pipeline_wrapper_2.update.assert_called_once_with()
 
-        # Verify error logging for ValueError
         mock_logger.exception.assert_called_once()
-
-        # Verify logged error message contains expected ValueError-specific content
         logged_message = mock_logger.exception.call_args[0][0]
-        assert "Failed to update pipeline" in logged_message, "Should log pipeline update failure message"
-        assert "invalid_config_pipeline" in logged_message, "Should include failing pipeline name"
-        assert "I/O or value error" in logged_message, "Should specify error type for ValueError"
+        assert "invalid_config_pipeline" in logged_message
+        assert "I/O or value error" in logged_message
 
-        # Verify info logs are called for all pipeline operations (2 for start, 1 for success)
         expected_info_calls = [
             mocker.call('Updating pipeline "invalid_config_pipeline"'),
             mocker.call('Updating pipeline "working_pipeline"'),
             mocker.call('Updated pipeline "working_pipeline"'),
         ]
         mock_logger.info.assert_has_calls(expected_info_calls, any_order=True)
-        assert (
-            mock_logger.info.call_count == 3
-        ), "Should log start messages for both pipelines and success for working pipeline"
+        assert mock_logger.info.call_count == 3
 
     @pytest.mark.unit
     def test_update_pipelines_with_empty_pipeline_wrappers_completes_successfully(

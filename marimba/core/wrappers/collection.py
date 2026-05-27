@@ -5,20 +5,12 @@ This module provides the CollectionWrapper class, which serves as a wrapper for 
 within the Marimba project. It includes functionality for creating and validating the directory structure,
 handling configuration files, and managing pipeline data directories.
 
-Imports:
-    - Path from pathlib: For handling filesystem paths.
-    - Any, Dict, Union from typing: For type hints.
-    - load_config, save_config from marimba.core.utils.config: For loading and saving configuration files.
-
-Classes:
-    - CollectionWrapper: A class that provides methods for creating, validating, and managing collection directories.
-        - InvalidStructureError: Raised when the collection directory structure is invalid.
-        - NoSuchPipelineError: Raised when a pipeline is not found.
 """
 
 from pathlib import Path
 from typing import Any
 
+from marimba.core import MarimbaError
 from marimba.core.utils.config import load_config, save_config
 
 
@@ -27,12 +19,12 @@ class CollectionWrapper:
     Collection directory wrapper.
     """
 
-    class InvalidStructureError(Exception):
+    class InvalidStructureError(MarimbaError):
         """
         Raised when the collection directory structure is invalid.
         """
 
-    class NoSuchPipelineError(Exception):
+    class NoSuchPipelineError(MarimbaError):
         """
         Raised when a pipeline is not found.
         """
@@ -144,13 +136,11 @@ class CollectionWrapper:
             The path to the pipeline data directory.
         """
         pipeline_data_dir = self._get_pipeline_data_dir(pipeline_name)
-        if pipeline_data_dir.is_dir():
+        try:
+            pipeline_data_dir.mkdir(parents=True, exist_ok=False)
+        except FileExistsError as exc:
             msg = f'Pipeline data directory "{pipeline_data_dir}" already exists'
-            raise FileExistsError(
-                msg,
-            )
-
-        pipeline_data_dir.mkdir(parents=True)
+            raise FileExistsError(msg) from exc
         return pipeline_data_dir
 
     def _get_pipeline_data_dir(self, pipeline_name: str) -> Path:

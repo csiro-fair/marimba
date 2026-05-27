@@ -214,7 +214,7 @@ class TestS3DistributionTarget:
 
         # Extract paths and keys for detailed verification
         discovered_files = {}
-        for path, key in path_key_pairs:
+        for path, key, _size in path_key_pairs:
             filename = path.name
             discovered_files[filename] = {
                 "path": path,
@@ -301,7 +301,7 @@ class TestS3DistributionTarget:
 
         # Extract paths and keys for verification
         discovered_files = {}
-        for path, key in path_key_pairs:
+        for path, key, _size in path_key_pairs:
             filename = path.name
             discovered_files[filename] = {"path": path, "key": key}
 
@@ -467,8 +467,10 @@ class TestS3DistributionTarget:
         root_cause = exc_info.value.__cause__.__cause__
         assert root_cause is expected_s3_error, "Original S3UploadFailedError should be chained as the root cause"
 
-        # Verify upload was attempted exactly once before the error occurred
-        assert mock_bucket.upload_file.call_count == 1, "Upload should be attempted exactly once before the error"
+        # Uploads run in parallel; the first observed failure aborts the as_completed loop.
+        # Already-submitted in-flight workers may complete before the abort propagates, so
+        # call_count is bounded by the number of files in the test fixture.
+        assert mock_bucket.upload_file.call_count >= 1, "Upload should be attempted at least once before the error"
 
     @pytest.mark.integration
     def test_distribute_client_error(
@@ -560,8 +562,10 @@ class TestS3DistributionTarget:
         root_cause = exc_info.value.__cause__.__cause__
         assert root_cause is expected_unexpected_error, "Original OSError should be chained as the root cause"
 
-        # Verify upload was attempted exactly once before the error occurred
-        assert mock_upload.call_count == 1, "Upload method should have been called exactly once before the error"
+        # Uploads run in parallel; the first observed failure aborts the as_completed loop.
+        # Already-submitted in-flight workers may complete before the abort propagates, so
+        # call_count is bounded by the number of files in the test fixture.
+        assert mock_upload.call_count >= 1, "Upload method should have been called at least once before the error"
 
     @pytest.mark.unit
     def test_distribute_outer_exception(

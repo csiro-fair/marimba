@@ -5,12 +5,6 @@ This module provides functionality to compute SHA-256 hashes for files and paths
 directories, hashing file contents and path strings for files, and just path strings for directories or other
 types of paths. The module is designed to be efficient, using a large buffer size for reading large files.
 
-Imports:
-    hashlib: Provides hash algorithms, including SHA-256.
-    pathlib.Path: Offers object-oriented filesystem paths.
-
-Functions:
-    compute_hash: Computes the SHA-256 hash of a path's contents and path string.
 """
 
 import hashlib

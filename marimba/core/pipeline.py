@@ -4,18 +4,6 @@ Marimba Pipeline Abstract Base Class Module.
 The `BasePipeline` class is an abstract base class that all Marimba pipelines should inherit from. It provides a
 standard interface for implementing pipelines and includes methods for running import, process, and compose commands.
 
-Imports:
-    - ABC: Abstract base class from the `abc` module.
-    - abstractmethod: Decorator for declaring abstract methods from the `abc` module.
-    - Path: Class for representing file system paths from the `pathlib` module.
-    - Any, Dict, List, Optional, Tuple, Union: Type hinting classes from the `typing` module.
-    - LogMixin: Mixin class for logging from the `marimba.core.utils.log` module.
-    - format_command, format_entity: Functions for formatting command and entity names from the
-      `marimba.core.utils.rich` module.
-
-Classes:
-    - BasePipeline: Abstract base class for Marimba pipelines.
-
 """
 
 from abc import ABC, abstractmethod

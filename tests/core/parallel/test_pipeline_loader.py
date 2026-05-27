@@ -1295,5 +1295,134 @@ class MockTestPipeline(BasePipeline):
         mock_configure_logging.assert_not_called()
 
 
+class TestFindPipelineClassFailureIsolation:
+    """Pin the failure-isolation contract: a bad object mid-iteration must not derail the search."""
+
+    @pytest.mark.unit
+    def test_problematic_class_does_not_abort_search(self) -> None:
+        """A class whose isinstance check raises TypeError is skipped; the valid one is still found."""
+        import types
+
+        from marimba.core.parallel.pipeline_loader import _find_pipeline_class
+
+        class ProblematicClass:
+            @property  # type: ignore[misc]
+            def __class__(self) -> Any:
+                msg = "Can't determine class"
+                raise TypeError(msg)
+
+        # Construct a synthetic module with the problematic object BEFORE the valid pipeline class.
+        module = types.ModuleType("fake_module")
+        module.__dict__["bad"] = ProblematicClass
+        module.__dict__["good"] = MockTestPipeline
+
+        result = _find_pipeline_class(module)
+
+        assert result is MockTestPipeline
+
+    @pytest.mark.unit
+    def test_module_without_dict_raises_import_error(self) -> None:
+        """A module-like object without __dict__ raises ImportError with a clear message."""
+        from marimba.core.parallel.pipeline_loader import _find_pipeline_class
+
+        class FakeModule:
+            __slots__ = ()
+
+        with pytest.raises(ImportError, match="no __dict__ attribute"):
+            _find_pipeline_class(FakeModule())  # type: ignore[arg-type]
+
+    @pytest.mark.unit
+    def test_module_with_only_invalid_classes_raises_import_error(self) -> None:
+        """If no valid pipeline class is found, raise a descriptive ImportError."""
+        import types
+
+        from marimba.core.parallel.pipeline_loader import _find_pipeline_class
+
+        module = types.ModuleType("fake_module")
+        module.__dict__["a"] = int
+        module.__dict__["b"] = str
+
+        with pytest.raises(ImportError, match="not been set or could not be found"):
+            _find_pipeline_class(module)
+
+
+class TestLoadPipelineInstanceThreadSafety:
+    """Verify the sys.path mutation in load_pipeline_instance is serialised across threads."""
+
+    @pytest.mark.integration
+    def test_concurrent_loads_do_not_leak_syspath(self, tmp_path: Path) -> None:
+        """Concurrent thread loads must leave sys.path unchanged.
+
+        Drive load_pipeline_instance concurrently from multiple threads against distinct repos. Without the
+        _PIPELINE_IMPORT_LOCK, two threads' sys.path.insert / sys.path.pop pairs can interleave and pop each
+        other's entries, leaving stray repo paths in sys.path after all loads complete (or, worse, popping
+        an unrelated caller's path entry).
+        """
+        from concurrent.futures import ThreadPoolExecutor
+        from textwrap import dedent
+
+        from marimba.core.parallel.pipeline_loader import load_pipeline_instance
+
+        # Build N distinct pipeline-repo layouts in tmp_path/<i>/{root,repo,config}.
+        num_pipelines = 8
+
+        def build_pipeline_layout(i: int) -> tuple[Path, Path, Path]:
+            root_dir = tmp_path / f"pipeline_{i}"
+            repo_dir = root_dir / "repo"
+            repo_dir.mkdir(parents=True)
+            (repo_dir / f"pipeline_{i}.pipeline.py").write_text(
+                dedent(
+                    f"""
+                    from pathlib import Path
+                    from typing import Any
+                    from marimba.core.pipeline import BasePipeline
+                    from marimba.core.schemas.base import BaseMetadata
+
+
+                    class Pipeline{i}(BasePipeline):
+                        def _package(
+                            self,
+                            data_dir: Path,
+                            config: dict[str, Any],
+                            **kwargs: Any,
+                        ) -> dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]]:
+                            return {{}}
+                    """,
+                ),
+            )
+            config_path = root_dir / "pipeline.yml"
+            config_path.write_text("{}\n")
+            return root_dir, repo_dir, config_path
+
+        layouts = [build_pipeline_layout(i) for i in range(num_pipelines)]
+
+        # Snapshot sys.path so we can assert no leakage at the end.
+        sys_path_snapshot = list(sys.path)
+
+        def load(idx: int) -> object | None:
+            root_dir, repo_dir, config_path = layouts[idx]
+            return load_pipeline_instance(
+                root_dir=root_dir,
+                repo_dir=repo_dir,
+                pipeline_name=f"pipeline_{idx}",
+                config_path=config_path,
+                dry_run=False,
+                log_string_prefix=None,
+            )
+
+        with ThreadPoolExecutor(max_workers=num_pipelines) as ex:
+            results = list(ex.map(load, range(num_pipelines)))
+
+        # Every load succeeded.
+        assert all(r is not None for r in results), "Every concurrent load should produce a pipeline instance"
+        assert len(results) == num_pipelines
+
+        # sys.path is unchanged after all loads complete (no leaks, no popped-wrong-entry).
+        assert sys.path == sys_path_snapshot, (
+            "sys.path should be restored to its pre-load state after every concurrent thread completes; "
+            f"snapshot={sys_path_snapshot[:5]}..., got={sys.path[:5]}..."
+        )
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

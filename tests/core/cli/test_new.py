@@ -13,6 +13,10 @@ from tests.conftest import (
 
 runner = CliRunner()
 
+# Per-invocation env override for tests that need wide rendering — see
+# the matching comment in tests/core/cli/test_delete.py.
+WIDE_RUNNER_ENV = {"COLUMNS": "200", "NO_COLOR": "1", "TERM": "dumb"}
+
 # ---------------------------------------------------------------------------------------------------------------------#
 # Testing project()
 # ---------------------------------------------------------------------------------------------------------------------#
@@ -1004,10 +1008,12 @@ class TestTargetCommand:
             side_effect=FileExistsError(expected_error_message),
         )
 
-        # Act
+        # Act — pass WIDE_RUNNER_ENV so the long macOS /private/var/folders/...
+        # path fits in the Rich error panel without wrapping.
         result = runner.invoke(
             marimba_cli,
             ["new", "target", target_name, "--project-dir", str(project_dir)],
+            env=WIDE_RUNNER_ENV,
         )
 
         # Assert - Verify exit code and specific error message format

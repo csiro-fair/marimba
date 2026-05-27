@@ -8,33 +8,13 @@ The PipelineWrapper class allows for creating a new pipeline directory from a re
 saving pipeline configurations, and retrieving instances of the pipeline implementation. It also provides functionality
 for updating the pipeline repository and installing pipeline dependencies.
 
-Imports:
-    - logging: Python logging module for logging messages.
-    - shutil: High-level operations on files and collections of files.
-    - subprocess: Subprocess management module for running external commands.
-    - sys: System-specific parameters and functions.
-    - importlib.util: Utility functions for importing modules.
-    - pathlib.Path: Object-oriented filesystem paths.
-    - typing: Support for type hints.
-    - git.Repo: GitPython library for interacting with Git repositories.
-    - marimba.core.pipeline.BasePipeline: Base class for pipeline implementations.
-    - marimba.core.utils.config: Utility functions for loading and saving configuration files.
-    - marimba.core.utils.log.LogMixin: Mixin class for adding logging functionality.
-    - marimba.core.utils.log.get_file_handler: Function for creating a file handler for logging.
-
-Classes:
-    - PipelineWrapper: Pipeline directory wrapper class for managing pipeline directories.
-        - InvalidStructureError: Exception raised when the project file structure is invalid.
 """
 
 import logging
-import sys
-from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Any
 
-from git import Repo
-
+from marimba.core import MarimbaError
 from marimba.core.installer.pipeline_installer import PipelineInstaller
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
 from marimba.core.pipeline import BasePipeline
@@ -48,7 +28,7 @@ class PipelineWrapper(LogMixin):
     Pipeline directory wrapper.
     """
 
-    class InvalidStructureError(Exception):
+    class InvalidStructureError(MarimbaError):
         """
         Raised when the project file structure is invalid.
         """
@@ -66,7 +46,6 @@ class PipelineWrapper(LogMixin):
         self._dry_run = dry_run
 
         self._file_handler: logging.FileHandler | None = None
-        self._pipeline_class: type[BasePipeline] | None = None
 
         self._check_file_structure()
         self._setup_logging()
@@ -186,6 +165,8 @@ class PipelineWrapper(LogMixin):
 
         # Clone the pipeline repository
         repo_dir = root_dir / "repo"
+        from git import Repo  # noqa: PLC0415 - lazy-imported; gitpython is ~17ms at import time
+
         Repo.clone_from(url, repo_dir)
 
         # Create the pipeline configuration file (initialize as empty)
@@ -236,79 +217,6 @@ class PipelineWrapper(LogMixin):
             log_string_prefix=None,
             allow_empty=allow_empty,
         )
-
-    def get_pipeline_class(self) -> type[BasePipeline] | None:
-        """
-        Get the pipeline class.
-
-        Lazy-loaded and cached. Automatically scans the repository for a pipeline implementation.
-
-        Returns:
-            The pipeline class.
-
-        Raises:
-            FileNotFoundError:
-                If the pipeline implementation file cannot be found, or if there are multiple pipeline implementation
-                files.
-            ImportError: If the pipeline implementation file cannot be imported.
-
-        """
-        if self._pipeline_class is None:
-            # Find files that end with .pipeline.py in the repository
-            pipeline_module_paths = list(self.repo_dir.glob("**/*.pipeline.py"))
-
-            # Ensure there is one result
-            if len(pipeline_module_paths) == 0:
-                msg = f'No pipeline implementation found in "{self.repo_dir}"'
-                raise FileNotFoundError(
-                    msg,
-                )
-
-            if len(pipeline_module_paths) > 1:
-                msg = f'Multiple pipeline implementations found in "{self.repo_dir}": {pipeline_module_paths}.'
-                raise FileNotFoundError(
-                    msg,
-                )
-            pipeline_module_path = pipeline_module_paths[0]
-
-            pipeline_module_name = pipeline_module_path.stem
-            pipeline_module_spec = spec_from_file_location(
-                pipeline_module_name,
-                str(pipeline_module_path.absolute()),
-            )
-
-            if pipeline_module_spec is None:
-                msg = f"Could not load spec for {pipeline_module_name} from {pipeline_module_path}"
-                raise ImportError(
-                    msg,
-                )
-
-            # Create the pipeline module
-            pipeline_module = module_from_spec(pipeline_module_spec)
-
-            # Enable repo-relative imports by temporarily adding the repository directory to the module search path
-            sys.path.insert(0, str(self.repo_dir.absolute()))
-
-            # Ensure that loader is not None before executing the module
-            if pipeline_module_spec.loader is None:
-                msg = f"Could not find loader for {pipeline_module_name} from {pipeline_module_path}"
-                raise ImportError(
-                    msg,
-                )
-
-            # Execute it
-            pipeline_module_spec.loader.exec_module(pipeline_module)
-
-            # Remove the repository directory from the module search path to avoid conflicts
-            sys.path.pop(0)
-
-            # Find any BasePipeline implementations
-            for obj in pipeline_module.__dict__.values():
-                if isinstance(obj, type) and issubclass(obj, BasePipeline) and obj is not BasePipeline:
-                    self._pipeline_class = obj
-                    break
-
-        return self._pipeline_class
 
     def prompt_pipeline_config(
         self,
@@ -373,6 +281,8 @@ class PipelineWrapper(LogMixin):
         """
         Update the pipeline repository by issuing a git pull.
         """
+        from git import Repo  # noqa: PLC0415 - lazy-imported; see PipelineWrapper.create
+
         repo = Repo(self.repo_dir)
         repo.remotes.origin.pull()
 
