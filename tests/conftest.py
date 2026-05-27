@@ -5,6 +5,7 @@ This module provides shared fixtures used across all test modules,
 including common test data, temporary directories, and testing utilities.
 """
 
+import re
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
@@ -14,6 +15,16 @@ import pytest
 import pytest_mock
 from click.testing import Result
 from typer.testing import CliRunner
+
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
+
+def strip_ansi(text: str) -> str:
+    # Rich emits ANSI bold / color codes between span boundaries even when NO_COLOR + TERM=dumb are set
+    # under some CI runner configurations, breaking substring assertions like `"collection-name" in stdout`
+    # because the literal becomes `\x1b[1;36m-collection\x1b[0m\x1b[1;36m-name\x1b[0m`. Strip ANSI before
+    # substring checks against rendered Rich/Typer output.
+    return _ANSI_ESCAPE_RE.sub("", text)
 
 
 @pytest.fixture

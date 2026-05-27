@@ -18,7 +18,7 @@ from marimba.main import (
     marimba_cli,
     version_callback,
 )
-from tests.conftest import assert_cli_failure, assert_cli_success
+from tests.conftest import assert_cli_failure, assert_cli_success, strip_ansi
 
 
 class TestCLI:
@@ -1070,11 +1070,13 @@ class TestCLI:
         # Assert - Verify successful help display
         assert_cli_success(result, context="Import command help")
 
-        # Assert - Verify required arguments are shown
+        # Assert - Verify required arguments are shown (strip ANSI: Rich may emit color codes
+        # between hyphen segments in CI, breaking literal substring matches)
+        stdout = strip_ansi(result.stdout)
         assert (
-            "source-path" in result.stdout or "SOURCE_PATH" in result.stdout
-        ), f"Help should show source-path argument, got: {result.stdout}"
-        assert "collection_name" in result.stdout, f"Help should show collection_name argument, got: {result.stdout}"
+            "source-path" in stdout or "SOURCE_PATH" in stdout
+        ), f"Help should show source-path argument, got: {stdout}"
+        assert "collection_name" in stdout, f"Help should show collection_name argument, got: {stdout}"
 
     @pytest.mark.unit
     def test_process_command_help(self, runner: CliRunner) -> None:
@@ -1093,11 +1095,11 @@ class TestCLI:
         # Assert - Verify successful help display
         assert_cli_success(result, context="Process command help")
 
-        # Assert - Verify collection-name option is shown
-        assert "collection-name" in result.stdout, f"Help should show collection-name option, got: {result.stdout}"
-
-        # Assert - Verify pipeline-name option is shown
-        assert "pipeline-name" in result.stdout, f"Help should show pipeline-name option, got: {result.stdout}"
+        # Assert - Verify collection-name and pipeline-name options are shown (strip ANSI: Rich
+        # may emit color codes between hyphen segments in CI, breaking literal substring matches)
+        stdout = strip_ansi(result.stdout)
+        assert "collection-name" in stdout, f"Help should show collection-name option, got: {stdout}"
+        assert "pipeline-name" in stdout, f"Help should show pipeline-name option, got: {stdout}"
 
     @pytest.mark.unit
     def test_package_command_help(self, runner: CliRunner) -> None:
@@ -1115,10 +1117,9 @@ class TestCLI:
 
         # Assert
         assert_cli_success(result, context="Package command help")
-        assert "dataset_name" in result.stdout, "Help should show dataset_name argument"
-        assert (
-            "collection-name" in result.stdout or "COLLECTION_NAME" in result.stdout
-        ), "Help should show collection-name option"
+        stdout = strip_ansi(result.stdout)
+        assert "dataset_name" in stdout, "Help should show dataset_name argument"
+        assert "collection-name" in stdout or "COLLECTION_NAME" in stdout, "Help should show collection-name option"
 
     @pytest.mark.unit
     def test_distribute_command_help(self, runner: CliRunner) -> None:
@@ -1156,12 +1157,13 @@ class TestCLI:
         assert_cli_success(result, context="Update command help")
 
         # Assert - Verify help describes update functionality with exact docstring text
+        stdout = strip_ansi(result.stdout)
         assert (
-            "Update (pull) all Marimba pipelines" in result.stdout
-        ), f"Help should describe update functionality with exact text, got: {result.stdout}"
+            "Update (pull) all Marimba pipelines" in stdout
+        ), f"Help should describe update functionality with exact text, got: {stdout}"
 
         # Assert - Verify project-dir option is shown (Typer formats it as --project-dir)
-        assert "--project-dir" in result.stdout, f"Help should show --project-dir option, got: {result.stdout}"
+        assert "--project-dir" in stdout, f"Help should show --project-dir option, got: {stdout}"
 
     @pytest.mark.unit
     def test_install_command_help(self, runner: CliRunner) -> None:
@@ -1179,8 +1181,9 @@ class TestCLI:
 
         # Assert
         assert_cli_success(result, context="Install command help")
-        assert "Install Python dependencies" in result.stdout, "Help should describe install functionality"
-        assert "project-dir" in result.stdout or "PROJECT_DIR" in result.stdout, "Help should show project-dir option"
+        stdout = strip_ansi(result.stdout)
+        assert "Install Python dependencies" in stdout, "Help should describe install functionality"
+        assert "project-dir" in stdout or "PROJECT_DIR" in stdout, "Help should show project-dir option"
 
 
 class TestCommandErrorHandling:
