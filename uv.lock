@@ -857,7 +857,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "av", specifier = ">=16.1.0,<17" },
+    { name = "av", specifier = ">=16.1.0,<18" },
     { name = "boto3", specifier = ">=1.40.6,<2" },
     { name = "botocore", specifier = ">=1.40.6,<2" },
     { name = "gitpython", specifier = ">=3.1.45,<4" },
@@ -872,7 +872,7 @@ requires-dist = [
     { name = "rich", specifier = ">=14.1.0,<15" },
     { name = "staticmap", specifier = ">=0.5.7,<0.6" },
     { name = "tabulate", specifier = ">=0.9.0,<0.10" },
-    { name = "typer", specifier = ">=0.16.0,<0.17" },
+    { name = "typer", specifier = ">=0.16.0,<0.27" },
 ]
 
 [package.metadata.requires-dev]
@@ -881,16 +881,16 @@ dev = [
     { name = "black", specifier = ">=26.3.1,<27" },
     { name = "deptry", specifier = ">=0.23.0" },
     { name = "hatch", specifier = ">=1.14.1,<2" },
-    { name = "mypy", specifier = ">=1.17.1,<2" },
+    { name = "mypy", specifier = ">=1.17.1,<3" },
     { name = "pre-commit", specifier = ">=4.3.0,<5" },
     { name = "pytest", specifier = ">=9.0.3,<10" },
-    { name = "pytest-cov", specifier = ">=6.2.1,<7" },
+    { name = "pytest-cov", specifier = ">=6.2.1,<8" },
     { name = "pytest-mock", specifier = ">=3.15.0,<4" },
-    { name = "ruff", specifier = ">=0.12.8,<0.13" },
+    { name = "ruff", specifier = ">=0.12.8,<0.16" },
     { name = "twine", specifier = ">=6.1.0,<7" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20240311,<7" },
     { name = "types-requests", specifier = ">=2.32.0.20240622,<3" },
-    { name = "types-tabulate", specifier = ">=0.9.0.20240106,<0.10" },
+    { name = "types-tabulate", specifier = ">=0.9.0.20240106,<0.11" },
     { name = "vulture", specifier = ">=2.14.0,<3" },
 ]
 
