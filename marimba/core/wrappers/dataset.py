@@ -757,7 +757,7 @@ class DatasetWrapper(LogMixin):
 
                 progress_bar.advance(task)
         else:
-            processed_items = execute_on_mapping(dataset_items, lambda x: self._process_items(x))
+            processed_items = execute_on_mapping(dataset_items, self._process_items)
             grouped_items = execute_on_mapping(processed_items, self._group_by_metadata_type)
             for decorator in mapping_processor_decorator:
                 decorator(lambda x, y: self._create_metadata_files(dataset_name, x, y), grouped_items)

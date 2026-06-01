@@ -9,7 +9,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from functools import reduce
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any
 
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import MetadataGenerationLevelOptions
@@ -31,10 +31,6 @@ type MAPPING_PROCESSOR_TYPE = Callable[
     None,
 ]
 type DECORATOR_TYPE = Callable[[MAPPING_PROCESSOR_TYPE, MAPPED_GROUPED_ITEMS], None]
-
-T = TypeVar("T")
-S = TypeVar("S")
-R = TypeVar("R")
 
 
 def flatten_middle_mapping[T, S](mapping: dict[str, dict[str, dict[T, S]]]) -> dict[str, dict[T, S]]:
@@ -96,7 +92,7 @@ def flatten_list_mapping[T, S, R](mapping: dict[str, dict[T, dict[S, R]]]) -> di
     return dict(output)
 
 
-def execute_on_mapping(mapping: dict[str, dict[str, S]], executor: Callable[[S], T]) -> dict[str, dict[str, T]]:
+def execute_on_mapping[S, T](mapping: dict[str, dict[str, S]], executor: Callable[[S], T]) -> dict[str, dict[str, T]]:
     """
     Executes a function on a mapping structure.
 

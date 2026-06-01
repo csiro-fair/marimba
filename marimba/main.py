@@ -206,7 +206,7 @@ def import_command(
         raise typer.Exit(1) from None
 
     # If no pipeline names are specified, process all pipelines
-    pipeline_names = pipeline_name if pipeline_name else list(project_wrapper.pipeline_wrappers.keys())
+    pipeline_names = pipeline_name or list(project_wrapper.pipeline_wrappers.keys())
 
     # Run the import
     try:
@@ -303,8 +303,8 @@ def package_command(  # noqa: PLR0915
     get_rich_handler().set_dry_run(dry_run)
 
     # If no collection and pipeline names are specified, package all collections and pipelines
-    collection_names = collection_name if collection_name else list(project_wrapper.collection_wrappers.keys())
-    pipeline_names = pipeline_name if pipeline_name else list(project_wrapper.pipeline_wrappers.keys())
+    collection_names = collection_name or list(project_wrapper.collection_wrappers.keys())
+    pipeline_names = pipeline_name or list(project_wrapper.pipeline_wrappers.keys())
 
     metadata_saver_overwrite = None if metadata_output is None else get_saver(metadata_output)
     metadata_level_option: list[MetadataGenerationLevelOptions] = metadata_level or [
@@ -415,8 +415,8 @@ def process_command(
     get_rich_handler().set_dry_run(dry_run)
 
     # If no collection and pipeline names are specified, package all collections and pipelines
-    collection_names = collection_name if collection_name else list(project_wrapper.collection_wrappers.keys())
-    pipeline_names = pipeline_name if pipeline_name else list(project_wrapper.pipeline_wrappers.keys())
+    collection_names = collection_name or list(project_wrapper.collection_wrappers.keys())
+    pipeline_names = pipeline_name or list(project_wrapper.pipeline_wrappers.keys())
 
     # Run the processing
     try:

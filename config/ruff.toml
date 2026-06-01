@@ -41,6 +41,7 @@ lint.ignore = [
     "PLR0913", # Too many arguments in function definition
     "S603",    # `subprocess` call: check for execution of untrusted input
     "TD003",   # Missing issue link on TODO
+    "UP042",   # Class inherits from str+Enum: keep over StrEnum, whose __str__ differs and changes typer CLI / serialised output
 ]
 
 # Per-file ignores

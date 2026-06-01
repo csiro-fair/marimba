@@ -832,7 +832,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                 # Build a mapping of existing EXIF data
                 existing_exif_map = {}
                 for i, metadata in enumerate(existing_metadata_list):
-                    existing_exif_map[file_paths[i]] = metadata if metadata else {}
+                    existing_exif_map[file_paths[i]] = metadata or {}
 
                 # Process EXIF tags for all files
                 cls._process_exif_tags_batch(et, successful_images, existing_exif_map)

@@ -155,7 +155,7 @@ class DistributionTargetWrapper:
         arg_spec = getfullargspec(target_class)
         positional_args = arg_spec.args[1:]  # exclude 'self'
         keyword_args = arg_spec.kwonlyargs
-        defaults = arg_spec.defaults if arg_spec.defaults else []
+        defaults = arg_spec.defaults or ()
 
         # Prepare the default values for the keyword arguments
         keyword_defaults = dict(zip(keyword_args[::-1], defaults[::-1], strict=False))
