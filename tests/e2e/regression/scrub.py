@@ -40,7 +40,10 @@ Scrubber strategy:
   the entropy-coded scan from the first `SOS` marker onward. This drops the
   CPU-sensitive pixel bytes while still validating EXIF (including the scrubbed
   UUID) and frame geometry. UUID-shaped substrings in the retained header are
-  replaced with a fixed placeholder.
+  replaced with a fixed placeholder, and — because marimba embeds the full iFDO
+  ImageData as JSON in EXIF:UserComment — the pixel-derived `image-entropy` and
+  `image-average-color` values inside that JSON are normalised too, so the
+  header is invariant to numpy's cross-CPU floating-point jitter.
 - `scrubbed_hash` dispatches by suffix and returns the SHA256 of the scrubbed
   content (or of the raw bytes if no scrubber applies).
 - `rebuild_manifest` parses a marimba-generated manifest, re-hashes each
@@ -117,6 +120,17 @@ _JPEG_SUFFIXES = frozenset({".jpg", ".jpeg"})
 # header segments, which are deterministic metadata.
 _JPEG_SOS_MARKER = b"\xff\xda"
 
+# The retained JPEG header carries an EXIF:UserComment JSON blob (marimba dumps
+# the full iFDO ImageData there, see core/schemas/ifdo.py::_add_user_comment).
+# That blob embeds the same pixel-derived fields as the YAML — image-entropy
+# (a numpy float, CPU-ULP-sensitive) and image-average-color (a numpy mean) —
+# so the header bytes themselves drift across runner CPUs unless these JSON
+# values are normalised. Byte-level subs on the compact JSON encoding.
+_JPEG_JSON_PATTERNS: tuple[tuple[re.Pattern[bytes], bytes], ...] = (
+    (re.compile(rb'"image-entropy":\s*-?[0-9][0-9.eE+-]*'), b'"image-entropy": 0.0'),
+    (re.compile(rb'"image-average-color":\s*\[[^\]]*\]'), b'"image-average-color": [0, 0, 0]'),
+)
+
 # Suffixes for which we apply markdown scrubbing. summary.md is the only
 # dataset-level .md file and embeds today's date in the Creation Date row
 # (marimba/core/utils/summary.py uses datetime.now() to populate it), so its
@@ -172,13 +186,18 @@ def scrub_jpeg_bytes(raw: bytes) -> bytes:
     the image geometry — so the scrubbed hash still detects metadata drift while
     being invariant to pixel-encoding jitter.
 
-    UUID-shaped substrings in the header are replaced with a fixed placeholder.
-    Both are exactly 36 ASCII chars; the false-positive risk in the small header
-    region is negligible.
+    UUID-shaped substrings in the header are replaced with a fixed placeholder
+    (both are exactly 36 ASCII chars; the false-positive risk in the small header
+    region is negligible), and the pixel-derived image-entropy / image-average-
+    color values embedded in the EXIF:UserComment JSON are normalised so the
+    header is invariant to numpy's cross-CPU floating-point jitter.
     """
     sos = raw.find(_JPEG_SOS_MARKER)
     header = raw if sos == -1 else raw[:sos]
-    return _UUID_RE.sub(UUID_PLACEHOLDER.encode("ascii"), header)
+    header = _UUID_RE.sub(UUID_PLACEHOLDER.encode("ascii"), header)
+    for pattern, replacement in _JPEG_JSON_PATTERNS:
+        header = pattern.sub(replacement, header)
+    return header
 
 
 def is_log_path(rel_path: Path) -> bool:

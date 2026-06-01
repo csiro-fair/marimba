@@ -68,6 +68,27 @@ def test_jpeg_scrub_idempotent() -> None:
     assert scrub.scrub_jpeg_bytes(once) == once
 
 
+def test_jpeg_scrub_normalises_exif_usercomment_entropy() -> None:
+    """Pixel-derived image-entropy in the EXIF:UserComment JSON is neutralised.
+
+    marimba embeds the iFDO ImageData as JSON in the header; its image-entropy
+    is a numpy float that jitters in the low-order digits across runner CPUs.
+    Two headers differing only in that value must scrub identically.
+    """
+    a = _fake_jpeg(b"scan", header_extra=b'\xff\xe1{"image-entropy": 6.257750034332275, "x": 1}')
+    b = _fake_jpeg(b"scan", header_extra=b'\xff\xe1{"image-entropy": 6.257750034332999, "x": 1}')
+    assert scrub.scrub_jpeg_bytes(a) == scrub.scrub_jpeg_bytes(b)
+    assert b'"image-entropy": 0.0' in scrub.scrub_jpeg_bytes(a)
+
+
+def test_jpeg_scrub_normalises_exif_usercomment_average_color() -> None:
+    """Pixel-derived image-average-color in the EXIF:UserComment JSON is neutralised."""
+    a = _fake_jpeg(b"scan", header_extra=b'\xff\xe1{"image-average-color": [16, 52, 68], "x": 1}')
+    b = _fake_jpeg(b"scan", header_extra=b'\xff\xe1{"image-average-color": [17, 51, 69], "x": 1}')
+    assert scrub.scrub_jpeg_bytes(a) == scrub.scrub_jpeg_bytes(b)
+    assert b'"image-average-color": [0, 0, 0]' in scrub.scrub_jpeg_bytes(a)
+
+
 def test_yaml_scrub_normalises_entropy() -> None:
     """Differing image-entropy values collapse to the same scrubbed text."""
     a = "    image-entropy: 5.15189790725708\n"
