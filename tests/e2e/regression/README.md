@@ -129,10 +129,12 @@ Asserts structural counts. Failures dump the exact category that drifted (e.g. "
 
 The load-bearing tier. Asserts every dataset file's scrubbed content matches the golden, with two carve-outs (entries kept in the manifest for path + ordering, hash replaced with placeholder): log files under `logs/`, and `map.png`. `map.png` is excluded because `staticmap` renders by fetching tiles from a remote OSM-backed server, so its bytes change over wall-clock time as upstream tile data updates — same project state produces different bytes a day later. Failures dump the first 20 differing manifest lines plus the line-count delta if any.
 
+For JPEGs the scrubbed hash covers only the header segments (EXIF, quantisation/Huffman tables, frame geometry); the entropy-coded scan from the first `SOS` marker onward is dropped. That scan is emitted by libjpeg-turbo's SIMD encoder, whose rounding differs across CPU microarchitectures, so hashing it made the tier flaky on GitHub's mixed hosted-runner fleet (a handful of borderline frames flipped between two values depending on which runner CPU executed the job). The same pixel drift cascades into the iFDO `image-entropy` and `image-average-color` fields, which the YAML scrubber now normalises. Tier C therefore validates JPEG metadata and geometry but not pixel-level encoding — pixel-content regressions surface through Tier A/B counts and the iFDO fields that survive scrubbing, not byte-equality of the scan.
+
 **Common causes:**
 
-- A new volatile field appeared in the YAML output that the scrubber doesn't know about (the scrubber currently handles `image-uuid`, `image-set-uuid`, `image-hash-sha256`). Add the field to `scrub.py::_YAML_FIELD_PATTERNS`.
-- The JPEG bytes contain a new non-determinism source (e.g. a new EXIF tag carrying a timestamp). Audit with `exiftool` or inspect the raw bytes around the differing offsets.
+- A new volatile field appeared in the YAML output that the scrubber doesn't know about (the scrubber currently handles `image-uuid`, `image-set-uuid`, `image-hash-sha256`, `image-entropy`, `image-average-color`). Add the field to `scrub.py::_YAML_FIELD_PATTERNS`.
+- A new non-determinism source appeared in the retained JPEG header (e.g. a new EXIF tag carrying a timestamp). Audit with `exiftool` or inspect the raw header bytes. Differences in the entropy-coded scan are intentionally ignored.
 - The pipeline source-copy under `pipelines/MRITC/repo/` drifted (pipeline-repo SHA bumped without rotating the golden).
 - An output file the manifest covers is genuinely different.
 
