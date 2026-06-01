@@ -17,35 +17,30 @@ Plus two further drift sources identified after the initial harness landed:
    `marimba/core/utils/summary.py`. Drifts across runs on different days
    even with identical inputs.
 5. Pixel-derived values that vary across CPU microarchitectures, not across
-   runs. The entropy-coded scan of each processed JPEG is emitted by
-   libjpeg-turbo's SIMD encoder, whose rounding differs between CPU
-   generations; on GitHub's mixed hosted-runner fleet two functionally
-   identical runs on different runners produce different scan bytes for a
-   handful of borderline frames. That pixel drift cascades into the iFDO
+   runs. numpy's SIMD reductions and libjpeg's encoder round differently
+   between CPU generations, so on GitHub's mixed hosted-runner fleet two
+   functionally identical runs produce different bytes for a handful of
+   borderline frames. This surfaces in several places inside each JPEG — the
+   main entropy-coded scan, the embedded EXIF thumbnail's own scan, and the
    `image-entropy` (Shannon entropy of the pixel histogram) and
-   `image-average-color` (pixel mean) fields written by
-   `marimba/core/schemas/ifdo.py`, which differ in the low-order digits.
+   `image-average-color` (pixel mean) values that `marimba/core/schemas/ifdo.py`
+   computes and bakes into both the iFDO YAML and the EXIF:UserComment JSON.
 
-Every other dataset file is byte-deterministic, including videos, CSVs,
-`metadata.yml`, and the pipeline source copy under `pipelines/`. Logs are
-excluded from comparison entirely (timestamps, durations).
+JPEG content has no stable byte subset to hash, so it is excluded from byte
+comparison entirely (see `has_volatile_content`); the image's metadata is still
+validated through its scrubbed per-image YAML. Every other dataset file is
+byte-deterministic, including videos, CSVs, `metadata.yml`, and the pipeline
+source copy under `pipelines/`. Logs are excluded from comparison entirely
+(timestamps, durations).
 
 Scrubber strategy:
 
 - `scrub_yaml_text` replaces each known volatile field value (the UUIDs, the
   cascaded image hash, and the pixel-derived `image-entropy` /
   `image-average-color`) with fixed-shape placeholders.
-- `scrub_jpeg_bytes` hashes only the JPEG header segments (EXIF / quantisation
-  / Huffman / frame headers), which are deterministic metadata, and discards
-  the entropy-coded scan from the first `SOS` marker onward. This drops the
-  CPU-sensitive pixel bytes while still validating EXIF (including the scrubbed
-  UUID) and frame geometry. UUID-shaped substrings in the retained header are
-  replaced with a fixed placeholder, and — because marimba embeds the full iFDO
-  ImageData as JSON in EXIF:UserComment — the pixel-derived `image-entropy` and
-  `image-average-color` values inside that JSON are normalised too, so the
-  header is invariant to numpy's cross-CPU floating-point jitter.
 - `scrubbed_hash` dispatches by suffix and returns the SHA256 of the scrubbed
-  content (or of the raw bytes if no scrubber applies).
+  content (or of the raw bytes if no scrubber applies). JPEGs never reach it —
+  `rebuild_manifest` placeholders them first via `has_volatile_content`.
 - `rebuild_manifest` parses a marimba-generated manifest, re-hashes each
   referenced file via `scrubbed_hash`, and returns the rebuilt manifest text
   with the same line ordering as the original (so a regression in marimba's
@@ -111,25 +106,12 @@ _YAML_FIELD_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
 # Suffixes for which we apply text-based YAML scrubbing.
 _YAML_SUFFIXES = frozenset({".yml", ".yaml"})
 
-# Suffixes for which we apply JPEG byte scrubbing.
+# JPEG suffixes. Their content is excluded from byte comparison entirely (see
+# has_volatile_content) because the encoded pixels — main scan, the embedded
+# EXIF thumbnail's own scan, and the numpy-derived image-entropy / image-
+# average-color baked into EXIF:UserComment — all drift across CPU
+# microarchitectures on GitHub's mixed runner fleet (drift source 5).
 _JPEG_SUFFIXES = frozenset({".jpg", ".jpeg"})
-
-# JPEG marker that begins the entropy-coded scan. Everything from here to EOI
-# is pixel data emitted by libjpeg-turbo's SIMD encoder, whose rounding varies
-# across CPU microarchitectures (drift source 5). We hash only the preceding
-# header segments, which are deterministic metadata.
-_JPEG_SOS_MARKER = b"\xff\xda"
-
-# The retained JPEG header carries an EXIF:UserComment JSON blob (marimba dumps
-# the full iFDO ImageData there, see core/schemas/ifdo.py::_add_user_comment).
-# That blob embeds the same pixel-derived fields as the YAML — image-entropy
-# (a numpy float, CPU-ULP-sensitive) and image-average-color (a numpy mean) —
-# so the header bytes themselves drift across runner CPUs unless these JSON
-# values are normalised. Byte-level subs on the compact JSON encoding.
-_JPEG_JSON_PATTERNS: tuple[tuple[re.Pattern[bytes], bytes], ...] = (
-    (re.compile(rb'"image-entropy":\s*-?[0-9][0-9.eE+-]*'), b'"image-entropy": 0.0'),
-    (re.compile(rb'"image-average-color":\s*\[[^\]]*\]'), b'"image-average-color": [0, 0, 0]'),
-)
 
 # Suffixes for which we apply markdown scrubbing. summary.md is the only
 # dataset-level .md file and embeds today's date in the Creation Date row
@@ -175,31 +157,6 @@ def scrub_markdown_text(text: str) -> str:
     return text
 
 
-def scrub_jpeg_bytes(raw: bytes) -> bytes:
-    """Return the JPEG's header segments with UUID-shaped substrings normalised.
-
-    Discards the entropy-coded scan (from the first `SOS` marker to the end of
-    file): those bytes are CPU-microarchitecture-sensitive (drift source 5), so
-    hashing them makes the regression flaky on GitHub's mixed runner fleet. The
-    retained header carries the deterministic metadata — EXIF (including the
-    embedded UUID), quantisation and Huffman tables, and the frame header with
-    the image geometry — so the scrubbed hash still detects metadata drift while
-    being invariant to pixel-encoding jitter.
-
-    UUID-shaped substrings in the header are replaced with a fixed placeholder
-    (both are exactly 36 ASCII chars; the false-positive risk in the small header
-    region is negligible), and the pixel-derived image-entropy / image-average-
-    color values embedded in the EXIF:UserComment JSON are normalised so the
-    header is invariant to numpy's cross-CPU floating-point jitter.
-    """
-    sos = raw.find(_JPEG_SOS_MARKER)
-    header = raw if sos == -1 else raw[:sos]
-    header = _UUID_RE.sub(UUID_PLACEHOLDER.encode("ascii"), header)
-    for pattern, replacement in _JPEG_JSON_PATTERNS:
-        header = pattern.sub(replacement, header)
-    return header
-
-
 def is_log_path(rel_path: Path) -> bool:
     """True if this dataset-relative path is a log file."""
     if rel_path.suffix.lower() in _LOG_SUFFIXES:
@@ -220,12 +177,23 @@ def has_volatile_content(rel_path: Path) -> bool:
       time as upstream tile data updates. Same project state -> different
       bytes a day later. Tier A still asserts the file exists and is a
       valid non-empty PNG; this just excludes it from byte-level comparison.
+    - JPEG images (`.jpg` / `.jpeg`): their encoded bytes drift across CPU
+      microarchitectures on GitHub's mixed hosted-runner fleet — the main
+      entropy-coded scan, the embedded EXIF thumbnail's own scan, and the
+      numpy-derived image-entropy / image-average-color baked into the
+      EXIF:UserComment JSON all vary in their low-order bits. There is no
+      stable byte subset to hash, so the content is excluded. The image's
+      metadata is still byte-validated via its per-image iFDO YAML (which is
+      scrubbed for the same volatile fields), and Tier A/B assert presence,
+      validity, and counts.
 
     Distinct from `is_log_path` — the latter is also consumed by the
     inventory classifier in `golden/regenerate.py` to bucket logs as a file
     class, where `map.png` is correctly classified as an image.
     """
     if is_log_path(rel_path):
+        return True
+    if rel_path.suffix.lower() in _JPEG_SUFFIXES:
         return True
     return rel_path == Path("map.png")
 
@@ -245,9 +213,6 @@ def scrubbed_hash(path: Path) -> str:
         except UnicodeDecodeError:
             return hashlib.sha256(raw).hexdigest()
         return hashlib.sha256(scrub_yaml_text(text).encode("utf-8")).hexdigest()
-
-    if suffix in _JPEG_SUFFIXES:
-        return hashlib.sha256(scrub_jpeg_bytes(raw)).hexdigest()
 
     if suffix in _MARKDOWN_SUFFIXES:
         try:

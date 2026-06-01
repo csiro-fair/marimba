@@ -2,13 +2,16 @@
 
 Fast (no cache, no network, no marimba bootstrap) checks that the scrubbers
 normalise exactly the volatile fields they target and leave everything else
-intact. The load-bearing property here is CPU-invariance: the entropy-coded
-JPEG scan and the pixel-derived iFDO fields must not contribute to the scrubbed
-hash, so two functionally-identical runs on different CPU microarchitectures
-produce the same scrubbed manifest (see scrub.py drift source 5).
+intact. The load-bearing property here is CPU-invariance: the pixel-derived
+iFDO fields must not contribute to the scrubbed manifest, and JPEG content
+(whose bytes vary across CPU microarchitectures) is excluded outright, so two
+functionally-identical runs on different runners produce the same scrubbed
+manifest (see scrub.py drift source 5).
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import pytest
 
@@ -16,77 +19,23 @@ from tests.e2e.regression import scrub
 
 pytestmark = pytest.mark.unit
 
-# A real UUID-v4-shape string and the fixed placeholder it scrubs to.
-_REAL_UUID = b"3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+
+@pytest.mark.parametrize("name", ["a.jpg", "a.JPG", "x/y/img.jpeg", "data/MRITC/c/images/f.JPG"])
+def test_jpeg_content_excluded_from_comparison(name: str) -> None:
+    """JPEG bytes vary across runner CPUs, so they are treated as volatile."""
+    assert scrub.has_volatile_content(Path(name)) is True
 
 
-def _fake_jpeg(scan: bytes, *, header_extra: bytes = b"") -> bytes:
-    """Minimal JPEG-shaped byte string: SOI + header + SOS + scan + EOI.
-
-    Not a decodable image — just carries the markers scrub_jpeg_bytes keys on.
-    """
-    return b"\xff\xd8" + header_extra + b"\xff\xda\x00\x0c" + scan + b"\xff\xd9"
+@pytest.mark.parametrize("name", ["a.yml", "a.csv", "video.mp4", "metadata.yaml"])
+def test_non_jpeg_non_log_content_is_compared(name: str) -> None:
+    """Deterministic file types are still byte-compared (not volatile)."""
+    assert scrub.has_volatile_content(Path(name)) is False
 
 
-def test_jpeg_scrub_ignores_scan_bytes() -> None:
-    """Mutating the entropy-coded scan must not change the scrubbed bytes.
-
-    This is the CPU-invariance guarantee: libjpeg-turbo emits different scan
-    bytes per CPU generation, and the scrubber drops them all.
-    """
-    a = _fake_jpeg(b"\x01\x02\x03 pixel data A")
-    b = _fake_jpeg(b"\xaa\xbb\xcc completely different scan B of other length")
-    assert scrub.scrub_jpeg_bytes(a) == scrub.scrub_jpeg_bytes(b)
-
-
-def test_jpeg_scrub_reflects_header_changes() -> None:
-    """A change in a header segment (pre-SOS) must change the scrubbed bytes."""
-    a = _fake_jpeg(b"scan", header_extra=b"\xff\xe0\x00\x06JFIF")
-    b = _fake_jpeg(b"scan", header_extra=b"\xff\xe0\x00\x06EXIF")
-    assert scrub.scrub_jpeg_bytes(a) != scrub.scrub_jpeg_bytes(b)
-
-
-def test_jpeg_scrub_normalises_header_uuid() -> None:
-    """A UUID embedded in the header (EXIF) is replaced by the placeholder."""
-    raw = _fake_jpeg(b"scan", header_extra=b"\xff\xe1\x00\x2cExif\x00\x00" + _REAL_UUID)
-    out = scrub.scrub_jpeg_bytes(raw)
-    assert _REAL_UUID not in out
-    assert scrub.UUID_PLACEHOLDER.encode("ascii") in out
-
-
-def test_jpeg_scrub_no_sos_returns_uuid_scrubbed_whole() -> None:
-    """With no SOS marker, the whole input is retained (UUIDs still scrubbed)."""
-    raw = b"\xff\xd8 header only " + _REAL_UUID
-    out = scrub.scrub_jpeg_bytes(raw)
-    assert out.startswith(b"\xff\xd8 header only ")
-    assert _REAL_UUID not in out
-
-
-def test_jpeg_scrub_idempotent() -> None:
-    raw = _fake_jpeg(b"scan", header_extra=b"\xff\xe1\x00\x2cExif" + _REAL_UUID)
-    once = scrub.scrub_jpeg_bytes(raw)
-    assert scrub.scrub_jpeg_bytes(once) == once
-
-
-def test_jpeg_scrub_normalises_exif_usercomment_entropy() -> None:
-    """Pixel-derived image-entropy in the EXIF:UserComment JSON is neutralised.
-
-    marimba embeds the iFDO ImageData as JSON in the header; its image-entropy
-    is a numpy float that jitters in the low-order digits across runner CPUs.
-    Two headers differing only in that value must scrub identically.
-    """
-    a = _fake_jpeg(b"scan", header_extra=b'\xff\xe1{"image-entropy": 6.257750034332275, "x": 1}')
-    b = _fake_jpeg(b"scan", header_extra=b'\xff\xe1{"image-entropy": 6.257750034332999, "x": 1}')
-    assert scrub.scrub_jpeg_bytes(a) == scrub.scrub_jpeg_bytes(b)
-    assert b'"image-entropy": 0.0' in scrub.scrub_jpeg_bytes(a)
-
-
-def test_jpeg_scrub_normalises_exif_usercomment_average_color() -> None:
-    """Pixel-derived image-average-color in the EXIF:UserComment JSON is neutralised."""
-    a = _fake_jpeg(b"scan", header_extra=b'\xff\xe1{"image-average-color": [16, 52, 68], "x": 1}')
-    b = _fake_jpeg(b"scan", header_extra=b'\xff\xe1{"image-average-color": [17, 51, 69], "x": 1}')
-    assert scrub.scrub_jpeg_bytes(a) == scrub.scrub_jpeg_bytes(b)
-    assert b'"image-average-color": [0, 0, 0]' in scrub.scrub_jpeg_bytes(a)
+def test_map_png_and_logs_remain_volatile() -> None:
+    """The pre-existing carve-outs still hold alongside the JPEG exclusion."""
+    assert scrub.has_volatile_content(Path("map.png")) is True
+    assert scrub.has_volatile_content(Path("logs/run.log")) is True
 
 
 def test_yaml_scrub_normalises_entropy() -> None:
