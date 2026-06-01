@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -147,6 +148,13 @@ def test_tier_b_inventory(packaged_dataset: tuple[Path, dict[str, float]]) -> No
 
 
 @pytest.mark.e2e
+@pytest.mark.skipif(
+    sys.platform != "linux",
+    reason="Tier C byte-equality golden is generated on Linux; exiftool/ffmpeg embed "
+    "platform- and version-specific EXIF bytes, so the JPEG bytes and the iFDO "
+    "metadata extracted from them diverge on other platforms even after scrubbing. "
+    "Tier A (structure) and Tier B (inventory) remain cross-platform.",
+)
 def test_tier_c_scrubbed_manifest_byte_equality(packaged_dataset: tuple[Path, dict[str, float]]) -> None:
     """Scrubbed manifest of the fresh run byte-matches golden/manifest.scrubbed.txt.
 
