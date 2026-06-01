@@ -768,15 +768,25 @@ def create_grid_image(
     return created_files
 
 
+# Maximum Shannon entropy for an 8-bit grayscale image: log2(256) = 8.0 bits.
+# Dividing by it normalises entropy to [0, 1], as the iFDO schema requires for
+# the image-entropy field.
+_MAX_ENTROPY_8BIT = 8.0
+
+
 def get_shannon_entropy(image_data: Image.Image) -> float:
     """
-    Calculate the Shannon entropy of an image file.
+    Calculate the normalized Shannon entropy of an image file.
+
+    The image is reduced to 8-bit grayscale and the entropy of its intensity
+    histogram is normalised to [0, 1] (entropy / 8 bits), matching the iFDO
+    schema definition of the image-entropy field.
 
     Args:
         image_data: The loaded image data.
 
     Returns:
-        The Shannon entropy of the image as a float value.
+        The normalized Shannon entropy of the image as a float in [0, 1].
     """
     # Convert to grayscale
     grayscale_image = image_data.convert("L")
@@ -790,10 +800,10 @@ def get_shannon_entropy(image_data: Image.Image) -> float:
     # Filter out zero probabilities
     probabilities = probabilities[probabilities > 0]
 
-    # Calculate Shannon entropy
+    # Calculate Shannon entropy, then normalise to [0, 1] by the 8-bit maximum
     entropy = -np.sum(probabilities * np.log2(probabilities))
 
-    return float(entropy)
+    return float(entropy / _MAX_ENTROPY_8BIT)
 
 
 def get_average_image_color(image_data: Image.Image) -> list[int]:

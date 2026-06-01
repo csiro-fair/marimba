@@ -2331,9 +2331,10 @@ class TestImageUtilities:
         assert entropy > 0, "Gradient image should have positive entropy"
 
         # Assert - Verify exact entropy value for uniform distribution of 100 values
-        # Expected entropy = -∑(p_i * log2(p_i)) where p_i = 1/100 for all i
-        # = -100 * (1/100) * log2(1/100) = log2(100) ≈ 6.644 bits
-        expected_entropy = np.log2(image_size)
+        # Raw entropy = -∑(p_i * log2(p_i)) where p_i = 1/100 for all i
+        # = log2(100) ≈ 6.644 bits, normalised to [0, 1] by the 8-bit maximum:
+        # log2(100) / 8 ≈ 0.830482
+        expected_entropy = np.log2(image_size) / 8.0
         tolerance = 1e-6  # Appropriate tolerance for floating point precision
         assert abs(entropy - expected_entropy) < tolerance, (
             f"Expected entropy {expected_entropy:.6f} for uniform distribution of {image_size} values, "
@@ -2352,7 +2353,8 @@ class TestImageUtilities:
         rng = np.random.default_rng(42)  # Ensure reproducible test results
         noise_array = rng.integers(0, 256, size=(100, 100), dtype=np.uint8)
         noise_image = Image.fromarray(noise_array)
-        expected_entropy = 7.982  # Empirically determined value for this specific random seed and size
+        # Empirically ~7.982 bits for this seed/size, normalised to [0, 1] by the 8-bit maximum.
+        expected_entropy = 7.982 / 8.0
 
         # Act - Calculate Shannon entropy for noise image
         entropy = get_shannon_entropy(noise_image)
@@ -2361,10 +2363,8 @@ class TestImageUtilities:
         assert isinstance(entropy, float), "Entropy should be returned as a float value"
         assert (
             abs(entropy - expected_entropy) < 0.01
-        ), f"Random noise entropy should be approximately {expected_entropy:.3f} bits, got {entropy:.3f}"
-        assert (
-            entropy <= 8.0
-        ), f"Entropy cannot exceed theoretical maximum of 8.0 bits for 8-bit grayscale, got {entropy:.3f}"
+        ), f"Random noise normalized entropy should be approximately {expected_entropy:.3f}, got {entropy:.3f}"
+        assert entropy <= 1.0, f"Normalized entropy cannot exceed 1.0, got {entropy:.3f}"
 
     @pytest.mark.unit
     def test_get_shannon_entropy_rgb_to_grayscale_conversion(self) -> None:
@@ -2777,9 +2777,9 @@ class TestGridClasses:
         assert len(row.images) == 3, "Row should contain 3 images after additions"
 
         # Get references to the resized images that are actually stored in the row
-        stored_image1, width1, height1 = row.images[0]
-        stored_image2, width2, height2 = row.images[1]
-        stored_image3, width3, height3 = row.images[2]
+        stored_image1, width1, _height1 = row.images[0]
+        stored_image2, width2, _height2 = row.images[1]
+        stored_image3, width3, _height3 = row.images[2]
 
         # Verify images are accessible and have correct dimensions before cleanup
         assert stored_image1.size == (grid_dimensions.column_width, 133), "First image should be resized correctly"
