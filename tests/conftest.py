@@ -13,8 +13,7 @@ from typing import Any
 
 import pytest
 import pytest_mock
-from click.testing import Result
-from typer.testing import CliRunner
+from typer.testing import CliRunner, Result
 
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
@@ -354,9 +353,7 @@ def assert_cli_success(result: Result, expected_message: str | None = None, cont
 
     # Enhanced error reporting for failed commands
     if result.exit_code != 0:
-        error_output = (
-            result.output if result.output else result.stderr if hasattr(result, "stderr") else "No output available"
-        )
+        error_output = result.output or (result.stderr if hasattr(result, "stderr") else "No output available")
         msg = (
             f"CLI command failed{error_context}:\n"
             f"Exit code: {result.exit_code}\n"
