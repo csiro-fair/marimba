@@ -76,7 +76,7 @@ class TestCollectionWrapperLoad:
         root = tmp_path / "no_config"
         root.mkdir()
 
-        with pytest.raises(CollectionWrapper.InvalidStructureError, match="collection.yml"):
+        with pytest.raises(CollectionWrapper.InvalidStructureError, match=r"collection.yml"):
             CollectionWrapper(root)
 
 

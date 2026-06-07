@@ -61,7 +61,7 @@ def darwin_complete_implementation() -> type[DarwinCoreMetadata]:
 
         @hash_sha256.setter
         def hash_sha256(self, value: str) -> None:
-            self._hash = value if value else None
+            self._hash = value or None
 
         @classmethod
         def create_dataset_metadata(
