@@ -2470,6 +2470,64 @@ class TestImageUtilities:
             actual_average_color[0] == actual_average_color[1] == actual_average_color[2]
         ), "All RGB channels should have identical values for converted grayscale image"
 
+    @pytest.mark.unit
+    def test_get_average_image_color_native_grayscale(self) -> None:
+        """Test average color calculation for a native single-channel grayscale image.
+
+        Verifies that the get_average_image_color function handles unconverted grayscale
+        ("L" mode) images, where the per-channel mean collapses to a 0-d scalar. The iFDO
+        v2.2 schema permits image-average-color arrays of any length >= 1, so a grayscale
+        image should yield a single-element list rather than raising. This unit test
+        ensures that:
+        1. The function returns a single-element list for single-channel input
+        2. The value matches the grayscale intensity
+        3. The value is an integer in the valid 0-255 range
+        """
+        # Arrange - Create a native grayscale image with known intensity
+        expected_intensity = 77
+        grayscale_image = Image.new("L", (50, 50), color=expected_intensity)
+
+        # Act - Calculate the average color of the native grayscale image
+        actual_average_color = get_average_image_color(grayscale_image)
+
+        # Assert - Verify a single-element list with the grayscale intensity
+        assert isinstance(actual_average_color, list), "Function should return a list of color values"
+        assert len(actual_average_color) == 1, "Grayscale image should return exactly 1 channel value"
+        assert actual_average_color == [
+            expected_intensity,
+        ], f"Average {actual_average_color} should match grayscale intensity [{expected_intensity}]"
+        assert isinstance(actual_average_color[0], int), "Channel value should be an integer"
+        assert 0 <= actual_average_color[0] <= 255, "Channel value should be in valid range (0-255)"
+
+    @pytest.mark.unit
+    def test_get_average_image_color_rgba_image(self) -> None:
+        """Test average color calculation for a four-channel RGBA image.
+
+        Verifies that the get_average_image_color function returns one value per channel
+        for images with an alpha channel, as permitted by the iFDO v2.2 schema's
+        unbounded image-average-color array. This unit test ensures that:
+        1. The function returns exactly 4 values for RGBA input
+        2. Each value matches the corresponding solid input channel
+        3. All values are integers in the valid 0-255 range
+        """
+        # Arrange - Create a solid RGBA image with known channel values
+        expected_color = [10, 20, 30, 40]
+        rgba_image = Image.new("RGBA", (50, 50), color=(10, 20, 30, 40))
+
+        # Act - Calculate the average color of the RGBA image
+        actual_average_color = get_average_image_color(rgba_image)
+
+        # Assert - Verify one value per channel including alpha
+        assert isinstance(actual_average_color, list), "Function should return a list of color values"
+        assert len(actual_average_color) == 4, "RGBA image should return exactly 4 channel values"
+        assert (
+            actual_average_color == expected_color
+        ), f"Average color {actual_average_color} should match input channels {expected_color}"
+        assert all(isinstance(value, int) for value in actual_average_color), "All channel values should be integers"
+        assert all(
+            0 <= value <= 255 for value in actual_average_color
+        ), "All channel values should be in valid range (0-255)"
+
 
 class TestGridClasses:
     """Test grid-related classes."""

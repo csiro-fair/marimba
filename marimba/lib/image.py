@@ -808,21 +808,21 @@ def get_shannon_entropy(image_data: Image.Image) -> float:
 
 def get_average_image_color(image_data: Image.Image) -> list[int]:
     """
-    Calculate the average color of an image.
+    Calculate the average value of each color channel of an image.
 
     Args:
         image_data: The loaded image data.
 
     Returns:
-        A list of integers representing the average color of the image in RGB format. Each element in the list
-        corresponds to the average intensity of the Red, Green, and Blue channels, respectively.
-
-        Note: If the input image is None, None will be returned.
+        A list of integers, one per channel, each corresponding to the average intensity of that channel —
+        e.g. [R, G, B] for RGB imagery, [R, G, B, A] for RGBA, or a single element for grayscale — matching
+        the iFDO image-average-color field (any channel count, values in [0, 255]).
     """
     # Convert the image to numpy array
     np_image = np.array(image_data)
 
-    # Calculate the average color for each channel
-    average_color = np.mean(np_image, axis=(0, 1))
+    # Calculate the average for each channel; atleast_1d keeps single-channel
+    # (grayscale) images iterable, where the mean collapses to a 0-d scalar
+    average_color = np.atleast_1d(np.mean(np_image, axis=(0, 1)))
 
-    return list(map(int, average_color))
+    return [int(channel) for channel in average_color]
