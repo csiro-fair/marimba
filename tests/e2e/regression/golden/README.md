@@ -14,20 +14,24 @@ This directory holds the checked-in golden expected output that
 ## Regenerating
 
 ```bash
-# 1. Drive a fresh full bootstrap to produce a packaged dataset. Phase 4+ will
-#    expose a fixture for this; for now use the Phase 2 characterisation script
-#    (also fine — it writes two identical projects under temp/phase2-determinism/).
-uv run python temp/phase2-determinism/characterise.py
+# 1. Run the regression suite to drive a fresh full bootstrap. The Tier C test
+#    will fail against the stale goldens — that's expected; the run still leaves
+#    a complete packaged dataset in pytest's tmp tree.
+uv run pytest --rootdir . -c config/pytest.ini --no-cov -m "e2e and slow" tests/e2e/regression/
 
-# 2. Regenerate the goldens from either project's dataset.
+# 2. Regenerate the goldens from that dataset (pytest keeps the last few runs;
+#    pick the newest scratch dir).
 uv run python tests/e2e/regression/golden/regenerate.py \
-    temp/phase2-determinism/project-a/datasets/IN2018_V06
+    "$(ls -dt /tmp/pytest-of-$USER/pytest-*/scratch*/project/datasets/IN2018_V06 | head -1)"
 
 # 3. Inspect the diff. Anything you didn't intend to change is a regression
 #    that needs investigating, not a golden-rotation.
 git diff tests/e2e/regression/golden/
 
-# 4. If the diff matches the deliberate change you made, commit the rotation
+# 4. Re-run the suite — it must now pass against the rotated goldens.
+uv run pytest --rootdir . -c config/pytest.ini --no-cov -m "e2e and slow" tests/e2e/regression/
+
+# 5. If the diff matches the deliberate change you made, commit the rotation
 #    in the same commit as the marimba change that caused it, with a body
 #    explaining what shifted and why.
 ```
@@ -47,16 +51,19 @@ If a Tier C test fails in CI on a branch that didn't intend any of the above, th
 
 The scrubber is proven correct iff regenerating from two independent
 identical-input bootstraps produces byte-identical `invariants.json` and
-`manifest.scrubbed.txt`. The Phase 2 characterisation establishes this; if
-the scrubber is ever extended, re-run that proof:
+`manifest.scrubbed.txt`. If the scrubber is ever extended, re-run that proof
+by bootstrapping twice (each regression-suite run produces a fresh dataset
+under a new pytest scratch dir) and regenerating from each:
 
 ```bash
-uv run python temp/phase2-determinism/characterise.py
+mkdir -p /tmp/a
+uv run pytest --rootdir . -c config/pytest.ini --no-cov -m "e2e and slow" tests/e2e/regression/
 uv run python tests/e2e/regression/golden/regenerate.py \
-    temp/phase2-determinism/project-a/datasets/IN2018_V06
+    "$(ls -dt /tmp/pytest-of-$USER/pytest-*/scratch*/project/datasets/IN2018_V06 | head -1)"
 cp tests/e2e/regression/golden/{invariants.json,manifest.scrubbed.txt} /tmp/a/
+uv run pytest --rootdir . -c config/pytest.ini --no-cov -m "e2e and slow" tests/e2e/regression/
 uv run python tests/e2e/regression/golden/regenerate.py \
-    temp/phase2-determinism/project-b/datasets/IN2018_V06
+    "$(ls -dt /tmp/pytest-of-$USER/pytest-*/scratch*/project/datasets/IN2018_V06 | head -1)"
 diff /tmp/a/invariants.json tests/e2e/regression/golden/invariants.json
 diff /tmp/a/manifest.scrubbed.txt tests/e2e/regression/golden/manifest.scrubbed.txt
 # both diffs must be empty

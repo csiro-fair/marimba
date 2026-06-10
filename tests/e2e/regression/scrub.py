@@ -1,6 +1,7 @@
 """Scrubbers that normalise non-deterministic fields in marimba's packaged output.
 
-Phase 2 characterisation (see temp/phase2-determinism/REPORT.md, throwaway)
+A determinism characterisation (two independent identical-input bootstraps,
+per-file diff; method preserved in golden/README.md §"Scrubber correctness")
 identified three drift sources between two identical-input runs:
 
 1. Per-image UUID generated fresh by `marimba process`. Embedded in each JPEG

@@ -140,8 +140,8 @@ JPEG content is excluded because its encoded bytes are not reproducible across C
 **To resolve:**
 
 1. Look at which manifest lines differ. The path tells you which file changed.
-2. Compare the failing file against a fresh independent run to confirm it's a deterministic drift (regression) and not a scrubber gap. The `temp/phase2-determinism/characterise.py` script is the one-shot way to do this — it produces two independent runs and a per-file diff report.
-3. If it's a scrubber gap, extend `scrub.py` and re-verify against both Phase 2 runs (see [`golden/README.md`](golden/README.md) §"Scrubber correctness").
+2. Compare the failing file against a fresh independent run to confirm it's a deterministic drift (regression) and not a scrubber gap: run the suite twice and diff the scrubbed file between the two pytest scratch datasets (`/tmp/pytest-of-$USER/pytest-*/scratch*/project/datasets/IN2018_V06`). If the two fresh runs agree with each other but not the golden, it's deterministic drift; if they disagree with each other, it's a scrubber gap.
+3. If it's a scrubber gap, extend `scrub.py` and re-verify with two independent bootstraps (see [`golden/README.md`](golden/README.md) §"Scrubber correctness").
 4. If it's intended drift, regenerate the goldens.
 5. If it's an actual regression, fix the underlying code.
 
@@ -150,14 +150,15 @@ JPEG content is excluded because its encoded bytes are not reproducible across C
 When a deliberate marimba or pipeline change shifts the expected output, the goldens need to be regenerated. See [`golden/README.md`](golden/README.md) for the full workflow — short version:
 
 ```bash
-# Produce a fresh packaged dataset (the Phase 2 characterisation script is one way)
-uv run python temp/phase2-determinism/characterise.py
+# Produce a fresh packaged dataset (the Tier C failure is expected; the run
+# still leaves a complete dataset in pytest's tmp tree)
+uv run pytest --rootdir . -c config/pytest.ini --no-cov -m "e2e and slow" tests/e2e/regression/
 
-# Regenerate the goldens
+# Regenerate the goldens from it
 uv run python tests/e2e/regression/golden/regenerate.py \
-    temp/phase2-determinism/project-a/datasets/IN2018_V06
+    "$(ls -dt /tmp/pytest-of-$USER/pytest-*/scratch*/project/datasets/IN2018_V06 | head -1)"
 
-# Inspect the diff
+# Inspect the diff, then re-run the suite to confirm it passes
 git diff tests/e2e/regression/golden/
 
 # Commit the rotation in the same commit as the code change that caused it
@@ -171,6 +172,6 @@ The workflow itself doesn't gate merges — that's a GitHub repo setting under B
 
 ## Design background
 
-The harness was designed in six phases; per-phase rationale and findings live in commits `d8c91fc` (cache + smoke), `43d2197` (scrubber + goldens), `1b95239` (tiered tests), `1f98966` (CI + hook). The Phase 2 determinism characterisation that drove the scrubber design is captured in `temp/phase2-determinism/REPORT.md` (gitignored throwaway; re-run anytime via `temp/phase2-determinism/characterise.py`).
+The harness was designed in six phases; per-phase rationale and findings live in commits `d8c91fc` (cache + smoke), `43d2197` (scrubber + goldens), `1b95239` (tiered tests), `1f98966` (CI + hook). The Phase 2 determinism characterisation that drove the scrubber design was a gitignored throwaway (two independent bootstraps + per-file diff); its method survives as the §"Scrubber correctness" proof in [`golden/README.md`](golden/README.md).
 
 The headline finding from Phase 2: marimba generates a fresh `uuid.uuid4()` per image at `process` time and embeds it in EXIF (both `ImageUniqueID` and inside the `UserComment` JSON blob). That UUID cascades into the per-image YAML, the dataset-level rollup, and the manifest. The scrubber normalises this cascade so byte-equality of the *scrubbed* manifest is a meaningful regression assertion. A content-addressed UUID scheme (e.g. UUIDv5 over the source-image hash) would make scrubbing unnecessary; that's a candidate finding for a real `codebase-review` cycle, not a blocker here.
