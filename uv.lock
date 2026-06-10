@@ -709,15 +709,15 @@ wheels = [
 
 [[package]]
 name = "ifdo"
-version = "1.4.0"
+version = "1.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d3/c8/507080b5f313da261ea63d94cf841d1bce5d0aed2142fa43af87853bb2b9/ifdo-1.4.0.tar.gz", hash = "sha256:402d33c880fa74c7da1cc67a0594e23d99e7c87415ec294e3b689d76bdeca515", size = 17005, upload-time = "2026-04-07T02:55:30.278Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3d/bd/ba4b557fb557c02847cc20c789a84c2384a01fb373bf3af3ccc61684400d/ifdo-1.5.0.tar.gz", hash = "sha256:274f159ba04d6730cab9f2ca56979448b58e587704f7cf2be403fc2cdd0238d6", size = 18135, upload-time = "2026-06-10T00:42:25.666Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/38/81/c28d598cceda4eff290e5db766b57371b58784cce97d9e697e82f66f4248/ifdo-1.4.0-py3-none-any.whl", hash = "sha256:65eda0d3fb4897b9033f573445d126dc92a4a2d1f30f475a46ce095d6035d77b", size = 17444, upload-time = "2026-04-07T02:55:28.798Z" },
+    { url = "https://files.pythonhosted.org/packages/69/20/e07521583ddde1ba63d412b5682560963723bcdc3e1e8cc699fcbc6681ef/ifdo-1.5.0-py3-none-any.whl", hash = "sha256:9507e33fb0a94a8fdfda276a0154a5bcaa5065ebe3f86a7bccf39eb99f721ecb", size = 18263, upload-time = "2026-06-10T00:42:24.327Z" },
 ]
 
 [[package]]
@@ -905,7 +905,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.40.6,<2" },
     { name = "botocore", specifier = ">=1.40.6,<2" },
     { name = "gitpython", specifier = ">=3.1.45,<4" },
-    { name = "ifdo", specifier = ">=1.4.0,<2" },
+    { name = "ifdo", specifier = ">=1.5.0,<2" },
     { name = "numpy", specifier = ">=2.2.5,<2.5.0" },
     { name = "opencv-python-headless", specifier = ">=4.11.0,<5" },
     { name = "pillow", specifier = ">=12.1.1,<13" },

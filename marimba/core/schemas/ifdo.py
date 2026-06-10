@@ -44,7 +44,7 @@ _ESTIMATED_IMAGE_MEMORY_MB = 100  # Conservative estimate per 24MP image
 _MEMORY_SAFETY_FACTOR = 0.7  # Use 70% of available memory
 
 # iFDO specification version
-IFDO_VERSION = "v2.1.0"
+IFDO_VERSION = "v2.2.1"
 
 
 @dataclass
@@ -174,7 +174,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
     iFDO metadata implementation that adapts ImageData to the BaseMetadata interface.
 
     Supports both single ImageData (for still images) and list of ImageData (for videos
-    with time-varying metadata) as per iFDO v2.1.0 specification.
+    with time-varying metadata) as per iFDO v2.2.1 specification.
     """
 
     DEFAULT_METADATA_NAME = "ifdo"

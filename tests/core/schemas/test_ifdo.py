@@ -492,20 +492,16 @@ class TestiFDOMetadataProperties:
             ), f"Creator {i} should be a real iFDO ImageCreator instance, got {type(source_creator)}"
 
     @pytest.mark.unit
-    def test_creators_property_empty(self) -> None:
-        """Test creators property returns empty list when ImageData.image_creators is empty.
+    def test_creators_empty_list_rejected(self) -> None:
+        """Test that ImageData rejects an empty image_creators list.
 
-        This test ensures that empty creator lists are handled correctly without exceptions.
+        The iFDO v2.2.1 schema requires image-creators to have at least one entry, so an empty
+        list must fail validation at construction time rather than serialize as invalid metadata.
         """
-        # Arrange
-        image_data = ImageData(image_creators=[])
-        metadata = iFDOMetadata(image_data)
+        import pydantic
 
-        # Act
-        result = metadata.creators
-
-        # Assert
-        assert result == [], "Creators property should return empty list when ImageData.image_creators is empty"
+        with pytest.raises(pydantic.ValidationError):
+            ImageData(image_creators=[])
 
     @pytest.mark.unit
     def test_creators_property_none(self) -> None:
@@ -1305,8 +1301,8 @@ class TestiFDOMetadataDatasetCreation:
 
         assert header["image-set-handle"] == "", "Header handle should be empty string"
         assert (
-            header["image-set-ifdo-version"] == "v2.1.0"
-        ), f"Header version should be 'v2.1.0', got '{header['image-set-ifdo-version']}'"
+            header["image-set-ifdo-version"] == "v2.2.1"
+        ), f"Header version should be 'v2.2.1', got '{header['image-set-ifdo-version']}'"
 
         # Assert - Verify image-set-items structure; single-item datasets are not deduplicated
         items_data = actual_data["image-set-items"]
@@ -1429,8 +1425,8 @@ class TestiFDOMetadataDatasetCreation:
 
         assert header["image-set-handle"] == "", "Header handle should be empty string"
         assert (
-            header["image-set-ifdo-version"] == "v2.1.0"
-        ), f"Header should contain correct iFDO version: expected 'v2.1.0', got '{header['image-set-ifdo-version']}'"
+            header["image-set-ifdo-version"] == "v2.2.1"
+        ), f"Header should contain correct iFDO version: expected 'v2.2.1', got '{header['image-set-ifdo-version']}'"
 
         # Assert - Verify video file processing creates list structure
         assert "video.mp4" in captured_data["image-set-items"], "Video file should be present in image-set-items"
