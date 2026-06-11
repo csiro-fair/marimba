@@ -46,6 +46,21 @@ _MEMORY_SAFETY_FACTOR = 0.7  # Use 70% of available memory
 # iFDO specification version
 IFDO_VERSION = "v2.2.1"
 
+# Citations injected into every iFDO image-set-related-material header by default. Pipelines can prepend their
+# own entries or re-word a default by supplying an entry with the same URI (see create_dataset_metadata).
+DEFAULT_RELATED_MATERIAL: list[dict[str, str]] = [
+    {
+        "uri": "https://doi.org/10.1016/j.softx.2025.102251",
+        "title": "Marimba: A Python framework for structuring and processing FAIR scientific image datasets",
+        "relation": "The Marimba software framework used to structure and package this image set",
+    },
+    {
+        "uri": "https://doi.org/10.1038/s41597-022-01491-3",
+        "title": "Making marine image data FAIR",
+        "relation": "The iFDO metadata standard to which this image set conforms",
+    },
+]
+
 
 @dataclass
 class ProcessedImageData:
@@ -522,6 +537,16 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             "image_set_ifdo_version": IFDO_VERSION,
         }
         header_data.update({k: v for k, v in common_fields.items() if k not in header_data})
+
+        # Ensure the Marimba and iFDO citations are present in image-set-related-material. Any entries the
+        # pipeline supplied are kept in front of the defaults; a default is skipped if the pipeline already
+        # provided an entry with the same URI, so pipelines can prepend extra material or re-word a default.
+        pipeline_related_material = header_data.get("image_set_related_material") or []
+        pipeline_uris = {entry["uri"] for entry in pipeline_related_material if isinstance(entry, dict)}
+        header_data["image_set_related_material"] = [
+            *pipeline_related_material,
+            *(material for material in DEFAULT_RELATED_MATERIAL if material["uri"] not in pipeline_uris),
+        ]
 
         image_set_header = ImageSetHeader(**header_data)
         deduplicated_items = cls._remove_common_fields(image_set_items, set(common_fields.keys()))

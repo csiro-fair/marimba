@@ -5,12 +5,12 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 import pytest_mock
-from ifdo.models import ImageData
+from ifdo.models import ImageData, RelatedMaterial
 
 if TYPE_CHECKING:
     from marimba.core.schemas.base import BaseMetadata
 
-from marimba.core.schemas.ifdo import iFDOMetadata
+from marimba.core.schemas.ifdo import DEFAULT_RELATED_MATERIAL, iFDOMetadata
 
 
 class TestiFDOMetadataProperties:
@@ -1696,3 +1696,67 @@ class TestiFDOMetadataInvalidConstruction:
 
         assert len(captured) == 1
         assert captured[0]["image-set-items"] == {}
+
+
+class TestiFDOMetadataRelatedMaterial:
+    """Test default image-set-related-material citation injection and the URI-keyed merge."""
+
+    MARIMBA_URI = "https://doi.org/10.1016/j.softx.2025.102251"
+    IFDO_URI = "https://doi.org/10.1038/s41597-022-01491-3"
+
+    @staticmethod
+    def _capture_header(items: dict[str, list["BaseMetadata"]]) -> dict[str, Any]:
+        captured: list[dict[str, Any]] = []
+
+        def mock_saver(_root: Path, _name: str, data: dict[str, Any]) -> None:
+            captured.append(data)
+
+        iFDOMetadata.create_dataset_metadata(
+            "TestDataset",
+            Path("/tmp"),
+            items,
+            saver_overwrite=mock_saver,
+        )
+        return cast("dict[str, Any]", captured[0]["image-set-header"])
+
+    @pytest.mark.unit
+    def test_defaults_injected_when_pipeline_supplies_none(self) -> None:
+        """Both default citations are added to the header when the pipeline sets no related material."""
+        header = self._capture_header({"image.jpg": [cast("BaseMetadata", iFDOMetadata(ImageData()))]})
+
+        related = header["image-set-related-material"]
+        assert [entry["uri"] for entry in related] == [self.MARIMBA_URI, self.IFDO_URI]
+        assert related == DEFAULT_RELATED_MATERIAL
+
+    @pytest.mark.unit
+    def test_pipeline_entries_prepended_before_defaults(self) -> None:
+        """Pipeline-supplied entries are kept in front of the injected defaults."""
+        custom = RelatedMaterial(uri="https://example.org/cruise-report", title="Cruise report", relation="Context")
+        # Two identical items so the field deduplicates up into the header.
+        items = {
+            "img1.jpg": [cast("BaseMetadata", iFDOMetadata(ImageData(image_set_related_material=[custom])))],
+            "img2.jpg": [cast("BaseMetadata", iFDOMetadata(ImageData(image_set_related_material=[custom])))],
+        }
+
+        related = self._capture_header(items)["image-set-related-material"]
+
+        assert [entry["uri"] for entry in related] == [
+            "https://example.org/cruise-report",
+            self.MARIMBA_URI,
+            self.IFDO_URI,
+        ]
+
+    @pytest.mark.unit
+    def test_pipeline_can_reword_a_default_by_uri(self) -> None:
+        """A pipeline entry sharing a default's URI replaces that default rather than duplicating it."""
+        reworded = RelatedMaterial(uri=self.MARIMBA_URI, title="Marimba", relation="Custom wording")
+        items = {
+            "img1.jpg": [cast("BaseMetadata", iFDOMetadata(ImageData(image_set_related_material=[reworded])))],
+            "img2.jpg": [cast("BaseMetadata", iFDOMetadata(ImageData(image_set_related_material=[reworded])))],
+        }
+
+        related = self._capture_header(items)["image-set-related-material"]
+
+        # The Marimba URI appears once, with the pipeline's wording; the iFDO default is still appended.
+        assert [entry["uri"] for entry in related] == [self.MARIMBA_URI, self.IFDO_URI]
+        assert related[0]["relation"] == "Custom wording"
