@@ -15,11 +15,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
+import av
+from av.container import InputContainer
 from PIL import Image
 from tabulate import tabulate
 
 import marimba
-from marimba.core.utils.dependencies import ToolDependency, check_dependency_available, show_dependency_error_and_exit
+from marimba.core.utils.dependencies import (
+    ToolDependency,
+    check_dependency_available,
+    show_dependency_error_and_exit,
+)
 from marimba.core.utils.log import get_logger
 
 if TYPE_CHECKING:
@@ -131,9 +137,10 @@ class ImagerySummary:
         """
         Quickly check if a video file is corrupt.
 
-        This function performs a quick check to determine if the given video file is corrupt. It uses ffprobe to
-        check the video metadata and ffmpeg to perform seek tests at the start, middle, and end of the video. The
-        function returns True if any of these checks fail or if an exception occurs during the process.
+        This function performs a quick check to determine if the given video file is corrupt. It checks the
+        video metadata for the duration of the video and than seeks the to the start, middle, and end of the video
+        to check if frames exist at these timestamps. The function returns True if any of these checks fail
+        or if an exception occurs during the process.
 
         Args:
             video_path (str): Path to the video file to be checked.
@@ -143,53 +150,56 @@ class ImagerySummary:
         """
         try:
             # Check metadata
-            probe_cmd = [
-                "ffprobe",
-                "-v",
-                "error",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "default=noprint_wrappers=1:nokey=1",
-                video_path,
-            ]
-            probe_result = subprocess.run(
-                probe_cmd,
-                capture_output=True,
-                check=False,
-            )
-            if probe_result.returncode != 0:
+            container = av.open(video_path)
+            duration = container.duration
+
+            if len(container.streams.video) == 0:
+                return False
+
+            frame_rate = container.streams.video[0].base_rate
+
+            if duration is None or frame_rate is None:
                 return True
 
-            duration = float(probe_result.stdout.decode().strip())
-
             # Quick seek test (start, middle, end)
-            seek_times = [0, duration / 2, duration - 1]
-            for seek_time in seek_times:
-                seek_cmd = [
-                    "ffmpeg",
-                    "-ss",
-                    str(seek_time),
-                    "-i",
-                    video_path,
-                    "-vframes",
-                    "1",
-                    "-f",
-                    "null",
-                    "-",
-                ]
-                seek_result = subprocess.run(
-                    seek_cmd,
-                    capture_output=True,
-                    check=False,
-                )
-                if seek_result.returncode != 0:
-                    return True
+            seek_times = [0, duration // 2, duration - int(av.time_base / frame_rate)]
+            return not all(
+                ImagerySummary._check_if_frame_exists(container, ts)
+                for ts in seek_times
+            )
+
         except Exception:
             logger.exception(f"Error checking video {video_path}")
             return True
-        else:
+
+    @staticmethod
+    def _check_if_frame_exists(container: InputContainer, timestamp: int) -> bool:
+        """
+        Checks if a frame exists in a given container at the given timestamp.
+
+        Args:
+            container: File container to check.
+            timestamp: Frame time in av.time_base
+
+        Returns:
+            bool: True if the frame could be found in the container
+        """
+        if len(container.streams.video) == 0:
             return False
+        stream = container.streams.video[0]
+        timebase = stream.time_base if stream.time_base is not None else av.time_base
+        container.seek(timestamp, backward=True, any_frame=False, stream=stream)
+
+        for packet in container.demux(stream):
+            for frame in packet.decode():
+                if frame.pts is None:
+                    continue
+
+                frame_time = float(frame.pts * timebase)
+                if frame_time >= timestamp / av.time_base:
+                    return True
+
+        return False
 
     @staticmethod
     def get_image_properties(image_list: list[Path]) -> dict[str, Any]:
@@ -299,7 +309,9 @@ class ImagerySummary:
         Returns:
             str: A formatted string representing the average file size of images (e.g., '2.5 MB').
         """
-        average_size = self.image_size_bytes / self.image_num if self.image_num > 0 else 0
+        average_size = (
+            self.image_size_bytes / self.image_num if self.image_num > 0 else 0
+        )
         return self.sizeof_fmt(average_size)
 
     @staticmethod
@@ -385,8 +397,14 @@ class ImagerySummary:
             A string containing the percentage of complete images and the percentage of corrupt images, formatted to one
             decimal place.
         """
-        complete_percentage = ((total_images - corrupt_images) / total_images) * 100 if total_images > 0 else 0
-        corrupt_percentage = (corrupt_images / total_images) * 100 if total_images > 0 else 0
+        complete_percentage = (
+            ((total_images - corrupt_images) / total_images) * 100
+            if total_images > 0
+            else 0
+        )
+        corrupt_percentage = (
+            (corrupt_images / total_images) * 100 if total_images > 0 else 0
+        )
         return f"{complete_percentage:.1f}% complete, {corrupt_percentage:.1f}% corrupt"
 
     @staticmethod
@@ -410,7 +428,10 @@ class ImagerySummary:
         tool_name = command[0] if command else "ffmpeg"
         tool_dependency = ToolDependency.FFMPEG
         if not check_dependency_available(tool_dependency):
-            show_dependency_error_and_exit(ToolDependency.FFMPEG, f"{tool_name} is required for video analysis")
+            show_dependency_error_and_exit(
+                ToolDependency.FFMPEG,
+                f"{tool_name} is required for video analysis",
+            )
 
         result = subprocess.run(
             command,
@@ -420,7 +441,10 @@ class ImagerySummary:
         )
         if result.returncode != 0:
             # Check if it's a "command not found" type error
-            if "not found" in result.stderr.lower() or "not recognized" in result.stderr.lower():
+            if (
+                "not found" in result.stderr.lower()
+                or "not recognized" in result.stderr.lower()
+            ):
                 show_dependency_error_and_exit(ToolDependency.FFMPEG, result.stderr)
             msg = f"FFmpeg command failed with error: {result.stderr}"
             raise RuntimeError(msg)
@@ -455,75 +479,26 @@ class ImagerySummary:
         corrupt_videos = 0
 
         for path in video_list:
-            command = [
-                "ffprobe",
-                "-v",
-                "error",
-                "-select_streams",
-                "v:0",
-                "-show_entries",
-                "stream=duration,width,height,codec_name,r_frame_rate,bits_per_raw_sample",
-                "-of",
-                "json",
-                str(path),
-            ]
-            output = ImagerySummary.run_ffmpeg_command(command)["streams"][0]
-            total_seconds += float(output.get("duration", 0))
-            resolutions.add((output.get("width"), output.get("height")))
-            codecs.add(output.get("codec_name"))
-            frame_rate_str = output.get("r_frame_rate", "0/1")
-            num, denom = map(int, frame_rate_str.split("/"))
-            frame_rates.add(num / denom)
-            color_depth = output.get("bits_per_raw_sample")
-            if color_depth:
-                color_depths.add(int(color_depth))
-            if ImagerySummary.is_video_corrupt_quick(str(path)):
-                corrupt_videos += 1
+            file = av.open(path)
+            for stream in file.streams.video:
+                if stream.time_base is not None and stream.duration is not None:
+                    total_seconds += float(stream.time_base * stream.duration)
 
-        return {
-            "total_seconds": total_seconds,
-            "resolutions": resolutions,
-            "codecs": codecs,
-            "frame_rates": frame_rates,
-            "color_depths": color_depths,
-            "corrupt_videos": corrupt_videos,
-        }
+                codec = stream.codec_context
+                resolutions.add((codec.width, codec.height))
+                codecs.add(codec.name)
 
-    @staticmethod
-    def get_other_properties(video_list: list[Path]) -> dict[str, Any]:
-        """Get video properties from a list of other files."""
-        total_seconds: float = 0.0
-        resolutions = set()
-        codecs = set()
-        frame_rates = set()
-        color_depths = set()
-        corrupt_videos = 0
+                if stream.base_rate is not None:
+                    frame_rates.add(float(stream.base_rate))
 
-        for path in video_list:
-            command = [
-                "ffprobe",
-                "-v",
-                "error",
-                "-select_streams",
-                "v:0",
-                "-show_entries",
-                "stream=duration,width,height,codec_name,r_frame_rate,bits_per_raw_sample",
-                "-of",
-                "json",
-                str(path),
-            ]
-            output = ImagerySummary.run_ffmpeg_command(command)["streams"][0]
-            total_seconds += float(output.get("duration", 0))
-            resolutions.add((output.get("width"), output.get("height")))
-            codecs.add(output.get("codec_name"))
-            frame_rate_str = output.get("r_frame_rate", "0/1")
-            num, denom = map(int, frame_rate_str.split("/"))
-            frame_rates.add(num / denom)
-            color_depth = output.get("bits_per_raw_sample")
-            if color_depth:
-                color_depths.add(int(color_depth))
-            if ImagerySummary.is_video_corrupt_quick(str(path)):
-                corrupt_videos += 1
+                video_format = codec.format
+                if video_format is not None:
+                    color_depth = video_format.components[0].bits
+
+                if color_depth:
+                    color_depths.add(color_depth)
+                if ImagerySummary.is_video_corrupt_quick(str(path)):
+                    corrupt_videos += 1
 
         return {
             "total_seconds": total_seconds,
@@ -654,7 +629,9 @@ class ImagerySummary:
         Returns:
             str: A formatted string representing the average file size of videos (e.g., '1.5 MB').
         """
-        average_size = self.video_size_bytes / self.video_num if self.video_num > 0 else 0
+        average_size = (
+            self.video_size_bytes / self.video_num if self.video_num > 0 else 0
+        )
         return self.sizeof_fmt(average_size)
 
     @staticmethod
@@ -673,8 +650,14 @@ class ImagerySummary:
             A formatted string containing the percentage of complete videos and the percentage of corrupt videos, both
             rounded to one decimal place.
         """
-        complete_percentage = ((total_videos - corrupt_videos) / total_videos) * 100 if total_videos > 0 else 0
-        corrupt_percentage = (corrupt_videos / total_videos) * 100 if total_videos > 0 else 0
+        complete_percentage = (
+            ((total_videos - corrupt_videos) / total_videos) * 100
+            if total_videos > 0
+            else 0
+        )
+        corrupt_percentage = (
+            (corrupt_videos / total_videos) * 100 if total_videos > 0 else 0
+        )
         return f"{complete_percentage:.1f}% complete, {corrupt_percentage:.1f}% corrupt"
 
     def calculate_other_average_file_size(self) -> str:
@@ -688,7 +671,9 @@ class ImagerySummary:
         Returns:
             str: A human-readable string representing the average file size for 'other' files (e.g., '1.5 MB').
         """
-        average_size = self.other_size_bytes / self.other_num if self.other_num > 0 else 0
+        average_size = (
+            self.other_size_bytes / self.other_num if self.other_num > 0 else 0
+        )
         return self.sizeof_fmt(average_size)
 
     @classmethod
@@ -770,7 +755,11 @@ class ImagerySummary:
 
         # Convert or default None values
         for key, expected_type in expected_types.items():
-            type_tuple = (expected_type,) if not isinstance(expected_type, tuple) else expected_type
+            type_tuple = (
+                (expected_type,)
+                if not isinstance(expected_type, tuple)
+                else expected_type
+            )
             value = complete_data.get(key)
             if value is None or not isinstance(value, type_tuple):
                 if str in type_tuple:
@@ -807,11 +796,15 @@ class ImagerySummary:
             if dataset_wrapper.contact_name and dataset_wrapper.contact_email:
                 contact_name = dataset_wrapper.contact_name
                 contact_email = dataset_wrapper.contact_email
-                info["contact"] = rf"{contact_name} \<[{contact_email}]({contact_email})\>"
+                info["contact"] = (
+                    rf"{contact_name} \<[{contact_email}]({contact_email})\>"
+                )
             elif dataset_wrapper.contact_name:
                 info["contact"] = dataset_wrapper.contact_name
             elif dataset_wrapper.contact_email:
-                info["contact"] = f"[{dataset_wrapper.contact_email}]({dataset_wrapper.contact_email})"
+                info["contact"] = (
+                    f"[{dataset_wrapper.contact_email}]({dataset_wrapper.contact_email})"
+                )
 
         return info
 
@@ -849,7 +842,9 @@ class ImagerySummary:
         items = list(dataset_items.items())
         root_dir = dataset_wrapper.root_dir
 
-        def build_record(item: tuple[str, list["BaseMetadata"]]) -> tuple[str, dict[str, Any]] | None:
+        def build_record(
+            item: tuple[str, list["BaseMetadata"]],
+        ) -> tuple[str, dict[str, Any]] | None:
             path_str, dataset_item = item
             path = root_dir / path_str
             suffix = path.suffix.lower()
@@ -886,7 +881,11 @@ class ImagerySummary:
                 data["contributors"].append(creator)
 
     @classmethod
-    def _build_image_record(cls, path: Path, image_info: "BaseMetadata") -> dict[str, Any]:
+    def _build_image_record(
+        cls,
+        path: Path,
+        image_info: "BaseMetadata",
+    ) -> dict[str, Any]:
         """Build a single image record dict; called per-file from the threaded pass."""
         return {
             "path": path,
@@ -900,7 +899,11 @@ class ImagerySummary:
         }
 
     @classmethod
-    def _build_video_record(cls, path: Path, image_info: "BaseMetadata") -> dict[str, Any]:
+    def _build_video_record(
+        cls,
+        path: Path,
+        image_info: "BaseMetadata",
+    ) -> dict[str, Any]:
         """Build a single video record dict; runs ffprobe + ffmpeg seeks for is_corrupt."""
         return {
             "path": path,
@@ -922,7 +925,8 @@ class ImagerySummary:
         for path in dataset_wrapper.data_dir.glob("**/*"):
             if (
                 path.is_file()
-                and path.suffix.lower() not in ImagerySummary.IMAGE_EXTENSIONS | ImagerySummary.VIDEO_EXTENSIONS
+                and path.suffix.lower()
+                not in ImagerySummary.IMAGE_EXTENSIONS | ImagerySummary.VIDEO_EXTENSIONS
             ):
                 other_data["files"].append(
                     {
@@ -941,19 +945,25 @@ class ImagerySummary:
         return {
             "image_num": len(image_data["files"]),
             "image_size_bytes": sum(file["size"] for file in image_data["files"]),
-            "image_file_types": list({file["type"] for file in image_data["files"] if file["type"]}),
+            "image_file_types": list(
+                {file["type"] for file in image_data["files"] if file["type"]},
+            ),
             "image_unique_directories": len(
                 {file["directory"] for file in image_data["files"]},
             ),
             "video_num": len(video_data["files"]),
             "video_size_bytes": sum(file["size"] for file in video_data["files"]),
-            "video_file_types": list({file["type"] for file in video_data["files"] if file["type"]}),
+            "video_file_types": list(
+                {file["type"] for file in video_data["files"] if file["type"]},
+            ),
             "video_unique_directories": len(
                 {file["directory"] for file in video_data["files"]},
             ),
             "other_num": len(other_data["files"]),
             "other_size_bytes": sum(file["size"] for file in other_data["files"]),
-            "other_file_types": list({file["type"] for file in other_data["files"] if file["type"]}),
+            "other_file_types": list(
+                {file["type"] for file in other_data["files"] if file["type"]},
+            ),
         }
 
     @classmethod
@@ -1050,8 +1060,14 @@ class ImagerySummary:
             data = image_data if data_type == "image" else video_data
             lats = [file["lat"] for file in data["files"] if file["lat"] is not None]
             lons = [file["lon"] for file in data["files"] if file["lon"] is not None]
-            depths = [file["depth"] for file in data["files"] if file["depth"] is not None]
-            datetimes = [file["datetime"] for file in data["files"] if file["datetime"] is not None]
+            depths = [
+                file["depth"] for file in data["files"] if file["depth"] is not None
+            ]
+            datetimes = [
+                file["datetime"]
+                for file in data["files"]
+                if file["datetime"] is not None
+            ]
 
             setattr(
                 summary,
@@ -1097,12 +1113,24 @@ class ImagerySummary:
         if self.contact:
             dataset_metadata.append(["Contact", self.contact])
 
-        image_file_types_str = ", ".join(sorted(self.image_file_types)).upper() if self.image_file_types else "N/A"
-        image_resolution_label = "Image Resolution" if "to" not in self.image_resolution else "Image Resolution Range"
-        image_color_depth_label = (
-            "Image Color Depth" if "to" not in self.image_color_depth else "Image Color Depth Range"
+        image_file_types_str = (
+            ", ".join(sorted(self.image_file_types)).upper()
+            if self.image_file_types
+            else "N/A"
         )
-        image_licenses_label = "License" if "," not in self.image_licenses else "Licenses"
+        image_resolution_label = (
+            "Image Resolution"
+            if "to" not in self.image_resolution
+            else "Image Resolution Range"
+        )
+        image_color_depth_label = (
+            "Image Color Depth"
+            if "to" not in self.image_color_depth
+            else "Image Color Depth Range"
+        )
+        image_licenses_label = (
+            "License" if "," not in self.image_licenses else "Licenses"
+        )
 
         image_files_summary: list[list[str]] = [
             ["Total Number of Images", str(self.image_num)],
@@ -1120,13 +1148,29 @@ class ImagerySummary:
             ["Image Data Quality", self.image_data_quality],
         ]
 
-        video_file_types_str = ", ".join(sorted(self.video_file_types)).upper() if self.video_file_types else "N/A"
-        video_resolution_label = "Video Resolution" if "to" not in self.video_resolution else "Video Resolution Range"
-        video_color_depth_label = (
-            "Video Color Depth" if "to" not in self.video_color_depth else "Video Color Depth Range"
+        video_file_types_str = (
+            ", ".join(sorted(self.video_file_types)).upper()
+            if self.video_file_types
+            else "N/A"
         )
-        video_licenses_label = "License" if "," not in self.video_licenses else "Licenses"
-        video_frame_rate_label = "Video Frame Rate" if "to" not in self.video_frame_rate else "Video Frame Rate Range"
+        video_resolution_label = (
+            "Video Resolution"
+            if "to" not in self.video_resolution
+            else "Video Resolution Range"
+        )
+        video_color_depth_label = (
+            "Video Color Depth"
+            if "to" not in self.video_color_depth
+            else "Video Color Depth Range"
+        )
+        video_licenses_label = (
+            "License" if "," not in self.video_licenses else "Licenses"
+        )
+        video_frame_rate_label = (
+            "Video Frame Rate"
+            if "to" not in self.video_frame_rate
+            else "Video Frame Rate Range"
+        )
 
         video_files_summary: list[list[str]] = [
             ["Total Number of Videos", str(self.video_num)],
@@ -1147,7 +1191,11 @@ class ImagerySummary:
             ["Video Data Quality", self.video_data_quality],
         ]
 
-        other_file_types_str = ", ".join(sorted(self.other_file_types)).upper() if self.other_file_types else "N/A"
+        other_file_types_str = (
+            ", ".join(sorted(self.other_file_types)).upper()
+            if self.other_file_types
+            else "N/A"
+        )
 
         other_files_summary: list[list[str]] = [
             ["Total Number of Files", str(self.other_num)],
