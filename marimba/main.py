@@ -43,11 +43,7 @@ from rich import print as rprint
 from marimba.core import MarimbaError, NetworkConnectionError
 from marimba.core.cli import delete, new
 from marimba.core.distribution.base import DistributionTargetBase
-from marimba.core.utils.constants import (
-    PROJECT_DIR_HELP,
-    MetadataGenerationLevelOptions,
-    Operation,
-)
+from marimba.core.utils.constants import PROJECT_DIR_HELP, MetadataGenerationLevelOptions, Operation
 from marimba.core.utils.dataset import get_mapping_processor_decorator
 from marimba.core.utils.dependencies import ToolDependency, validate_dependencies
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
@@ -278,10 +274,7 @@ def package_command(  # noqa: PLR0915
         None,
         help="Maximum number of worker processes to use. If None, uses all available CPU cores.",
     ),
-    metadata_output: MetadataSaverTypes | None = typer.Option(
-        None,
-        help="Output metadata format",
-    ),
+    metadata_output: MetadataSaverTypes | None = typer.Option(None, help="Output metadata format"),
     metadata_level: list[MetadataGenerationLevelOptions] | None = typer.Option(
         None,
         help="Output metadata level",
@@ -310,9 +303,7 @@ def package_command(  # noqa: PLR0915
     get_rich_handler().set_dry_run(dry_run)
 
     # If no collection and pipeline names are specified, package all collections and pipelines
-    collection_names = collection_name or list(
-        project_wrapper.collection_wrappers.keys(),
-    )
+    collection_names = collection_name or list(project_wrapper.collection_wrappers.keys())
     pipeline_names = pipeline_name or list(project_wrapper.pipeline_wrappers.keys())
 
     metadata_saver_overwrite = None if metadata_output is None else get_saver(metadata_output)
@@ -424,9 +415,7 @@ def process_command(
     get_rich_handler().set_dry_run(dry_run)
 
     # If no collection and pipeline names are specified, package all collections and pipelines
-    collection_names = collection_name or list(
-        project_wrapper.collection_wrappers.keys(),
-    )
+    collection_names = collection_name or list(project_wrapper.collection_wrappers.keys())
     pipeline_names = pipeline_name or list(project_wrapper.pipeline_wrappers.keys())
 
     # Run the processing
