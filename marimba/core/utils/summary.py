@@ -146,20 +146,20 @@ class ImagerySummary:
         """
         try:
             # Check metadata
-            container = av.open(video_path)
-            duration = container.duration
+            with av.open(video_path) as container:
+                duration = container.duration
 
-            if len(container.streams.video) == 0:
-                return False
+                if len(container.streams.video) == 0:
+                    return False
 
-            frame_rate = container.streams.video[0].base_rate
+                frame_rate = container.streams.video[0].base_rate
 
-            if duration is None or frame_rate is None:
-                return True
+                if duration is None or frame_rate is None:
+                    return True
 
-            # Quick seek test (start, middle, end)
-            seek_times = [0, duration // 2, duration - int(av.time_base / frame_rate)]
-            return not all(ImagerySummary._check_if_frame_exists(container, ts) for ts in seek_times)
+                # Quick seek test (start, middle, end)
+                seek_times = [0, duration // 2, duration - int(av.time_base / frame_rate)]
+                return not all(ImagerySummary._check_if_frame_exists(container, ts) for ts in seek_times)
 
         except Exception:
             logger.exception(f"Error checking video {video_path}")
@@ -434,7 +434,7 @@ class ImagerySummary:
         """
         Get video properties from a list of video files.
 
-        This function analyzes a list of video files using ffprobe to extract various properties such as duration,
+        This function analyzes a list of video files using pyav to extract various properties such as duration,
         resolution, codec, frame rate, and color depth. It also checks for corrupt videos. The function aggregates
         this information and returns a dictionary containing summary statistics.
 
@@ -451,33 +451,22 @@ class ImagerySummary:
             corrupt_videos: Number of corrupt videos detected.
         """
         total_seconds: float = 0.0
-        resolutions = set()
-        codecs = set()
-        frame_rates = set()
-        color_depths = set()
-        corrupt_videos = 0
+        resolutions: set[tuple[int, int]] = set()
+        codecs: set[str] = set()
+        frame_rates: set[float] = set()
+        color_depths: set[int] = set()
+        corrupt_videos = sum(ImagerySummary.is_video_corrupt_quick(str(path)) for path in video_list)
 
         for path in video_list:
-            file = av.open(path)
-            for stream in file.streams.video:
-                if stream.time_base is not None and stream.duration is not None:
-                    total_seconds += float(stream.time_base * stream.duration)
-
-                codec = stream.codec_context
-                resolutions.add((codec.width, codec.height))
-                codecs.add(codec.name)
-
-                if stream.base_rate is not None:
-                    frame_rates.add(float(stream.base_rate))
-
-                video_format = codec.format
-                if video_format is not None:
-                    color_depth = video_format.components[0].bits
-
-                if color_depth:
-                    color_depths.add(color_depth)
-                if ImagerySummary.is_video_corrupt_quick(str(path)):
-                    corrupt_videos += 1
+            with av.open(path) as container:
+                video_total_seconds, video_resolutions, video_codecs, video_frame_rates, video_color_depths = (
+                    ImagerySummary._get_single_video_properties(container)
+                )
+                total_seconds += video_total_seconds
+                resolutions.update(video_resolutions)
+                codecs.update(video_codecs)
+                frame_rates.update(video_frame_rates)
+                color_depths.update(video_color_depths)
 
         return {
             "total_seconds": total_seconds,
@@ -487,6 +476,52 @@ class ImagerySummary:
             "color_depths": color_depths,
             "corrupt_videos": corrupt_videos,
         }
+
+    @staticmethod
+    def _get_single_video_properties(
+        container: InputContainer,
+    ) -> tuple[float, set[tuple[int, int]], set[str], set[float], set[int]]:
+        """
+        Get video properties from video container.
+
+        This function analyzes a video container using pyav to extract various properties such as duration,
+        resolution, codec, frame rate, and color depth.
+
+        Args:
+            container: A video container.
+
+        Returns:
+            A tuple containing the following entries:
+            0: Total duration of all videos in seconds.
+            1: Set of unique resolutions (width, height) tuples.
+            2: Set of unique video codecs.
+            3: Set of unique frame rates.
+            4: Set of unique color depths.
+        """
+        total_seconds: float = 0.0
+        resolutions: set[tuple[int, int]] = set()
+        codecs: set[str] = set()
+        frame_rates: set[float] = set()
+        color_depths: set[int] = set()
+
+        for stream in container.streams.video:
+            if stream.time_base is not None and stream.duration is not None:
+                total_seconds += float(stream.time_base * stream.duration)
+
+            codec = stream.codec_context
+            resolutions.add((codec.width, codec.height))
+            codecs.add(codec.name)
+
+            if stream.base_rate is not None:
+                frame_rates.add(float(stream.base_rate))
+
+            video_format = codec.format
+            if video_format is not None:
+                color_depth = video_format.components[0].bits
+                if color_depth:
+                    color_depths.add(color_depth)
+
+        return total_seconds, resolutions, codecs, frame_rates, color_depths
 
     @staticmethod
     def calculate_video_total_duration(total_seconds: float) -> str:
