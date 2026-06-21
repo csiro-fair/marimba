@@ -267,10 +267,9 @@ def is_blurry(path: str | Path, threshold: float = 100.0) -> bool:
         raise ValueError(msg)
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    variance_of_laplacian = cv2.Laplacian(gray, cv2.CV_64F).var()
 
-    # Explicitly cast the result to float for type clarity
-    variance_of_laplacian = float(variance_of_laplacian)
+    # Cast to float for type clarity; .var() returns a NumPy scalar.
+    variance_of_laplacian = float(cv2.Laplacian(gray, cv2.CV_64F).var())
     threshold = float(threshold)
 
     image_is_blurry = variance_of_laplacian < threshold
