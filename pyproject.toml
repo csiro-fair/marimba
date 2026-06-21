@@ -23,7 +23,7 @@ dependencies = [
     "tabulate>=0.9.0,<0.11",
     "av>=16.1.0,<18",
     # numpy upper-bound tracks opencv-python-headless ABI compat; opencv 4.13 is verified against numpy 2.4. Bump deliberately when opencv builds against the next numpy minor.
-    "numpy>=2.2.5,<2.5.0",
+    "numpy>=2.2.5,<2.6.0",
     # botocore is technically a boto3 transitive, but s3.py imports botocore.exceptions.ClientError directly, so we
     # pin it explicitly to keep deptry happy and lock the version we're testing against.
     "botocore>=1.40.6,<2",
