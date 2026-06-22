@@ -4,24 +4,13 @@ A determinism characterisation (two independent identical-input bootstraps,
 per-file diff; method preserved in golden/README.md §"Scrubber correctness")
 identified these drift sources between two identical-input runs:
 
-1. Per-image UUID generated fresh by `marimba process`. Embedded in each JPEG
-   in two EXIF locations: the standalone `ImageUniqueID` tag and inside the
-   JSON blob written to `UserComment`. Same UUID in both places.
-2. `image-hash-sha256` field in each per-image YAML entry: an indirect
-   consequence of (1) — the image bytes differ, so their SHA differs.
-
-The per-dataset `image-set-uuid` was formerly scrubbed here too, but
-`marimba package` now derives it deterministically from the image-set name,
-so it is byte-stable across runs and no longer needs scrubbing - leaving it
-unscrubbed lets the golden pin its value and catch a regression in the
-derivation.
-
-Plus two further drift sources identified after the initial harness landed:
-
-3. `Creation Date` row in `summary.md`, populated via `datetime.now()` by
+1. `image-hash-sha256` field in each per-image YAML entry: an indirect
+   consequence of the pixel-derived volatility (3) — the JPEG bytes differ
+   across CPU microarchitectures, so their SHA differs.
+2. `Creation Date` row in `summary.md`, populated via `datetime.now()` by
    `marimba/core/utils/summary.py`. Drifts across runs on different days
    even with identical inputs.
-4. Pixel-derived values that vary across CPU microarchitectures, not across
+3. Pixel-derived values that vary across CPU microarchitectures, not across
    runs. numpy's SIMD reductions and libjpeg's encoder round differently
    between CPU generations, so on GitHub's mixed hosted-runner fleet two
    functionally identical runs produce different bytes for a handful of
@@ -30,6 +19,14 @@ Plus two further drift sources identified after the initial harness landed:
    `image-entropy` (Shannon entropy of the pixel histogram) and
    `image-average-color` (pixel mean) values that `marimba/core/schemas/ifdo.py`
    computes and bakes into both the iFDO YAML and the EXIF:UserComment JSON.
+
+The per-dataset `image-set-uuid` and the per-image `image-uuid` were formerly
+scrubbed here too. `marimba package` now derives the set UUID deterministically
+from the image-set name, and mints a deterministic per-image UUID (uuid5 of the
+set UUID and the dataset-relative path) for any image the pipeline leaves unset,
+which the demo pipeline now does. Both are byte-stable across runs and no longer
+need scrubbing: leaving them unscrubbed lets the golden pin their values and
+catch a regression in the derivation.
 
 JPEG content has no stable byte subset to hash, so it is excluded from byte
 comparison entirely (see `has_volatile_content`); the image's metadata is still
@@ -40,9 +37,9 @@ source copy under `pipelines/`. Logs are excluded from comparison entirely
 
 Scrubber strategy:
 
-- `scrub_yaml_text` replaces each known volatile field value (the per-image
-  UUID, the cascaded image hash, and the pixel-derived `image-entropy` /
-  `image-average-color`) with fixed-shape placeholders.
+- `scrub_yaml_text` replaces each known volatile field value (the cascaded
+  image hash and the pixel-derived `image-entropy` / `image-average-color`)
+  with fixed-shape placeholders.
 - `scrubbed_hash` dispatches by suffix and returns the SHA256 of the scrubbed
   content (or of the raw bytes if no scrubber applies). JPEGs never reach it —
   `rebuild_manifest` placeholders them first via `has_volatile_content`.
@@ -80,10 +77,6 @@ _UUID_RE_TEXT = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
 # touch a UUID that happens to appear in (say) a free-form description.
 # Each pattern captures `<lead><field>: <value>` and replaces only the value.
 _YAML_FIELD_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (
-        re.compile(r"(?P<lead>^\s*)image-uuid:\s*(?P<value>[0-9a-f-]+)\s*$", re.MULTILINE),
-        f"\\g<lead>image-uuid: {UUID_PLACEHOLDER}",
-    ),
     (
         re.compile(r"(?P<lead>^\s*)image-hash-sha256:\s*(?P<value>[0-9a-f]+)\s*$", re.MULTILINE),
         f"\\g<lead>image-hash-sha256: {SHA256_PLACEHOLDER}",
