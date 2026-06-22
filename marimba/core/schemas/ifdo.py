@@ -1017,6 +1017,8 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
     @staticmethod
     def _add_gps_tags(exif_tags: dict[str, Any], image_data: ImageData) -> None:
         """Add GPS-related EXIF tags."""
+        has_position = image_data.image_latitude is not None or image_data.image_longitude is not None
+
         if image_data.image_latitude is not None:
             exif_tags["EXIF:GPSLatitude"] = abs(image_data.image_latitude)
             exif_tags["EXIF:GPSLatitudeRef"] = "N" if image_data.image_latitude >= 0 else "S"
@@ -1028,6 +1030,19 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         if image_data.image_altitude_meters is not None:
             exif_tags["EXIF:GPSAltitude"] = abs(float(image_data.image_altitude_meters))
             exif_tags["EXIF:GPSAltitudeRef"] = "0" if image_data.image_altitude_meters >= 0 else "1"
+
+        if has_position:
+            # Declare the geodetic datum of the coordinates. Honour the pipeline-supplied coordinate reference
+            # system verbatim; fall back to WGS-84 (the EXIF and iFDO default) only when none was set.
+            exif_tags["EXIF:GPSMapDatum"] = image_data.image_coordinate_reference_system or "WGS-84"
+
+            # Record the UTC time of the GPS fix when the capture datetime is timezone-aware. A naive datetime
+            # cannot be asserted as UTC, so its GPS timestamp is omitted (the offset is unknown).
+            dt = image_data.image_datetime
+            if dt is not None and dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
+                dt_utc = dt.astimezone(UTC)
+                exif_tags["EXIF:GPSDateStamp"] = dt_utc.strftime("%Y:%m:%d")
+                exif_tags["EXIF:GPSTimeStamp"] = dt_utc.strftime("%H:%M:%S")
 
     @staticmethod
     def _add_user_comment(

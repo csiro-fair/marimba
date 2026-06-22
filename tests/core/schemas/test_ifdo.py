@@ -1735,6 +1735,94 @@ class TestiFDOMetadataSpatialExtent:
         assert "image-set-max-longitude-degrees" not in header
 
 
+class TestiFDOMetadataGpsTags:
+    """Test the GPS datum and fix-time EXIF tags built by _add_gps_tags."""
+
+    @pytest.mark.unit
+    def test_gps_datum_defaults_to_wgs84_when_crs_unset(self) -> None:
+        """A position with no CRS declares the WGS-84 datum by default."""
+        exif_tags: dict[str, Any] = {}
+        iFDOMetadata._add_gps_tags(exif_tags, ImageData(image_latitude=-44.0, image_longitude=147.0))
+        assert exif_tags["EXIF:GPSMapDatum"] == "WGS-84"
+
+    @pytest.mark.unit
+    def test_gps_datum_honours_pipeline_crs_verbatim(self) -> None:
+        """A pipeline-supplied coordinate reference system is written verbatim, not overridden."""
+        exif_tags: dict[str, Any] = {}
+        image_data = ImageData(
+            image_latitude=-44.0,
+            image_longitude=147.0,
+            image_coordinate_reference_system="GDA2020",
+        )
+        iFDOMetadata._add_gps_tags(exif_tags, image_data)
+        assert exif_tags["EXIF:GPSMapDatum"] == "GDA2020"
+
+    @pytest.mark.unit
+    def test_gps_datum_honours_epsg_crs_verbatim(self) -> None:
+        """An EPSG-style CRS string is also honoured verbatim."""
+        exif_tags: dict[str, Any] = {}
+        image_data = ImageData(
+            image_latitude=-44.0,
+            image_longitude=147.0,
+            image_coordinate_reference_system="EPSG:4326",
+        )
+        iFDOMetadata._add_gps_tags(exif_tags, image_data)
+        assert exif_tags["EXIF:GPSMapDatum"] == "EPSG:4326"
+
+    @pytest.mark.unit
+    def test_gps_timestamps_written_for_tz_aware_datetime(self) -> None:
+        """A timezone-aware datetime yields UTC GPSDateStamp and GPSTimeStamp."""
+        exif_tags: dict[str, Any] = {}
+        image_data = ImageData(
+            image_latitude=-44.0,
+            image_longitude=147.0,
+            image_datetime=datetime(2024, 3, 15, 12, 30, 45, tzinfo=UTC),
+        )
+        iFDOMetadata._add_gps_tags(exif_tags, image_data)
+        assert exif_tags["EXIF:GPSDateStamp"] == "2024:03:15"
+        assert exif_tags["EXIF:GPSTimeStamp"] == "12:30:45"
+
+    @pytest.mark.unit
+    def test_gps_timestamps_converted_to_utc(self) -> None:
+        """A non-UTC timezone-aware datetime is converted to UTC for the GPS fix time."""
+        from datetime import timedelta, timezone
+
+        exif_tags: dict[str, Any] = {}
+        aedt = timezone(timedelta(hours=11))
+        image_data = ImageData(
+            image_latitude=-44.0,
+            image_longitude=147.0,
+            image_datetime=datetime(2024, 3, 15, 9, 30, 45, tzinfo=aedt),
+        )
+        iFDOMetadata._add_gps_tags(exif_tags, image_data)
+        assert exif_tags["EXIF:GPSDateStamp"] == "2024:03:14"
+        assert exif_tags["EXIF:GPSTimeStamp"] == "22:30:45"
+
+    @pytest.mark.unit
+    def test_gps_timestamps_omitted_for_naive_datetime(self) -> None:
+        """A naive datetime cannot be asserted as UTC, so GPS timestamps are omitted."""
+        exif_tags: dict[str, Any] = {}
+        image_data = ImageData(
+            image_latitude=-44.0,
+            image_longitude=147.0,
+            image_datetime=datetime(2024, 3, 15, 12, 30, 45),  # noqa: DTZ001
+        )
+        iFDOMetadata._add_gps_tags(exif_tags, image_data)
+        assert exif_tags["EXIF:GPSMapDatum"] == "WGS-84"
+        assert "EXIF:GPSDateStamp" not in exif_tags
+        assert "EXIF:GPSTimeStamp" not in exif_tags
+
+    @pytest.mark.unit
+    def test_no_gps_block_tags_without_position(self) -> None:
+        """Datum and fix-time tags are not emitted when there is no GPS position."""
+        exif_tags: dict[str, Any] = {}
+        image_data = ImageData(image_datetime=datetime(2024, 3, 15, 12, 30, 45, tzinfo=UTC))
+        iFDOMetadata._add_gps_tags(exif_tags, image_data)
+        assert "EXIF:GPSMapDatum" not in exif_tags
+        assert "EXIF:GPSDateStamp" not in exif_tags
+        assert "EXIF:GPSTimeStamp" not in exif_tags
+
+
 class TestiFDOMetadataInvalidConstruction:
     """Pin behaviour on malformed / edge-case inputs to iFDOMetadata construction and serialisation.
 
