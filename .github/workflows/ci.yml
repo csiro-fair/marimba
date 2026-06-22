@@ -40,13 +40,13 @@ jobs:
         run: uv run ruff check --config=config/ruff.toml marimba/
 
       - name: Run Black
-        run: uv run black --check --line-length 120 marimba/
+        run: uv run black --check --line-length 120 marimba/ tests/
 
       - name: Run Mypy
         run: uv run mypy --config-file config/mypy.ini marimba/ tests/
 
       - name: Run Bandit
-        run: uv run bandit --config config/bandit.yml --severity-level medium -r marimba/
+        run: uv run bandit --config config/bandit.yml --severity-level medium -r marimba/ tests/
 
   test:
     name: Tests (Python ${{ matrix.python-version }}, ${{ matrix.os }})
