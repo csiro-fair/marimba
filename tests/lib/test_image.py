@@ -110,6 +110,41 @@ class TestExifPreservation:
         assert out.is_file()
         assert len(self._exif(out)) == 0
 
+    @pytest.mark.unit
+    def test_gaussian_blur_preserves_exif(self, tmp_path: Path) -> None:
+        """The OpenCV Gaussian blur preserves EXIF and keeps the orientation tag (no re-orientation)."""
+        out = tmp_path / "out.jpg"
+        gaussian_blur(self._source(tmp_path / "s.jpg", orientation=6), destination=out)
+        exif = self._exif(out)
+        assert exif.get(self._MAKE) == "TestCam"
+        assert exif.get(self._ORIENTATION) == 6
+
+    @pytest.mark.unit
+    def test_sharpen_preserves_exif(self, tmp_path: Path) -> None:
+        """The OpenCV sharpen filter preserves EXIF."""
+        out = tmp_path / "out.jpg"
+        sharpen(self._source(tmp_path / "s.jpg"), destination=out)
+        assert self._exif(out).get(self._MAKE) == "TestCam"
+
+    @pytest.mark.unit
+    def test_apply_clahe_preserves_exif_and_is_grayscale(self, tmp_path: Path) -> None:
+        """CLAHE preserves source EXIF even though it converts the image to single-channel grayscale."""
+        out = tmp_path / "out.jpg"
+        apply_clahe(self._source(tmp_path / "s.jpg"), destination=out)
+        assert self._exif(out).get(self._MAKE) == "TestCam"
+        with Image.open(out) as img:
+            assert img.mode == "L"
+
+    @pytest.mark.unit
+    def test_cv2_transform_without_exif_does_not_error(self, tmp_path: Path) -> None:
+        """An OpenCV filter on a source with no EXIF writes cleanly and gains no spurious EXIF."""
+        src = tmp_path / "s.jpg"
+        Image.new("RGB", (64, 32), "red").save(src)
+        out = tmp_path / "out.jpg"
+        gaussian_blur(src, destination=out)
+        assert out.is_file()
+        assert len(self._exif(out)) == 0
+
 
 class TestImageUtilities:
     """Test image utility functions."""
@@ -1936,7 +1971,7 @@ class TestImageUtilities:
 
         mock_imread = mocker.patch("cv2.imread", return_value=mock_img)
         mock_create_clahe = mocker.patch("cv2.createCLAHE")
-        mock_imwrite = mocker.patch("cv2.imwrite")
+        mock_save = mocker.patch("marimba.lib.image._save_cv2_with_metadata")
 
         mock_clahe_obj = mocker.Mock()
         mock_clahe_obj.apply.return_value = mock_processed_img
@@ -1952,10 +1987,8 @@ class TestImageUtilities:
             tileGridSize=(16, 16),
         )
         mock_clahe_obj.apply.assert_called_once_with(mock_img)
-        mock_imwrite.assert_called_once_with(
-            str(output_path),
-            mock_processed_img,
-        )
+        # The grayscale CLAHE result is saved through the EXIF-preserving helper, not cv2.imwrite.
+        mock_save.assert_called_once_with(test_image_rgb, mock_processed_img, output_path, grayscale=True)
 
     @pytest.mark.unit
     def test_apply_clahe_raises_error_when_image_cannot_be_read(
@@ -1996,7 +2029,7 @@ class TestImageUtilities:
 
         mock_imread = mocker.patch("cv2.imread", return_value=mock_img)
         mock_create_clahe = mocker.patch("cv2.createCLAHE")
-        mock_imwrite = mocker.patch("cv2.imwrite")
+        mock_save = mocker.patch("marimba.lib.image._save_cv2_with_metadata")
 
         mock_clahe_obj = mocker.Mock()
         mock_clahe_obj.apply.return_value = mock_processed_img
@@ -2012,10 +2045,8 @@ class TestImageUtilities:
             tileGridSize=(8, 8),
         )
         mock_clahe_obj.apply.assert_called_once_with(mock_img)
-        mock_imwrite.assert_called_once_with(
-            str(test_image_rgb),
-            mock_processed_img,
-        )
+        # With no destination the source is overwritten, still via the EXIF-preserving helper.
+        mock_save.assert_called_once_with(test_image_rgb, mock_processed_img, test_image_rgb, grayscale=True)
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
