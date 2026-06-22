@@ -2,22 +2,26 @@
 
 A determinism characterisation (two independent identical-input bootstraps,
 per-file diff; method preserved in golden/README.md §"Scrubber correctness")
-identified three drift sources between two identical-input runs:
+identified these drift sources between two identical-input runs:
 
 1. Per-image UUID generated fresh by `marimba process`. Embedded in each JPEG
    in two EXIF locations: the standalone `ImageUniqueID` tag and inside the
    JSON blob written to `UserComment`. Same UUID in both places.
-2. Per-dataset `image-set-uuid` generated fresh by `marimba package`. Appears
-   once per per-collection ifdo YAML and once in the dataset-level rollup.
-3. `image-hash-sha256` field in each per-image YAML entry: an indirect
+2. `image-hash-sha256` field in each per-image YAML entry: an indirect
    consequence of (1) — the image bytes differ, so their SHA differs.
+
+The per-dataset `image-set-uuid` was formerly scrubbed here too, but
+`marimba package` now derives it deterministically from the image-set name,
+so it is byte-stable across runs and no longer needs scrubbing - leaving it
+unscrubbed lets the golden pin its value and catch a regression in the
+derivation.
 
 Plus two further drift sources identified after the initial harness landed:
 
-4. `Creation Date` row in `summary.md`, populated via `datetime.now()` by
+3. `Creation Date` row in `summary.md`, populated via `datetime.now()` by
    `marimba/core/utils/summary.py`. Drifts across runs on different days
    even with identical inputs.
-5. Pixel-derived values that vary across CPU microarchitectures, not across
+4. Pixel-derived values that vary across CPU microarchitectures, not across
    runs. numpy's SIMD reductions and libjpeg's encoder round differently
    between CPU generations, so on GitHub's mixed hosted-runner fleet two
    functionally identical runs produce different bytes for a handful of
@@ -36,8 +40,8 @@ source copy under `pipelines/`. Logs are excluded from comparison entirely
 
 Scrubber strategy:
 
-- `scrub_yaml_text` replaces each known volatile field value (the UUIDs, the
-  cascaded image hash, and the pixel-derived `image-entropy` /
+- `scrub_yaml_text` replaces each known volatile field value (the per-image
+  UUID, the cascaded image hash, and the pixel-derived `image-entropy` /
   `image-average-color`) with fixed-shape placeholders.
 - `scrubbed_hash` dispatches by suffix and returns the SHA256 of the scrubbed
   content (or of the raw bytes if no scrubber applies). JPEGs never reach it —
@@ -79,10 +83,6 @@ _YAML_FIELD_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
         re.compile(r"(?P<lead>^\s*)image-uuid:\s*(?P<value>[0-9a-f-]+)\s*$", re.MULTILINE),
         f"\\g<lead>image-uuid: {UUID_PLACEHOLDER}",
-    ),
-    (
-        re.compile(r"(?P<lead>^\s*)image-set-uuid:\s*(?P<value>[0-9a-f-]+)\s*$", re.MULTILINE),
-        f"\\g<lead>image-set-uuid: {UUID_PLACEHOLDER}",
     ),
     (
         re.compile(r"(?P<lead>^\s*)image-hash-sha256:\s*(?P<value>[0-9a-f]+)\s*$", re.MULTILINE),

@@ -133,7 +133,7 @@ JPEG content is excluded because its encoded bytes are not reproducible across C
 
 **Common causes:**
 
-- A new volatile field appeared in the YAML output that the scrubber doesn't know about (the scrubber currently handles `image-uuid`, `image-set-uuid`, `image-hash-sha256`, `image-entropy`, `image-average-color`). Add the field to `scrub.py::_YAML_FIELD_PATTERNS`.
+- A new volatile field appeared in the YAML output that the scrubber doesn't know about (the scrubber currently handles `image-uuid`, `image-hash-sha256`, `image-entropy`, `image-average-color`; note `image-set-uuid` is deterministic and intentionally **not** scrubbed, so the golden pins its value). Add the field to `scrub.py::_YAML_FIELD_PATTERNS`.
 - The pipeline source-copy under `pipelines/MRITC/repo/` drifted (pipeline-repo SHA bumped without rotating the golden).
 - An output file the manifest covers is genuinely different.
 

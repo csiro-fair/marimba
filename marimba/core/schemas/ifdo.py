@@ -569,9 +569,14 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         if common_fields:
             logger.debug(f"Deduplicated {len(common_fields)} field(s) to header: {', '.join(common_fields.keys())}")
 
+        # Derive a deterministic image-set UUID so re-packaging the same image set yields a stable identity
+        # (uuid4 would mint a fresh UUID on every package run). Keyed by the set name; per-collection iFDOs
+        # carry a distinct key via metadata_name. This is reproducible but not globally unique across projects
+        # that reuse a name - the resolvable persistent identifier for that is the image-set-handle / DOI.
+        uuid_key = dataset_name if metadata_name is None else f"{dataset_name}/{metadata_name}"
         header_data: dict[str, Any] = {
             "image_set_name": dataset_name,
-            "image_set_uuid": str(uuid.uuid4()),
+            "image_set_uuid": str(uuid.uuid5(uuid.NAMESPACE_URL, f"urn:marimba:image-set:{uuid_key}")),
             "image_set_handle": "",  # TODO @<cjackett>: Populate from distribution target URL
             "image_set_ifdo_version": IFDO_VERSION,
         }

@@ -1735,6 +1735,61 @@ class TestiFDOMetadataSpatialExtent:
         assert "image-set-max-longitude-degrees" not in header
 
 
+class TestiFDOMetadataSetUuid:
+    """Test that the image-set UUID is deterministic and stable across packaging runs."""
+
+    @staticmethod
+    def _header_uuid(dataset_name: str, metadata_name: str | None = None) -> str:
+        """Build an iFDO via create_dataset_metadata and return its image-set-uuid."""
+        meta1 = iFDOMetadata(ImageData(image_latitude=-44.0, image_longitude=147.0))
+        meta2 = iFDOMetadata(ImageData(image_latitude=-44.1, image_longitude=147.1))
+        items = {
+            "img1.jpg": [cast("BaseMetadata", meta1)],
+            "img2.jpg": [cast("BaseMetadata", meta2)],
+        }
+        captured: list[dict[str, Any]] = []
+
+        def mock_saver(_root: Path, _name: str, data: dict[str, Any]) -> None:
+            captured.append(data)
+
+        iFDOMetadata.create_dataset_metadata(
+            dataset_name,
+            Path("/tmp"),
+            items,
+            metadata_name=metadata_name,
+            saver_overwrite=mock_saver,
+        )
+        return str(captured[0]["image-set-header"]["image-set-uuid"])
+
+    @pytest.mark.unit
+    def test_set_uuid_is_stable_across_runs(self) -> None:
+        """The same dataset name yields the same image-set-uuid on repeated packaging."""
+        first = self._header_uuid("IN2018_V06")
+        second = self._header_uuid("IN2018_V06")
+        assert first == second
+
+    @pytest.mark.unit
+    def test_set_uuid_differs_by_dataset_name(self) -> None:
+        """Different dataset names yield different image-set-uuids."""
+        assert self._header_uuid("DatasetA") != self._header_uuid("DatasetB")
+
+    @pytest.mark.unit
+    def test_set_uuid_differs_per_collection(self) -> None:
+        """A per-collection iFDO (distinct metadata_name) gets a distinct, stable UUID."""
+        aggregate = self._header_uuid("IN2018_V06", metadata_name=None)
+        collection = self._header_uuid("IN2018_V06", metadata_name="IN2018_V06_060")
+        assert aggregate != collection
+        assert collection == self._header_uuid("IN2018_V06", metadata_name="IN2018_V06_060")
+
+    @pytest.mark.unit
+    def test_set_uuid_is_valid_uuid_format(self) -> None:
+        """The derived value is a well-formed UUID string."""
+        import uuid as uuid_module
+
+        # Does not raise -> valid UUID.
+        uuid_module.UUID(self._header_uuid("IN2018_V06"))
+
+
 class TestiFDOMetadataGpsTags:
     """Test the GPS datum and fix-time EXIF tags built by _add_gps_tags."""
 
