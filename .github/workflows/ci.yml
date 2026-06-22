@@ -43,7 +43,7 @@ jobs:
         run: uv run black --check --line-length 120 marimba/
 
       - name: Run Mypy
-        run: uv run mypy --config-file config/mypy.ini marimba/
+        run: uv run mypy --config-file config/mypy.ini marimba/ tests/
 
       - name: Run Bandit
         run: uv run bandit --config config/bandit.yml --severity-level medium -r marimba/
