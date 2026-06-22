@@ -7,6 +7,7 @@ for creating dataset metadata and processing image files with EXIF data.
 
 """
 
+import importlib.metadata
 import io
 import json
 import logging
@@ -60,6 +61,20 @@ DEFAULT_RELATED_MATERIAL: list[dict[str, str]] = [
         "relation": "The iFDO metadata standard to which this image dataset conforms",
     },
 ]
+
+
+def _image_curation_protocol() -> str:
+    """Curation-protocol sentence for the iFDO image-set-header, stamped with the Marimba version.
+
+    The detailed machine-readable processing provenance (tool versions, pipeline git commits, packaging
+    timestamp) lives in the provenance.json record at the dataset root.
+    """
+    version = importlib.metadata.version("marimba")
+    return (
+        f"Structured, processed, and packaged into a FAIR image dataset with Marimba v{version} "
+        "(https://github.com/csiro-fair/marimba). Full machine-readable processing provenance is recorded in "
+        "provenance.json (W3C PROV-O)."
+    )
 
 
 @dataclass
@@ -602,6 +617,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             "image_set_uuid": cls.derive_image_set_uuid(dataset_name, metadata_name),
             "image_set_handle": "",  # TODO @<cjackett>: Populate from distribution target URL
             "image_set_ifdo_version": IFDO_VERSION,
+            "image_curation_protocol": _image_curation_protocol(),
         }
         header_data.update({k: v for k, v in common_fields.items() if k not in header_data})
 

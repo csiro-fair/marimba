@@ -59,7 +59,7 @@ def test_tier_a_structural(packaged_dataset: tuple[Path, dict[str, float]]) -> N
     assert dataset_dir.name == PACKAGED_DATASET_NAME, f"unexpected dataset name: {dataset_dir.name}"
 
     # Required top-level files / directories.
-    for required_file in ("manifest.txt", "summary.md", "ifdo.yml", "MRITC.ifdo.yml", "map.png"):
+    for required_file in ("manifest.txt", "summary.md", "ifdo.yml", "MRITC.ifdo.yml", "map.png", "provenance.json"):
         target = dataset_dir / required_file
         assert target.is_file(), f"missing required dataset file: {required_file}"
         assert target.stat().st_size > 0, f"required dataset file is empty: {required_file}"
@@ -108,6 +108,29 @@ def test_tier_a_structural(packaged_dataset: tuple[Path, dict[str, float]]) -> N
     summary_text = (dataset_dir / "summary.md").read_text(encoding="utf-8")
     assert "Dataset Summary" in summary_text or "Summary" in summary_text, "summary.md has no recognisable heading"
     assert len(summary_text) > 1000, f"summary.md is suspiciously short: {len(summary_text)} chars"
+
+    # provenance.json is valid PROV-O JSON-LD with the dataset entity, the packaging activity, and Marimba.
+    provenance = json.loads((dataset_dir / "provenance.json").read_text(encoding="utf-8"))
+    assert "@context" in provenance, "provenance.json missing JSON-LD @context"
+    assert "@graph" in provenance, "provenance.json missing JSON-LD @graph"
+    graph = provenance["@graph"]
+    assert any(n.get("@type") == "prov:Activity" for n in graph), "provenance.json has no prov:Activity"
+    assert any(
+        n.get("@id") == "#marimba" and "schema:softwareVersion" in n for n in graph
+    ), "provenance.json has no Marimba SoftwareAgent with a version"
+
+    # Each pipeline software agent records a 40-hex git commit (guards the git-provenance capture).
+    pipeline_agents = [n for n in graph if str(n.get("@id", "")).startswith("#pipeline-")]
+    assert pipeline_agents, "provenance.json has no pipeline SoftwareAgent"
+    for agent in pipeline_agents:
+        commit = agent.get("marimba:commit", "")
+        assert len(commit) == 40, f"pipeline agent commit is not a 40-char sha: {commit!r}"
+        assert all(c in "0123456789abcdef" for c in commit), f"pipeline commit not lowercase hex: {commit!r}"
+
+    # The dataset entity is present and identified by its image-set UUID.
+    assert any(
+        n.get("@type") == "prov:Entity" and str(n.get("@id", "")).startswith("urn:uuid:") for n in graph
+    ), "provenance.json has no dataset prov:Entity"
 
 
 @pytest.mark.e2e

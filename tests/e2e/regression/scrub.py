@@ -171,6 +171,10 @@ def has_volatile_content(rel_path: Path) -> bool:
       time as upstream tile data updates. Same project state -> different
       bytes a day later. Tier A still asserts the file exists and is a
       valid non-empty PNG; this just excludes it from byte-level comparison.
+    - `provenance.json` at the dataset root: embeds the packaging timestamp,
+      ExifTool/FFmpeg versions, and (in the e2e, cloned from a local cache) a
+      machine-specific pipeline repository URL. Tier A asserts its JSON-LD
+      structure instead of byte-comparing it.
     - JPEG images (`.jpg` / `.jpeg`): their encoded bytes drift across CPU
       microarchitectures on GitHub's mixed hosted-runner fleet — the main
       entropy-coded scan, the embedded EXIF thumbnail's own scan, and the
@@ -189,7 +193,10 @@ def has_volatile_content(rel_path: Path) -> bool:
         return True
     if rel_path.suffix.lower() in _JPEG_SUFFIXES:
         return True
-    return rel_path == Path("map.png")
+    # provenance.json embeds the packaging timestamp, the ExifTool/FFmpeg versions, and (in the e2e, where the
+    # pipeline is cloned from a local cache) a machine-specific repository URL — all volatile across runs. Its
+    # structure is asserted by Tier A instead.
+    return rel_path in (Path("map.png"), Path("provenance.json"))
 
 
 def scrubbed_hash(path: Path) -> str:

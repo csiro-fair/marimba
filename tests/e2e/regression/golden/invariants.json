@@ -1,10 +1,11 @@
 {
   "dataset_name": "IN2018_V06",
   "inventory": {
-    "total_files": 1626,
+    "total_files": 1627,
     "by_class": {
       "csv": 10,
       "image": 1584,
+      "json": 1,
       "log": 3,
       "markdown": 2,
       "python": 1,
@@ -27,6 +28,7 @@
       "ifdo.yml": "yaml",
       "manifest.txt": "text",
       "map.png": "image",
+      "provenance.json": "json",
       "summary.md": "markdown"
     },
     "top_level_dir_file_counts": {
@@ -86,6 +88,6 @@
       "MRITC/IN2018_V06_168/video": 1
     }
   },
-  "manifest_scrubbed_sha256": "13069b8ef76853ff6e5b7367157e85c962c63fe9f4342d4772588d6b3e5b443d",
-  "manifest_line_count": 1683
+  "manifest_scrubbed_sha256": "1a9a6b9963fa38770964ff31b0a7aedc96a41fd8f1959f04b4797fbe3e476aac",
+  "manifest_line_count": 1684
 }

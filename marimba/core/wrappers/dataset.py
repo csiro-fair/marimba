@@ -7,10 +7,12 @@ EXIF metadata.
 
 """
 
+import json
 import logging
 import os
 from collections import OrderedDict, defaultdict
 from collections.abc import Callable, Iterable
+from datetime import UTC, datetime
 from math import isnan
 from pathlib import Path
 from shutil import copy2, copytree, ignore_patterns
@@ -18,6 +20,7 @@ from typing import Any
 
 from rich.progress import Progress, SpinnerColumn, TaskID
 
+import marimba
 from marimba.core import MarimbaError
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.schemas.ifdo import iFDOMetadata
@@ -34,6 +37,7 @@ from marimba.core.utils.hash import compute_hash
 from marimba.core.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.core.utils.manifest import Manifest
 from marimba.core.utils.paths import format_path_for_logging
+from marimba.core.utils.provenance import build_provenance_document
 from marimba.core.utils.rich import get_default_columns
 from marimba.core.utils.summary import ImagerySummary
 from marimba.lib.decorators import multithreaded
@@ -439,6 +443,7 @@ class DatasetWrapper(LogMixin):
         self._generate_dataset_map(dataset_items, zoom)
         self._copy_pipelines(project_pipelines_dir)
         self._copy_logs(project_log_path, pipeline_log_paths)
+        self._generate_provenance(dataset_mapping, project_pipelines_dir)
         self._generate_manifest(dataset_items, max_workers)
 
         self.logger.info(f'Completed packaging dataset "{dataset_name}"')
@@ -980,6 +985,37 @@ class DatasetWrapper(LogMixin):
                 f"Copied project pipelines to {format_path_for_logging(self.pipelines_dir, self._project_dir)}",
             )
             progress.advance(task)
+
+    def _generate_provenance(
+        self,
+        dataset_mapping: dict[str, Any],
+        project_pipelines_dir: Path,
+    ) -> None:
+        """
+        Write a PROV-O (JSON-LD) provenance record for the dataset.
+
+        Captures the Marimba version, each pipeline's git provenance, the ExifTool/FFmpeg versions, and the
+        packaging timestamp. Skipped in dry-run since no dataset is written to disk.
+        """
+        if self.dry_run:
+            self.logger.info("Skipping provenance generation (dry-run)")
+            return
+
+        pipeline_repos = {name: project_pipelines_dir / name / "repo" for name in dataset_mapping}
+        document = build_provenance_document(
+            image_set_uuid=self.image_set_uuid,
+            dataset_name=self.name,
+            dataset_version=self.version,
+            pipeline_repos=pipeline_repos,
+            packaged_datetime=datetime.now(UTC),
+            marimba_version=marimba.__version__,
+        )
+        provenance_path = self.root_dir / "provenance.json"
+        with provenance_path.open("w") as f:
+            json.dump(document, f, indent=2)
+        self.logger.info(
+            f"Generated provenance record at {format_path_for_logging(provenance_path, self._project_dir)}",
+        )
 
     def _generate_manifest(
         self,
