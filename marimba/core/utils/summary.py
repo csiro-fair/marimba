@@ -7,19 +7,18 @@ dataset contents, calculate various metrics, and present the information in a st
 
 """
 
-import json
-import subprocess  # nosec
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar
 
+import av
+from av.container import InputContainer
 from PIL import Image
 from tabulate import tabulate
 
 import marimba
-from marimba.core.utils.dependencies import ToolDependency, check_dependency_available, show_dependency_error_and_exit
 from marimba.core.utils.log import get_logger
 
 if TYPE_CHECKING:
@@ -132,9 +131,10 @@ class ImagerySummary:
         """
         Quickly check if a video file is corrupt.
 
-        This function performs a quick check to determine if the given video file is corrupt. It uses ffprobe to
-        check the video metadata and ffmpeg to perform seek tests at the start, middle, and end of the video. The
-        function returns True if any of these checks fail or if an exception occurs during the process.
+        This function performs a quick check to determine if the given video file is corrupt. It checks the
+        video metadata for the duration of the video and then seeks the to the start, middle, and end of the video
+        to check if frames exist at these timestamps. The function returns True if any of these checks fail
+        or if an exception occurs during the process.
 
         Args:
             video_path (str): Path to the video file to be checked.
@@ -144,53 +144,73 @@ class ImagerySummary:
         """
         try:
             # Check metadata
-            probe_cmd = [
-                "ffprobe",
-                "-v",
-                "error",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "default=noprint_wrappers=1:nokey=1",
-                video_path,
-            ]
-            probe_result = subprocess.run(
-                probe_cmd,
-                capture_output=True,
-                check=False,
-            )
-            if probe_result.returncode != 0:
-                return True
-
-            duration = float(probe_result.stdout.decode().strip())
-
-            # Quick seek test (start, middle, end)
-            seek_times = [0, duration / 2, duration - 1]
-            for seek_time in seek_times:
-                seek_cmd = [
-                    "ffmpeg",
-                    "-ss",
-                    str(seek_time),
-                    "-i",
-                    video_path,
-                    "-vframes",
-                    "1",
-                    "-f",
-                    "null",
-                    "-",
-                ]
-                seek_result = subprocess.run(
-                    seek_cmd,
-                    capture_output=True,
-                    check=False,
-                )
-                if seek_result.returncode != 0:
+            with av.open(video_path) as container:
+                if len(container.streams.video) == 0:
                     return True
+
+                return ImagerySummary._check_video_streams(container)
+
         except Exception:
             logger.exception(f"Error checking video {video_path}")
             return True
-        else:
-            return False
+
+    @staticmethod
+    def _check_video_streams(container: InputContainer) -> bool:
+        """
+        Check if video stream in a video container are corrupt.
+
+        Args:
+            container: The container to check.
+
+        Returns:
+            bool: True if a video stream is corrupt, False otherwise.
+        """
+        for stream in container.streams.video:
+            duration = stream.duration
+            frame_rate = stream.base_rate
+            timebase = stream.time_base if stream.time_base is not None else av.time_base
+            if duration is None or frame_rate is None:
+                return True
+
+            # Quick seek test (start, middle, end)
+            seek_times = [
+                0,
+                duration // 2,
+                int(duration - float(1 / timebase)),
+            ]
+
+            all_exists = all(ImagerySummary._check_if_frame_exists(container, stream, ts) for ts in seek_times)
+
+            if not all_exists:
+                return True
+
+        return False
+
+    @staticmethod
+    def _check_if_frame_exists(
+        container: InputContainer,
+        stream: av.VideoStream,
+        timestamp: int,
+    ) -> bool:
+        """
+        Checks if a frame exists in a given stream at the given timestamp.
+
+        Args:
+            container: File container of the stream.
+            stream: Stream to check.
+            timestamp: Frame time in stream.time_base
+
+        Returns:
+            bool: True if a valid frame could be found in the container
+        """
+        container.seek(timestamp, backward=True, any_frame=True, stream=stream)
+
+        for packet in container.demux(stream):
+            if packet.dts is None:
+                continue
+            if packet.dts >= timestamp:
+                return not packet.is_corrupt
+        return False
 
     @staticmethod
     def get_image_properties(image_list: list[Path]) -> dict[str, Any]:
@@ -391,48 +411,11 @@ class ImagerySummary:
         return f"{complete_percentage:.1f}% complete, {corrupt_percentage:.1f}% corrupt"
 
     @staticmethod
-    def run_ffmpeg_command(command: list[str]) -> dict[str, Any]:
-        """
-        Execute an FFmpeg command and returns the JSON output.
-
-        This function runs the provided FFmpeg command using subprocess, captures the output, and returns it as a
-        parsed JSON dictionary. If the command fails, it raises a RuntimeError with the error message.
-
-        Args:
-            command: A list of strings representing the FFmpeg command and its arguments.
-
-        Returns:
-            A dictionary containing the parsed JSON output from the FFmpeg command.
-
-        Raises:
-            RuntimeError: If the FFmpeg command fails to execute successfully.
-        """
-        # Check if ffmpeg/ffprobe is available
-        tool_name = command[0] if command else "ffmpeg"
-        tool_dependency = ToolDependency.FFMPEG
-        if not check_dependency_available(tool_dependency):
-            show_dependency_error_and_exit(ToolDependency.FFMPEG, f"{tool_name} is required for video analysis")
-
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            # Check if it's a "command not found" type error
-            if "not found" in result.stderr.lower() or "not recognized" in result.stderr.lower():
-                show_dependency_error_and_exit(ToolDependency.FFMPEG, result.stderr)
-            msg = f"FFmpeg command failed with error: {result.stderr}"
-            raise RuntimeError(msg)
-        return cast("dict[str, Any]", json.loads(result.stdout))
-
-    @staticmethod
     def get_video_properties(video_list: list[Path]) -> dict[str, Any]:
         """
         Get video properties from a list of video files.
 
-        This function analyzes a list of video files using ffprobe to extract various properties such as duration,
+        This function analyzes a list of video files using pyav to extract various properties such as duration,
         resolution, codec, frame rate, and color depth. It also checks for corrupt videos. The function aggregates
         this information and returns a dictionary containing summary statistics.
 
@@ -449,37 +432,22 @@ class ImagerySummary:
             corrupt_videos: Number of corrupt videos detected.
         """
         total_seconds: float = 0.0
-        resolutions = set()
-        codecs = set()
-        frame_rates = set()
-        color_depths = set()
-        corrupt_videos = 0
+        resolutions: set[tuple[int, int]] = set()
+        codecs: set[str] = set()
+        frame_rates: set[float] = set()
+        color_depths: set[int] = set()
+        corrupt_videos = sum(ImagerySummary.is_video_corrupt_quick(str(path)) for path in video_list)
 
         for path in video_list:
-            command = [
-                "ffprobe",
-                "-v",
-                "error",
-                "-select_streams",
-                "v:0",
-                "-show_entries",
-                "stream=duration,width,height,codec_name,r_frame_rate,bits_per_raw_sample",
-                "-of",
-                "json",
-                str(path),
-            ]
-            output = ImagerySummary.run_ffmpeg_command(command)["streams"][0]
-            total_seconds += float(output.get("duration", 0))
-            resolutions.add((output.get("width"), output.get("height")))
-            codecs.add(output.get("codec_name"))
-            frame_rate_str = output.get("r_frame_rate", "0/1")
-            num, denom = map(int, frame_rate_str.split("/"))
-            frame_rates.add(num / denom)
-            color_depth = output.get("bits_per_raw_sample")
-            if color_depth:
-                color_depths.add(int(color_depth))
-            if ImagerySummary.is_video_corrupt_quick(str(path)):
-                corrupt_videos += 1
+            with av.open(path) as container:
+                video_total_seconds, video_resolutions, video_codecs, video_frame_rates, video_color_depths = (
+                    ImagerySummary._get_single_video_properties(container)
+                )
+                total_seconds += video_total_seconds
+                resolutions.update(video_resolutions)
+                codecs.update(video_codecs)
+                frame_rates.update(video_frame_rates)
+                color_depths.update(video_color_depths)
 
         return {
             "total_seconds": total_seconds,
@@ -491,49 +459,50 @@ class ImagerySummary:
         }
 
     @staticmethod
-    def get_other_properties(video_list: list[Path]) -> dict[str, Any]:
-        """Get video properties from a list of other files."""
+    def _get_single_video_properties(
+        container: InputContainer,
+    ) -> tuple[float, set[tuple[int, int]], set[str], set[float], set[int]]:
+        """
+        Get video properties from video container.
+
+        This function analyzes a video container using pyav to extract various properties such as duration,
+        resolution, codec, frame rate, and color depth.
+
+        Args:
+            container: A video container.
+
+        Returns:
+            A tuple containing the following entries:
+            0: Total duration of all videos in seconds.
+            1: Set of unique resolutions (width, height) tuples.
+            2: Set of unique video codecs.
+            3: Set of unique frame rates.
+            4: Set of unique color depths.
+        """
         total_seconds: float = 0.0
-        resolutions = set()
-        codecs = set()
-        frame_rates = set()
-        color_depths = set()
-        corrupt_videos = 0
+        resolutions: set[tuple[int, int]] = set()
+        codecs: set[str] = set()
+        frame_rates: set[float] = set()
+        color_depths: set[int] = set()
 
-        for path in video_list:
-            command = [
-                "ffprobe",
-                "-v",
-                "error",
-                "-select_streams",
-                "v:0",
-                "-show_entries",
-                "stream=duration,width,height,codec_name,r_frame_rate,bits_per_raw_sample",
-                "-of",
-                "json",
-                str(path),
-            ]
-            output = ImagerySummary.run_ffmpeg_command(command)["streams"][0]
-            total_seconds += float(output.get("duration", 0))
-            resolutions.add((output.get("width"), output.get("height")))
-            codecs.add(output.get("codec_name"))
-            frame_rate_str = output.get("r_frame_rate", "0/1")
-            num, denom = map(int, frame_rate_str.split("/"))
-            frame_rates.add(num / denom)
-            color_depth = output.get("bits_per_raw_sample")
-            if color_depth:
-                color_depths.add(int(color_depth))
-            if ImagerySummary.is_video_corrupt_quick(str(path)):
-                corrupt_videos += 1
+        for stream in container.streams.video:
+            if stream.time_base is not None and stream.duration is not None:
+                total_seconds += float(stream.time_base * stream.duration)
 
-        return {
-            "total_seconds": total_seconds,
-            "resolutions": resolutions,
-            "codecs": codecs,
-            "frame_rates": frame_rates,
-            "color_depths": color_depths,
-            "corrupt_videos": corrupt_videos,
-        }
+            codec = stream.codec_context
+            resolutions.add((codec.width, codec.height))
+            codecs.add(codec.name)
+
+            if stream.base_rate is not None:
+                frame_rates.add(float(stream.base_rate))
+
+            video_format = codec.format
+            if video_format is not None:
+                color_depth = video_format.components[0].bits
+                if color_depth:
+                    color_depths.add(color_depth)
+
+        return total_seconds, resolutions, codecs, frame_rates, color_depths
 
     @staticmethod
     def calculate_video_total_duration(total_seconds: float) -> str:
@@ -708,7 +677,7 @@ class ImagerySummary:
         Args:
             dataset_wrapper: A DatasetWrapper object containing dataset information.
             dataset_items: The dictionary of dataset items.
-            max_workers: Maximum number of worker threads for the per-file stat / ffprobe pass.
+            max_workers: Maximum number of worker threads for the per-file stat / video-probe pass.
                 ``None`` lets :class:`ThreadPoolExecutor` choose; pass an integer to cap concurrency.
 
         Returns:
@@ -846,8 +815,8 @@ class ImagerySummary:
             cls._update_common_data(image_data, image_info)
             cls._update_common_data(video_data, image_info)
 
-        # Thread the per-file stat() + ffprobe pass. _process_video calls
-        # is_video_corrupt_quick which runs ffprobe + 3x ffmpeg seek subprocesses;
+        # Thread the per-file stat() + video-probe pass. _process_video calls
+        # is_video_corrupt_quick which opens each file with PyAV and runs 3x seek probes;
         # serialising those across a 10-collection dataset dominated package wall.
         items = list(dataset_items.items())
         root_dir = dataset_wrapper.root_dir
@@ -904,7 +873,7 @@ class ImagerySummary:
 
     @classmethod
     def _build_video_record(cls, path: Path, image_info: "BaseMetadata") -> dict[str, Any]:
-        """Build a single video record dict; runs ffprobe + ffmpeg seeks for is_corrupt."""
+        """Build a single video record dict; runs PyAV seek probes for is_corrupt."""
         return {
             "path": path,
             "size": path.stat().st_size,

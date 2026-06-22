@@ -169,7 +169,7 @@ def import_command(
     """
     Import data in a source directory into a new or existing Marimba collection.
     """
-    validate_dependencies([ToolDependency.EXIFTOOL, ToolDependency.FFMPEG])
+    validate_dependencies([ToolDependency.EXIFTOOL])
 
     start_time = time.time()
     project_dir = find_project_dir_or_exit(project_dir)
@@ -295,7 +295,7 @@ def package_command(  # noqa: PLR0915
     """
     Package up a Marimba collection ready for distribution.
     """
-    validate_dependencies([ToolDependency.EXIFTOOL, ToolDependency.FFMPEG])
+    validate_dependencies([ToolDependency.EXIFTOOL])
 
     start_time = time.time()
     project_dir = find_project_dir_or_exit(project_dir)
@@ -407,7 +407,7 @@ def process_command(
     """
     Process the Marimba collection based on the pipeline specification.
     """
-    validate_dependencies([ToolDependency.EXIFTOOL, ToolDependency.FFMPEG])
+    validate_dependencies([ToolDependency.EXIFTOOL])
 
     start_time = time.time()
     project_dir = find_project_dir_or_exit(project_dir)

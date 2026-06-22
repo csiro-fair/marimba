@@ -153,32 +153,30 @@ marimba
 Marimba requires two system-level dependencies for its operation:
 
 - **ExifTool**: Required for EXIF metadata reading and writing
-- **FFmpeg**: Required for video processing functionality
 
 **Ubuntu/Debian:**
 ```bash
-sudo apt install libimage-exiftool-perl ffmpeg
+sudo apt install libimage-exiftool-perl
 ```
 
 **macOS:**
 ```bash
-brew install exiftool ffmpeg
+brew install exiftool
 ```
 
 **RHEL/CentOS/Fedora:**
 ```bash
 # RHEL/CentOS (with EPEL repository enabled)
-sudo yum install perl-Image-ExifTool ffmpeg
+sudo yum install perl-Image-ExifTool
 
 # Fedora
-sudo dnf install perl-Image-ExifTool ffmpeg
+sudo dnf install perl-Image-ExifTool
 ```
 
 **Windows:**
 - ExifTool: Download from [https://exiftool.org/](https://exiftool.org/) and add to PATH
-- FFmpeg: Download from [https://ffmpeg.org/](https://ffmpeg.org/) and add to PATH
 
-For other platforms or installation methods, please refer to the official documentation for [ExifTool](https://exiftool.org/) and [FFmpeg](https://ffmpeg.org/).
+For other platforms or installation methods, please refer to the official documentation for [ExifTool](https://exiftool.org/).
 
 To set up a Marimba development environment, please refer to the [Environment Setup Guide](docs/environment.md), which 
 provides detailed instructions and guidelines for configuring your development environment.
