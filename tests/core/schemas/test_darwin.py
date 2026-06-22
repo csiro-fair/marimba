@@ -85,6 +85,7 @@ def darwin_complete_implementation() -> type[DarwinCoreMetadata]:
             *,
             dry_run: bool = False,
             chunk_size: int | None = None,
+            image_set_uuid: str | None = None,
         ) -> None:
             pass
 

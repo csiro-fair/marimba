@@ -80,6 +80,7 @@ def complete_metadata_class():
             *,
             dry_run: bool = False,
             chunk_size: int | None = None,
+            image_set_uuid: str | None = None,
         ) -> None:
             pass
 
@@ -154,6 +155,7 @@ def none_values_metadata_class():
             *,
             dry_run: bool = False,
             chunk_size: int | None = None,
+            image_set_uuid: str | None = None,
         ) -> None:
             pass
 
