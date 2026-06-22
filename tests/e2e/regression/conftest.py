@@ -34,7 +34,7 @@ DATA_REPO_URL = "https://github.com/csiro-fair/mritc-demo-data"
 DATA_REPO_SHA = "804733fcbda7404b4776a80ac55dcd91bebd7ead"
 
 PIPELINE_REPO_URL = "https://github.com/csiro-fair/mritc-demo-pipeline"
-PIPELINE_REPO_SHA = "4f1f69b40a11968d55e88601d071e8b428ebeb1d"
+PIPELINE_REPO_SHA = "a9278ac6479587bd4d7f90ad56f58795cafd108e"
 
 # Each top-level directory in the data repo is one collection. The marimba
 # convention for this dataset prefixes the directory name with `IN2018_V06_`.
