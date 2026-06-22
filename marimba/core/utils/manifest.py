@@ -10,7 +10,7 @@ The module uses SHA-256 hashing to ensure data integrity and supports multithrea
 import logging
 from collections.abc import Iterable
 from copy import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from rich.progress import Progress, TaskID
@@ -33,6 +33,10 @@ class Manifest:
 
     hashes: dict[str, str]
     logger: logging.Logger | None = None
+    # Optional dataset-identity header (e.g. image-set-uuid, image-set-name, hash-algorithm) written as
+    # leading ``# key: value`` comment lines. Excluded from equality so validate()'s comparison against a
+    # freshly-walked manifest (which carries no header) still holds.
+    header: dict[str, str] = field(default_factory=dict, compare=False)
 
     def __hash__(self) -> int:
         """Enable use in sets and as dictionary keys."""
@@ -433,6 +437,8 @@ class Manifest:
         """
         try:
             with path.open("w") as f:
+                for key, value in self.header.items():
+                    f.write(f"# {key}: {value}\n")
                 for file_path_str, file_hash in self.hashes.items():
                     f.write(f"{file_path_str}:{file_hash}\n")
         except OSError as e:
@@ -454,18 +460,26 @@ class Manifest:
         """
         try:
             hashes: dict[str, str] = {}
+            header: dict[str, str] = {}
             with path.open("r") as f:
                 for line in f:
-                    if line:
-                        try:
-                            path_str, hash_str = line.strip().split(":")
-                            hashes[path_str] = hash_str
-                        except ValueError as e:
-                            msg = f"Invalid manifest file format at line: {line.strip()}"
-                            raise ValueError(
-                                msg,
-                            ) from e
-            return cls(hashes)
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    if stripped.startswith("#"):
+                        # Header comment line: "# key: value".
+                        key, sep, value = stripped[1:].partition(":")
+                        if sep:
+                            header[key.strip()] = value.strip()
+                        continue
+                    try:
+                        # rsplit on the final colon so relative paths containing ':' parse correctly.
+                        path_str, hash_str = stripped.rsplit(":", 1)
+                        hashes[path_str] = hash_str
+                    except ValueError as e:
+                        msg = f"Invalid manifest file format at line: {stripped}"
+                        raise ValueError(msg) from e
+            return cls(hashes, header=header)
         except OSError as e:
             msg = f"Failed to load manifest from {path}: {e!s}"
             raise OSError(msg) from e

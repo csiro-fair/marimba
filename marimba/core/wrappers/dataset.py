@@ -170,6 +170,11 @@ class DatasetWrapper(LogMixin):
         return self._root_dir.name
 
     @property
+    def image_set_uuid(self) -> str:
+        """The deterministic image-set UUID for this dataset, derived from its name."""
+        return iFDOMetadata.derive_image_set_uuid(self.name)
+
+    @property
     def logs_dir(self) -> Path:
         """
         The path to the logs directory.
@@ -580,7 +585,7 @@ class DatasetWrapper(LogMixin):
         ] = {}
 
         # Deterministic image-set UUID used to namespace per-image UUIDs (see ensure_image_uuid).
-        image_set_uuid = iFDOMetadata.derive_image_set_uuid(self.name)
+        image_set_uuid = self.image_set_uuid
 
         for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
             for (
@@ -1007,6 +1012,11 @@ class DatasetWrapper(LogMixin):
                 max_workers=max_workers,
                 files=globbed_files,
             )
+            manifest.header = {
+                "image-set-uuid": self.image_set_uuid,
+                "image-set-name": self.name,
+                "hash-algorithm": "SHA-256",
+            }
             manifest.save(self.manifest_path, logger=self.logger)
             self.logger.info(
                 f"Generated manifest for {len(globbed_files)} "

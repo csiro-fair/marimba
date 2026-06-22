@@ -1,3 +1,6 @@
+# image-set-uuid: 110cae5b-2d06-5b65-9173-f9f47c93e3d0
+# image-set-name: IN2018_V06
+# hash-algorithm: SHA-256
 IN2018_V06_025.MRITC.ifdo.yml:9b1f9ce78a5f1d249fb1271143c71f03a2a9eb8cf4cf4ef6d909c813fac1e80e
 IN2018_V06_026.MRITC.ifdo.yml:6240f5a36d7c1ef6dfbbbfe6cd136dd9fb8e357725368b4fb042cf5352869dee
 IN2018_V06_045.MRITC.ifdo.yml:adcd10475e743949c4985ad1c6106011056d4a799ae6b5bfa8aa85c345a87b55
@@ -1677,4 +1680,4 @@ pipelines/MRITC/repo/LICENSE.txt:9a89d8b58968bd03b789683f98b00a44113e2ab635a5146
 pipelines/MRITC/repo/README.md:c2201052ee19d62a443a94bbe2d6651ad9945f4c50b653aa37b18cac0f0c4d70
 pipelines/MRITC/repo/mritc_demo.pipeline.py:e1c02aeaa4142fe2782cd9e771650b9f4cfddca08473288015324eb047e5bc7f
 pipelines/MRITC/repo/requirements.txt:ae4863bdae026314d5994730ad24730434f256c274d8431c53ed537393992be6
-summary.md:a9cb8ee017ff04dfbd5bd21a191a8f4441b6446858374c19756cbd2f2d06a9d4
+summary.md:628b12aafcad9adddb59dc0321763981a6cd2e98ccdc34975f5a638d08a678a9

@@ -77,7 +77,7 @@ def test_tier_a_structural(packaged_dataset: tuple[Path, dict[str, float]]) -> N
     # signature of the subtree's contents (~56 of 1680 entries are dirs at
     # current dataset shape).
     manifest_text = (dataset_dir / "manifest.txt").read_text(encoding="utf-8")
-    manifest_lines = [ln for ln in manifest_text.splitlines() if ln.strip()]
+    manifest_lines = [ln for ln in manifest_text.splitlines() if ln.strip() and not ln.startswith("#")]
     assert manifest_lines, "manifest.txt is empty"
     for line in manifest_lines:
         path_part, _, hash_part = line.rpartition(":")
