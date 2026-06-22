@@ -677,7 +677,7 @@ class ImagerySummary:
         Args:
             dataset_wrapper: A DatasetWrapper object containing dataset information.
             dataset_items: The dictionary of dataset items.
-            max_workers: Maximum number of worker threads for the per-file stat / ffprobe pass.
+            max_workers: Maximum number of worker threads for the per-file stat / video-probe pass.
                 ``None`` lets :class:`ThreadPoolExecutor` choose; pass an integer to cap concurrency.
 
         Returns:
@@ -815,8 +815,8 @@ class ImagerySummary:
             cls._update_common_data(image_data, image_info)
             cls._update_common_data(video_data, image_info)
 
-        # Thread the per-file stat() + ffprobe pass. _process_video calls
-        # is_video_corrupt_quick which runs ffprobe + 3x ffmpeg seek subprocesses;
+        # Thread the per-file stat() + video-probe pass. _process_video calls
+        # is_video_corrupt_quick which opens each file with PyAV and runs 3x seek probes;
         # serialising those across a 10-collection dataset dominated package wall.
         items = list(dataset_items.items())
         root_dir = dataset_wrapper.root_dir
@@ -873,7 +873,7 @@ class ImagerySummary:
 
     @classmethod
     def _build_video_record(cls, path: Path, image_info: "BaseMetadata") -> dict[str, Any]:
-        """Build a single video record dict; runs ffprobe + ffmpeg seeks for is_corrupt."""
+        """Build a single video record dict; runs PyAV seek probes for is_corrupt."""
         return {
             "path": path,
             "size": path.stat().st_size,
