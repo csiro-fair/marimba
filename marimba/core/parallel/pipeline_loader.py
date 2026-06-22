@@ -5,27 +5,10 @@ This module provides functionality to load and configure a pipeline instance fro
 It includes methods for finding the pipeline implementation file, loading the module, instantiating the pipeline
 class, and setting up logging for the pipeline instance.
 
-Imports:
-    sys: Provides access to some variables used or maintained by the Python interpreter.
-    types: Provides runtime support for type hints.
-    importlib.machinery: Provides the low-level import machinery used by importlib.
-    importlib.util: Utility code for implementers of the import system.
-    pathlib.Path: Offers classes representing filesystem paths.
-    marimba.core.pipeline.BasePipeline: Base class for pipeline implementations.
-    marimba.core.utils.config.load_config: Function to load configuration from a file.
-    marimba.core.utils.log: Module containing logging utilities.
-
-Functions:
-    _find_pipeline_module_path: Find the pipeline implementation file in the repository.
-    _log_empty_repo_warning: Log a warning message for an empty repository case.
-    _load_pipeline_module: Load the pipeline module from the given path.
-    _is_valid_pipeline_class: Check if an object is a valid pipeline class.
-    _find_pipeline_class: Find the pipeline class in the module.
-    _configure_pipeline_logging: Configure logging for the pipeline instance.
-    load_pipeline_instance: Load a pipeline instance from a given repository directory.
 """
 
 import sys
+import threading
 import types
 from importlib import machinery
 from importlib.util import module_from_spec, spec_from_file_location
@@ -34,6 +17,19 @@ from pathlib import Path
 from marimba.core.pipeline import BasePipeline
 from marimba.core.utils.config import load_config
 from marimba.core.utils.log import LogPrefixFilter, get_file_handler, get_logger
+
+# Serialises the sys.path.insert / exec_module / sys.path.pop block in load_pipeline_instance.
+# sys.path is process-global; if two pipelines load concurrently from threads, their insert/pop pairs can
+# interleave and pop each other's entries. ProcessPoolExecutor paths are isolated per worker, but
+# multithreaded callers (current or future) need this guarantee.
+_PIPELINE_IMPORT_LOCK = threading.Lock()
+
+# Process-local cache of already-imported pipeline modules, keyed by the absolute path
+# to the .pipeline.py file. Avoids re-executing the module body on every load_pipeline_instance
+# call within the same process — relevant when the parent process resolves multiple post-package
+# processors against the same pipeline (one full exec_module per call would otherwise dominate
+# parent-side pipeline orchestration cost on N-pipeline projects).
+_PIPELINE_MODULE_CACHE: dict[Path, types.ModuleType] = {}
 
 
 def _find_pipeline_module_path(
@@ -48,14 +44,18 @@ def _find_pipeline_module_path(
         if allow_empty:
             _log_empty_repo_warning(repo_dir)
             return None
-        raise FileNotFoundError(
+        msg = (
             f'No pipeline implementation found in "{repo_dir}". '
-            f"The repository must contain a .pipeline.py file with a class that inherits from BasePipeline.",
+            f"The repository must contain a .pipeline.py file with a class that inherits from BasePipeline."
+        )
+        raise FileNotFoundError(
+            msg,
         )
 
     if len(pipeline_module_paths) > 1:
+        msg = f'Multiple pipeline implementations found in "{repo_dir}": {pipeline_module_paths}'
         raise FileNotFoundError(
-            f'Multiple pipeline implementations found in "{repo_dir}": {pipeline_module_paths}',
+            msg,
         )
 
     return pipeline_module_paths[0]
@@ -95,10 +95,12 @@ def _load_pipeline_module(
     )
 
     if module_spec is None:
-        raise ImportError(f"Could not load spec for {module_name} from {module_path}")
+        msg = f"Could not load spec for {module_name} from {module_path}"
+        raise ImportError(msg)
 
     if module_spec.loader is None:
-        raise ImportError(f"Could not find loader for {module_name} from {module_path}")
+        msg = f"Could not find loader for {module_name} from {module_path}"
+        raise ImportError(msg)
 
     module = module_from_spec(module_spec)
     sys.modules[module_name] = module  # Register the module in sys.modules
@@ -116,13 +118,15 @@ def _is_valid_pipeline_class(obj: type[object]) -> bool:
 def _find_pipeline_class(module: types.ModuleType) -> type[BasePipeline]:
     """Find the pipeline class in the module."""
     if not hasattr(module, "__dict__"):
-        raise ImportError("Invalid module: module has no __dict__ attribute")
+        msg = "Invalid module: module has no __dict__ attribute"
+        raise ImportError(msg)
 
     for obj in module.__dict__.values():
         if isinstance(obj, type) and _is_valid_pipeline_class(obj):
-            return obj  # type: ignore[return-value]  # We know it's a Type[BasePipeline] due to _is_valid_pipeline_class
+            return obj  # _is_valid_pipeline_class already enforces it's a type[BasePipeline] subclass
 
-    raise ImportError("Pipeline class has not been set or could not be found")
+    msg = "Pipeline class has not been set or could not be found"
+    raise ImportError(msg)
 
 
 def _configure_pipeline_logging(
@@ -140,11 +144,9 @@ def _configure_pipeline_logging(
         prefix_filter = LogPrefixFilter(log_string_prefix)
         pipeline_instance.logger.addFilter(prefix_filter.apply_prefix)
 
-    # Check if this handler already exists before adding
+    # Add the new file handler
     file_handler = get_file_handler(root_dir, pipeline_name, dry_run)
-    handler_paths = [h.baseFilename for h in pipeline_instance.logger.handlers if hasattr(h, "baseFilename")]
-    if not any(h == file_handler.baseFilename for h in handler_paths):
-        pipeline_instance.logger.addHandler(file_handler)
+    pipeline_instance.logger.addHandler(file_handler)
 
 
 def load_pipeline_instance(
@@ -181,17 +183,27 @@ def load_pipeline_instance(
     if module_path is None:
         return None
 
-    # Load the pipeline module
-    module_name, module, module_spec = _load_pipeline_module(module_path)
+    # Resolve the cache key once so the lock window is small.
+    cache_key = module_path.absolute()
 
-    # Enable repo-relative imports
-    sys.path.insert(0, str(repo_dir.absolute()))
-    try:
-        if module_spec.loader is None:
-            raise ImportError(f"Module loader is None for {module_name}")
-        module_spec.loader.exec_module(module)
-    finally:
-        sys.path.pop(0)
+    # Reuse an already-imported module when possible; only exec_module under lock.
+    # sys.path is process-global, so even cache lookups happen under the import lock
+    # to ensure threaded callers see a consistent view.
+    with _PIPELINE_IMPORT_LOCK:
+        cached = _PIPELINE_MODULE_CACHE.get(cache_key)
+        if cached is not None:
+            module = cached
+        else:
+            module_name, module, module_spec = _load_pipeline_module(module_path)
+            sys.path.insert(0, str(repo_dir.absolute()))
+            try:
+                if module_spec.loader is None:
+                    msg = f"Module loader is None for {module_name}"
+                    raise ImportError(msg)
+                module_spec.loader.exec_module(module)
+            finally:
+                sys.path.pop(0)
+            _PIPELINE_MODULE_CACHE[cache_key] = module
 
     # Find and instantiate the pipeline class
     pipeline_class = _find_pipeline_class(module)

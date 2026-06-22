@@ -1,0 +1,9 @@
+# All files require review from a core maintainer
+* @cjackett @kevinsbarnard
+
+# CI/CD workflows
+/.github/workflows/ @cjackett @kevinsbarnard
+
+# Dependencies and build
+/pyproject.toml @cjackett @kevinsbarnard
+/uv.lock @cjackett @kevinsbarnard

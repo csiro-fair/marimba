@@ -5,25 +5,9 @@ The distribution_target_wrapper module provides a wrapper class for creating and
 allows for the creation of distribution target instances based on a given configuration file, as well as interactive
 prompting for creating a new distribution target configuration.
 
-Imports:
-    - getfullargspec, isclass from inspect: Used for introspecting distribution target classes.
-    - Path from pathlib: Used for handling file paths.
-    - FunctionType from types: Used for type checking.
-    - Any, Dict, Optional, Tuple, Union, cast from typing: Used for type hinting.
-    - Prompt from rich.prompt: Used for interactive prompting.
-    - DistributionTargetBase from marimba.core.distribution.bases: Base class for distribution targets.
-    - CSIRODapDistributionTarget from marimba.core.distribution.dap: CSIRO DAP distribution target implementation.
-    - S3DistributionTarget from marimba.core.distribution.s3: S3 distribution target implementation.
-    - load_config, save_config from marimba.core.utils.config: Used for loading and saving configuration files.
-
-Classes:
-    - DistributionTargetWrapper: A wrapper class for creating and managing distribution targets.
-        - InvalidConfigError: Raised when the configuration file is invalid.
-
-Functions:
-    - prompt_target: Use Rich to prompt for a distribution target configuration.
 """
 
+import importlib
 from inspect import getfullargspec, isclass
 from pathlib import Path
 from types import FunctionType
@@ -31,10 +15,13 @@ from typing import Any, ClassVar, cast
 
 from rich.prompt import Prompt
 
+from marimba.core import MarimbaError
 from marimba.core.distribution.base import DistributionTargetBase
-from marimba.core.distribution.dap import CSIRODapDistributionTarget
-from marimba.core.distribution.s3 import S3DistributionTarget
 from marimba.core.utils.config import load_config, save_config
+
+# Lazy class resolution keeps boto3 (~25 ms) out of the `marimba --help` import path.
+# Resolved on demand by ``_resolve_target_class``; only loads when a distribute command
+# actually instantiates or prompts for a target.
 
 
 class DistributionTargetWrapper:
@@ -54,12 +41,26 @@ class DistributionTargetWrapper:
 
     """
 
-    CLASS_MAP: ClassVar[dict[str, type]] = {
-        "s3": S3DistributionTarget,
-        "dap": CSIRODapDistributionTarget,
+    CLASS_MAP: ClassVar[dict[str, str]] = {
+        "s3": "marimba.core.distribution.s3:S3DistributionTarget",
+        "dap": "marimba.core.distribution.dap:CSIRODapDistributionTarget",
     }
 
-    class InvalidConfigError(Exception):
+    @staticmethod
+    def _resolve_target_class(target_type: str) -> type | None:
+        """Resolve a CLASS_MAP entry to the concrete distribution-target class.
+
+        Imports the target module on demand so the boto3 / botocore chain
+        stays out of CLI startup.
+        """
+        qualname = DistributionTargetWrapper.CLASS_MAP.get(target_type)
+        if qualname is None:
+            return None
+        module_path, _, class_name = qualname.partition(":")
+        module = importlib.import_module(module_path)
+        return getattr(module, class_name, None)
+
+    class InvalidConfigError(MarimbaError):
         """
         Raised when the configuration file is invalid.
         """
@@ -127,30 +128,34 @@ class DistributionTargetWrapper:
         # Prompt for the distribution target type
         target_type = Prompt.ask("Distribution target type", choices=choices)
 
-        # Get the distribution target class
-        target_class = DistributionTargetWrapper.CLASS_MAP.get(target_type)
+        # Get the distribution target class (lazy-resolved)
+        target_class = DistributionTargetWrapper._resolve_target_class(target_type)
         if target_class is None:
-            raise ValueError(f"No target class found for type {target_type}")
+            msg = f"No target class found for type {target_type}"
+            raise ValueError(msg)
 
         # Ensure that target_class is indeed a class
         if not isclass(target_class):
-            raise TypeError(f"Target class for type {target_type} is not a class")
+            msg = f"Target class for type {target_type} is not a class"
+            raise TypeError(msg)
 
         # Check if __init__ method exists
         if not hasattr(target_class, "__init__"):
+            msg = f"Target class {target_type} does not have an __init__ method"
             raise TypeError(
-                f"Target class {target_type} does not have an __init__ method",
+                msg,
             )
 
         # Ensure that target_class.__init__ is a method
-        if not isinstance(target_class.__init__, FunctionType):  # type: ignore[attr-defined]
-            raise TypeError(f"__init__ of target class {target_type} is not a method")
+        if not isinstance(target_class.__init__, FunctionType):
+            msg = f"__init__ of target class {target_type} is not a method"
+            raise TypeError(msg)
 
         # Get the distribution target __init__ positional and keyword arguments
         arg_spec = getfullargspec(target_class)
         positional_args = arg_spec.args[1:]  # exclude 'self'
         keyword_args = arg_spec.kwonlyargs
-        defaults = arg_spec.defaults if arg_spec.defaults else []
+        defaults = arg_spec.defaults or ()
 
         # Prepare the default values for the keyword arguments
         keyword_defaults = dict(zip(keyword_args[::-1], defaults[::-1], strict=False))
@@ -191,20 +196,25 @@ class DistributionTargetWrapper:
         """
         target_type = self.config.get("type", None)
         if target_type is None:
+            msg = "The distribution target configuration must specify a 'type'."
             raise DistributionTargetWrapper.InvalidConfigError(
-                "The distribution target configuration must specify a 'type'.",
+                msg,
             )
 
         if target_type not in DistributionTargetWrapper.CLASS_MAP:
-            raise DistributionTargetWrapper.InvalidConfigError(
+            msg = (
                 f"Invalid distribution target type: {target_type}. Must be one of: "
-                f"{', '.join(DistributionTargetWrapper.CLASS_MAP.keys())}",
+                f"{', '.join(DistributionTargetWrapper.CLASS_MAP.keys())}"
+            )
+            raise DistributionTargetWrapper.InvalidConfigError(
+                msg,
             )
 
         target_args = self.config.get("config", None)
         if target_args is None:
+            msg = "The distribution target configuration must specify a 'config'."
             raise DistributionTargetWrapper.InvalidConfigError(
-                "The distribution target configuration must specify a 'config'.",
+                msg,
             )
 
     def _load_config(self) -> None:
@@ -238,8 +248,8 @@ class DistributionTargetWrapper:
         target_args = self.config.get("config")
 
         if isinstance(target_type, str) and isinstance(target_args, dict):
-            target_class = DistributionTargetWrapper.CLASS_MAP.get(target_type)
+            target_class = DistributionTargetWrapper._resolve_target_class(target_type)
             if target_class:
                 # Use cast to assure Mypy of the return type
-                return cast(DistributionTargetBase, target_class(**target_args))
+                return cast("DistributionTargetBase", target_class(**target_args))
         return None

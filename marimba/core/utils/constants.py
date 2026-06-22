@@ -6,6 +6,7 @@ default values and help text for various project-related settings.
 
 Constants:
     - PROJECT_DIR_HELP: Help text for specifying the Marimba project root directory.
+    - EXIF_SUPPORTED_EXTENSIONS: Set of file extensions that support EXIF metadata writing.
 """
 
 from enum import Enum
@@ -14,6 +15,43 @@ PROJECT_DIR_HELP = (
     "Path to Marimba project root. If unspecified, Marimba will search for a project root directory in the current "
     "working directory and its parents."
 )
+
+# Maximum number of sample files to show when warning/erroring on hard-linked / read-only files during packaging.
+MAX_SAMPLE_FILES_IN_WARNING = 10
+
+# Default image thumbnail dimensions (width, height) used by lib.image.generate_image_thumbnail and lib.video.
+DEFAULT_IMAGE_THUMBNAIL_SIZE = (300, 300)
+
+# Default EXIF-embedded thumbnail dimensions for iFDO image processing.
+DEFAULT_EXIF_THUMBNAIL_SIZE = (160, 120)
+
+# S3 multipart-upload threshold in bytes (100 MB). Files larger than this are uploaded in parts.
+S3_MULTIPART_THRESHOLD_BYTES = 100 * 1024 * 1024
+
+# Maximum number of file-level upload threads for S3 distribution. boto3's TransferConfig
+# already parallelises *parts within a single multipart upload* (max_concurrency=10 default);
+# this controls how many *files* are in flight at once. 10 is a reasonable default for
+# typical link bandwidth — bump to 20-40 on 10 Gbps links, drop to 2-4 on slow links.
+S3_UPLOAD_MAX_WORKERS = 10
+
+# File extensions that support EXIF metadata writing
+EXIF_SUPPORTED_EXTENSIONS = {
+    # Standard formats with native EXIF support
+    ".jpg",
+    ".jpeg",
+    ".tiff",
+    ".tif",
+    # Common RAW formats that support EXIF
+    ".cr2",  # Canon
+    ".cr3",  # Canon
+    ".nef",  # Nikon
+    ".arw",  # Sony
+    ".dng",  # Adobe Digital Negative
+    ".raf",  # Fujifilm
+    ".orf",  # Olympus
+    ".pef",  # Pentax
+    ".rw2",  # Panasonic
+}
 
 
 class Operation(str, Enum):

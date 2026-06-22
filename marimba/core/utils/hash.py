@@ -5,12 +5,6 @@ This module provides functionality to compute SHA-256 hashes for files and paths
 directories, hashing file contents and path strings for files, and just path strings for directories or other
 types of paths. The module is designed to be efficient, using a large buffer size for reading large files.
 
-Imports:
-    hashlib: Provides hash algorithms, including SHA-256.
-    pathlib.Path: Offers object-oriented filesystem paths.
-
-Functions:
-    compute_hash: Computes the SHA-256 hash of a path's contents and path string.
 """
 
 import hashlib
@@ -45,7 +39,8 @@ def compute_hash(path: Path, root_dir: Path | None = None) -> str:
                 while chunk := f.read(1_048_576):  # 1MB chunks
                     file_hash.update(chunk)
         except OSError as e:
-            raise OSError(f"Failed to read file {path}: {e!s}") from e
+            msg = f"Failed to read file {path}: {e!s}"
+            raise OSError(msg) from e
     else:
         # For non-files, hash the path string
         if root_dir is not None:
@@ -53,8 +48,9 @@ def compute_hash(path: Path, root_dir: Path | None = None) -> str:
                 relative_path = path.resolve().relative_to(root_dir.resolve())
                 path_to_hash = relative_path
             except ValueError as e:
+                msg = f"Path {path} is not within root directory {root_dir}"
                 raise ValueError(
-                    f"Path {path} is not within root directory {root_dir}",
+                    msg,
                 ) from e
         else:
             path_to_hash = path

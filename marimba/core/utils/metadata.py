@@ -78,4 +78,5 @@ def get_saver(saver_name: MetadataSaverTypes) -> Callable[[Path, str, dict[str, 
         case MetadataSaverTypes.yaml:
             return yaml_saver
         case _:
-            raise ValueError(f"Unknown saver: {saver_name}")
+            msg = f"Unknown saver: {saver_name}"
+            raise ValueError(msg)

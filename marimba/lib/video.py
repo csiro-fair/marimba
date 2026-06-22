@@ -4,28 +4,18 @@ This module offers functionality to generate thumbnail images from a video file 
 for video processing and Pillow for image handling. The generated thumbnails are saved to a specified output directory
 with customizable naming conventions.
 
-Imports:
-    logging: Provides a flexible framework for generating log messages.
-    pathlib: Offers classes representing filesystem paths with semantics appropriate for different operating systems.
-    typing: Provides support for type hints.
-    av: A Pythonic binding for FFmpeg libraries.
-    PIL: Python Imaging Library (Pillow fork) for opening, manipulating, and saving image files.
-
-Functions:
-    get_stream_properties: Extracts key properties from a video stream.
-    generate_potential_filenames: Creates potential filenames for video frames.
-    filter_existing_thumbnails: Identifies and filters existing thumbnail files.
-    save_thumbnail: Converts a video frame to a thumbnail image and saves it.
-    generate_video_thumbnails: Creates thumbnail images from a video file at specified intervals.
 """
 
-import logging
 from pathlib import Path
 
 import av
 from PIL import Image
 
-logger = logging.getLogger(__name__)
+from marimba.core.utils.constants import DEFAULT_IMAGE_THUMBNAIL_SIZE
+from marimba.core.utils.dependencies import ToolDependency, show_dependency_error_and_exit
+from marimba.core.utils.log import get_logger
+
+logger = get_logger(__name__)
 
 
 def get_stream_properties(
@@ -53,7 +43,8 @@ def get_stream_properties(
     total_frames = stream.frames
 
     if frame_rate is None or time_base is None:
-        raise ValueError("Frame rate or time base is None")
+        msg = "Frame rate or time base is None"
+        raise ValueError(msg)
 
     return float(frame_rate), float(time_base), total_frames
 
@@ -146,9 +137,8 @@ def save_thumbnail(frame: av.video.frame.VideoFrame, output_path: Path) -> None:
         IOError: If there's an issue saving the image to the specified output path.
         TypeError: If the input frame is not of the expected type.
     """
-    img = frame.to_image()
-    max_size = (300, 300)
-    img.thumbnail(max_size, Image.Resampling.LANCZOS)  # type: ignore[no-untyped-call]
+    img = frame.to_image()  # type: ignore[no-untyped-call]
+    img.thumbnail(DEFAULT_IMAGE_THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
     img.save(output_path)
 
 
@@ -174,7 +164,14 @@ def generate_video_thumbnails(
         A tuple containing the input video path and a list of generated thumbnail paths.
     """
     output_directory.mkdir(parents=True, exist_ok=True)
-    container = av.open(str(video))  # type: ignore[attr-defined]
+
+    try:
+        container = av.open(str(video))
+    except Exception as e:  # av.AVError is dynamically created, so use generic Exception
+        if "No such file or directory" in str(e) and "ffmpeg" in str(e).lower():
+            show_dependency_error_and_exit(ToolDependency.FFMPEG, f"PyAV requires FFmpeg libraries: {e}")
+        raise
+
     stream = container.streams.video[0]
 
     frame_rate, time_base, total_frames = get_stream_properties(stream)
@@ -191,10 +188,10 @@ def generate_video_thumbnails(
     if potential_filenames:
         for packet in container.demux(stream):
             for frame in packet.decode():
-                if isinstance(frame, av.video.frame.VideoFrame):
+                if isinstance(frame, av.video.frame.VideoFrame) and frame.pts is not None:
                     frame_number = int(frame.pts * time_base * frame_rate)
                     if frame_number in potential_filenames:
-                        output_path = output_directory / potential_filenames[frame_number]
+                        output_path = potential_filenames[frame_number]
                         logger.info(
                             f"Generating video thumbnail at frame {frame_number}: {output_path}",
                         )

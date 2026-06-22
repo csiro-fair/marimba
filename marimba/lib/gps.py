@@ -1,10 +1,17 @@
 """
 GPS functions.
+
+For batched workflows, prefer reading EXIF via :func:`marimba.lib.exif.session`
+and parsing locations with :func:`parse_location_from_metadata` — that path
+shares one ExifTool subprocess across many files. :func:`read_exif_location`
+remains as a one-shot convenience but pays the full Perl-startup cost on every
+call.
 """
 
 from pathlib import Path
+from typing import Any
 
-import piexif
+from marimba.lib import exif
 
 
 def convert_gps_coordinate_to_degrees(
@@ -46,46 +53,52 @@ def convert_degrees_to_gps_coordinate(degrees: float) -> tuple[int, int, int]:
     return d, m, s
 
 
+def parse_location_from_metadata(metadata: dict[str, Any] | None) -> tuple[float | None, float | None]:
+    """
+    Extract (latitude, longitude) from an ExifTool metadata dict.
+
+    Units are decimal degrees, with negative values for south and west. Returns
+    ``(None, None)`` when the metadata does not carry a usable GPS pair. Cheap;
+    does not spawn any subprocess.
+
+    Args:
+        metadata: An ExifTool metadata dict (as returned by
+            :meth:`marimba.lib.exif.ExifSession.get_dict`). May be ``None``.
+
+    Returns:
+        A tuple ``(latitude, longitude)``, or ``(None, None)`` when missing.
+    """
+    if not metadata:
+        return None, None
+
+    try:
+        latitude = metadata.get("Composite:GPSLatitude") or metadata.get("EXIF:GPSLatitude")
+        longitude = metadata.get("Composite:GPSLongitude") or metadata.get("EXIF:GPSLongitude")
+        if latitude is not None and longitude is not None:
+            return float(latitude), float(longitude)
+    except (KeyError, ValueError, TypeError, AttributeError, IndexError):
+        return None, None
+
+    return None, None
+
+
 def read_exif_location(path: str | Path) -> tuple[float | None, float | None]:
     """
     Read the latitude and longitude from a file EXIF metadata.
 
-    Units are decimal degrees, with negative values for south and west.
+    One-shot path: spawns a fresh ExifTool subprocess (~100-300 ms of Perl startup)
+    per call. For batch reads prefer::
+
+        with exif.session() as et:
+            for path in paths:
+                lat, lon = parse_location_from_metadata(et.get_dict(path))
 
     Args:
         path: The path to the file.
 
     Returns:
-        A tuple containing the latitude and longitude, or (None, None) if the location could not be found.
+        A tuple containing the latitude and longitude, or ``(None, None)`` if
+        the location could not be found.
     """
-    path = Path(path)
-    try:
-        # Load the EXIF metadata
-        exif_data = piexif.load(str(path.absolute()))
-
-        # Extract the GPS information
-        gps_data = exif_data["GPS"]
-        gps_latitude = gps_data.get(piexif.GPSIFD.GPSLatitude)
-        gps_latitude_ref = gps_data.get(piexif.GPSIFD.GPSLatitudeRef)
-        gps_longitude = gps_data.get(piexif.GPSIFD.GPSLongitude)
-        gps_longitude_ref = gps_data.get(piexif.GPSIFD.GPSLongitudeRef)
-
-        # Parse the GPS information into degrees
-        if gps_latitude and gps_latitude_ref and gps_longitude and gps_longitude_ref:
-            latitude = convert_gps_coordinate_to_degrees(gps_latitude)
-            if gps_latitude_ref == b"S":
-                latitude = 0 - latitude
-            longitude = convert_gps_coordinate_to_degrees(gps_longitude)
-            if gps_longitude_ref == b"W":
-                longitude = 0 - longitude
-            return latitude, longitude  # success!
-
-    except (KeyError, ValueError, piexif.InvalidImageDataError, TypeError):
-        # KeyError: Missing expected EXIF data structure
-        # ValueError: Invalid EXIF data format
-        # InvalidImageDataError: File doesn't contain valid EXIF data
-        # TypeError: Unexpected data type in EXIF fields
-        return None, None
-    else:
-        # no GPS data
-        return None, None
+    with exif.session() as et:
+        return parse_location_from_metadata(et.get_dict(Path(path).absolute()))

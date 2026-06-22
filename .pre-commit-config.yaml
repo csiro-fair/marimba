@@ -1,5 +1,5 @@
 default_language_version:
-  python: python3.10
+  python: python3.12
 
 repos:
   - repo: local
@@ -10,8 +10,8 @@ repos:
         entry: uv run ruff check
         language: system
         types: [ python ]
-        args: [ "--fix", "--config=config/.ruff.toml" ]
-        exclude: ^tests/|^docs/
+        args: [ "--fix", "--config=config/ruff.toml" ]
+        exclude: ^docs/
 
       - id: black
         name: Black
@@ -27,6 +27,15 @@ repos:
         files: 'pyproject.toml'
         pass_filenames: false
         args : ['.']
+
+      - id: vulture
+        name: Vulture
+        entry: uv run vulture
+        language: system
+        types: [ python ]
+        args: [ '--min-confidence', '80', 'marimba/', 'config/vulture.py' ]
+        exclude: ^tests/|^docs/
+        pass_filenames: false
 
       - id: mypy
         name: Mypy
@@ -48,4 +57,24 @@ repos:
         language: system
         types: [ python ]
         pass_filenames: false
-        args: [ '--rootdir', '.', '-c', 'config/pytest.ini' ]
+        # `-m "not slow"` excludes the e2e regression suite (which needs network
+        # to clone the demo data + pipeline and takes ~30s). The slow suite
+        # runs in the pre-push hook below.
+        args: [ '--rootdir', '.', '-c', 'config/pytest.ini', '-m', 'not slow' ]
+
+      - id: pytest-e2e-regression
+        name: Pytest E2E regression (mritc-demo, ~30s warm / ~60s cold cache)
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+        stages: [ pre-push ]
+        # Always-on pre-push gate per docs/prompts/README.md.
+        # Skip with `git push --no-verify` only for genuinely doc-only pushes.
+        # First-time setup: `uv run pre-commit install --hook-type pre-push`.
+        args: [
+          '--rootdir', '.',
+          '-c', 'config/pytest.ini',
+          '--no-cov',
+          '-m', 'e2e and slow',
+          'tests/e2e/regression/',
+        ]

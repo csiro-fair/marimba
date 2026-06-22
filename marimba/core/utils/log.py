@@ -4,25 +4,6 @@ Marimba Logging Utilities.
 This module provides utilities for configuring and using logging in the Marimba CLI application. It includes custom
 log handlers, log level enumeration, and a mixin class for easy integration of logging into other classes.
 
-Imports:
-    - logging: The Python standard library logging module.
-    - enum.Enum: The enumeration class from the Python standard library.
-    - pathlib.Path: The Path class from the Python standard library for handling file paths.
-    - typing: Type hinting classes and utilities from the Python standard library.
-    - rich.console.Console: The Console class from the Rich library for formatting console output.
-    - rich.logging.RichHandler: The RichHandler class from the Rich library for integrating Rich formatting with
-    logging.
-
-Classes:
-    - DryRunRichHandler: A custom log handler that extends RichHandler and adds dry run functionality.
-    - NoRichFileHandler: A custom file handler that removes Rich styling from log entries.
-    - LogLevel: An enumeration of log levels for the Marimba CLI.
-    - LogMixin: A mixin class that adds a `logger` property for easy integration of logging into other classes.
-
-Functions:
-    - get_logger: Get a logger with a given name and level.
-    - get_rich_handler: Get the global Rich handler.
-    - get_file_handler: Get a file handler for a given output directory and name.
 """
 
 import logging
@@ -155,7 +136,8 @@ def get_file_handler(
 
     # Ensure the directory exists
     if not output_dir.is_dir():
-        raise FileNotFoundError(f"Output directory {output_dir} does not exist")
+        msg = f"Output directory {output_dir} does not exist"
+        raise FileNotFoundError(msg)
 
     # Build the path as `output_dir/name.log`
     path = output_dir / f"{name}.log"

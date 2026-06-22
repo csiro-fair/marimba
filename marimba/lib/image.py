@@ -3,53 +3,51 @@
 This module offers a comprehensive set of functions for various image processing tasks, including resizing,
 cropping, rotating, and applying filters. It also includes utilities for image analysis and grid creation.
 
-Imports:
-    - collections.abc: Provides abstract base classes for collections.
-    - dataclasses: Provides a decorator and functions for automatically adding generated special methods to classes.
-    - pathlib: Offers classes representing filesystem paths with semantics appropriate for different operating systems.
-    - shutil: Offers a number of high-level operations on files and collections of files.
-    - typing: Provides runtime support for type hints.
-    - cv2: OpenCV library for computer vision tasks.
-    - numpy: Fundamental package for scientific computing with Python.
-    - PIL: Python Imaging Library for opening, manipulating, and saving many different image file formats.
-
-Classes:
-    - GridDimensions: Defines dimensions and configuration for grid image creation.
-    - GridRow: Represents a single row in an image grid.
-    - GridImageProcessor: Processes images into grid layouts.
-    - OutputPathManager: Manages the creation of output paths for grid images.
-
-Functions:
-    - generate_image_thumbnail: Create a thumbnail version of an image.
-    - convert_to_jpeg: Convert an image to JPEG format.
-    - resize_fit: Resize an image to fit within specified dimensions.
-    - resize_exact: Resize an image to exact dimensions.
-    - scale: Scale an image by a given factor.
-    - rotate_clockwise: Rotate an image clockwise by a specified number of degrees.
-    - turn_clockwise: Turn an image clockwise in 90-degree increments.
-    - flip_vertical: Flip an image vertically.
-    - flip_horizontal: Flip an image horizontally.
-    - is_blurry: Determine if an image is blurry.
-    - crop: Crop an image to a specified size and position.
-    - apply_clahe: Apply Contrast Limited Adaptive Histogram Equalization to an image.
-    - gaussian_blur: Apply Gaussian blur to an image.
-    - sharpen: Sharpen an image.
-    - get_width_height: Get the dimensions of an image.
-    - create_grid_image: Create a grid image from multiple images.
-    - get_shannon_entropy: Calculate the Shannon entropy of an image.
-    - get_average_image_color: Calculate the average color of an image.
 """
 
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy2
-from typing import cast
+from typing import Any
 
 import cv2
 import numpy as np
 from PIL import Image
 from PIL.Image import Image as PILImage
+
+from marimba.core.utils.constants import DEFAULT_IMAGE_THUMBNAIL_SIZE
+
+
+def _save_with_metadata(
+    source: Image.Image,
+    transformed: Image.Image,
+    destination: str | Path,
+    *,
+    reset_orientation: bool = False,
+    image_format: str | None = None,
+    quality: int | None = None,
+) -> None:
+    """
+    Save a transformed image while preserving the source image's EXIF metadata and ICC profile.
+
+    EXIF (camera make/model, capture datetime, GPS, rights) is copied from the source so it survives the
+    transform instead of being silently dropped. ``reset_orientation`` removes the EXIF Orientation tag for
+    transforms that bake a rotation/flip into the pixels, since a viewer honouring the now-stale tag would
+    otherwise re-rotate the image. (Pixel-dimension tags are advisory; consumers use the actual pixels.)
+    """
+    exif = source.getexif()
+    if reset_orientation:
+        exif.pop(0x0112, None)  # 0x0112 = EXIF Orientation
+    save_params: dict[str, Any] = {}
+    icc_profile = source.info.get("icc_profile")
+    if icc_profile is not None:
+        save_params["icc_profile"] = icc_profile
+    if len(exif) > 0:
+        save_params["exif"] = exif
+    if quality is not None:
+        save_params["quality"] = quality
+    transformed.save(destination, format=image_format, **save_params)
 
 
 def generate_image_thumbnail(
@@ -73,7 +71,7 @@ def generate_image_thumbnail(
     output_filename = image.stem + suffix + image.suffix
     output_path = output_directory / output_filename
     if not output_path.exists():
-        resize_fit(image, 300, 300, output_path)
+        resize_fit(image, *DEFAULT_IMAGE_THUMBNAIL_SIZE, output_path)
     return output_path
 
 
@@ -103,8 +101,8 @@ def convert_to_jpeg(
     if path.suffix.lower() in (".jpg", ".jpeg"):
         copy2(path, destination)
     else:
-        img = cast(Image.Image, Image.open(path))
-        img.convert("RGB").save(destination, "JPEG", quality=quality)
+        with Image.open(path) as img:
+            _save_with_metadata(img, img.convert("RGB"), destination, image_format="JPEG", quality=quality)
     return destination
 
 
@@ -136,9 +134,9 @@ def resize_fit(
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
-    img = _resize_fit(img, max_width, max_height)
-    img.save(destination)
+    with Image.open(path) as img:
+        resized_img = _resize_fit(img, max_width, max_height)
+        _save_with_metadata(img, resized_img, destination)
 
 
 def resize_exact(
@@ -159,9 +157,9 @@ def resize_exact(
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
-    img = img.resize((width, height), Image.Resampling.LANCZOS)
-    img.save(destination)
+    with Image.open(path) as img:
+        resized_img = img.resize((width, height), Image.Resampling.LANCZOS)
+        _save_with_metadata(img, resized_img, destination)
 
 
 def scale(
@@ -174,17 +172,17 @@ def scale(
 
     Args:
         path: The path to the image file.
-        scale_factor: The scale factor to apply to the image, 0-1.
+        scale_factor: The scale factor to apply to the image (positive float).
         destination: The path to save the scaled image to. If not provided, the original file will be overwritten.
     """
     path = Path(path)
     destination = Path(destination) if destination is not None else path
-    img = cast(Image.Image, Image.open(path))
-    width, height = img.size
-    new_width = int(width * scale_factor)
-    new_height = int(height * scale_factor)
-    img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-    img.save(destination)
+    with Image.open(path) as img:
+        width, height = img.size
+        new_width = int(width * scale_factor)
+        new_height = int(height * scale_factor)
+        scaled_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        _save_with_metadata(img, scaled_img, destination)
 
 
 def rotate_clockwise(
@@ -212,9 +210,9 @@ def rotate_clockwise(
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
-    img = img.rotate(-degrees, expand=expand)  # type: ignore[no-untyped-call]
-    img.save(destination)
+    with Image.open(path) as img:
+        rotated_img = img.rotate(-degrees, expand=expand)
+        _save_with_metadata(img, rotated_img, destination, reset_orientation=True)
 
 
 def turn_clockwise(
@@ -235,7 +233,8 @@ def turn_clockwise(
 
     # Validate the turns value
     if turns not in [1, 2, 3]:
-        raise ValueError("Turns must be an integer between 1 and 3 inclusive")
+        msg = "Turns must be an integer between 1 and 3 inclusive"
+        raise ValueError(msg)
 
     # Map turns to the corresponding rotation constants
     rotation_constants = {
@@ -244,9 +243,9 @@ def turn_clockwise(
         3: Image.Transpose.ROTATE_270,
     }
 
-    img = cast(Image.Image, Image.open(path))
-    img = img.transpose(rotation_constants[turns])
-    img.save(destination)
+    with Image.open(path) as img:
+        turned_img = img.transpose(rotation_constants[turns])
+        _save_with_metadata(img, turned_img, destination, reset_orientation=True)
 
 
 def flip_vertical(path: str | Path, destination: str | Path | None = None) -> None:
@@ -260,9 +259,9 @@ def flip_vertical(path: str | Path, destination: str | Path | None = None) -> No
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
-    img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-    img.save(destination)
+    with Image.open(path) as img:
+        flipped_img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+        _save_with_metadata(img, flipped_img, destination, reset_orientation=True)
 
 
 def flip_horizontal(path: str | Path, destination: str | Path | None = None) -> None:
@@ -276,9 +275,9 @@ def flip_horizontal(path: str | Path, destination: str | Path | None = None) -> 
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
-    img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-    img.save(destination)
+    with Image.open(path) as img:
+        flipped_img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        _save_with_metadata(img, flipped_img, destination, reset_orientation=True)
 
 
 def is_blurry(path: str | Path, threshold: float = 100.0) -> bool:
@@ -296,18 +295,20 @@ def is_blurry(path: str | Path, threshold: float = 100.0) -> bool:
     """
     image = cv2.imread(str(path))
     if image is None:
-        raise ValueError(f"Could not load the image from the path: {path}")
+        msg = f"Could not load the image from the path: {path}"
+        raise ValueError(msg)
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    variance_of_laplacian = cv2.Laplacian(gray, cv2.CV_64F).var()
 
-    # Explicitly cast the result to float for type clarity
-    variance_of_laplacian = float(variance_of_laplacian)
+    # Cast to float for type clarity; .var() returns a NumPy scalar.
+    variance_of_laplacian = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+    threshold = float(threshold)
 
     image_is_blurry = variance_of_laplacian < threshold
 
     if not isinstance(image_is_blurry, bool):
-        raise TypeError("Expected image_is_blurry to be a boolean")
+        msg = "Expected image_is_blurry to be a boolean"
+        raise TypeError(msg)
 
     return image_is_blurry
 
@@ -334,9 +335,9 @@ def crop(
     path = Path(path)
     destination = Path(destination) if destination is not None else path
 
-    img = cast(Image.Image, Image.open(path))
-    img = img.crop((x, y, x + width, y + height))
-    img.save(destination)
+    with Image.open(path) as img:
+        cropped_img = img.crop((x, y, x + width, y + height))
+        _save_with_metadata(img, cropped_img, destination)
 
 
 def apply_clahe(
@@ -360,6 +361,9 @@ def apply_clahe(
     destination = Path(destination) if destination is not None else path
 
     img = cv2.imread(str(path), 0)
+    if img is None:
+        msg = f"Could not read image from {path}"
+        raise ValueError(msg)
 
     # Apply CLAHE to the image
     clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
@@ -385,6 +389,9 @@ def gaussian_blur(
     destination = Path(destination) if destination is not None else path
 
     img = cv2.imread(str(path))
+    if img is None:
+        msg = f"Could not read image from {path}"
+        raise ValueError(msg)
 
     # Apply Gaussian blur to the image
     img_blur = cv2.GaussianBlur(img, kernel_size, 0)
@@ -404,6 +411,9 @@ def sharpen(path: str | Path, destination: str | Path | None = None) -> None:
     destination = Path(destination) if destination is not None else path
 
     img = cv2.imread(str(path))
+    if img is None:
+        msg = f"Could not read image from {path}"
+        raise ValueError(msg)
 
     # Apply sharpening to the image
     kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
@@ -425,11 +435,12 @@ def get_width_height(path: str | Path) -> tuple[int, int]:
     expected_dimensions = 2
 
     path = Path(path)
-    img = cast(Image.Image, Image.open(path))
-    size = img.size
+    with Image.open(path) as img:
+        size = img.size
 
     if not (isinstance(size, tuple) and len(size) == expected_dimensions and all(isinstance(x, int) for x in size)):
-        raise ValueError("Size must be a tuple of two integers")
+        msg = "Size must be a tuple of two integers"
+        raise ValueError(msg)
 
     return size
 
@@ -501,7 +512,7 @@ class GridRow:
         scale_factor = self.dimensions.column_width / img_width
         scaled_height = int(img_height * scale_factor)
 
-        # Resize image
+        # Resize image - create a copy to avoid memory issues
         resized_img = img.resize(
             (self.dimensions.column_width, scaled_height),
             Image.Resampling.LANCZOS,
@@ -576,7 +587,9 @@ class GridImageProcessor:
         """
         try:
             with Image.open(path) as img:
-                return row.add_image(img)
+                # Create a copy to avoid issues with the context manager
+                img_copy = img.copy()
+                return row.add_image(img_copy)
         except OSError:
             return False
 
@@ -604,37 +617,48 @@ class GridImageProcessor:
         """
         rows: list[GridRow] = []
         current_height = 0
-        current_row = GridRow(self.dimensions)
+        current_row: GridRow | None = GridRow(self.dimensions)
         images_processed = 0
 
-        while images_processed < len(paths_subset):
-            path = paths_subset[images_processed]
-            if not self.process_single_image(path, current_row):
+        try:
+            while images_processed < len(paths_subset):
+                path = paths_subset[images_processed]
+                if current_row is None or not self.process_single_image(path, current_row):
+                    images_processed += 1
+                    continue
+
+                # If row is full, start a new one
+                if current_row is not None and len(current_row.images) >= self.dimensions.columns:
+                    if current_height + current_row.height <= self.dimensions.max_height:
+                        current_height += current_row.height
+                        rows.append(current_row)
+                        current_row = GridRow(self.dimensions)
+                    else:
+                        break
+
                 images_processed += 1
-                continue
 
-            # If row is full, start a new one
-            if len(current_row.images) >= self.dimensions.columns:
-                if current_height + current_row.height <= self.dimensions.max_height:
-                    current_height += current_row.height
-                    rows.append(current_row)
-                    current_row = GridRow(self.dimensions)
-                else:
-                    break
+            # Handle last row
+            if (
+                current_row is not None
+                and current_row.images
+                and current_height + current_row.height <= self.dimensions.max_height
+            ):
+                rows.append(current_row)
+                current_height += current_row.height
+            else:
+                if current_row is not None:
+                    current_row.cleanup()
+                current_row = None  # Clear reference
 
-            images_processed += 1
+            if not rows:
+                return None, 0, images_processed
 
-        # Handle last row
-        if current_row.images and current_height + current_row.height <= self.dimensions.max_height:
-            rows.append(current_row)
-            current_height += current_row.height
-        else:
-            current_row.cleanup()
-
-        if not rows:
-            return None, 0, images_processed
-
-        return self._render_grid(rows), current_height, images_processed
+            return self._render_grid(rows), current_height, images_processed
+        finally:
+            # Ensure cleanup happens even if there's an exception
+            if current_row is not None and current_row not in rows:
+                current_row.cleanup()
 
     def _render_grid(self, rows: list[GridRow]) -> PILImage:
         """
@@ -775,15 +799,25 @@ def create_grid_image(
     return created_files
 
 
+# Maximum Shannon entropy for an 8-bit grayscale image: log2(256) = 8.0 bits.
+# Dividing by it normalises entropy to [0, 1], as the iFDO schema requires for
+# the image-entropy field.
+_MAX_ENTROPY_8BIT = 8.0
+
+
 def get_shannon_entropy(image_data: Image.Image) -> float:
     """
-    Calculate the Shannon entropy of an image file.
+    Calculate the normalized Shannon entropy of an image file.
+
+    The image is reduced to 8-bit grayscale and the entropy of its intensity
+    histogram is normalised to [0, 1] (entropy / 8 bits), matching the iFDO
+    schema definition of the image-entropy field.
 
     Args:
         image_data: The loaded image data.
 
     Returns:
-        The Shannon entropy of the image as a float value.
+        The normalized Shannon entropy of the image as a float in [0, 1].
     """
     # Convert to grayscale
     grayscale_image = image_data.convert("L")
@@ -797,29 +831,29 @@ def get_shannon_entropy(image_data: Image.Image) -> float:
     # Filter out zero probabilities
     probabilities = probabilities[probabilities > 0]
 
-    # Calculate Shannon entropy
+    # Calculate Shannon entropy, then normalise to [0, 1] by the 8-bit maximum
     entropy = -np.sum(probabilities * np.log2(probabilities))
 
-    return float(entropy)
+    return float(entropy / _MAX_ENTROPY_8BIT)
 
 
-def get_average_image_color(image_data: Image.Image) -> tuple[int, ...]:
+def get_average_image_color(image_data: Image.Image) -> list[int]:
     """
-    Calculate the average color of an image.
+    Calculate the average value of each color channel of an image.
 
     Args:
         image_data: The loaded image data.
 
     Returns:
-        A list of integers representing the average color of the image in RGB format. Each element in the list
-        corresponds to the average intensity of the Red, Green, and Blue channels, respectively.
-
-        Note: If the input image is None, None will be returned.
+        A list of integers, one per channel, each corresponding to the average intensity of that channel —
+        e.g. [R, G, B] for RGB imagery, [R, G, B, A] for RGBA, or a single element for grayscale — matching
+        the iFDO image-average-color field (any channel count, values in [0, 255]).
     """
     # Convert the image to numpy array
     np_image = np.array(image_data)
 
-    # Calculate the average color for each channel
-    average_color = np.mean(np_image, axis=(0, 1))
+    # Calculate the average for each channel; atleast_1d keeps single-channel
+    # (grayscale) images iterable, where the mean collapses to a 0-d scalar
+    average_color = np.atleast_1d(np.mean(np_image, axis=(0, 1)))
 
-    return tuple(map(int, average_color))
+    return [int(channel) for channel in average_color]

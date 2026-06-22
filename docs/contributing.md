@@ -68,7 +68,7 @@ Follow these steps to set up your development environment:
 2. Install project dependencies:
    ```bash
    # Creates a virtual environment .venv and installs dependencies
-   uv sync --group dev --python 3.10
+   uv sync --dev --python 3.12
    ```
 
 3. Run commands:
@@ -140,7 +140,7 @@ Once your changes are pushed to your fork, you can create a pull request:
 Marimba follows a strict code style to maintain consistency across the codebase:
 
 - **Line Length**: Maximum line length is 120 characters
-- **Python Version**: All code must be compatible with Python 3.10+
+- **Python Version**: All code must be compatible with Python 3.12+
 - **Formatting**: We use [Black](https://black.readthedocs.io/) for consistent
   code formatting
 - **Linting**: We use [Ruff](https://github.com/charliermarsh/ruff) for linting
@@ -152,7 +152,7 @@ Marimba uses type hints extensively to improve code quality and development
 experience:
 
 - All functions and methods should include type annotations
-- Use Python 3.10+ type hint syntax (e.g., `X | Y` instead of `Union[X, Y]`)
+- Use Python 3.12+ type hint syntax (e.g., `X | Y` instead of `Union[X, Y]`)
 - Function return types must be explicitly annotated
 - Use built-in types like `dict`, `list` rather than imports from the `typing`
   module
@@ -201,7 +201,7 @@ standards before it's committed.
 We use the following pre-commit hooks:
 
 1. **Ruff** - For fast, comprehensive linting
-   - Configuration: `config/.ruff.toml`
+   - Configuration: `config/ruff.toml`
    - Auto-fixes issues when possible
    - Excludes test and documentation files
 
@@ -247,18 +247,18 @@ If a hook fails, fix the issues and try committing again.
 Marimba uses a custom Ruff configuration with rules carefully selected for our
 project. Key points:
 
-- Targets Python 3.10+
+- Targets Python 3.12+
 - Uses a line length of 120 characters
 - Follows the Google docstring convention
 - Excludes certain directories (tests, docs, etc.)
 - Ignores specific rules that don't align with our workflow (detailed in
-  `config/.ruff.toml`)
+  `config/ruff.toml`)
 
 #### Mypy Configuration
 
 Our static type checking is configured to:
 
-- Target Python 3.10+
+- Target Python 3.12+
 - Use strict mode for thorough type checking
 - Warn about returning `Any` types
 - Ignore missing imports for third-party libraries

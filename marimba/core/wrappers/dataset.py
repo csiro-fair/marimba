@@ -5,40 +5,14 @@ This module provides various utilities and classes for handling image datasets i
 functionality for managing datasets, creating and validating manifests, summarizing imagery collections, and applying
 EXIF metadata.
 
-Imports:
-    - hashlib: Provides hash functions for generating hashes.
-    - io: Core tools for working with streams.
-    - json: JSON encoding and decoding library.
-    - logging: Logging facility for Python.
-    - collections.OrderedDict: Dictionary that remembers the order entries were added.
-    - dataclasses.dataclass: A decorator for generating special methods.
-    - datetime.timezone: Timezone information objects.
-    - fractions.Fraction: Rational number arithmetic.
-    - pathlib.Path: Object-oriented filesystem paths.
-    - shutil: High-level file operations.
-    - textwrap.dedent: Remove any common leading whitespace from every line.
-    - typing: Type hints for function signatures and variables.
-    - uuid: Generate unique identifiers.
-    - piexif: Library to insert and extract EXIF metadata from images.
-    - ifdo.models: Data models for images.
-    - PIL.Image: Python Imaging Library for opening, manipulating, and saving image files.
-    - rich.progress: Utilities for creating progress bars.
-    - marimba.core.utils.log: Utilities for logging.
-    - marimba.core.utils.map: Utility for creating summary maps.
-    - marimba.core.utils.rich: Utility for default columns in rich progress.
-    - marimba.lib.image: Library for image processing.
-    - marimba.lib.gps: Utility for GPS coordinate conversion.
-
-Classes:
-    - ImagerySummary: A summary of an imagery collection.
-    - Manifest: A dataset manifest used to validate datasets for corruption or modification.
-    - DatasetWrapper: A wrapper class for handling dataset directories.
 """
 
+import json
 import logging
 import os
 from collections import OrderedDict, defaultdict
 from collections.abc import Callable, Iterable
+from datetime import UTC, datetime
 from math import isnan
 from pathlib import Path
 from shutil import copy2, copytree, ignore_patterns
@@ -46,7 +20,10 @@ from typing import Any
 
 from rich.progress import Progress, SpinnerColumn, TaskID
 
+import marimba
+from marimba.core import MarimbaError
 from marimba.core.schemas.base import BaseMetadata
+from marimba.core.schemas.ifdo import iFDOMetadata
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.dataset import (
     DATASET_MAPPING_TYPE,
@@ -59,11 +36,32 @@ from marimba.core.utils.dataset import (
 from marimba.core.utils.hash import compute_hash
 from marimba.core.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.core.utils.manifest import Manifest
-from marimba.core.utils.map import make_summary_map
 from marimba.core.utils.paths import format_path_for_logging
+from marimba.core.utils.provenance import build_provenance_document
 from marimba.core.utils.rich import get_default_columns
 from marimba.core.utils.summary import ImagerySummary
 from marimba.lib.decorators import multithreaded
+
+
+class _PackagingWarningCollector(logging.Handler):
+    """
+    Logging handler that counts warnings and captures iFDO completeness findings during packaging.
+
+    The dataset logger has no console handler, so warnings would otherwise be invisible to the operator. This
+    collector lets ``package`` surface an end-of-run summary panel: a total warning count plus, per iFDO, the
+    schema-required fields left unpopulated (read from the ``ifdo_name`` / ``ifdo_unpopulated_fields`` log extras).
+    """
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.WARNING)
+        self.warning_count = 0
+        self.ifdo_unpopulated_fields: dict[str, list[str]] = {}
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.warning_count += 1
+        fields = getattr(record, "ifdo_unpopulated_fields", None)
+        if fields is not None:
+            self.ifdo_unpopulated_fields[getattr(record, "ifdo_name", "")] = list(fields)
 
 
 class DatasetWrapper(LogMixin):
@@ -71,17 +69,17 @@ class DatasetWrapper(LogMixin):
     Dataset directory wrapper.
     """
 
-    class InvalidStructureError(Exception):
+    class InvalidStructureError(MarimbaError):
         """
         Raised when the dataset directory structure is invalid.
         """
 
-    class InvalidDatasetMappingError(Exception):
+    class InvalidDatasetMappingError(MarimbaError):
         """
         Raised when a path mapping dictionary is invalid.
         """
 
-    class ManifestError(Exception):
+    class ManifestError(MarimbaError):
         """
         Raised when the dataset is inconsistent with its manifest.
         """
@@ -132,9 +130,10 @@ class DatasetWrapper(LogMixin):
             # Get the base logger
             self._logger = get_logger(self.__class__.__name__)
 
-            # Remove any existing handlers
+            # Remove any existing handlers and close them properly
             for handler in self._logger.handlers[:]:
                 self._logger.removeHandler(handler)
+                handler.close()
 
             # Add back just the null handler
             self._logger.addHandler(logging.NullHandler())
@@ -194,6 +193,11 @@ class DatasetWrapper(LogMixin):
         The name of the dataset.
         """
         return self._root_dir.name
+
+    @property
+    def image_set_uuid(self) -> str:
+        """The deterministic image-set UUID for this dataset, derived from its name."""
+        return iFDOMetadata.derive_image_set_uuid(self.name)
 
     @property
     def logs_dir(self) -> Path:
@@ -325,8 +329,9 @@ class DatasetWrapper(LogMixin):
 
         def check_dir_exists(path: Path) -> None:
             if not path.is_dir():
+                msg = f'"{path}" does not exist or is not a directory'
                 raise DatasetWrapper.InvalidStructureError(
-                    f'"{path}" does not exist or is not a directory',
+                    msg,
                 )
 
         check_dir_exists(self.root_dir)
@@ -338,9 +343,17 @@ class DatasetWrapper(LogMixin):
         self,
         progress: Progress | None = None,
         task: TaskID | None = None,
+        files: list[Path] | None = None,
     ) -> None:
         """
         Validate the dataset. If the dataset is inconsistent with its manifest (if present), raise a ManifestError.
+
+        Args:
+            progress: Rich progress instance to advance during the validate pass.
+            task: Rich task ID to update.
+            files: Optional pre-walked file list (the manifest module will walk
+                ``self.root_dir`` itself when omitted). Pass a cached walk to avoid
+                duplicate ``rglob`` over very large datasets.
 
         Raises:
             DatasetWrapper.ManifestError: If the dataset is inconsistent with its manifest.
@@ -353,6 +366,7 @@ class DatasetWrapper(LogMixin):
                 progress=progress,
                 task=task,
                 logger=self.logger,
+                files=files,
             ):
                 raise DatasetWrapper.ManifestError(self.manifest_path)
 
@@ -365,6 +379,29 @@ class DatasetWrapper(LogMixin):
 
         # Add the file handler to the logger
         self.logger.addHandler(self._file_handler)
+
+        # The dataset logger has no console handler (operator UX is via Rich panels), so attach a collector that
+        # counts warnings and captures iFDO completeness findings for the end-of-packaging summary panel.
+        self._warning_collector = _PackagingWarningCollector()
+        self.logger.addHandler(self._warning_collector)
+
+    @property
+    def warning_count(self) -> int:
+        """Number of warnings logged during this dataset's lifetime (0 in dry-run, where logging is not set up)."""
+        collector = getattr(self, "_warning_collector", None)
+        return collector.warning_count if collector is not None else 0
+
+    @property
+    def ifdo_unpopulated_fields(self) -> dict[str, list[str]]:
+        """Per-iFDO schema-required fields left unpopulated, captured during packaging (for the summary panel)."""
+        collector = getattr(self, "_warning_collector", None)
+        return dict(collector.ifdo_unpopulated_fields) if collector is not None else {}
+
+    def close(self) -> None:
+        """Close the file handler."""
+        if hasattr(self, "_file_handler"):
+            self.logger.removeHandler(self._file_handler)
+            self._file_handler.close()
 
     def get_pipeline_data_dir(self, pipeline_name: str) -> Path:
         """
@@ -390,6 +427,9 @@ class DatasetWrapper(LogMixin):
         operation: Operation = Operation.copy,
         zoom: int | None = None,
         max_workers: int | None = None,
+        exif_chunk_size: int | None = None,
+        *,
+        allow_destination_collisions: bool = False,
     ) -> None:
         """
 
@@ -411,6 +451,9 @@ class DatasetWrapper(LogMixin):
             operation: An Operation enum specifying whether to copy or move files (default: Operation.copy).
             zoom: An optional integer specifying the zoom level for the dataset map generation (default: None).
             max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
+            exif_chunk_size: Chunk size for EXIF metadata processing. If None, uses adaptive sizing (default: None).
+            allow_destination_collisions: Allow multiple source files to map to the same destination path.
+                Uses the first source file encountered (default: False).
 
 
         Raises:
@@ -424,26 +467,21 @@ class DatasetWrapper(LogMixin):
         )
 
         reduced_dataset_mapping = flatten_middle_mapping(dataset_mapping)
-        self.check_dataset_mapping(reduced_dataset_mapping, max_workers)
-        mapped_dataset_items = self._populate_files(
-            dataset_mapping,
-            operation,
+        self.check_dataset_mapping(
+            reduced_dataset_mapping,
             max_workers,
+            allow_destination_collisions=allow_destination_collisions,
         )
-        self._process_files_with_metadata(reduced_dataset_mapping, max_workers)
-        self.generate_metadata(
-            dataset_name,
-            mapped_dataset_items,
-            mapping_processor_decorator,
-            max_workers,
-        )
+        mapped_dataset_items = self._populate_files(dataset_mapping, operation, max_workers)
+        self._process_files_with_metadata(reduced_dataset_mapping, max_workers, exif_chunk_size)
+        self.generate_metadata(dataset_name, mapped_dataset_items, mapping_processor_decorator, max_workers)
         dataset_items = flatten_mapping(flatten_middle_mapping(mapped_dataset_items))
 
-        self.generate_dataset_summary(dataset_items)
-        # TODO @<cjackett>: Generate summary method currently does not use multithreading
+        self.generate_dataset_summary(dataset_items, max_workers=max_workers)
         self._generate_dataset_map(dataset_items, zoom)
         self._copy_pipelines(project_pipelines_dir)
         self._copy_logs(project_log_path, pipeline_log_paths)
+        self._generate_provenance(dataset_mapping, project_pipelines_dir)
         self._generate_manifest(dataset_items, max_workers)
 
         self.logger.info(f'Completed packaging dataset "{dataset_name}"')
@@ -509,8 +547,6 @@ class DatasetWrapper(LogMixin):
                             f"{format_path_for_logging(src, self._project_dir)} to "
                             f"{format_path_for_logging(dst, self._project_dir)}",
                         )
-                # TODO @<cjackett>: We might need to check here that image files aren't linked to linked files in the
-                #  import process because then EXIF writing might destructively change the original files
                 elif operation == Operation.link:
                     os.link(src, dst)
                     if logger:
@@ -528,33 +564,43 @@ class DatasetWrapper(LogMixin):
             tasks_by_pipeline_name = {
                 pipeline_name: progress.add_task(
                     f"[green]Populating data for {pipeline_name} pipeline (3/12)",
-                    total=len(pipeline_data_mapping),
+                    total=max(1, len(pipeline_data_mapping)),
                 )
                 for pipeline_name, pipeline_data_mapping in dataset_mapping.items()
-                if len(pipeline_data_mapping) > 0
             }
 
             for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
-                for (
-                    collection_name,
-                    collection_data_mapping,
-                ) in pipeline_data_mapping.items():
-                    self.logger.info(
-                        f'Started populating data for pipeline "{pipeline_name}"',
-                    )
-                    process_file(
-                        self,
-                        items=list(collection_data_mapping.items()),
-                        pipeline_name=pipeline_name,
-                        operation=operation,
-                        dataset_items=dataset_items[pipeline_name][collection_name],
-                        logger=self.logger,
-                        progress=progress,
-                        tasks_by_pipeline_name=tasks_by_pipeline_name,
-                    )  # type: ignore[call-arg]
-                    self.logger.info(
-                        f'Completed populating data for pipeline "{pipeline_name}"',
-                    )
+                if len(pipeline_data_mapping) == 0:
+                    # Handle pipelines with no data - advance progress bar to completion
+                    progress.advance(tasks_by_pipeline_name[pipeline_name])
+                else:
+                    for collection_name, collection_data_mapping in pipeline_data_mapping.items():
+                        self.logger.info(
+                            f'Started populating data for pipeline "{pipeline_name}"',
+                        )
+                        items = list(collection_data_mapping.items())
+                        if items:
+                            process_file(
+                                self,
+                                items=items,
+                                pipeline_name=pipeline_name,
+                                operation=operation,
+                                dataset_items=dataset_items[pipeline_name][collection_name],
+                                logger=self.logger,
+                                progress=progress,
+                                tasks_by_pipeline_name=tasks_by_pipeline_name,
+                            )  # type: ignore[call-arg]
+                        else:
+                            # No items to process for this collection, advance progress bar to completion
+                            task = tasks_by_pipeline_name[pipeline_name]
+                            task_info = progress.tasks[task]
+                            if task_info.total is not None and task_info.completed is not None:
+                                remaining = task_info.total - task_info.completed
+                                if remaining > 0:
+                                    progress.advance(task, advance=remaining)
+                        self.logger.info(
+                            f'Completed populating data for pipeline "{pipeline_name}"',
+                        )
 
         return dataset_items
 
@@ -565,6 +611,7 @@ class DatasetWrapper(LogMixin):
             dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
         ],
         max_workers: int | None = None,
+        exif_chunk_size: int | None = None,
     ) -> None:
         """
         Process files with their associated metadata types.
@@ -572,12 +619,16 @@ class DatasetWrapper(LogMixin):
         Args:
             dataset_mapping: The dataset mapping containing source and destination paths.
             max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
+            exif_chunk_size: Chunk size for EXIF metadata processing. If None, uses adaptive sizing.
         """
         # Group files by metadata type
         files_by_type: dict[
             type,
             dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
         ] = {}
+
+        # Deterministic image-set UUID used to namespace per-image UUIDs (see ensure_image_uuid).
+        image_set_uuid = self.image_set_uuid
 
         for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
             for (
@@ -589,6 +640,14 @@ class DatasetWrapper(LogMixin):
                     continue
 
                 dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
+
+                # Assign a deterministic per-image UUID where the pipeline did not supply one. This runs
+                # before EXIF embedding below so the UUID reaches both the embedded ImageUniqueID tag and
+                # the iFDO record (they share the same ImageData object).
+                relative_path = dst.relative_to(self.root_dir).as_posix()
+                for item in metadata_items:
+                    if isinstance(item, iFDOMetadata):
+                        item.ensure_image_uuid(image_set_uuid, relative_path)
 
                 # Group by the type of the first metadata item
                 metadata_type = type(metadata_items[0])
@@ -602,7 +661,10 @@ class DatasetWrapper(LogMixin):
             metadata_type.process_files(
                 dataset_mapping=files,
                 max_workers=max_workers,
+                logger=self.logger,
                 dry_run=self.dry_run,
+                chunk_size=exif_chunk_size,
+                image_set_uuid=image_set_uuid,
             )
 
         total_files = sum(len(files) for files in files_by_type.values())
@@ -766,14 +828,8 @@ class DatasetWrapper(LogMixin):
 
                 progress_bar.advance(task)
         else:
-            processed_items = execute_on_mapping(
-                dataset_items,
-                lambda x: self._process_items(x),
-            )
-            grouped_items = execute_on_mapping(
-                processed_items,
-                self._group_by_metadata_type,
-            )
+            processed_items = execute_on_mapping(dataset_items, self._process_items)
+            grouped_items = execute_on_mapping(processed_items, self._group_by_metadata_type)
             for decorator in mapping_processor_decorator:
                 decorator(
                     lambda x, y: self._create_metadata_files(dataset_name, x, y),
@@ -800,11 +856,11 @@ class DatasetWrapper(LogMixin):
 
         return changed_files
 
-    def _update_manifest(
-        self,
-        changed_files: set[Path],
-        max_worker: int | None = None,
-    ) -> None:
+    def _update_manifest(self, changed_files: set[Path], max_worker: int | None = None) -> None:
+        if self.dry_run:
+            # _generate_manifest is skipped in dry-run, so there is no manifest on disk to load/update.
+            return
+
         manifest = Manifest.load(self.manifest_path)
         manifest.update(
             changed_files,
@@ -813,13 +869,12 @@ class DatasetWrapper(LogMixin):
             logger=self.logger,
             max_workers=max_worker,
         )
-
-        if not self.dry_run:
-            manifest.save(self.manifest_path)
+        manifest.save(self.manifest_path)
 
     def generate_dataset_summary(
         self,
         dataset_items: dict[str, list[BaseMetadata]],
+        max_workers: int | None = None,
         *,
         progress: bool = True,
     ) -> None:
@@ -828,11 +883,13 @@ class DatasetWrapper(LogMixin):
 
         Args:
             dataset_items: The dictionary of dataset items to summarize.
+            max_workers: Maximum number of worker threads for the per-file stat / ffprobe pass.
+                ``None`` lets :class:`ThreadPoolExecutor` choose; pass an integer to cap concurrency.
             progress: A flag to indicate whether to show a progress bar.
         """
 
         def generate_summary() -> None:
-            summary = self.summarise(dataset_items)
+            summary = self.summarise(dataset_items, max_workers=max_workers)
             if not self.dry_run:
                 self.summary_path.write_text(str(summary))
             self.logger.info(
@@ -918,6 +975,9 @@ class DatasetWrapper(LogMixin):
                 )
             ]
             if geolocations:
+                # Lazy-imported to keep requests / staticmap / PIL out of CLI startup.
+                from marimba.core.utils.map import make_summary_map  # noqa: PLC0415
+
                 summary_map = make_summary_map(geolocations, zoom=zoom)
                 if summary_map is not None:
                     map_path = self.root_dir / "map.png"
@@ -983,6 +1043,37 @@ class DatasetWrapper(LogMixin):
             )
             progress.advance(task)
 
+    def _generate_provenance(
+        self,
+        dataset_mapping: dict[str, Any],
+        project_pipelines_dir: Path,
+    ) -> None:
+        """
+        Write a PROV-O (JSON-LD) provenance record for the dataset.
+
+        Captures the Marimba version, each pipeline's git provenance, the ExifTool/FFmpeg versions, and the
+        packaging timestamp. Skipped in dry-run since no dataset is written to disk.
+        """
+        if self.dry_run:
+            self.logger.info("Skipping provenance generation (dry-run)")
+            return
+
+        pipeline_repos = {name: project_pipelines_dir / name / "repo" for name in dataset_mapping}
+        document = build_provenance_document(
+            image_set_uuid=self.image_set_uuid,
+            dataset_name=self.name,
+            dataset_version=self.version,
+            pipeline_repos=pipeline_repos,
+            packaged_datetime=datetime.now(UTC),
+            marimba_version=marimba.__version__,
+        )
+        provenance_path = self.root_dir / "provenance.json"
+        with provenance_path.open("w") as f:
+            json.dump(document, f, indent=2)
+        self.logger.info(
+            f"Generated provenance record at {format_path_for_logging(provenance_path, self._project_dir)}",
+        )
+
     def _generate_manifest(
         self,
         dataset_items: dict[str, list[BaseMetadata]],
@@ -991,8 +1082,13 @@ class DatasetWrapper(LogMixin):
         """
         Generate and save the manifest for the dataset, excluding certain paths.
 
-        The manifest provides a comprehensive list of files and their hashes for verification.
+        The manifest provides a comprehensive list of files and their hashes for verification. Skipped in dry-run
+        mode since no files are actually written, so there are no real files to hash.
         """
+        if self.dry_run:
+            self.logger.info("Skipping manifest generation (dry-run)")
+            return
+
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             globbed_files = list(self.root_dir.glob("**/*"))
             task = progress.add_task(
@@ -1007,22 +1103,35 @@ class DatasetWrapper(LogMixin):
                 task=task,
                 logger=self.logger,
                 max_workers=max_workers,
+                files=globbed_files,
             )
-            if not self.dry_run:
-                manifest.save(self.manifest_path, logger=self.logger)
+            manifest.header = {
+                "image-set-uuid": self.image_set_uuid,
+                "image-set-name": self.name,
+                "hash-algorithm": "SHA-256",
+            }
+            manifest.save(self.manifest_path, logger=self.logger)
             self.logger.info(
                 f"Generated manifest for {len(globbed_files)} "
                 f"files and paths at {format_path_for_logging(self.manifest_path, self._project_dir)}",
             )
 
-    def summarise(self, dataset_items: dict[str, list[BaseMetadata]]) -> ImagerySummary:
+    def summarise(
+        self,
+        dataset_items: dict[str, list[BaseMetadata]],
+        max_workers: int | None = None,
+    ) -> ImagerySummary:
         """
         Create an imagery summary for this dataset.
+
+        Args:
+            dataset_items: The dictionary of dataset items to summarize.
+            max_workers: Maximum number of worker threads for the per-file stat / ffprobe pass.
 
         Returns:
             An imagery summary.
         """
-        return ImagerySummary.from_dataset(self, dataset_items)
+        return ImagerySummary.from_dataset(self, dataset_items, max_workers=max_workers)
 
     def check_dataset_mapping(
         self,
@@ -1031,6 +1140,8 @@ class DatasetWrapper(LogMixin):
             dict[Path, tuple[Path, list[Any] | None, dict[str, Any] | None]],
         ],
         max_workers: int | None = None,
+        *,
+        allow_destination_collisions: bool = False,
     ) -> None:
         """
         Verify that the given dataset mapping is valid.
@@ -1038,6 +1149,8 @@ class DatasetWrapper(LogMixin):
         Args:
             dataset_mapping: A mapping from source paths to destination paths and metadata.
             max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
+            allow_destination_collisions: Allow multiple source files to map to the same destination path.
+                Uses the first source file encountered.
 
         Raises:
             DatasetWrapper.InvalidDatasetMappingError: If the path mapping is invalid.
@@ -1046,6 +1159,8 @@ class DatasetWrapper(LogMixin):
         for pipeline_data_mapping in dataset_mapping.values():
             total_tasks += len(pipeline_data_mapping) * 4
 
+        validation_errors = []
+
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             task = progress.add_task(
                 "[green]Checking dataset mapping (2/12)",
@@ -1053,30 +1168,50 @@ class DatasetWrapper(LogMixin):
             )
 
             for pipeline_data_mapping in dataset_mapping.values():
-                self._verify_source_paths_exist(
+                errors = self._verify_source_paths_exist(
                     pipeline_data_mapping,
                     progress,
                     task,
                     max_workers,
                 )
-                self._verify_unique_source_resolutions(
+                validation_errors.extend(errors)
+
+                errors = self._verify_unique_source_resolutions(
                     pipeline_data_mapping,
                     progress,
                     task,
                     max_workers,
                 )
-                self._verify_relative_destination_paths(
+                validation_errors.extend(errors)
+
+                errors = self._verify_relative_destination_paths(
                     pipeline_data_mapping,
                     progress,
                     task,
                     max_workers,
                 )
-                self._verify_no_destination_collisions(
+                validation_errors.extend(errors)
+
+                errors = self._verify_no_destination_collisions(
                     pipeline_data_mapping,
                     progress,
                     task,
                     max_workers,
+                    allow_destination_collisions=allow_destination_collisions,
                 )
+                validation_errors.extend(errors)
+
+            # Ensure progress reaches 100%
+            progress.update(task, completed=total_tasks)
+
+        # If any validation errors were found, raise an exception with all of them
+        if validation_errors:
+            error_message = "; ".join(validation_errors)
+            self.logger.error(f"Dataset mapping validation failed: {error_message}")
+            msg = f"Dataset mapping validation failed: {error_message}"
+            raise DatasetWrapper.InvalidDatasetMappingError(
+                msg,
+            )
 
         self.logger.info("Dataset mapping is valid")
 
@@ -1089,30 +1224,38 @@ class DatasetWrapper(LogMixin):
         progress: Progress,
         task: TaskID,
         max_workers: int | None = None,
-    ) -> None:
+    ) -> list[str]:
+        """Verify source paths exist and return list of error messages."""
+
         @multithreaded(max_workers=max_workers)
         def verify_path(
             self: DatasetWrapper,  # noqa: ARG001
             thread_num: str,  # noqa: ARG001
             item: Path,
-            logger: logging.Logger | None = None,  # noqa: ARG001
+            logger: logging.Logger | None = None,
             progress: Progress | None = None,
             task: TaskID | None = None,
-        ) -> None:
+        ) -> str | None:
+            """Return error message if path doesn't exist, None otherwise."""
             if not item.exists():
-                raise DatasetWrapper.InvalidDatasetMappingError(
-                    f"Source path {item} does not exist",
-                )
+                error_msg = f"Source path {item} does not exist"
+                if logger:
+                    logger.error(error_msg)
+                return error_msg
             if progress and task is not None:
                 progress.advance(task)
+            return None
 
-        verify_path(
+        results = verify_path(
             self,
             items=list(pipeline_data_mapping.keys()),
             logger=self.logger,
             progress=progress,
             task=task,
         )  # type: ignore[call-arg]
+
+        # Collect non-None error messages
+        return [error for error in results if error is not None]  # type: ignore[union-attr]
 
     def _verify_unique_source_resolutions(
         self,
@@ -1122,37 +1265,31 @@ class DatasetWrapper(LogMixin):
         ],
         progress: Progress,
         task: TaskID,
-        max_workers: int | None = None,
-    ) -> None:
+        max_workers: int | None = None,  # noqa: ARG002
+    ) -> list[str]:
+        """Verify source path resolutions are unique and return list of error messages."""
+        errors = []
+
+        # Pre-compute all resolutions to avoid race conditions
+        path_resolutions = {}
+        for path in pipeline_data_mapping:
+            resolved = path.resolve().absolute()
+            path_resolutions[path] = resolved
+
+        # Check for duplicates
         reverse_src_resolution: dict[Path, Path] = {}
-
-        @multithreaded(max_workers=max_workers)
-        def verify_resolution(
-            self: DatasetWrapper,  # noqa: ARG001
-            thread_num: str,  # noqa: ARG001
-            item: Path,
-            reverse_src_resolution: dict[Path, Path],
-            logger: logging.Logger | None = None,  # noqa: ARG001
-            progress: Progress | None = None,
-            task: TaskID | None = None,
-        ) -> None:
-            resolved = item.resolve().absolute()
+        for path, resolved in path_resolutions.items():
             if resolved in reverse_src_resolution:
-                raise DatasetWrapper.InvalidDatasetMappingError(
-                    f"Source paths {item} and {reverse_src_resolution[resolved]} both resolve to {resolved}",
-                )
-            reverse_src_resolution[resolved] = item
-            if progress and task is not None:
-                progress.advance(task)
+                error_msg = f"Source paths {path} and {reverse_src_resolution[resolved]} both resolve to {resolved}"
+                self.logger.error(error_msg)
+                errors.append(error_msg)
+            else:
+                reverse_src_resolution[resolved] = path
 
-        verify_resolution(
-            self,
-            items=pipeline_data_mapping.keys(),
-            reverse_src_resolution=reverse_src_resolution,
-            logger=self.logger,
-            progress=progress,
-            task=task,
-        )  # type: ignore[call-arg]
+            # Update progress
+            progress.advance(task)
+
+        return errors
 
     def _verify_relative_destination_paths(
         self,
@@ -1163,7 +1300,8 @@ class DatasetWrapper(LogMixin):
         progress: Progress,
         task: TaskID,
         max_workers: int | None = None,
-    ) -> None:
+    ) -> list[str]:
+        """Verify destination paths are relative and return list of error messages."""
         destinations = [dst for dst, _, _ in pipeline_data_mapping.values()]
 
         @multithreaded(max_workers=max_workers)
@@ -1171,24 +1309,30 @@ class DatasetWrapper(LogMixin):
             self: DatasetWrapper,  # noqa: ARG001
             thread_num: str,  # noqa: ARG001
             item: Path,
-            logger: logging.Logger | None = None,  # noqa: ARG001
+            logger: logging.Logger | None = None,
             progress: Progress | None = None,
             task: TaskID | None = None,
-        ) -> None:
-            if item.is_absolute():
-                raise DatasetWrapper.InvalidDatasetMappingError(
-                    f"Destination path {item} must be relative",
-                )
+        ) -> str | None:
+            """Return error message if path is absolute, None otherwise."""
+            if item is not None and item.is_absolute():
+                error_msg = f"Destination path {item} must be relative"
+                if logger:
+                    logger.error(error_msg)
+                return error_msg
             if progress and task is not None:
                 progress.advance(task)
+            return None
 
-        verify_destination_path(
+        results = verify_destination_path(
             self,
             items=destinations,
             logger=self.logger,
             progress=progress,
             task=task,
         )  # type: ignore[call-arg]
+
+        # Collect non-None error messages
+        return [error for error in results if error is not None]  # type: ignore[union-attr]
 
     def _verify_no_destination_collisions(
         self,
@@ -1198,39 +1342,42 @@ class DatasetWrapper(LogMixin):
         ],
         progress: Progress,
         task: TaskID,
-        max_workers: int | None = None,
-    ) -> None:
-        reverse_mapping: dict[Path, Path] = {
-            dst.resolve(): src for src, (dst, _, _) in pipeline_data_mapping.items() if dst is not None
-        }
+        max_workers: int | None = None,  # noqa: ARG002
+        *,
+        allow_destination_collisions: bool = False,
+    ) -> list[str]:
+        """Verify no destination path collisions and return list of error messages."""
+        errors = []
 
-        @multithreaded(max_workers=max_workers)
-        def verify_no_collision(
-            self: DatasetWrapper,  # noqa: ARG001
-            thread_num: str,  # noqa: ARG001
-            item: tuple[Path, Path],
-            reverse_mapping: dict[Path, Path],
-            logger: logging.Logger | None = None,  # noqa: ARG001
-            progress: Progress | None = None,
-            task: TaskID | None = None,
-        ) -> None:
-            (src, dst) = item
+        # Pre-compute destination mappings to avoid race conditions
+        destination_mappings: dict[Path, Path] = {}
+
+        for src, (dst, _, _) in pipeline_data_mapping.items():
             if dst is not None:
-                src_other = reverse_mapping.get(dst.resolve())
-                if src_other is not None and src.resolve() != src_other.resolve():
-                    raise DatasetWrapper.InvalidDatasetMappingError(
-                        f"Resolved destination path {dst.resolve()} is the same for source paths {src} and {src_other}",
-                    )
-            if progress and task is not None:
-                progress.advance(task)
+                resolved_dst = dst.resolve()
+                if resolved_dst in destination_mappings:
+                    # Found a collision
+                    existing_src = destination_mappings[resolved_dst]
+                    if src.resolve() != existing_src.resolve():
+                        if allow_destination_collisions:
+                            # Log as warning but don't add to errors
+                            warning_msg = (
+                                f"Destination path collision detected: {resolved_dst} is the same for "
+                                f"source paths {src} and {existing_src}. Using first source file: {existing_src}"
+                            )
+                            self.logger.warning(warning_msg)
+                        else:
+                            # Add as error
+                            error_msg = (
+                                f"Resolved destination path {resolved_dst} is the same for "
+                                f"source paths {src} and {existing_src}"
+                            )
+                            self.logger.error(error_msg)
+                            errors.append(error_msg)
+                else:
+                    destination_mappings[resolved_dst] = src
 
-        items = [(src, dst) for src, (dst, _, _) in pipeline_data_mapping.items()]
+            # Update progress
+            progress.advance(task)
 
-        verify_no_collision(
-            self,
-            items=items,
-            reverse_mapping=reverse_mapping,
-            logger=self.logger,
-            progress=progress,
-            task=task,
-        )  # type: ignore[call-arg]
+        return errors

@@ -5,38 +5,13 @@ This module provides the Marimba command line interface for creating and configu
 pipelines, collections, and distribution targets. It uses Typer for defining the CLI commands and Rich for
 formatting the output.
 
-Imports:
-    - os: Provides access to operating system functionality.
-    - pathlib: Provides classes for working with file paths.
-    - typing: Provides type hinting classes.
-    - typer: A library for building command line interfaces.
-    - rich: A library for rich text formatting in the terminal.
-    - marimba.core.utils.constants: Provides constants used in the Marimba project.
-    - marimba.core.utils.log: Provides logging functionality.
-    - marimba.core.utils.prompt: Provides functionality for prompting the user for input.
-    - marimba.core.utils.rich: Provides utility functions for formatting output using Rich.
-    - marimba.core.wrappers.project: Provides a wrapper class for working with Marimba projects.
-    - marimba.core.wrappers.target: Provides a wrapper class for working with Marimba distribution targets.
-
-Classes:
-    - ProjectWrapper: A wrapper class for working with Marimba projects.
-        - NameError: Raised when an invalid name is provided for a project entity.
-        - NoSuchCollectionError: Raised when a specified parent collection does not exist.
-        - CreateCollectionError: Raised when an error occurs while creating a collection.
-    - DistributionTargetWrapper: A wrapper class for working with Marimba distribution targets.
-
-Functions:
-    - project: Creates a new Marimba project.
-    - pipeline: Creates and configures a new Marimba pipeline in a project.
-    - collection: Creates and configures a new Marimba collection in a project.
-    - target: Creates and configures a new distribution target in a project.
 """
 
 import json
 from pathlib import Path
 
 import typer
-from rich import print
+from rich import print as rprint
 
 from marimba.core.utils.constants import PROJECT_DIR_HELP
 from marimba.core.utils.log import get_logger
@@ -78,10 +53,10 @@ def project(
     except FileExistsError as e:
         error_message = f'A {MARIMBA} {format_entity("project")} already exists at: "{project_dir}"'
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
 
-    print(
+    rprint(
         success_panel(
             f'Created new {MARIMBA} {format_entity("project")} at: "{project_wrapper.root_dir}"',
         ),
@@ -100,6 +75,12 @@ def pipeline(
         None,
         help="A custom configuration in JSON format to be merged with the prompted pipeline configuration.",
     ),
+    accept_defaults: bool = typer.Option(
+        False,
+        "--accept-defaults",
+        "-y",
+        help="Automatically accept all default configuration values without prompting.",
+    ),
 ) -> None:
     """
     Create and configure a new Marimba pipeline in a project.
@@ -109,8 +90,8 @@ def pipeline(
     except json.JSONDecodeError as e:
         error_message = f"Error parsing configuration JSON: {e}"
         logger.exception(error_message)
-        print(error_panel(error_message))
-        raise typer.Exit from e
+        rprint(error_panel(error_message))
+        raise typer.Exit(1) from e
 
     project_dir = find_project_dir_or_exit(project_dir)
 
@@ -125,28 +106,29 @@ def pipeline(
             pipeline_name,
             url,
             config_dict,
+            accept_defaults=accept_defaults,
         )
     except ProjectWrapper.InvalidNameError as e:
         error_message = f"Invalid pipeline name: {e}"
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
     except Exception as e:
         error_message = f"Could not create pipeline: {e}"
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
 
     # Use warning panel if no pipeline implementation found
     if pipeline_wrapper is None:
-        print(
+        rprint(
             warning_panel(
                 f'Repository cloned at "{pipeline_wrapper.root_dir}", but no Pipeline implementation found. '
                 f'Add a Pipeline implementation before using "{pipeline_name}" to process data.',
             ),
         )
     else:
-        print(
+        rprint(
             success_panel(
                 f'Created new {MARIMBA} {format_entity("pipeline")} "{pipeline_name}" at: '
                 f'"{pipeline_wrapper.root_dir}"',
@@ -166,6 +148,12 @@ def collection(
         None,
         help="A custom configuration in JSON format to be merged with the prompted collection configuration.",
     ),
+    accept_defaults: bool = typer.Option(
+        False,
+        "--accept-defaults",
+        "-y",
+        help="Automatically accept all default configuration values without prompting.",
+    ),
 ) -> None:
     """
     Create and configure a new Marimba collection in a project.
@@ -175,8 +163,8 @@ def collection(
     except json.JSONDecodeError as e:
         error_message = f"Error parsing configuration JSON: {e}"
         logger.exception(error_message)
-        print(error_panel(error_message))
-        raise typer.Exit from e
+        rprint(error_panel(error_message))
+        raise typer.Exit(1) from e
 
     project_dir = find_project_dir_or_exit(project_dir)
 
@@ -190,6 +178,7 @@ def collection(
         collection_config = project_wrapper.prompt_collection_config(
             parent_collection_name=parent_collection_name,
             config=config_dict,
+            accept_defaults=accept_defaults,
         )
 
         # Create the collection
@@ -198,24 +187,24 @@ def collection(
             collection_config,
         )
     except ProjectWrapper.InvalidNameError as e:
-        logger.exception(e)
-        print(error_panel(f"Invalid collection name: {e}"))
+        logger.exception("Collection creation failed")
+        rprint(error_panel(f"Invalid collection name: {e}"))
         raise typer.Exit(code=1) from e
     except ProjectWrapper.NoSuchCollectionError as e:
-        logger.exception(e)
-        print(error_panel(f"No such parent collection: {e}"))
+        logger.exception("Collection creation failed")
+        rprint(error_panel(f"No such parent collection: {e}"))
         raise typer.Exit(code=1) from e
     except ProjectWrapper.CreateCollectionError as e:
-        logger.exception(e)
-        print(error_panel(f"Could not create collection: {e}"))
+        logger.exception("Collection creation failed")
+        rprint(error_panel(f"Could not create collection: {e}"))
         raise typer.Exit(code=1) from e
     except Exception as e:
         error_message = f"Could not create collection: {e}"
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
 
-    print(
+    rprint(
         success_panel(
             f'Created new {MARIMBA} {format_entity("collection")} "{collection_name}" at: '
             f'"{collection_wrapper.root_dir}"',
@@ -251,20 +240,20 @@ def target(
     except ProjectWrapper.InvalidNameError as e:
         error_message = f"Invalid target name: {e}"
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
     except FileExistsError as e:
         error_message = f'A {MARIMBA} {format_entity("target")} already exists at: "{project_dir / target_name}"'
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
     except Exception as e:
         error_message = f"Could not create target: {e}"
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
 
-    print(
+    rprint(
         success_panel(
             f'Created new {MARIMBA} {format_entity("target")} "{target_name}" at: '
             f'"{distribution_target_wrapper.config_path}"',

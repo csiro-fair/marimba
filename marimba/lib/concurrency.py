@@ -4,16 +4,6 @@ Marimba Standard Library Concurrency.
 This module provides parallelised functionality for tasks like generating thumbnails from a list of images or videos
 using multithreading.
 
-Imports:
-    Path: Represents file system paths
-    Lock: Provides thread synchronization
-    List, Optional: Type hints for function parameters
-    multithreaded: Decorator for multithreaded execution
-    generate_thumbnail: Function to create a thumbnail from an image
-
-Functions:
-    multithreaded_generate_image_thumbnails: Generates thumbnails for multiple images concurrently.
-    multithreaded_generate_video_thumbnails: Generates thumbnails for multiple videos concurrently.
 """
 
 import logging
@@ -57,7 +47,7 @@ def multithreaded_generate_image_thumbnails(
         OSError: If there's an error creating the output directory or writing the thumbnail files.
         ValueError: If an invalid image file is provided in the image_list.
     """
-    video_thumbnail_list = []
+    image_thumbnail_list = []
     list_lock = Lock()
     output_directory.mkdir(exist_ok=True)
 
@@ -76,11 +66,11 @@ def multithreaded_generate_image_thumbnails(
             )
         if thumbnail_path:
             with list_lock:
-                video_thumbnail_list.append(thumbnail_path)
+                image_thumbnail_list.append(thumbnail_path)
 
     generate_thumbnail_task(self, items=image_list, logger=logger)  # type: ignore[call-arg]
 
-    return video_thumbnail_list
+    return image_thumbnail_list
 
 
 def multithreaded_generate_video_thumbnails(

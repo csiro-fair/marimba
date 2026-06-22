@@ -1,35 +1,13 @@
 <a name="readme-top"></a>
 
-<!-- PROJECT LOGO -->
-<figure markdown style="text-align: center">
+<div align="center">
 
 ![Marimba Logo](https://raw.githubusercontent.com/csiro-fair/marimba/main/docs/img/marimba-logo.png "Marimba logo")
 
-</figure>
+<i>A Python framework for structuring, processing, packaging and distributing FAIR scientific image datasets</i>
 
-<div style="text-align: center">
-<p><i>A Python framework for structuring, processing, packaging and distributing FAIR scientific image datasets</i></p>
-<div>
-  <a href="https://github.com/csiro-fair/marimba/stargazers">
-    <img src="https://img.shields.io/github/stars/csiro-fair/marimba" alt="Stars Badge"/>
-  </a>
-  <a href="https://github.com/csiro-fair/marimba/network/members">
-    <img src="https://img.shields.io/github/forks/csiro-fair/marimba" alt="Forks Badge"/>
-  </a>
-  <a href="https://github.com/csiro-fair/marimba/pulls">
-    <img src="https://img.shields.io/github/issues-pr/csiro-fair/marimba" alt="Pull Requests Badge"/>
-  </a>
-  <a href="https://github.com/csiro-fair/marimba/issues">
-    <img src="https://img.shields.io/github/issues/csiro-fair/marimba" alt="Issues Badge"/>
-  </a>
-  <a href="https://github.com/csiro-fair/marimba/graphs/contributors">
-    <img alt="GitHub contributors" src="https://img.shields.io/github/contributors/csiro-fair/marimba?color=2b9348">
-  </a>
-  <a href="https://github.com/csiro-fair/marimba/blob/master/LICENSE">
-    <img src="https://img.shields.io/github/license/csiro-fair/marimba?color=2b9348" alt="License Badge"/>
-  </a>
-</div>
-<br>
+[![Python Versions](https://img.shields.io/pypi/pyversions/marimba)](https://pypi.org/project/marimba/) [![PyPI Version](https://img.shields.io/pypi/v/marimba)](https://pypi.org/project/marimba/) [![PyPI Downloads](https://img.shields.io/pypi/dm/marimba)](https://pypi.org/project/marimba/) [![Pull Requests](https://img.shields.io/github/issues-pr/csiro-fair/marimba)](https://github.com/csiro-fair/marimba/pulls) [![Issues](https://img.shields.io/github/issues/csiro-fair/marimba)](https://github.com/csiro-fair/marimba/issues) [![Contributors](https://img.shields.io/github/contributors/csiro-fair/marimba?color=2b9348)](https://github.com/csiro-fair/marimba/graphs/contributors) [![License](https://img.shields.io/badge/license-CSIRO_BSD%2FMIT-2b9348)](https://github.com/csiro-fair/marimba/blob/main/LICENSE)
+
 </div>
 
 ---
@@ -45,6 +23,7 @@
 - [Contributing](#contributing)
 - [License](#license)
 - [Contact](#contact)
+- [Citation](#citation)
 - [Acknowledgments](#acknowledgments)
 
 ---
@@ -92,6 +71,8 @@ diverse aggregation of data from a single or multi-instrument system. Each Colle
 Marimba's core processing environment. During execution, Marimba Pipelines operate on each Collection in parallel, 
 applying the specialised processing to the data contained within each Collection.
 
+![Marimba Workflow](docs/img/marimba-workflow.png "Marimba workflow")
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
@@ -127,7 +108,7 @@ processing:
 - **Standard Image and Video Library:**
   - Marimba provides a comprehensive standard library of image and video processing modules that can:
     - Convert, compress and resize imagery using [Pillow](https://pypi.org/project/Pillow/)
-    - Transcode, segment and extract frames from videos using [Ffmpeg](https://ffmpeg.org/) (to be integrated)
+    - Transcode, segment and extract frames from videos using [FFmpeg](https://ffmpeg.org/)
     - Automatically generate thumbnails for images and videos and create composite overview images for rapid assessment 
     of image datasets
     - Detect duplicate, blurry, or improperly exposed images using 
@@ -149,7 +130,7 @@ processing:
 <a name="installation"></a>
 ## Installation
 
-Marimba can be installed using the Python pip package manager. Ensure that Python version 3.10 or greater is installed 
+Marimba can be installed using the Python pip package manager. Ensure that Python version 3.12 or greater is installed 
 in your environment before proceeding.
 
 To install Marimba, open your terminal or command prompt and run the following command:
@@ -167,12 +148,37 @@ marimba
 
 ![](docs/img/marimba-help.png "marimba-help")
 
-Marimba has minimal system level dependencies, such as `ffmpeg`, which are required for its operation. On Ubuntu you can 
-install `ffmpeg` with:
+### System Dependencies
 
+Marimba requires two system-level dependencies for its operation:
+
+- **ExifTool**: Required for EXIF metadata reading and writing
+- **FFmpeg**: Required for video processing functionality
+
+**Ubuntu/Debian:**
 ```bash
-sudo apt install ffmpeg
+sudo apt install libimage-exiftool-perl ffmpeg
 ```
+
+**macOS:**
+```bash
+brew install exiftool ffmpeg
+```
+
+**RHEL/CentOS/Fedora:**
+```bash
+# RHEL/CentOS (with EPEL repository enabled)
+sudo yum install perl-Image-ExifTool ffmpeg
+
+# Fedora
+sudo dnf install perl-Image-ExifTool ffmpeg
+```
+
+**Windows:**
+- ExifTool: Download from [https://exiftool.org/](https://exiftool.org/) and add to PATH
+- FFmpeg: Download from [https://ffmpeg.org/](https://ffmpeg.org/) and add to PATH
+
+For other platforms or installation methods, please refer to the official documentation for [ExifTool](https://exiftool.org/) and [FFmpeg](https://ffmpeg.org/).
 
 To set up a Marimba development environment, please refer to the [Environment Setup Guide](docs/environment.md), which 
 provides detailed instructions and guidelines for configuring your development environment.
@@ -275,7 +281,7 @@ integrating Marimba into your existing systems.
 Marimba is an open-source project, and we welcome feedback and contributions from the community. If you have ideas or 
 suggestions to improve Marimba, we encourage you to submit them using our 
 [GitHub issue tracker](https://github.com/csiro-fair/marimba/issues). For enhancements or new features, we encourage you 
-to fork the repository and submit a pull request. Please refer to the [Contributing Guide](docs/contributing.md) for 
+to fork the repository and submit a pull request. Please refer to the [Contributing Guide](.github/CONTRIBUTING.md) for 
 detailed guidelines on how to contribute.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -304,6 +310,34 @@ For inquiries related to this repository, please contact:
 - **Kevin Barnard**  
   *Software Engineer, MBARI*  
   Email: [kbarnard@mbari.org](mailto:kbarnard@mbari.org)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+<a name="citation"></a>
+## Citation
+
+If you use Marimba to process your scientific image datasets, we would greatly appreciate it if you mention this in your publications and cite our work. This helps us track the impact of Marimba and supports continued development of the framework.
+
+### Journal Article
+
+Jackett, C. J., Barnard, K., Althaus, F., Mortimer, N., Webb, D., Untiedt, C., Tyndall, A., Jameson, I., Gorton, B., Devine, C., Strzelecki, J., Thrall, P. H., & Scoulding, B. (2025). Marimba: A Python framework for structuring and processing FAIR scientific image datasets. *SoftwareX*, 31, 102251. https://doi.org/10.1016/j.softx.2025.102251
+
+### BibTeX
+
+```bibtex
+@article{jackett2025marimba,
+  title={Marimba: A Python framework for structuring and processing FAIR scientific image datasets},
+  author={Jackett, Christopher J and Barnard, Kevin and Althaus, Franziska and Mortimer, Nicolas and Webb, David and Untiedt, Candice and Tyndall, Aaron and Jameson, Ian and Gorton, Bec and Devine, Carlie and Strzelecki, Joanna and Thrall, Peter H and Scoulding, Ben},
+  journal={SoftwareX},
+  volume={31},
+  pages={102251},
+  year={2025},
+  publisher={Elsevier},
+  doi={10.1016/j.softx.2025.102251}
+}
+```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

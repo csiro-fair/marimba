@@ -5,27 +5,15 @@ This module provides functionality to create and validate manifests for datasets
 manifest from a directory, validation of a directory against a manifest, and saving/loading manifests to/from files.
 The module uses SHA-256 hashing to ensure data integrity and supports multithreaded processing for improved performance.
 
-Imports:
-    hashlib: Provides cryptographic hash functions.
-    dataclasses: Offers decorator and functions for automatically adding generated special methods to classes.
-    pathlib: Offers classes representing filesystem paths.
-    typing: Provides support for type hints.
-    distlib.util: Utilities for distribution-related operations.
-    rich.progress: Offers rich text and beautiful formatting in the terminal.
-    marimba.lib.decorators: Custom decorators for the marimba library.
-
-Classes:
-    Manifest: Represents a dataset manifest for validation and integrity checking.
 """
 
 import logging
 from collections.abc import Iterable
 from copy import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
-from distlib.util import Progress
-from rich.progress import TaskID
+from rich.progress import Progress, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.hash import compute_hash
@@ -36,10 +24,23 @@ from marimba.lib.decorators import multithreaded
 class Manifest:
     """
     Dataset manifest. Used to validate datasets to check if the underlying data has been corrupted or modified.
+
+    ``hashes`` maps the *relative-posix path string* of each tracked file to its SHA-256 digest.
+    Stored as ``dict[str, str]`` rather than ``dict[Path, str]`` because ``Path`` objects carry an
+    internal parsed-parts cache that costs ~3x the memory of the equivalent string at million-file
+    scale; the manifest is the single largest in-memory accumulator during packaging.
     """
 
-    hashes: dict[Path, str]
+    hashes: dict[str, str]
     logger: logging.Logger | None = None
+    # Optional dataset-identity header (e.g. image-set-uuid, image-set-name, hash-algorithm) written as
+    # leading ``# key: value`` comment lines. Excluded from equality so validate()'s comparison against a
+    # freshly-walked manifest (which carries no header) still holds.
+    header: dict[str, str] = field(default_factory=dict, compare=False)
+
+    def __hash__(self) -> int:
+        """Enable use in sets and as dictionary keys."""
+        return hash(tuple(sorted(self.hashes.items())))
 
     @staticmethod
     def _validate_directory(directory: Path) -> None:
@@ -53,9 +54,11 @@ class Manifest:
             ValueError: If the directory doesn't exist or isn't a directory
         """
         if not directory.exists():
-            raise ValueError(f"Directory does not exist: {directory}")
+            msg = f"Directory does not exist: {directory}"
+            raise ValueError(msg)
         if not directory.is_dir():
-            raise ValueError(f"Path is not a directory: {directory}")
+            msg = f"Path is not a directory: {directory}"
+            raise ValueError(msg)
 
     @staticmethod
     def _get_files_from_directory(
@@ -79,8 +82,9 @@ class Manifest:
             return list(directory.glob("**/*"))
         except Exception as e:
             if logger:
-                logger.exception(f"Failed to glob directory {directory}: {e!s}")
-            raise OSError(f"Failed to scan directory {directory}: {e!s}") from e
+                logger.exception(f"Failed to glob directory {directory}")
+            msg = f"Failed to scan directory {directory}: {e!s}"
+            raise OSError(msg) from e
 
     @staticmethod
     def _get_hash_from_metadata(
@@ -110,9 +114,9 @@ class Manifest:
         directory: Path,
         dataset_items: dict[str, list[BaseMetadata]] | None,
         logger: logging.Logger | None,
-    ) -> tuple[Path, str] | None:
+    ) -> tuple[str, str] | None:
         """
-        Process a single file and return its relative path and hash.
+        Process a single file and return its relative-posix path string and hash.
 
         Args:
             item: The file to process.
@@ -121,7 +125,7 @@ class Manifest:
             logger: Logger for recording information.
 
         Returns:
-            Tuple of (relative_path, hash) if successful, None if file should be skipped.
+            Tuple of ``(relative_posix_string, hash)`` if successful, None if file should be skipped.
 
         Raises:
             OSError: If there are issues computing the hash.
@@ -129,19 +133,23 @@ class Manifest:
         try:
             # Get relative path without the data/ prefix
             rel_path = item.resolve().relative_to(directory.resolve())
-            metadata_path = str(rel_path.relative_to("data")) if str(rel_path).startswith("data/") else str(rel_path)
+            rel_path_str = rel_path.as_posix()
+            metadata_path = (
+                rel_path.relative_to("data").as_posix() if rel_path_str.startswith("data/") else rel_path_str
+            )
 
             # Try to get hash from metadata first
             existing_hash = cls._get_hash_from_metadata(metadata_path, dataset_items)
             if existing_hash is not None:
-                return rel_path, existing_hash
+                return rel_path_str, existing_hash
 
             # Compute new hash if needed
-            return rel_path, compute_hash(item, directory)
+            return rel_path_str, compute_hash(item, directory)
         except (OSError, PermissionError) as e:
             if logger:
-                logger.exception(f"Failed to process file {item}: {e!s}")
-            raise OSError(f"Failed to process file {item}: {e!s}") from e
+                logger.exception(f"Failed to process file {item}")
+            msg = f"Failed to process file {item}: {e!s}"
+            raise OSError(msg) from e
 
     @classmethod
     def _process_files_with_progress(
@@ -154,7 +162,7 @@ class Manifest:
         task: TaskID | None,
         logger: logging.Logger | None,
         max_workers: int | None,
-    ) -> dict[Path, str]:
+    ) -> dict[str, str]:
         """
         Process multiple files with progress tracking and threading.
 
@@ -169,12 +177,12 @@ class Manifest:
             max_workers: Maximum number of worker processes.
 
         Returns:
-            Dictionary of processed files and their hashes.
+            Dictionary of ``{relative_posix_string: hash}`` for the processed files.
 
         Raises:
             RuntimeError: If file processing fails.
         """
-        hashes: dict[Path, str] = {}
+        hashes: dict[str, str] = {}
         manifest_instance = cls({}, logger=logger)
 
         @multithreaded(max_workers=max_workers)
@@ -184,7 +192,7 @@ class Manifest:
             item: Path,
             directory: Path,
             exclude_paths: set[Path],
-            hashes: dict[Path, str],
+            hashes: dict[str, str],
             dataset_items: dict[str, list[BaseMetadata]] | None = None,
             logger: logging.Logger | None = None,
             progress: Progress | None = None,
@@ -204,12 +212,13 @@ class Manifest:
                     logger,
                 )
                 if result:
-                    rel_path, file_hash = result
-                    hashes[rel_path] = file_hash
+                    rel_path_str, file_hash = result
+                    hashes[rel_path_str] = file_hash
             except Exception as e:
                 if logger:
-                    logger.exception(f"Error processing file {item}: {e!s}")
-                raise RuntimeError(f"Failed to process file {item}: {e!s}") from e
+                    logger.exception(f"Error processing file {item}")
+                msg = f"Failed to process file {item}: {e!s}"
+                raise RuntimeError(msg) from e
 
         process_file(
             self=manifest_instance,
@@ -223,7 +232,9 @@ class Manifest:
             task=task,
         )  # type: ignore[call-arg]
 
-        return dict(sorted(hashes.items(), key=lambda item: item[0]))
+        # Sort by Path so the on-disk manifest preserves byte-for-byte compatibility with the
+        # pre-string-keyed implementation; storage is dict[str, str] but ordering is Path-aware.
+        return dict(sorted(hashes.items(), key=lambda item: Path(item[0])))
 
     @classmethod
     def from_dir(
@@ -235,6 +246,7 @@ class Manifest:
         task: TaskID | None = None,
         logger: logging.Logger | None = None,
         max_workers: int | None = None,
+        files: list[Path] | None = None,
     ) -> "Manifest":
         """
         Create a manifest from a directory.
@@ -247,6 +259,9 @@ class Manifest:
             task: A task ID associated with the progress bar.
             logger: A logger object for logging information.
             max_workers: Maximum number of worker processes to use.
+            files: Optional pre-walked file list (skips the internal ``glob("**/*")``).
+                Callers that have already walked ``directory`` can pass the result
+                to avoid a second walk.
 
         Returns:
             Manifest: A new Manifest object containing the processed files and their hashes.
@@ -257,11 +272,11 @@ class Manifest:
         """
         try:
             cls._validate_directory(directory)
-            files = cls._get_files_from_directory(directory, logger)
+            walked_files = files if files is not None else cls._get_files_from_directory(directory, logger)
             exclude_set = set(exclude_paths) if exclude_paths is not None else set()
 
             hashes = cls._process_files_with_progress(
-                files=files,
+                files=walked_files,
                 directory=directory,
                 exclude_paths=exclude_set,
                 dataset_items=dataset_items,
@@ -275,8 +290,9 @@ class Manifest:
 
         except Exception as e:
             if logger:
-                logger.exception(f"Failed to create manifest: {e!s}")
-            raise RuntimeError("Failed to create manifest completely") from e
+                logger.exception("Failed to create manifest")
+            msg = "Failed to create manifest completely"
+            raise RuntimeError(msg) from e
 
     def validate(
         self,
@@ -285,6 +301,7 @@ class Manifest:
         progress: Progress | None = None,
         task: TaskID | None = None,
         logger: logging.Logger | None = None,
+        files: list[Path] | None = None,
     ) -> bool:
         """
         Validate a directory against the manifest.
@@ -298,6 +315,8 @@ class Manifest:
             progress: An optional Progress object for tracking the validation process.
             task: An optional TaskID object for associating the validation with a specific task.
             logger (logging.Logger | None, optional): A Logger object for logging validation progress and results.
+            files: Optional pre-walked file list, forwarded to :meth:`from_dir` so callers can
+                avoid a second ``rglob`` when they have already walked ``directory``.
 
         Returns:
             A boolean value indicating whether the directory is valid (True) or not (False).
@@ -314,11 +333,13 @@ class Manifest:
                 progress=progress,
                 task=task,
                 logger=logger,
+                files=files,
             )
         except Exception as e:
             if logger:
-                logger.exception(f"Failed to create comparison manifest: {e!s}")
-            raise RuntimeError("Failed to validate directory") from e
+                logger.exception("Failed to create comparison manifest")
+            msg = "Failed to validate directory"
+            raise RuntimeError(msg) from e
 
         return self == manifest
 
@@ -370,8 +391,9 @@ class Manifest:
         files.update(subdirectories)
 
         deleted_files = {path for path in files if not path.exists()}
-        relative_deleted_files = {path.resolve().relative_to(directory.resolve()) for path in deleted_files}
-        self.hashes = {path: value for path, value in self.hashes.items() if path not in relative_deleted_files}
+        resolved_directory = directory.resolve()
+        relative_deleted_strs = {path.resolve().relative_to(resolved_directory).as_posix() for path in deleted_files}
+        self.hashes = {path: value for path, value in self.hashes.items() if path not in relative_deleted_strs}
 
         changed_files = files - deleted_files
 
@@ -415,12 +437,15 @@ class Manifest:
         """
         try:
             with path.open("w") as f:
-                for file_path, file_hash in self.hashes.items():
-                    f.write(f"{file_path.as_posix()}:{file_hash}\n")
+                for key, value in self.header.items():
+                    f.write(f"# {key}: {value}\n")
+                for file_path_str, file_hash in self.hashes.items():
+                    f.write(f"{file_path_str}:{file_hash}\n")
         except OSError as e:
             if logger:
-                logger.exception(f"Failed to save manifest to {path}: {e!s}")
-            raise OSError(f"Failed to save manifest to {path}: {e!s}") from e
+                logger.exception(f"Failed to save manifest to {path}")
+            msg = f"Failed to save manifest to {path}: {e!s}"
+            raise OSError(msg) from e
 
     @classmethod
     def load(cls, path: Path) -> "Manifest":
@@ -434,17 +459,27 @@ class Manifest:
             A manifest.
         """
         try:
-            hashes = {}
+            hashes: dict[str, str] = {}
+            header: dict[str, str] = {}
             with path.open("r") as f:
                 for line in f:
-                    if line:
-                        try:
-                            path_str, hash_str = line.strip().split(":")
-                            hashes[Path(path_str)] = hash_str
-                        except ValueError as e:
-                            raise ValueError(
-                                f"Invalid manifest file format at line: {line.strip()}",
-                            ) from e
-            return cls(hashes)
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    if stripped.startswith("#"):
+                        # Header comment line: "# key: value".
+                        key, sep, value = stripped[1:].partition(":")
+                        if sep:
+                            header[key.strip()] = value.strip()
+                        continue
+                    try:
+                        # rsplit on the final colon so relative paths containing ':' parse correctly.
+                        path_str, hash_str = stripped.rsplit(":", 1)
+                        hashes[path_str] = hash_str
+                    except ValueError as e:
+                        msg = f"Invalid manifest file format at line: {stripped}"
+                        raise ValueError(msg) from e
+            return cls(hashes, header=header)
         except OSError as e:
-            raise OSError(f"Failed to load manifest from {path}: {e!s}") from e
+            msg = f"Failed to load manifest from {path}: {e!s}"
+            raise OSError(msg) from e

@@ -4,32 +4,6 @@ Marimba CLI Module - delete and manage Marimba project components.
 This module provides a command-line interface for deleting Marimba projects, pipelines, collections, and
 distribution targets. It utilizes Typer for defining CLI commands and Rich for formatting output.
 
-
-Imports:
-    - os: Provides access to operating system functionality.
-    - pathlib: Provides classes for working with file paths.
-    - typing: Provides type hinting classes.
-    - typer: A library for building command line interfaces.
-    - rich: A library for rich text formatting in the terminal.
-    - marimba.core.utils.constants: Provides constants used in the Marimba project.
-    - marimba.core.utils.log: Provides logging functionality.
-    - marimba.core.utils.prompt: Provides functionality for prompting the user for input.
-    - marimba.core.utils.rich: Provides utility functions for formatting output using Rich.
-    - marimba.core.wrappers.project: Provides a wrapper class for working with Marimba projects.
-    - marimba.core.wrappers.target: Provides a wrapper class for working with Marimba distribution targets.
-
-Classes:
-    - ProjectWrapper: A wrapper class for working with Marimba projects.
-        - NameError: Raised when an invalid name is provided for a project entity.
-        - NoSuchCollectionError: Raised when a specified parent collection does not exist.
-        - CreateCollectionError: Raised when an error occurs while creating a collection.
-    - DistributionTargetWrapper: A wrapper class for working with Marimba distribution targets.
-
-Functions:
-    - project: Creates a new Marimba project.
-    - pipeline: Creates and configures a new Marimba pipeline in a project.
-    - collection: Creates and configures a new Marimba collection in a project.
-    - target: Creates and configures a new distribution target in a project.
 """
 
 from collections.abc import Callable
@@ -37,7 +11,7 @@ from pathlib import Path
 from typing import TypeVar
 
 import typer
-from rich import print
+from rich import print as rprint
 from rich.progress import Progress, SpinnerColumn
 
 from marimba.core.utils.constants import PROJECT_DIR_HELP
@@ -62,7 +36,7 @@ app = typer.Typer(
 T = TypeVar("T")
 
 
-def batch_delete_operation(
+def batch_delete_operation[T](
     items: list[str],
     delete_func: Callable[[str, bool], T],
     entity_type: str,
@@ -88,8 +62,20 @@ def batch_delete_operation(
     def attempt_delete(item_name: str) -> tuple[str, T | None, str | None]:
         try:
             result = delete_func(item_name, dry_run)
+        except (
+            ProjectWrapper.NoSuchCollectionError,
+            ProjectWrapper.NoSuchPipelineError,
+            ProjectWrapper.NoSuchDatasetError,
+            ProjectWrapper.NoSuchTargetError,
+            ProjectWrapper.DeletePipelineError,
+            ProjectWrapper.InvalidNameError,
+            FileExistsError,  # Used by dataset deletion when dataset doesn't exist
+        ) as e:
+            logger.error(f"Error deleting {entity_type} {item_name}: {e}")  # noqa: TRY400
+            return item_name, None, str(e)
         except Exception as e:
-            logger.exception(f"Error deleting {entity_type} {item_name}")
+            # Catch-all for unexpected errors - these should show tracebacks
+            logger.exception(f"Unexpected error deleting {entity_type} {item_name}")
             return item_name, None, str(e)
         else:
             return item_name, result, None
@@ -118,7 +104,7 @@ def print_results(
     """Print the results of a batch deletion operation."""
     if success_items:
         for name, path in success_items:
-            print(
+            rprint(
                 success_panel(
                     f'Deleted {MARIMBA} {format_entity(entity_type)} "{name}" at: "{path}"',
                 ),
@@ -126,7 +112,7 @@ def print_results(
 
     if errors:
         for name, error_msg in errors:
-            print(error_panel(f'Failed to delete {entity_type} "{name}": {error_msg}'))
+            rprint(error_panel(f'Failed to delete {entity_type} "{name}": {error_msg}'))
         raise typer.Exit(code=1)
 
 
@@ -148,7 +134,7 @@ def project(
         logger.info(
             f'Project Deleted {MARIMBA} {format_entity("project")} "{project_wrapper.root_dir}"',
         )
-        print(
+        rprint(
             success_panel(
                 f'Deleted {MARIMBA} {format_entity("project")} "{root_path}"',
             ),
@@ -156,7 +142,7 @@ def project(
     except ProjectWrapper.InvalidStructureError as e:
         error_message = f'A {MARIMBA} {format_entity("project")} not valid project: "{project_dir}"'
         logger.exception(error_message)
-        print(error_panel(error_message))
+        rprint(error_panel(error_message))
         raise typer.Exit(code=1) from e
 
 

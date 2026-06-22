@@ -4,14 +4,6 @@ Marimba Configuration Utilities.
 This module provides functions for loading and saving YAML configuration files. It includes utilities for handling
 file paths and converting YAML data to Python dictionaries.
 
-Imports:
-    - pathlib: Provides classes for handling file system paths.
-    - typing: Provides support for type hints.
-    - yaml: Provides YAML parsing and dumping functionality.
-
-Functions:
-    - load_config: Load a YAML config file and return its contents as a dictionary.
-    - save_config: Save a dictionary as a YAML config file.
 """
 
 from pathlib import Path
@@ -33,6 +25,7 @@ def load_config(config_path: str | Path) -> dict[str, Any]:
     Raises:
         FileNotFoundError: If the config file does not exist.
         yaml.scanner.ScannerError: If the config file is not valid YAML.
+        TypeError: If the configuration data is not a dictionary.
     """
     config_path = Path(config_path)
 
@@ -40,7 +33,8 @@ def load_config(config_path: str | Path) -> dict[str, Any]:
         data = yaml.safe_load(file)
 
         if not isinstance(data, dict):
-            raise TypeError("Configuration data must be a dictionary")
+            msg = "Configuration data must be a dictionary"
+            raise TypeError(msg)
 
     return data
 

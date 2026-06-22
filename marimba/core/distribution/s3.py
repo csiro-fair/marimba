@@ -4,27 +4,12 @@ Marimba S3 Distribution Target.
 This module provides an S3 distribution target class for distributing datasets to an S3 bucket. It allows uploading
 dataset files to a specified S3 bucket using the provided credentials and configuration.
 
-Imports:
-    - pathlib.Path: Provides classes for working with file system paths.
-    - typing.Iterable: Provides generic type hints for iterable objects.
-    - typing.Tuple: Provides generic type hints for tuple objects.
-    - boto3.resource: Provides a resource service client for interacting with AWS services.
-    - boto3.exceptions.S3UploadFailedError: Represents an exception raised when an S3 upload fails.
-    - boto3.s3.transfer.TransferConfig: Represents the configuration for an S3 transfer.
-    - botocore.exceptions.ClientError: Represents an exception raised when an AWS client encounters an error.
-    - rich.progress.DownloadColumn: Provides a progress bar column for tracking download progress.
-    - rich.progress.Progress: Provides a progress bar for tracking the progress of an operation.
-    - rich.progress.SpinnerColumn: Provides a spinning progress indicator column.
-    - marimba.core.distribution.bases.DistributionTargetBase: Provides a base class for distribution targets.
-    - marimba.core.utils.rich.get_default_columns: Provides default columns for the progress bar.
-    - marimba.core.wrappers.dataset.DatasetWrapper: Provides a wrapper class for datasets.
-
-Classes:
-    - S3DistributionTarget: Represents an S3 bucket distribution target for datasets.
 """
 
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from stat import S_ISREG
 
 from boto3 import resource
 from boto3.exceptions import S3UploadFailedError
@@ -33,6 +18,7 @@ from botocore.exceptions import ClientError
 from rich.progress import DownloadColumn, Progress, SpinnerColumn
 
 from marimba.core.distribution.base import DistributionTargetBase
+from marimba.core.utils.constants import S3_MULTIPART_THRESHOLD_BYTES, S3_UPLOAD_MAX_WORKERS
 from marimba.core.utils.rich import get_default_columns
 from marimba.core.wrappers.dataset import DatasetWrapper
 
@@ -74,7 +60,7 @@ class S3DistributionTarget(DistributionTargetBase):
 
         # Define the transfer config
         self._config = TransferConfig(
-            multipart_threshold=100 * 1024 * 1024,
+            multipart_threshold=S3_MULTIPART_THRESHOLD_BYTES,
         )
 
         # TODO @<cjackett>: The _check_bucket() method currently fails on the CSIRO DAP S3
@@ -95,15 +81,18 @@ class S3DistributionTarget(DistributionTargetBase):
     def _iterate_dataset_wrapper(
         self,
         dataset_wrapper: DatasetWrapper,
-    ) -> Iterable[tuple[Path, str]]:
+    ) -> Iterable[tuple[Path, str, int]]:
         """
-        Iterate over a dataset structure and generate (path, key) tuples.
+        Iterate over a dataset structure and generate (path, key, size) tuples.
+
+        Walks the dataset tree once; ``stat()`` is invoked per file on the way through
+        so callers don't need a second pass to compute total upload size.
 
         Args:
             dataset_wrapper: The dataset wrapper to iterate over.
 
         Returns:
-            An iterable of (path, key) tuples.
+            An iterable of ``(path, key, size_bytes)`` tuples, one per file.
         """
 
         def path_to_key(path: Path) -> str:
@@ -120,10 +109,16 @@ class S3DistributionTarget(DistributionTargetBase):
             parts = (self._base_prefix, *rel_path.parts)
             return "/".join(parts)
 
-        # Iterate over all files in the dataset
+        # Single tree walk: stat each file on the way through so the size totalling
+        # doesn't need a second pass.
         for path in dataset_wrapper.root_dir.glob("**/*"):
-            if path.is_file():
-                yield path, path_to_key(path)
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+            if not S_ISREG(stat.st_mode):
+                continue
+            yield path, path_to_key(path), stat.st_size
 
     def _upload(self, path: Path, key: str) -> None:
         """
@@ -136,36 +131,23 @@ class S3DistributionTarget(DistributionTargetBase):
         self._bucket.upload_file(str(path.absolute()), key, Config=self._config)
 
     def _distribute(self, dataset_wrapper: DatasetWrapper) -> None:
+        # Single tree walk: collect (path, key, size) triples in one pass.
         with Progress(SpinnerColumn(), *get_default_columns()) as collection_progress:
-            # Add task for collecting path-key pairs
             collection_task = collection_progress.add_task(
                 "[green]Collecting files to upload",
                 total=None,
             )
             self.logger.info("Started collecting files for upload")
 
-            path_key_tups = []
-            for path_key in self._iterate_dataset_wrapper(dataset_wrapper):
-                path_key_tups.append(path_key)
+            path_key_size_tups: list[tuple[Path, str, int]] = []
+            total_bytes = 0
+            for path, key, size_bytes in self._iterate_dataset_wrapper(dataset_wrapper):
+                path_key_size_tups.append((path, key, size_bytes))
+                total_bytes += size_bytes
                 collection_progress.update(collection_task, advance=1)
 
             collection_progress.update(collection_task)
-            self.logger.info(f"Found {len(path_key_tups)} files to upload")
-
-        # Calculate total size with progress bar
-        with Progress(SpinnerColumn(), *get_default_columns()) as size_progress:
-            size_task = size_progress.add_task(
-                "[green]Calculating total upload size",
-                total=len(path_key_tups),
-            )
-            self.logger.info("Started calculating total upload size")
-
-            total_bytes = 0
-            for path, _ in path_key_tups:
-                total_bytes += path.stat().st_size
-                size_progress.update(size_task, advance=1)
-
-            size_progress.update(size_task)
+            self.logger.info(f"Found {len(path_key_size_tups)} files to upload")
             self.logger.info(f"Total upload size: {total_bytes / (1024 * 1024):.2f} MB")
 
         with Progress(
@@ -175,25 +157,29 @@ class S3DistributionTarget(DistributionTargetBase):
         ) as progress:
             task = progress.add_task("[green]Uploading dataset", total=total_bytes)
 
-            for path, key in path_key_tups:
-                file_bytes = path.stat().st_size
+            # Upload files in parallel. boto3's TransferConfig already parallelises *parts within
+            # a single multipart file*; this loop adds parallelism *between files* so a dataset of
+            # many small-to-medium files saturates available bandwidth instead of stalling per file.
+            with ThreadPoolExecutor(max_workers=S3_UPLOAD_MAX_WORKERS) as executor:
+                futures = {
+                    executor.submit(self._upload, path, key): (path, key, file_bytes)
+                    for path, key, file_bytes in path_key_size_tups
+                }
+                for future in as_completed(futures):
+                    path, key, file_bytes = futures[future]
+                    try:
+                        future.result()
+                    except S3UploadFailedError as e:
+                        msg = f"S3 upload failed while uploading {path} to {key}:\n{e}"
+                        raise DistributionTargetBase.DistributionError(msg) from e
+                    except ClientError as e:
+                        msg = f"AWS client error while uploading {path} to {key}:\n{e}"
+                        raise DistributionTargetBase.DistributionError(msg) from e
+                    except Exception as e:
+                        msg = f"Failed to upload {path} to {key}:\n{e}"
+                        raise DistributionTargetBase.DistributionError(msg) from e
 
-                try:
-                    self._upload(path, key)
-                except S3UploadFailedError as e:
-                    raise DistributionTargetBase.DistributionError(
-                        f"S3 upload failed while uploading {path} to {key}:\n{e}",
-                    ) from e
-                except ClientError as e:
-                    raise DistributionTargetBase.DistributionError(
-                        f"AWS client error while uploading {path} to {key}:\n{e}",
-                    ) from e
-                except Exception as e:
-                    raise DistributionTargetBase.DistributionError(
-                        f"Failed to upload {path} to {key}:\n{e}",
-                    ) from e
-
-                progress.update(task, advance=file_bytes)
+                    progress.update(task, advance=file_bytes)
 
     def distribute(self, dataset_wrapper: DatasetWrapper) -> None:
         """
@@ -208,6 +194,7 @@ class S3DistributionTarget(DistributionTargetBase):
         try:
             return self._distribute(dataset_wrapper)
         except Exception as e:
+            msg = f"Distribution error:\n{e}"
             raise DistributionTargetBase.DistributionError(
-                f"Distribution error:\n{e}",
+                msg,
             ) from e

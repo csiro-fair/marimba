@@ -5,32 +5,6 @@ This module provides functionality for managing Marimba project directories, inc
 and interacting with projects. It includes utility functions and classes to handle keyword arguments, project structure,
 logging, and various wrappers for pipelines, collections, datasets, and distribution targets.
 
-Imports:
-    - ast: Abstract Syntax Trees for parsing Python syntax.
-    - logging: Logging facility for Python.
-    - pathlib.Path: Object-oriented filesystem paths.
-    - typing: Type hints for function signatures and variables.
-    - rich.progress.Progress, rich.progress.SpinnerColumn: Utilities for creating progress bars.
-    - marimba.core.utils.log.LogMixin, marimba.core.utils.log.get_file_handler:
-      Utilities for logging.
-    - marimba.core.utils.prompt.prompt_schema: Utility for prompting schema.
-    - marimba.core.utils.rich.get_default_columns: Utility for default columns in rich progress.
-    - marimba.core.wrappers.collection.CollectionWrapper: Wrapper for collections.
-    - marimba.core.wrappers.dataset.DatasetWrapper: Wrapper for datasets.
-    - marimba.core.wrappers.pipeline.PipelineWrapper: Wrapper for pipelines.
-    - marimba.core.wrappers.target.DistributionTargetWrapper: Wrapper for
-      distribution targets.
-
-Classes:
-    - ProjectWrapper: A class to manage Marimba project directories.
-        - Nested exceptions for various project-related errors.
-        - Methods for creating and wrapping projects, checking file structures, setting up logging, loading pipelines,
-        collections, datasets, and targets, running commands, composing datasets, creating datasets and targets,
-        distributing datasets, importing collections, prompting collection configurations, updating pipelines,
-        and installing pipeline dependencies.
-
-Functions:
-    - get_merged_keyword_args: Merges extra key-value arguments with other keyword arguments.
 """
 
 import ast
@@ -45,6 +19,7 @@ from typing import Any
 
 from rich.progress import Progress, SpinnerColumn
 
+from marimba.core import MarimbaError
 from marimba.core.installer.pipeline_installer import PipelineInstaller
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
 from marimba.core.pipeline import BasePipeline
@@ -52,9 +27,12 @@ from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.dataset import DECORATOR_TYPE
 from marimba.core.utils.log import LogMixin, get_file_handler
-from marimba.core.utils.paths import format_path_for_logging, remove_directory_tree
-from marimba.core.utils.prompt import prompt_schema
+from marimba.core.utils.paths import (
+    format_path_for_logging,
+    remove_directory_tree,
+)
 from marimba.core.utils.rich import get_default_columns
+from marimba.core.wrappers import _collection_schema, _safety
 from marimba.core.wrappers.collection import CollectionWrapper
 from marimba.core.wrappers.dataset import DatasetWrapper
 from marimba.core.wrappers.pipeline import PipelineWrapper
@@ -149,8 +127,9 @@ def execute_import(
     )
 
     if pipeline_instance is None:
+        msg = f"{log_string_prefix}Failed to load pipeline instance for {pipeline_name}"
         raise RuntimeError(
-            f"{log_string_prefix}Failed to load pipeline instance for {pipeline_name}",
+            msg,
         )
 
     # Run the import method
@@ -216,8 +195,9 @@ def execute_process(
     )
 
     if pipeline_instance is None:
+        msg = f"{log_string_prefix}Failed to load pipeline instance for {pipeline_name}"
         raise RuntimeError(
-            f"{log_string_prefix}Failed to load pipeline instance for {pipeline_name}",
+            msg,
         )
 
     # Run the process method
@@ -282,8 +262,9 @@ def execute_packaging(
     )
 
     if pipeline_instance is None:
+        msg = f"{log_string_prefix}Failed to load pipeline instance for {pipeline_name}"
         raise RuntimeError(
-            f"{log_string_prefix}Failed to load pipeline instance for {pipeline_name}",
+            msg,
         )
 
     # Run the package method
@@ -318,67 +299,72 @@ class ProjectWrapper(LogMixin):
     ```
     """
 
-    class InvalidStructureError(Exception):
+    class InvalidStructureError(MarimbaError):
         """
         Raised when the project file structure is invalid.
         """
 
-    class CreatePipelineError(Exception):
+    class CreatePipelineError(MarimbaError):
         """
         Raised when a pipeline cannot be created.
         """
 
-    class CreateCollectionError(Exception):
+    class CreateCollectionError(MarimbaError):
         """
         Raised when a collection cannot be created.
         """
 
-    class RunCommandError(Exception):
+    class RunCommandError(MarimbaError):
         """
         Raised when a command cannot be run.
         """
 
-    class CompositionError(Exception):
+    class CompositionError(MarimbaError):
         """
         Raised when a pipeline cannot compose its data.
         """
 
-    class NoSuchPipelineError(Exception):
+    class NoSuchPipelineError(MarimbaError):
         """
         Raised when a pipeline does not exist in the project.
         """
 
-    class NoSuchCollectionError(Exception):
+    class NoSuchCollectionError(MarimbaError):
         """
         Raised when a collection does not exist in the project.
         """
 
-    class NoSuchDatasetError(Exception):
+    class NoSuchDatasetError(MarimbaError):
         """
         Raised when a dataset does not exist in the project.
         """
 
-    class NoSuchTargetError(Exception):
+    class NoSuchTargetError(MarimbaError):
         """
         Raised when a distribution target does not exist in the project.
         """
 
-    class InvalidNameError(Exception):
+    class InvalidNameError(MarimbaError):
         """
         Raised when an invalid name is used.
         """
 
-    class DeletePipelineError(Exception):
+    class ReadOnlyFilesError(MarimbaError):
+        """
+        Raised when read-only files are detected during packaging.
+        """
+
+    class DeletePipelineError(MarimbaError):
         """
         Raised when a Pipeline cannot be deleted.
         """
 
-    class MarimbaThreadError(Exception):
+    class MarimbaThreadError(MarimbaError):
         """
         Raised when an error occurs within a Marimba thread.
         """
 
-    class MarimbaProcessError(Exception):
+    class MarimbaProcessError(MarimbaError):
         """
         Raised when an error occurs within a Marimba process.
         """
@@ -419,6 +405,7 @@ class ProjectWrapper(LogMixin):
         ] = {}  # target name -> DistributionTargetWrapper instance
 
         self._check_file_structure()
+        self._ensure_subdirectories()
         self._setup_logging()
 
         self._load_pipelines()
@@ -448,7 +435,8 @@ class ProjectWrapper(LogMixin):
 
         # Check that the root directory doesn't already exist
         if root_dir.exists():
-            raise FileExistsError(f'"{root_dir}" already exists')
+            msg = f'"{root_dir}" already exists'
+            raise FileExistsError(msg)
 
         # Create the folder structure
         root_dir.mkdir(parents=True)
@@ -505,11 +493,17 @@ class ProjectWrapper(LogMixin):
 
         def check_dir_exists(path: Path) -> None:
             if not path.is_dir():
+                msg = f'"{path}" does not exist or is not a directory'
                 raise ProjectWrapper.InvalidStructureError(
-                    f'"{path}" does not exist or is not a directory',
+                    msg,
                 )
 
         check_dir_exists(self.root_dir)
+
+    def _ensure_subdirectories(self) -> None:
+        """Create the project's standard subdirectories at construction time if they don't exist."""
+        for sub in ("pipelines", "collections", "datasets", "targets", ".marimba"):
+            (self._root_dir / sub).mkdir(exist_ok=True)
 
     def _setup_logging(self) -> None:
         """
@@ -605,6 +599,8 @@ class ProjectWrapper(LogMixin):
         name: str,
         url: str,
         config: dict[str, Any],
+        *,
+        accept_defaults: bool = False,
     ) -> PipelineWrapper:
         """
         Create a new pipeline.
@@ -613,6 +609,7 @@ class ProjectWrapper(LogMixin):
             name: The name of the pipeline.
             url: URL of the pipeline git repository.
             config: The pipeline configuration.
+            accept_defaults: If True, automatically use default values without prompting.
 
         Returns:
             The pipeline directory wrapper.
@@ -627,8 +624,9 @@ class ProjectWrapper(LogMixin):
         # Check that a pipeline with the same name doesn't already exist
         pipeline_dir = self.pipelines_dir / name
         if pipeline_dir.exists():
+            msg = f'A pipeline with the name "{name}" already exists'
             raise ProjectWrapper.CreatePipelineError(
-                f'A pipeline with the name "{name}" already exists',
+                msg,
             )
 
         # Show warning if there are already collections in the project
@@ -647,11 +645,24 @@ class ProjectWrapper(LogMixin):
         # Add the pipeline to the project
         self._pipeline_wrappers[name] = pipeline_wrapper
 
+        # Install pipeline dependencies before introspecting its config schema.
+        # prompt_pipeline_config dynamically imports the pipeline module via load_pipeline_instance, which fails
+        # if the pipeline declares third-party deps that haven't been installed yet. Installing here lets a fresh
+        # `marimba new pipeline` work without a separate `marimba install` step.
+        try:
+            pipeline_wrapper.install()
+        except PipelineInstaller.InstallError:
+            self.logger.exception(
+                f'Failed to install dependencies for new pipeline "{name}"; '
+                "config-schema introspection may fail if the pipeline imports third-party packages",
+            )
+
         # Configure the pipeline from the command line
         pipeline_config = pipeline_wrapper.prompt_pipeline_config(
             config,
             project_logger=self.logger,
             allow_empty=True,
+            accept_defaults=accept_defaults,
         )
         if pipeline_config is not None:
             pipeline_wrapper.save_config(pipeline_config)
@@ -693,8 +704,9 @@ class ProjectWrapper(LogMixin):
                     f'Deleted pipeline "{name}" at {format_path_for_logging(pipeline_dir, self._root_dir)}',
                 )
         else:
+            msg = f'A pipeline with the name "{name}" does not exist'
             raise ProjectWrapper.DeletePipelineError(
-                f'A pipeline with the name "{name}" does not exist',
+                msg,
             )
         return pipeline_dir
 
@@ -722,8 +734,9 @@ class ProjectWrapper(LogMixin):
         # Check that a collection with the same name doesn't already exist
         collection_dir = self.collections_dir / name
         if collection_dir.exists():
+            msg = f'A collection with the name "{name}" already exists'
             raise ProjectWrapper.CreateCollectionError(
-                f'A collection with the name "{name}" already exists',
+                msg,
             )
 
         # Create the collection directory
@@ -769,8 +782,9 @@ class ProjectWrapper(LogMixin):
                 f'Deleted collection "{name}" at {format_path_for_logging(collection_dir, self._root_dir)}',
             )
         else:
+            msg = f'A collection with the name "{name}" does not exist'
             raise ProjectWrapper.NoSuchCollectionError(
-                f'A collection with the name "{name}" does not exist',
+                msg,
             )
         return collection_dir
 
@@ -786,8 +800,9 @@ class ProjectWrapper(LogMixin):
         for pipeline_name in pipeline_names:
             pipeline_wrapper = self._pipeline_wrappers.get(pipeline_name)
             if pipeline_wrapper is None:
+                msg = f'Pipeline "{pipeline_name}" does not exist within the project'
                 raise ProjectWrapper.RunCommandError(
-                    f'Pipeline "{pipeline_name}" does not exist within the project',
+                    msg,
                 )
             pipeline_wrappers_to_run[pipeline_name] = pipeline_wrapper
 
@@ -795,23 +810,13 @@ class ProjectWrapper(LogMixin):
         for collection_name in collection_names:
             collection_wrapper = self._collection_wrappers.get(collection_name)
             if collection_wrapper is None:
+                msg = f'Collection "{collection_name}" does not exist within the project.'
                 raise ProjectWrapper.RunCommandError(
-                    f'Collection "{collection_name}" does not exist within the project.',
+                    msg,
                 )
             collection_wrappers_to_run[collection_name] = collection_wrapper
 
         return pipeline_wrappers_to_run, collection_wrappers_to_run
-
-    def _check_command_exists(
-        self,
-        pipelines_to_run: dict[str, Any],
-        command_name: str,
-    ) -> None:
-        for run_pipeline_name, run_pipeline in pipelines_to_run.items():
-            if not hasattr(run_pipeline, command_name):
-                raise ProjectWrapper.RunCommandError(
-                    f'Command "{command_name}" does not exist for pipeline "{run_pipeline_name}".',
-                )
 
     def _create_command_tasks(
         self,
@@ -960,8 +965,9 @@ class ProjectWrapper(LogMixin):
                         message = future.result()
                         self.logger.info(f"{log_string_prefix}{message}")
                     except Exception as e:
+                        msg = f"{log_string_prefix}{e}"
                         raise ProjectWrapper.MarimbaProcessError(
-                            f"{log_string_prefix}{e}",
+                            msg,
                         ) from e
                     finally:
                         progress.advance(tasks_by_pipeline_name[pipeline_name])
@@ -1152,14 +1158,17 @@ class ProjectWrapper(LogMixin):
                 for future in as_completed(futures):
                     pipeline_name, collection_name, log_string_prefix = futures[future]
                     try:
-                        (pipeline_data_mapping, message) = future.result()
+                        pipeline_data_mapping, message = future.result()
                         self.logger.info(f"{log_string_prefix}{message}")
                         dataset_mapping[pipeline_name][collection_name].update(pipeline_data_mapping)
                     except Exception as e:
-                        raise ProjectWrapper.CompositionError(
+                        msg = (
                             f"{log_string_prefix}"
                             f'Pipeline "{pipeline_name}" failed to compose its data for collection '
-                            f'"{collection_name}":\n{e}',
+                            f'"{collection_name}":\n{e}'
+                        )
+                        raise ProjectWrapper.CompositionError(
+                            msg,
                         ) from e
                     finally:
                         progress.advance(task)
@@ -1190,6 +1199,10 @@ class ProjectWrapper(LogMixin):
         zoom: int | None = None,
         max_workers: int | None = None,
         metadata_saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
+        *,
+        force: bool = False,
+        exif_chunk_size: int | None = None,
+        allow_destination_collisions: bool = False,
     ) -> DatasetWrapper:
         """
         Create a Marimba dataset from a dataset mapping.
@@ -1207,6 +1220,10 @@ class ProjectWrapper(LogMixin):
             max_workers: The maximum number of worker processes to use. If None, uses all available CPU cores.
             metadata_saver_overwrite: Saving function overwriting the default metadata saving function.
                 Defaults to None.
+            force: Skip hard-link warning prompts and proceed with packaging. Defaults to False.
+            exif_chunk_size: Chunk size for EXIF metadata processing. If None, uses adaptive sizing. Defaults to None.
+            allow_destination_collisions: Allow multiple source files to map to the same destination path.
+                Uses the first source file encountered. Defaults to False.
 
         Returns:
             A DatasetWrapper instance representing the created dataset.
@@ -1231,6 +1248,13 @@ class ProjectWrapper(LogMixin):
             metadata_saver=metadata_saver_overwrite,
         )
 
+        # Check for read-only files that will fail EXIF writing during packaging (fail fast)
+        self._check_readonly_files_and_fail(dataset_mapping)
+
+        # Check for hard-linked files that will be modified during packaging
+        if not force and operation == Operation.link:
+            self._check_hardlinks_and_warn(dataset_mapping)
+
         # Populate it
         dataset_wrapper.populate(
             dataset_name,
@@ -1243,16 +1267,19 @@ class ProjectWrapper(LogMixin):
             operation=operation,
             zoom=zoom,
             max_workers=max_workers,
+            exif_chunk_size=exif_chunk_size,
+            allow_destination_collisions=allow_destination_collisions,
         )
 
-        # Validate it
+        # Validate it. Walk the dataset tree once and reuse the list across the
+        # progress total and the manifest-validate hash pass.
         with Progress(SpinnerColumn(), *get_default_columns()) as progress:
             globbed_files = list(dataset_wrapper.root_dir.glob("**/*"))
             task = progress.add_task(
                 "[green]Validating dataset (12/12)",
                 total=len(globbed_files),
             )
-            dataset_wrapper.validate(progress, task)
+            dataset_wrapper.validate(progress, task, files=globbed_files)
             dataset_wrapper.logger.info(
                 f'Packaged dataset "{dataset_name}" has been validated against the manifest',
             )
@@ -1294,7 +1321,7 @@ class ProjectWrapper(LogMixin):
 
         Raises:
             ProjectWrapper.NameError: If the name is invalid.
-            FileExistsError: If the dataset root directory does not exist.
+            ProjectWrapper.NoSuchDatasetError: If the dataset does not exist.
         """
         # Check the name is valid
         ProjectWrapper.check_name(dataset_name)
@@ -1308,7 +1335,8 @@ class ProjectWrapper(LogMixin):
                     f'Deleted dataset "{dataset_name}" at {format_path_for_logging(dataset_root_dir, self._root_dir)}',
                 )
         else:
-            raise FileExistsError(f'"{dataset_root_dir}" dataset does not exist')
+            msg = f'A dataset with the name "{dataset_name}" does not exist'
+            raise ProjectWrapper.NoSuchDatasetError(msg)
         return dataset_root_dir
 
     def create_target(
@@ -1349,7 +1377,8 @@ class ProjectWrapper(LogMixin):
             target_wrapper,
             DistributionTargetWrapper,
         ):
-            raise ValueError("Expected a DistributionTargetWrapper instance")
+            msg = "Expected a DistributionTargetWrapper instance"
+            raise ValueError(msg)
 
         self._target_wrappers[target_name] = target_wrapper
         self.logger.info(
@@ -1372,7 +1401,7 @@ class ProjectWrapper(LogMixin):
 
         Raises:
             ProjectWrapper.NameError: If the name is invalid.
-            FileExistsError: If the target not found.
+            ProjectWrapper.NoSuchTargetError: If the target does not exist.
         """
         # Check the name is valid
         ProjectWrapper.check_name(target_name)
@@ -1385,7 +1414,8 @@ class ProjectWrapper(LogMixin):
                     f'"{format_path_for_logging(target_config_path, self._root_dir)}"',
                 )
         else:
-            raise FileExistsError(f'"{target_config_path}"target does not exist')
+            msg = f'A distribution target with the name "{target_name}" does not exist'
+            raise ProjectWrapper.NoSuchTargetError(msg)
         return target_config_path
 
     def distribute(
@@ -1421,7 +1451,8 @@ class ProjectWrapper(LogMixin):
         if dataset_wrapper is None:
             raise ProjectWrapper.NoSuchDatasetError(dataset_name)
 
-        # Validate the dataset
+        # Validate the dataset. One tree walk feeds both the progress total and
+        # the manifest-validate hash pass.
         if validate:
             with Progress(SpinnerColumn(), *get_default_columns()) as progress:
                 globbed_files = list(dataset_wrapper.root_dir.glob("**/*"))
@@ -1429,7 +1460,7 @@ class ProjectWrapper(LogMixin):
                     f"[green]Validating dataset {dataset_name}",
                     total=len(globbed_files),
                 )
-                dataset_wrapper.validate(progress, task)
+                dataset_wrapper.validate(progress, task, files=globbed_files)
                 progress.advance(task)
 
         # Get the distribution target wrapper
@@ -1510,7 +1541,7 @@ class ProjectWrapper(LogMixin):
             tasks_by_pipeline_name = {
                 pipeline_name: progress.add_task(
                     f"[green]Importing data for pipeline {pipeline_name}",
-                    total=num_pipelines,
+                    total=num_sources,
                 )
                 for pipeline_name in pipeline_wrappers_to_run
             }
@@ -1567,8 +1598,9 @@ class ProjectWrapper(LogMixin):
                         message = future.result()
                         self.logger.info(f"{log_string_prefix}{message}")
                     except Exception as e:
+                        msg = f"{log_string_prefix}{e}"
                         raise ProjectWrapper.MarimbaThreadError(
-                            f"{log_string_prefix}{e}",
+                            msg,
                         ) from e
                     finally:
                         progress.advance(tasks_by_pipeline_name[pipeline_name])
@@ -1581,6 +1613,8 @@ class ProjectWrapper(LogMixin):
         self,
         parent_collection_name: str | None = None,
         config: dict[str, Any] | None = None,
+        *,
+        accept_defaults: bool = False,
     ) -> dict[str, Any]:
         """
         Prompt the user for a collection configuration using predefined schemas and optional parent collection settings.
@@ -1589,6 +1623,7 @@ class ProjectWrapper(LogMixin):
             parent_collection_name (Optional[str]): The name of the parent collection. Defaults to the last modified
             collection if unspecified.
             config (Optional[Dict[str, Any]]): Initial configuration values, if any.
+            accept_defaults (bool): If True, automatically use default values without prompting. Defaults to False.
 
         Returns:
             Dict[str, Any]: The complete collection configuration.
@@ -1604,125 +1639,126 @@ class ProjectWrapper(LogMixin):
             resolved_collection_schema,
             parent_collection_name,
         )
-        return self._collect_final_config(resolved_collection_schema, config)
+        return self._collect_final_config(resolved_collection_schema, config, accept_defaults=accept_defaults)
 
     def _get_unified_collection_schema(self) -> dict[str, Any]:
-        """Aggregate collection config schemas from all pipelines in the project."""
-        schema: dict[str, Any] = {}
-        for pipeline_wrapper in self.pipeline_wrappers.values():
-            pipeline = pipeline_wrapper.get_instance()
-            if pipeline is None:
-                raise RuntimeError(
-                    f"Failed to load pipeline instance for '{pipeline_wrapper.name}'. "
-                    "Pipeline may be invalid or empty.",
-                )
-            schema.update(pipeline.get_collection_config_schema())
-        return schema
+        return _collection_schema.get_unified_collection_schema(self.pipeline_wrappers)
 
-    def _resolve_parent_collection_name(
-        self,
-        parent_collection_name: str | None,
-    ) -> str | None:
-        """Determine the appropriate parent collection name if not specified."""
-        if parent_collection_name is None:
-            parent_collection_name = self._get_last_modified_collection_name()
-            if parent_collection_name:
-                self.logger.info(
-                    f'Using last collection "{parent_collection_name}" as parent',
-                )
-        return parent_collection_name
+    def _resolve_parent_collection_name(self, parent_collection_name: str | None) -> str | None:
+        return _collection_schema.resolve_parent_collection_name(
+            parent_collection_name,
+            self.collection_wrappers,
+            self.logger,
+        )
 
     def _get_last_modified_collection_name(self) -> str | None:
-        """Fetch the name of the last modified collection."""
-        if not self.collection_wrappers:
-            return None
-        return max(
-            self.collection_wrappers,
-            key=lambda k: self.collection_wrappers[k].root_dir.stat().st_mtime,
-        )
+        return _collection_schema.get_last_modified_collection_name(self.collection_wrappers)
 
     def _update_schema_with_parent_config(
         self,
         schema: dict[str, Any],
         parent_collection_name: str | None,
     ) -> None:
-        """Update the schema based on the configuration of the parent collection, if applicable."""
-        if parent_collection_name:
-            parent_wrapper = self.collection_wrappers.get(parent_collection_name)
-            if parent_wrapper is None:
-                raise ProjectWrapper.NoSuchCollectionError(parent_collection_name)
-            parent_config = parent_wrapper.load_config()
-            schema.update(parent_config)
-            self.logger.info(
-                f'Using parent collection "{parent_collection_name}" with config: {parent_config}',
+        try:
+            _collection_schema.update_schema_with_parent_config(
+                schema,
+                parent_collection_name,
+                self.collection_wrappers,
+                self.logger,
             )
+        except _collection_schema.NoSuchParentCollectionError as exc:
+            raise ProjectWrapper.NoSuchCollectionError(str(exc)) from exc
 
     def _collect_final_config(
         self,
         schema: dict[str, Any],
         provided_config: dict[str, Any] | None,
+        *,
+        accept_defaults: bool = False,
     ) -> dict[str, Any]:
-        """Combine the user-provided config with additional prompted entries from the schema."""
-        final_config = provided_config or {}
-        # Prepopulate with existing config and remove keys that will not be prompted
-        for key in list(schema.keys()):
-            if key in final_config:
-                del schema[key]  # Remove the key so it won't be prompted
+        return _collection_schema.collect_final_config(
+            schema,
+            provided_config,
+            self.logger,
+            accept_defaults=accept_defaults,
+        )
 
-        # Prompt for additional configuration and update
-        if schema:
-            additional_config = prompt_schema(schema)
-            if additional_config:  # Ensure additional_config is not None
-                final_config.update(additional_config)
-
-        self.logger.info(f"Provided collection config={final_config}")
-        return final_config
+    class UpdatePipelinesError(MarimbaError):
+        """Raised when one or more pipeline updates fail."""
 
     def update_pipelines(self) -> None:
         """
         Update all pipelines in the project.
+
+        Raises:
+            ProjectWrapper.UpdatePipelinesError: If one or more pipelines fail to update.
         """
+        failed_pipelines: list[str] = []
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
             self.logger.info(f'Updating pipeline "{pipeline_name}"')
             try:
                 pipeline_wrapper.update()
+            except (OSError, ValueError):
+                self.logger.exception(
+                    f'Failed to update pipeline "{pipeline_name}" due to an I/O or value error',
+                )
+                failed_pipelines.append(pipeline_name)
+            except Exception:
+                self.logger.exception(
+                    f'Failed to update pipeline "{pipeline_name}" due to an unexpected error',
+                )
+                failed_pipelines.append(pipeline_name)
+            else:
                 self.logger.info(f'Updated pipeline "{pipeline_name}"')
-            # TODO @<cjackett>: Raise these exceptions and handle in marimba.py
-            except (OSError, ValueError) as e:
-                self.logger.exception(
-                    f'Failed to update pipeline "{pipeline_name}" due to an I/O or value error: {e}',
-                )
-            except Exception as e:
-                self.logger.exception(
-                    f'Failed to update pipeline "{pipeline_name}" due to an unexpected error: {e}',
-                )
+
+        if failed_pipelines:
+            msg = f"Failed to update pipeline(s): {', '.join(failed_pipelines)}"
+            raise ProjectWrapper.UpdatePipelinesError(msg)
+
+    class InstallPipelinesError(MarimbaError):
+        """Raised when one or more pipeline dependency installs fail."""
 
     def install_pipelines(self) -> None:
         """
         Install all pipelines dependencies in the project into the current environment.
+
+        Raises:
+            ProjectWrapper.InstallPipelinesError: If one or more pipelines fail to install.
         """
+        failed_pipelines: list[str] = []
         for pipeline_name, pipeline_wrapper in self.pipeline_wrappers.items():
-            self._install_single_pipeline(pipeline_name, pipeline_wrapper)
+            if not self._install_single_pipeline(pipeline_name, pipeline_wrapper):
+                failed_pipelines.append(pipeline_name)
+
+        if failed_pipelines:
+            msg = f"Failed to install dependencies for pipeline(s): {', '.join(failed_pipelines)}"
+            raise ProjectWrapper.InstallPipelinesError(msg)
 
     def _install_single_pipeline(
         self,
         pipeline_name: str,
         pipeline_wrapper: PipelineWrapper,
-    ) -> None:
+    ) -> bool:
         """
         Install a single pipeline and log the result.
 
         Args:
             pipeline_name: Name of the pipeline to install
             pipeline_wrapper: Pipeline wrapper instance to install
+
+        Returns:
+            True if installation succeeded, False otherwise.
         """
         try:
             pipeline_wrapper.install()
-            self.logger.info(f'Installed dependencies for pipeline "{pipeline_name}"')
         except PipelineInstaller.InstallError:
             self.logger.exception(
                 f'Failed to install dependencies for pipeline "{pipeline_name}"',
             )
+            return False
+        else:
+            self.logger.info(f'Installed dependencies for pipeline "{pipeline_name}"')
+            return True
 
     @property
     def pipeline_wrappers(self) -> dict[str, PipelineWrapper]:
@@ -1761,48 +1797,28 @@ class ProjectWrapper(LogMixin):
 
     @property
     def pipelines_dir(self) -> Path:
-        """
-        The pipelines directory of the project.
-        """
-        pipelines_dir = self.root_dir / "pipelines"
-        pipelines_dir.mkdir(exist_ok=True)
-        return pipelines_dir
+        """The pipelines directory of the project (ensured to exist at construction)."""
+        return self.root_dir / "pipelines"
 
     @property
     def collections_dir(self) -> Path:
-        """
-        The collections directory of the project.
-        """
-        collections_dir = self.root_dir / "collections"
-        collections_dir.mkdir(exist_ok=True)
-        return collections_dir
+        """The collections directory of the project (ensured to exist at construction)."""
+        return self.root_dir / "collections"
 
     @property
     def datasets_dir(self) -> Path:
-        """
-        The datasets directory of the project.
-        """
-        distributions_dir = self.root_dir / "datasets"
-        distributions_dir.mkdir(exist_ok=True)
-        return distributions_dir
+        """The datasets directory of the project (ensured to exist at construction)."""
+        return self.root_dir / "datasets"
 
     @property
     def marimba_dir(self) -> Path:
-        """
-        The Marimba directory of the project.
-        """
-        marimba_dir = self.root_dir / ".marimba"
-        marimba_dir.mkdir(exist_ok=True)
-        return marimba_dir
+        """The Marimba directory of the project (ensured to exist at construction)."""
+        return self.root_dir / ".marimba"
 
     @property
     def targets_dir(self) -> Path:
-        """
-        The distribution targets directory of the project.
-        """
-        targets_dir = self.root_dir / "targets"
-        targets_dir.mkdir(exist_ok=True)
-        return targets_dir
+        """The distribution targets directory of the project (ensured to exist at construction)."""
+        return self.root_dir / "targets"
 
     @property
     def log_path(self) -> Path:
@@ -1824,6 +1840,33 @@ class ProjectWrapper(LogMixin):
         Whether the project is in dry-run mode.
         """
         return self._dry_run
+
+    def _check_hardlinks_and_warn(
+        self,
+        dataset_mapping: dict[
+            str,
+            dict[
+                str,
+                dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
+            ],
+        ],
+    ) -> None:
+        _safety.check_hardlinks_and_warn(dataset_mapping, self.logger)
+
+    def _prompt_user_for_hard_link_continuation(self) -> None:
+        _safety.prompt_user_for_hard_link_continuation(self.logger)
+
+    def _check_readonly_files_and_fail(
+        self,
+        dataset_mapping: dict[
+            str,
+            dict[
+                str,
+                dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
+            ],
+        ],
+    ) -> None:
+        _safety.check_readonly_files_and_fail(dataset_mapping, self.logger, ProjectWrapper.ReadOnlyFilesError)
 
     @staticmethod
     def check_name(name: str) -> None:

@@ -10,6 +10,8 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 from staticmap import CircleMarker, StaticMap
 
+from marimba.core import NetworkConnectionError
+
 # Type variable for comparable types
 T = TypeVar("T", bound="SupportsRichComparison")
 SupportsRichComparison = object
@@ -29,12 +31,6 @@ LABEL_WIDTH = 10  # Fixed width allocated for latitude labels
 BASE_DASH_PADDING = 60  # Base padding between label and dash
 PADDING_PER_DECIMAL = 8  # Additional padding per decimal place
 MIN_DECIMAL_PLACES = 2  # Minimum number of decimal places
-
-
-class NetworkConnectionError(Exception):
-    """
-    Raised when there is a network connection error.
-    """
 
 
 def lat_to_y(lat: float, zoom: int) -> float:
@@ -283,9 +279,9 @@ def calculate_zoom_level(
     lon_range = max(lon_range, min_range)
 
     # Add padding to prevent points being too close to edges
-    padding_factor = 0.2  # 20% padding
-    lat_range = lat_range * (1 + padding_factor)
-    lon_range = lon_range * (1 + padding_factor)
+    padding_factor = 1.2  # 20% padding (1.0 + 0.2)
+    lat_range = lat_range * padding_factor
+    lon_range = lon_range * padding_factor
 
     # Convert to pixels (assuming 256 pixel tiles)
     pixels_per_tile = 256
@@ -382,7 +378,7 @@ def make_summary_map(
         center_lon = (min_lon + max_lon) / 2
 
         # Render the map with calculated zoom and center
-        image = cast(Image.Image, m.render(zoom=zoom, center=[center_lon, center_lat]))
+        image = cast("Image.Image", m.render(zoom=zoom, center=[center_lon, center_lat]))
 
         # Calculate the actual visible bounds based on the zoom level
         min_lat, max_lat, min_lon, max_lon = calculate_visible_bounds(
@@ -408,6 +404,7 @@ def make_summary_map(
             zoom,
         )
     except requests.exceptions.ConnectionError:
-        raise NetworkConnectionError("Unable to render the map") from None
+        msg = "Unable to render the map"
+        raise NetworkConnectionError(msg) from None
     else:
         return image

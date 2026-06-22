@@ -1,0 +1,40 @@
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "Australia/Hobart"
+    open-pull-requests-limit: 5
+    groups:
+      aws-sdk:
+        patterns:
+          - "boto3"
+          - "botocore"
+          - "s3transfer"
+      dev-dependencies:
+        patterns:
+          - "black"
+          - "ruff"
+          - "mypy"
+          - "pytest*"
+          - "bandit"
+          - "pre-commit"
+          - "hatch"
+          - "twine"
+          - "deptry"
+          - "vulture"
+          - "types-*"
+    labels:
+      - "dependencies"
+      - "automated"
+
+  - package-ecosystem: github-actions
+    directory: "/.github/workflows"
+    schedule:
+      interval: monthly
+    labels:
+      - "dependencies"
+      - "automated"

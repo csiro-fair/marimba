@@ -4,17 +4,6 @@ Marimba Standard Library Decorators.
 This module provides a decorator for easily processing items in a multithreaded manner,
 as well as supporting type definitions and common imports.
 
-Imports:
-    - logging: Logging utilities for recording errors and other events.
-    - concurrent.futures.ThreadPoolExecutor: A thread pool executor for concurrent processing.
-    - concurrent.futures.as_completed: A function to iterate over completed futures.
-    - functools.wraps: A decorator to preserve metadata of wrapped functions.
-    - typing.Any: A type hint indicating any type is accepted.
-    - typing.Callable: A type hint for callable objects such as functions.
-    - typing.Iterable: A type hint for objects that can be iterated over.
-
-Functions:
-    - multithreaded: A decorator to process items in a multithreaded manner.
 """
 
 import logging
@@ -30,12 +19,22 @@ from marimba.core.utils.log import get_logger
 T = TypeVar("T", bound=Callable[..., Any])
 
 
-def multithreaded(max_workers: int | None = None) -> Callable[[T], T]:
+def multithreaded(
+    max_workers: int | None = None,
+    *,
+    allow_partial: bool = False,
+) -> Callable[[T], T]:
     """
     Multithreaded method decorator.
 
+    By default, a worker exception is logged and then re-raised after all in-flight workers settle (mirroring the
+    abort-on-first-failure semantics of ``concurrent.futures.ProcessPoolExecutor`` callers in ``ProjectWrapper``).
+    Set ``allow_partial=True`` to suppress the re-raise and return a partial-results list instead.
+
     Args:
         max_workers: Maximum number of worker threads to use. Defaults to None (uses ThreadPoolExecutor default).
+        allow_partial: If True, log worker exceptions and return a partial-results list. If False (default),
+            log and re-raise the first worker exception after the executor drains.
 
     Returns:
         The decorated function.
@@ -51,12 +50,14 @@ def multithreaded(max_workers: int | None = None) -> Callable[[T], T]:
             **kwargs: Any,  # noqa: ANN401
         ) -> list[Any]:
             if not isinstance(items, Sized):
-                raise TypeError("items must be a Sized iterable")
+                msg = "items must be a Sized iterable"
+                raise TypeError(msg)
 
             # Use the provided logger if available, otherwise use the module logger
             log = logger or get_logger(__name__)
 
             results = []
+            first_exception: BaseException | None = None
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
                     executor.submit(
@@ -75,10 +76,15 @@ def multithreaded(max_workers: int | None = None) -> Callable[[T], T]:
                     try:
                         result = future.result()
                         results.append(result)
-                    except Exception as e:
-                        log.exception(f"Error processing {item}: {e}")
+                    except Exception as exc:
+                        log.exception(f"Error processing {item}")
+                        if first_exception is None:
+                            first_exception = exc
+
+            if first_exception is not None and not allow_partial:
+                raise first_exception
             return results
 
-        return cast(T, wrapper)
+        return cast("T", wrapper)
 
     return decorator

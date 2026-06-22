@@ -14,6 +14,8 @@ import dataclasses
 import shutil
 import subprocess
 
+from marimba.core import MarimbaError
+
 
 @dataclasses.dataclass
 class ExecutorResult:
@@ -30,7 +32,7 @@ class UvExecutor:
     Executor for uv pip commands.
     """
 
-    class UvError(Exception):
+    class UvError(MarimbaError):
         """
         Exception raised when a uv pip command fails.
         """
@@ -54,7 +56,8 @@ class UvExecutor:
         """
         uv_path = shutil.which("uv")
         if uv_path is None:
-            raise cls.UvError("uv executable not found in PATH")
+            msg = "uv executable not found in PATH"
+            raise cls.UvError(msg)
 
         return cls(uv_path)
 
@@ -74,19 +77,21 @@ class UvExecutor:
             stderr=subprocess.PIPE,
         ) as process:
             output, error = process.communicate()
-            self._handle_uv_error(process.returncode)
+            self._handle_uv_error(process.returncode, error.decode())
 
             return ExecutorResult(output.decode(), error.decode())
 
-    def _handle_uv_error(self, return_code: int) -> None:
+    def _handle_uv_error(self, return_code: int, stderr: str = "") -> None:
         """
-        Handle uv pip installation errors by raising appropriate exceptions.
+        Handle uv pip command errors by raising appropriate exceptions.
 
         Args:
-            return_code: The return code from uv pip installation process
+            return_code: The return code from uv pip command process
+            stderr: The stderr output from the uv pip command
 
         Raises:
-            UvError: If uv pip installation fails
+            UvError: If uv pip command fails
         """
         if return_code != 0:
-            raise self.UvError(f"uv pip install had a non-zero return code: {return_code}")
+            msg = f"uv pip command failed (return code {return_code}): {stderr.strip()}"
+            raise self.UvError(msg)

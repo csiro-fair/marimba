@@ -1,15 +1,15 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://marine-imaging.com/fair/schemas/ifdo-v2.1.0.json",
+    "$id": "http://hdl.handle.net/20.500.12085/22aba7d7-c432-49ab-bebe-ee8ed4f70150",
     "title": "image FAIR Digital Object",
     "description": "An iFDO file is a human- and machine-readable file format collecting metadata of an entire image set, without including the actual image data, only references to it through persistent identifiers.",
     "type": "object",
     "$defs": {
-        "uuid":{
+        "uuid": {
             "type": "string",
             "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[4][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$|^[0-9a-fA-F]{12}4[0-9a-fA-F]{3}[89abAB][0-9a-fA-F]{15}$"
         },
-        "iFDO-fields": {
+        "iFDO-core-fields": {
             "type": "object",
             "properties": {
                 "image-set-name": {
@@ -59,7 +59,7 @@
                     "type": "string"
                 },
                 "image-coordinate-uncertainty-meters": {
-                    "description": "The average/static uncertainty of coordinates in this dataset, given in meters. Computed e.g. as the standard deviation of coordinate corrections during smoothing / splining.",
+                    "description": "The average/static horizontal uncertainty of coordinates in this dataset, given in meters computed from image-latitude and image-longitude only (no vertical or temporal uncertainty). Computed e.g. as the standard deviation of coordinate corrections during smoothing / splining",
                     "type": "number",
                     "minimum": 0
                 },
@@ -77,7 +77,9 @@
                             "description": "A URI pointing to details of the context"
                         }
                     },
-                    "required": ["name"]
+                    "required": [
+                        "name"
+                    ]
                 },
                 "image-project": {
                     "description": "The more specific project or expedition or cruise or experiment or ... within which the image set was created.",
@@ -93,7 +95,9 @@
                             "description": "A URI pointing to details of the project"
                         }
                     },
-                    "required": ["name"]
+                    "required": [
+                        "name"
+                    ]
                 },
                 "image-event": {
                     "description": "One event of a project or expedition or cruise or experiment or ... that led to the creation of this image set.",
@@ -109,10 +113,12 @@
                             "description": "A URI pointing to details of the event"
                         }
                     },
-                    "required": ["name"]
+                    "required": [
+                        "name"
+                    ]
                 },
                 "image-platform": {
-                    "description": "A URI pointing to a description of the camera platform used to create this image set",
+                    "description": "A vehicle, structure or organism (e.g. a diver) bearing a camera.",
                     "type": "object",
                     "properties": {
                         "name": {
@@ -125,10 +131,12 @@
                             "description": "A URI pointing to details of the platform"
                         }
                     },
-                    "required": ["name"]
+                    "required": [
+                        "name"
+                    ]
                 },
                 "image-sensor": {
-                    "description": "A URI pointing to a description of the sensor used to create this image set.",
+                    "description": "The photographic equipment used to record the visual image. Includes stills, video, film and digital systems. (SeaDataNet device categories (http://vocab.nerc.ac.uk/collection/L05/current/), SeaDataNet (British Oceanographic Data Centre 2025))",
                     "type": "object",
                     "properties": {
                         "name": {
@@ -141,7 +149,9 @@
                             "description": "A URI pointing to details of the sensor"
                         }
                     },
-                    "required": ["name"]
+                    "required": [
+                        "name"
+                    ]
                 },
                 "image-uuid": {
                     "description": "A (random) UUID for the individual image file (still or moving). This UUID needs to be embedded within the image files. For still images in the exif tag 'ImageUniqueID', for videos in the XMP tag 'identifier' in the  Dublin Core namespace. For Matroska video containers the first 'Segment UID' is used.",
@@ -167,12 +177,16 @@
                             "description": "A URI pointing to details of the PI. Could be ORCID URI"
                         }
                     },
-                    "required": ["name"]
+                    "required": [
+                        "name"
+                    ]
                 },
                 "image-creators": {
-                    "description": "A list containing dicts for all creators containing:",
+                    "description": "Information identifying the people who contributed to the creation of the dataset and image items",
                     "type": "array",
+                    "minItems": 1,
                     "items": {
+                        "type": "object",
                         "properties": {
                             "name": {
                                 "type": "string",
@@ -184,15 +198,28 @@
                                 "description": "A URI pointing to details of the creator. Could be ORCID URI"
                             }
                         },
-                        "required": ["name"]
+                        "required": [
+                            "name"
+                        ]
                     }
                 },
                 "image-license": {
-                    "description": "A URL pointing to the license to use the data (should be FAIR, e.g. **CC-BY** or CC-0)",
+                    "description": "License to use the data (should be FAIR, e.g. **CC-BY** or CC-0)",
                     "type": "object",
                     "properties": {
                         "name": {
                             "type": "string",
+                            "anyOf": [
+                                {
+                                    "const": "CC-0",
+                                    "description": "No Rights Reserved"
+                                },
+                                {
+                                    "const": "CC-BY",
+                                    "description": "Credit must be given to the creator."
+                                },
+                                {}
+                            ],
                             "description": "The name of the license"
                         },
                         "uri": {
@@ -201,7 +228,9 @@
                             "description": "A URI pointing to details of the license"
                         }
                     },
-                    "required": ["name"]
+                    "required": [
+                        "name"
+                    ]
                 },
                 "image-copyright": {
                     "description": "Copyright statement or contact person or office",
@@ -214,9 +243,78 @@
                 "image-set-local-path": {
                     "description": "Local relative or absolute path to a directory in which (also its sub-directories), the referenced image files are located. Absolute paths must start with and relative paths without path separator (ignoring drive letters on windows). The default is the relative path `../raw`.",
                     "type": "string"
+                }
+            },
+            "@context": [
+                {
+                    "title": "DataCite",
+                    "datacite": "http://schema.datacite.org/meta/kernel-4.5/metadata.xsd",
+                    "image-set-handle": "datacite:identifier",
+                    "image-pi": "datacite:creator",
+                    "image-name": "datacite:title",
+                    "image-datetime": "datacite:date",
+                    "image-license": "datacite:rights",
+                    "image-abstract": "datacite:description"
                 },
+                {
+                    "title": "Darwin Core",
+                    "dwc": "http://rs.tdwg.org/dwc/terms/",
+                    "image-set-name": "dwc:datasetName",
+                    "image-set-uuid": "dwc:datasetID",
+                    "image-latitude": "dwc:decimalLatitude",
+                    "image-longitude": "dwc:decimalLongitude",
+                    "image-altitude-meters": "dwc:verbatimElevation",
+                    "image-coordinate-reference-system": "dwc:verbatimSRS",
+                    "image-coordinate-uncertainty-meters": "dwc:coordinatePrecision",
+                    "image-uuid": "dwc:eventID"
+                },
+                {
+                    "title": "Dublin Core",
+                    "dc": "http://purl.org/dc/terms/",
+                    "image-datetime": "dc:eventData",
+                    "image-creators": "dc:rightsHolder",
+                    "image-license": "dc:license"
+                },
+                {
+                    "title": "Audiovisual Core",
+                    "ac": "http://rs.tdwg.org/ac/terms/",
+                    "image-set-handle": "ac:accessURI",
+                    "image-datetime": "ac:startTime",
+                    "image-sensor": "ac:captureDevice",
+                    "image-hash-sha256": "ac:hashValue"
+                },
+                {
+                    "title": "Schema.org",
+                    "@vocab": "https://schema.org",
+                    "image-set-name": "name",
+                    "image-set-uuid": "identifier",
+                    "image-datetime": "dateCreated",
+                    "image-project": "isPartOf",
+                    "image-creators": "creator",
+                    "image-license": "license"
+                },
+                {
+                    "title": "PDS4",
+                    "pds": "https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1K00.JSON",
+                    "image-set-name": "pds:Product_Observational:Identification_Area:title",
+                    "image-project": "pds:Product_Observational:Observation_Area:Investigation_Area:name",
+                    "image-event": "pds:Product_Observational:Observation_Area:Mission_Area:Mission_Information:mission_phase_identifier",
+                    "image-set-uuid": "pds:Product_Bundle:Identification_Area:logical_identifier",
+                    "image-uuid": "Product_Observational:Identification_Area:logical_identifier",
+                    "image-filename": "Product_Observational:File_Area_Observational:File:file_name",
+                    "image-hash-sha256": "Product_Observational:File_Area_Observational:File:md5_checksum",
+                    "image-datetime": "Product_Observational:Observation_Area:Time_Coordinates",
+                    "image-longitude": "Product_Observational:Observation_Area:Discipline_Area:Geometry:Vector_Planetocentric_Position_Base:longitude_position",
+                    "image-latitude": "Product_Observational:Observation_Area:Discipline_Area:Geometry:Vector_Planetocentric_Position_Base:latitude_position",
+                    "image-altitude-meters": "Product_Observational:Observation_Area:Geometry:Geometry_Orbiter:Distances:Distance_Specific:spacecraft_target_center_distance"
+                }
+            ]
+        },
+        "iFDO-content-fields": {
+            "type": "object",
+            "properties": {
                 "image-entropy": {
-                    "description": "Information content of an image / frame according to Shannon entropy.",
+                    "description": "Normalized Shannon entropy of the image or frame. If the image or frame has multiple channels, the normalized Shannon entropy must be calculated from the grayscale representation of the image's or frame's luminance. This quantifies the information content of the image or frame.",
                     "type": "number",
                     "minimum": 0,
                     "maximum": 1
@@ -227,14 +325,13 @@
                     "minimum": 0
                 },
                 "image-average-color": {
-                    "description": "The average colour for each image / frame and the n channels of an image (e.g. 3 for RGB)",
+                    "description": "The average value of each color channel of an image / frame. For RGB images, this is the average color.",
                     "type": "array",
-                    "minItems": 3,
-                    "maxItems": 3,
+                    "minItems": 1,
                     "items": {
                         "type": "integer",
                         "minimum": 0,
-                        "maximum": 256
+                        "maximum": 255
                     }
                 },
                 "image-mpeg7-colorlayout": {
@@ -287,123 +384,267 @@
                     }
                 },
                 "image-annotation-labels": {
-                    "$ref": "https://marine-imaging.com/fair/schemas/annotation-v2.0.0.json#/properties/image-annotation-labels"
+                    "$ref": "http://hdl.handle.net/20.500.12085/dc57e639-4cf8-4f9a-982b-0cbb32366372#/properties/image-annotation-labels"
                 },
                 "image-annotation-creators": {
-                    "$ref": "https://marine-imaging.com/fair/schemas/annotation-v2.0.0.json#/properties/image-annotation-creators"
+                    "$ref": "http://hdl.handle.net/20.500.12085/dc57e639-4cf8-4f9a-982b-0cbb32366372#/properties/image-annotation-creators"
                 },
                 "image-annotations": {
-                    "$ref": "https://marine-imaging.com/fair/schemas/annotation-v2.0.0.json#/properties/image-annotations"
-                },
+                    "$ref": "http://hdl.handle.net/20.500.12085/dc57e639-4cf8-4f9a-982b-0cbb32366372#/properties/image-annotations"
+                }
+            }
+        },
+        "iFDO-capture-fields": {
+            "type": "object",
+            "properties": {
                 "image-acquisition": {
                     "description": "photo: still images, video: moving images, slide: microscopy images / slide scans",
                     "type": "string",
-                    "enum": [
-                        "photo",
-                        "video",
-                        "slide"
+                    "anyOf": [
+                        {
+                            "const": "photo",
+                            "description": "The image set contains still images"
+                        },
+                        {
+                            "const": "video",
+                            "description": "The image set contains moving images"
+                        },
+                        {
+                            "const": "slide",
+                            "description": "The image set contains microscopy images / slide scans"
+                        }
                     ]
                 },
                 "image-quality": {
                     "description": "raw: straight from the sensor, processed: QA/QC'd, product: image data ready for interpretation",
                     "type": "string",
-                    "enum": [
-                        "raw",
-                        "processed",
-                        "product"
+                    "anyOf": [
+                        {
+                            "const": "raw",
+                            "description": "The images in the image set come straight from the sensor"
+                        },
+                        {
+                            "const": "processed",
+                            "description": "The images in the image set have been QA/QCd"
+                        },
+                        {
+                            "const": "product",
+                            "description": "The images in the image set are ready for interpretation"
+                        }
                     ]
                 },
                 "image-deployment": {
                     "description": "mapping: planned path execution along 2-3 spatial axes, stationary: fixed spatial position, survey: planned path execution along free path, exploration: unplanned path execution, experiment: observation of manipulated environment, sampling: ex-situ imaging of samples taken by other method",
                     "type": "string",
-                    "enum": [
-                        "mapping",
-                        "stationary",
-                        "survey",
-                        "exploration",
-                        "experiment",
-                        "sampling"
+                    "anyOf": [
+                        {
+                            "const": "mapping",
+                            "description": "The camera followed a planned path execution along 2-3 spatial axes"
+                        },
+                        {
+                            "const": "stationary",
+                            "description": "The camera remained in a fixed spatial position"
+                        },
+                        {
+                            "const": "survey",
+                            "description": "The camera followed a planned path execution along a free path"
+                        },
+                        {
+                            "const": "exploration",
+                            "description": "The camera followed an unplanned path execution"
+                        },
+                        {
+                            "const": "experiment",
+                            "description": "The camera observed a manipulation of the environment"
+                        },
+                        {
+                            "const": "sampling",
+                            "description": "The camera imaging samples taken by other method ex-situ"
+                        }
                     ]
                 },
                 "image-navigation": {
                     "description": "satellite: GPS/Galileo etc., beacon: USBL etc., transponder: LBL etc., reconstructed: position estimated from other measures like cable length and course over ground",
                     "type": "string",
-                    "enum": [
-                        "satellite",
-                        "beacon",
-                        "transponder",
-                        "reconstructed"
+                    "anyOf": [
+                        {
+                            "const": "satellite",
+                            "description": "Position data was created from satellite information (GPS, Galileo, ...) for the sea surface"
+                        },
+                        {
+                            "const": "beacon",
+                            "description": "Position data was created from underwater beacons (USBL, ...) for an underwater position"
+                        },
+                        {
+                            "const": "transponder",
+                            "description": "Position data was created from underwater beacons (USBL, LBL, ...) for an underwater position"
+                        },
+                        {
+                            "const": "reconstructed",
+                            "description": "Position data was estimated from other measures like cable length and course over ground"
+                        }
                     ]
                 },
                 "image-scale-reference": {
                     "description": "3D camera: the imaging system provides scale directly, calibrated camera: image data and additional external data like object distance provide scale together, laser marker: scale information is embedded in the visual data, optical flow: scale is computed from the relative movement of the images and the camera navigation data",
                     "type": "string",
-                    "enum": [
-                        "3D camera",
-                        "calibrated camera",
-                        "laser marker",
-                        "optical flow"
+                    "anyOf": [
+                        {
+                            "const": "3D camera",
+                            "description": "Meter-scale in the images was determined by 3D imaging / reconstruction"
+                        },
+                        {
+                            "const": "calibrated camera",
+                            "description": "Meter-scale in the images was determined by image data and additional external data like object distance"
+                        },
+                        {
+                            "const": "laser marker",
+                            "description": "Meter-scale in the images was determined by laser markers visible in the images"
+                        },
+                        {
+                            "const": "optical flow",
+                            "description": "Meter-scale in the images was determined from the relative movement of the images and the camera navigation data"
+                        }
                     ]
                 },
                 "image-illumination": {
                     "description": "sunlight: the scene is only illuminated by the sun, artificial light: the scene is only illuminated by artificial light, mixed light: both sunlight and artificial light illuminate the scene",
                     "type": "string",
-                    "enum": [
-                        "sunlight",
-                        "artificial light",
-                        "mixed light"
+                    "anyOf": [
+                        {
+                            "const": "sunlight",
+                            "description": "The scene is only illuminated by the sun"
+                        },
+                        {
+                            "const": "artificial light",
+                            "description": "The scene is only illuminated by artificial light"
+                        },
+                        {
+                            "const": "mixed light",
+                            "description": "The scene is illuminated by both sunlight and artificial light"
+                        }
                     ]
                 },
                 "image-pixel-magnitude": {
                     "description": "average size of one pixel of an image",
                     "type": "string",
-                    "enum": [
-                        "km",
-                        "hm",
-                        "dam",
-                        "m",
-                        "cm",
-                        "mm",
-                        "µm"
+                    "anyOf": [
+                        {
+                            "const": "km",
+                            "description": "The average size of a pixel in the image set is on the order of 1 km"
+                        },
+                        {
+                            "const": "hm",
+                            "description": "The average size of a pixel in the image set is on the order of 1 hm = 100 m"
+                        },
+                        {
+                            "const": "dam",
+                            "description": "The average size of a pixel in the image set is on the order of 1 dam = 10 m"
+                        },
+                        {
+                            "const": "m",
+                            "description": "The average size of a pixel in the image set is on the order of 1 m"
+                        },
+                        {
+                            "const": "dm",
+                            "description": "The average size of a pixel in the image set is on the order of 1 dm = 0.1 m"
+                        },
+                        {
+                            "const": "cm",
+                            "description": "The average size of a pixel in the image set is on the order of 1 cm"
+                        },
+                        {
+                            "const": "mm",
+                            "description": "The average size of a pixel in the image set is on the order of 1 mm"
+                        },
+                        {
+                            "const": "\u00b5m",
+                            "description": "The average size of a pixel in the image set is on the order of 1 \u00b5m"
+                        }
                     ]
                 },
                 "image-marine-zone": {
                     "description": "seafloor: images taken in/on/right above the seafloor, water column: images taken in the free water without the seafloor or the sea surface in sight, sea surface: images taken right below the sea surface, atmosphere: images taken outside of the water, laboratory: images taken ex-situ",
                     "type": "string",
-                    "enum": [
-                        "seafloor",
-                        "water column",
-                        "sea surface",
-                        "atmosphere",
-                        "laboratory"
+                    "anyOf": [
+                        {
+                            "const": "seafloor",
+                            "description": "The images were taken right below the sea surface"
+                        },
+                        {
+                            "const": "water column",
+                            "description": "The images were taken in the water column without the seafloor or the sea surface in sight"
+                        },
+                        {
+                            "const": "sea surface",
+                            "description": "The images were taken in/on/right above the seafloor"
+                        },
+                        {
+                            "const": "atmosphere",
+                            "description": "The images were taken outside of the water"
+                        },
+                        {
+                            "const": "laboratory",
+                            "description": "The images were taken ex-situ"
+                        }
                     ]
                 },
                 "image-spectral-resolution": {
                     "description": "grayscale: single channel imagery, rgb: three channel imagery, multi-spectral: 4-10 channel imagery, hyper-spectral: 10+ channel imagery",
                     "type": "string",
-                    "enum": [
-                        "grayscale",
-                        "rgb",
-                        "multi-spectral",
-                        "hyper-spectral"
+                    "anyOf": [
+                        {
+                            "const": "grayscale",
+                            "description": "The images consist of one color channel"
+                        },
+                        {
+                            "const": "rgb",
+                            "description": "The images consist of three color channels"
+                        },
+                        {
+                            "const": "multi-spectral",
+                            "description": "The images consist of 4-10 color channels"
+                        },
+                        {
+                            "const": "hyper-spectral",
+                            "description": "The images consist of more than 10 channels"
+                        }
                     ]
                 },
                 "image-capture-mode": {
                     "description": "whether the time points of image capture were systematic, human-triggered or both",
                     "type": "string",
-                    "enum": [
-                        "timer",
-                        "manual",
-                        "mixed"
+                    "anyOf": [
+                        {
+                            "const": "timer",
+                            "description": "Image-acquisition was triggered by a timer"
+                        },
+                        {
+                            "const": "manual",
+                            "description": "Image-acquisition was triggered by a human controller"
+                        },
+                        {
+                            "const": "mixed",
+                            "description": "Image-acquisition was triggered by both a timer and a human-controller"
+                        }
                     ]
                 },
                 "image-fauna-attraction": {
                     "description": "Allowed: none, baited, light",
                     "type": "string",
-                    "enum": [
-                        "none",
-                        "baited",
-                        "light"
+                    "anyOf": [
+                        {
+                            "const": "none",
+                            "description": ""
+                        },
+                        {
+                            "const": "baited",
+                            "description": ""
+                        },
+                        {
+                            "const": "light",
+                            "description": ""
+                        }
                     ]
                 },
                 "image-area-square-meters": {
@@ -434,7 +675,7 @@
                 "image-overlap-fraction": {
                     "description": "The average overlap of two consecutive images i and j as the area images in both of the images (A_i * A_j) divided by the total area images by the two images (A_i + A_j - A_i * A_j): f = A_i * A_j / (A_i + A_j - A_i * A_j) -> 0 if no overlap. 1 if complete overlap",
                     "type": "number",
-                    "exclusiveMinimum": 0,
+                    "minimum": 0,
                     "maximum": 1
                 },
                 "image-datetime-format": {
@@ -478,8 +719,22 @@
                     "type": "object",
                     "properties": {
                         "viewport-type": {
-                            "description": "e.g.: flat port, dome port, other",
-                            "type": "string"
+                            "description": "The geometric type of the viewport",
+                            "type": "string",
+                            "anyOf": [
+                                {
+                                    "description": "A flat viewport",
+                                    "const": "flat port"
+                                },
+                                {
+                                    "description": "A dome-shaped viewport",
+                                    "const": "dome port"
+                                },
+                                {
+                                    "description": "Any other viewport geometry",
+                                    "const": "other"
+                                }
+                            ]
                         },
                         "viewport-optical-density": {
                             "description": "Unit-less optical density number (1.0=vacuum)",
@@ -591,6 +846,30 @@
                         }
                     }
                 },
+                "image-stereo-camera-calibration-model": {
+                    "description": "Information required to rectify stereo images given as rotations and translations from the camera coordiantes to a coordinate system chosen by the author. The coordinate system must be the same for both images of a stereo image, which enables the retrival of the transformation between the camera coordinates of two images.",
+                    "type": "object",
+                    "properties": {
+                        "relative-orientation-matrix": {
+                            "description": "3x3 row-major rotation matrix $R$ that transforms the camera coordinates into a coordinate system chosen by the author.  The rotation matrix for converting the camera coordinates of camera A to camera B can then be calculated with $R_A \\cdot R_B^T$.",
+                            "type": "array",
+                            "minItems": 9,
+                            "maxItems": 9,
+                            "items": {
+                                "type": "number"
+                            }
+                        },
+                        "relative-translation": {
+                            "description": "Transposed 3D vector $T$ that transforms the camera coordinates into a coordinate system chosen by the author. The translation vector for converting the camera coordinates of camera A to camera B can then be calculated with $T_A - T_B$.",
+                            "type": "array",
+                            "minItems": 3,
+                            "maxItems": 3,
+                            "items": {
+                                "type": "number"
+                            }
+                        }
+                    }
+                },
                 "image-photometric-calibration": {
                     "description": "Information required to specify the photometric calibration. Details given in properties.",
                     "type": "object",
@@ -679,7 +958,7 @@
                     "maximum": 90,
                     "description": "The upper bounding box latitude enclosing all images in the set"
                 },
-                "image-set-min-longitude-degrees":  {
+                "image-set-min-longitude-degrees": {
                     "type": "number",
                     "minimum": -180,
                     "maximum": 180,
@@ -711,18 +990,57 @@
                                 "description": "A textual explanation how this material is related to this image set"
                             }
                         },
-                        "required": ["uri","title","relation"]
+                        "required": [
+                            "uri",
+                            "title",
+                            "relation"
+                        ]
                     }
                 },
                 "image-set-provenance": {
-                    "$ref": "https://marine-imaging.com/fair/schemas/provenance-v0.1.0.json"
+                    "$ref": "http://hdl.handle.net/20.500.12085/92a7fabf-3b11-498d-85af-d90d90a1ee07"
                 }
-            }
+            },
+            "@context": [
+                {
+                    "title": "Dublin Core",
+                    "dc": "http://purl.org/dc/terms/",
+                    "image-acquisition": "dc:type"
+                },
+                {
+                    "title": "Schema.org",
+                    "@vocab": "https://schema.org",
+                    "image-acquisition": "ImageObject"
+                },
+                {
+                    "title": "PDS4",
+                    "pds": "https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1K00.JSON",
+                    "image-acquisition": "Product_Observational:Observation_Area:Investigation_Area:type",
+                    "image-acquisition-settings": "Product_Observational:Observation_Area:Discipline_Area:Imaging"
+                }
+            ]
+        },
+        "iFDO-fields": {
+            "anyOf": [
+                {
+                    "$ref": "#/$defs/iFDO-core-fields"
+                },
+                {
+                    "$ref": "#/$defs/iFDO-capture-fields"
+                },
+                {
+                    "$ref": "#/$defs/iFDO-content-fields"
+                }
+            ]
         },
         "image-item-core": {
             "type": "object",
             "$ref": "#/$defs/iFDO-fields",
-            "required": ["image-uuid","image-hash-sha256","image-handle"]
+            "required": [
+                "image-uuid",
+                "image-hash-sha256",
+                "image-handle"
+            ]
         }
     },
     "properties": {
@@ -758,75 +1076,33 @@
             "additionalProperties": {
                 "oneOf": [
                     {
-                        "$ref": "#/$defs/image-item-core"
+                        "$ref": "#/$defs/image-item-core",
+                        "description": "The metadata information for still images."
                     },
                     {
                         "type": "array",
-                        "description": "The metadata information for videos with metadata varying in time.",
-                        "prefixItems":[{
-                            "$ref": "#/$defs/image-item-core",
-                            "description": "The common metadata information in the first entry of videos with metadata varying in time."
-                        }],
+                        "description": "The metadata information for moving images (videos).",
+                        "prefixItems": [
+                            {
+                                "$ref": "#/$defs/image-item-core",
+                                "description": "The common metadata information in the first entry of videos with metadata varying in time."
+                            }
+                        ],
                         "items": {
                             "type": "object",
                             "description": "A video's metadata information for a specific point in time",
                             "$ref": "#/$defs/iFDO-fields",
-                            "required": ["image-datetime"]
+                            "required": [
+                                "image-datetime"
+                            ]
                         }
                     }
                 ]
             }
         }
     },
-    "required": ["image-set-header","image-set-items"],
-    "@context": [
-        {
-            "dwc": "http://rs.tdwg.org/dwc/terms/",
-            "image-set-name": "dwc:datasetName",
-            "image-set-uuid": "dwc:datasetID",
-            "image-datetime": "dwc:eventData",
-            "image-latitude": "dwc:decimalLatitude",
-            "image-longitude": "dwc:decimalLongitude",
-            "image-altitude-meters": "dwc:verbatimElevation",
-            "image-coordinate-reference-system": "dwc:verbatimSRS",
-            "image-coordinate-uncertainty-meters": "dwc:coordinatePrecision",
-            "image-uuid": "dwc:eventID",
-            "image-creators": "dwc:rightsHolder",
-            "image-license": "dwc:license",
-            "image-acquisition": "dwc:type"
-        },
-        {
-            "ac": "http://rs.tdwg.org/ac/terms/",
-            "image-set-handle": "ac:accessURI",
-            "image-datetime": "ac:startTime",
-            "image-sensor": "ac:captureDevice",
-            "image-hash-sha256": "ac:hashValue"
-        },
-        {
-            "@vocab": "http://schema.org",
-            "image-set-name": "name",
-            "image-set-uuid": "identifier",
-            "image-datetime": "dateCreated",
-            "image-project": "isPartOf",
-            "image-creators": "creator",
-            "image-license": "license",
-            "image-acquisition": "ImageObject"
-        },
-        {
-            "pds": "https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1K00.JSON",
-            "image-set-name": "pds:Product_Observational:Identification_Area:title",
-            "image-project": "pds:Product_Observational:Observation_Area:Investigation_Area:name",
-            "image-event": "pds:Product_Observational:Observation_Area:Mission_Area:Mission_Information:mission_phase_identifier",
-            "image-set-uuid": "pds:Product_Bundle:Identification_Area:logical_identifier",
-            "image-acquisition": "Product_Observational:Observation_Area:Investigation_Area:type",
-            "image-acquisition-settings": "Product_Observational:Observation_Area:Discipline_Area:Imaging",
-            "image-uuid": "Product_Observational:Identification_Area:logical_identifier",
-            "image-filename": "Product_Observational:File_Area_Observational:File:file_name",
-            "image-hash-sha256": "Product_Observational:File_Area_Observational:File:md5_checksum",
-            "image-datetime": "Product_Observational:Observation_Area:Time_Coordinates",
-            "image-longitude": "Product_Observational:Observation_Area:Discipline_Area:Geometry:Vector_Planetocentric_Position_Base:longitude_position",
-            "image-latitude": "Product_Observational:Observation_Area:Discipline_Area:Geometry:Vector_Planetocentric_Position_Base:latitude_position",
-            "image-meters-above-ground": "Product_Observational:Observation_Area:Geometry:Geometry_Orbiter:Distances:Distance_Specific:spacecraft_target_center_distance"
-        }
+    "required": [
+        "image-set-header",
+        "image-set-items"
     ]
 }
