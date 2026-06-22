@@ -35,6 +35,82 @@ from marimba.lib.image import (
 )
 
 
+class TestExifPreservation:
+    """Single-image transforms preserve source EXIF, resetting orientation only when pixels are re-oriented (P2-6)."""
+
+    _MAKE = 0x010F
+    _ARTIST = 0x013B
+    _ORIENTATION = 0x0112
+
+    @classmethod
+    def _source(cls, path: Path, fmt: str = "JPEG", orientation: int = 1) -> Path:
+        """Write a small source image carrying representative EXIF."""
+        img = Image.new("RGB", (64, 32), "blue")
+        exif = img.getexif()
+        exif[cls._MAKE] = "TestCam"
+        exif[cls._ARTIST] = "Pat Diver"
+        exif[cls._ORIENTATION] = orientation
+        img.save(path, format=fmt, exif=exif)
+        return path
+
+    @staticmethod
+    def _exif(path: Path) -> Image.Exif:
+        with Image.open(path) as img:
+            return img.getexif()
+
+    @pytest.mark.unit
+    def test_convert_to_jpeg_preserves_exif(self, tmp_path: Path) -> None:
+        """Converting a non-JPEG source to JPEG keeps its camera/attribution EXIF."""
+        out = convert_to_jpeg(self._source(tmp_path / "s.png", fmt="PNG"), destination=tmp_path / "out.jpg")
+        exif = self._exif(out)
+        assert exif.get(self._MAKE) == "TestCam"
+        assert exif.get(self._ARTIST) == "Pat Diver"
+
+    @pytest.mark.unit
+    def test_resize_preserves_exif_and_orientation(self, tmp_path: Path) -> None:
+        """Resizing preserves EXIF and keeps the orientation tag (no rotation occurred)."""
+        out = tmp_path / "out.jpg"
+        resize_fit(self._source(tmp_path / "s.jpg", orientation=6), max_width=16, max_height=16, destination=out)
+        exif = self._exif(out)
+        assert exif.get(self._MAKE) == "TestCam"
+        assert exif.get(self._ORIENTATION) == 6
+
+    @pytest.mark.unit
+    def test_rotate_resets_orientation(self, tmp_path: Path) -> None:
+        """Rotating preserves EXIF but removes the now-stale orientation tag."""
+        out = tmp_path / "out.jpg"
+        rotate_clockwise(self._source(tmp_path / "s.jpg", orientation=6), 90, destination=out)
+        exif = self._exif(out)
+        assert exif.get(self._MAKE) == "TestCam"
+        assert exif.get(self._ORIENTATION) is None
+
+    @pytest.mark.unit
+    def test_flip_resets_orientation(self, tmp_path: Path) -> None:
+        """Flipping preserves EXIF but removes the now-stale orientation tag."""
+        out = tmp_path / "out.jpg"
+        flip_horizontal(self._source(tmp_path / "s.jpg", orientation=3), destination=out)
+        exif = self._exif(out)
+        assert exif.get(self._MAKE) == "TestCam"
+        assert exif.get(self._ORIENTATION) is None
+
+    @pytest.mark.unit
+    def test_crop_preserves_exif(self, tmp_path: Path) -> None:
+        """Cropping preserves EXIF."""
+        out = tmp_path / "out.jpg"
+        crop(self._source(tmp_path / "s.jpg"), 0, 0, 16, 16, destination=out)
+        assert self._exif(out).get(self._MAKE) == "TestCam"
+
+    @pytest.mark.unit
+    def test_transform_without_exif_does_not_error(self, tmp_path: Path) -> None:
+        """A source with no EXIF transforms cleanly and gains no spurious EXIF."""
+        src = tmp_path / "s.jpg"
+        Image.new("RGB", (64, 32), "red").save(src)
+        out = tmp_path / "out.jpg"
+        resize_fit(src, max_width=16, max_height=16, destination=out)
+        assert out.is_file()
+        assert len(self._exif(out)) == 0
+
+
 class TestImageUtilities:
     """Test image utility functions."""
 
@@ -1712,7 +1788,7 @@ class TestImageUtilities:
             pytest.fail(f"Failed to load test image: {test_image_rgb}")
 
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        actual_variance = cv2.Laplacian(gray, cv2.CV_64F).var()
+        actual_variance = float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
         # Set thresholds: one below and one above the actual variance
         low_threshold = actual_variance - 10.0

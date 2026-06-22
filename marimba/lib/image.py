@@ -9,6 +9,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy2
+from typing import Any
 
 import cv2
 import numpy as np
@@ -16,6 +17,37 @@ from PIL import Image
 from PIL.Image import Image as PILImage
 
 from marimba.core.utils.constants import DEFAULT_IMAGE_THUMBNAIL_SIZE
+
+
+def _save_with_metadata(
+    source: Image.Image,
+    transformed: Image.Image,
+    destination: str | Path,
+    *,
+    reset_orientation: bool = False,
+    image_format: str | None = None,
+    quality: int | None = None,
+) -> None:
+    """
+    Save a transformed image while preserving the source image's EXIF metadata and ICC profile.
+
+    EXIF (camera make/model, capture datetime, GPS, rights) is copied from the source so it survives the
+    transform instead of being silently dropped. ``reset_orientation`` removes the EXIF Orientation tag for
+    transforms that bake a rotation/flip into the pixels, since a viewer honouring the now-stale tag would
+    otherwise re-rotate the image. (Pixel-dimension tags are advisory; consumers use the actual pixels.)
+    """
+    exif = source.getexif()
+    if reset_orientation:
+        exif.pop(0x0112, None)  # 0x0112 = EXIF Orientation
+    save_params: dict[str, Any] = {}
+    icc_profile = source.info.get("icc_profile")
+    if icc_profile is not None:
+        save_params["icc_profile"] = icc_profile
+    if len(exif) > 0:
+        save_params["exif"] = exif
+    if quality is not None:
+        save_params["quality"] = quality
+    transformed.save(destination, format=image_format, **save_params)
 
 
 def generate_image_thumbnail(
@@ -70,7 +102,7 @@ def convert_to_jpeg(
         copy2(path, destination)
     else:
         with Image.open(path) as img:
-            img.convert("RGB").save(destination, "JPEG", quality=quality)
+            _save_with_metadata(img, img.convert("RGB"), destination, image_format="JPEG", quality=quality)
     return destination
 
 
@@ -104,7 +136,7 @@ def resize_fit(
 
     with Image.open(path) as img:
         resized_img = _resize_fit(img, max_width, max_height)
-        resized_img.save(destination)
+        _save_with_metadata(img, resized_img, destination)
 
 
 def resize_exact(
@@ -127,7 +159,7 @@ def resize_exact(
 
     with Image.open(path) as img:
         resized_img = img.resize((width, height), Image.Resampling.LANCZOS)
-        resized_img.save(destination)
+        _save_with_metadata(img, resized_img, destination)
 
 
 def scale(
@@ -150,7 +182,7 @@ def scale(
         new_width = int(width * scale_factor)
         new_height = int(height * scale_factor)
         scaled_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-        scaled_img.save(destination)
+        _save_with_metadata(img, scaled_img, destination)
 
 
 def rotate_clockwise(
@@ -180,7 +212,7 @@ def rotate_clockwise(
 
     with Image.open(path) as img:
         rotated_img = img.rotate(-degrees, expand=expand)
-        rotated_img.save(destination)
+        _save_with_metadata(img, rotated_img, destination, reset_orientation=True)
 
 
 def turn_clockwise(
@@ -213,7 +245,7 @@ def turn_clockwise(
 
     with Image.open(path) as img:
         turned_img = img.transpose(rotation_constants[turns])
-        turned_img.save(destination)
+        _save_with_metadata(img, turned_img, destination, reset_orientation=True)
 
 
 def flip_vertical(path: str | Path, destination: str | Path | None = None) -> None:
@@ -229,7 +261,7 @@ def flip_vertical(path: str | Path, destination: str | Path | None = None) -> No
 
     with Image.open(path) as img:
         flipped_img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-        flipped_img.save(destination)
+        _save_with_metadata(img, flipped_img, destination, reset_orientation=True)
 
 
 def flip_horizontal(path: str | Path, destination: str | Path | None = None) -> None:
@@ -245,7 +277,7 @@ def flip_horizontal(path: str | Path, destination: str | Path | None = None) -> 
 
     with Image.open(path) as img:
         flipped_img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-        flipped_img.save(destination)
+        _save_with_metadata(img, flipped_img, destination, reset_orientation=True)
 
 
 def is_blurry(path: str | Path, threshold: float = 100.0) -> bool:
@@ -305,7 +337,7 @@ def crop(
 
     with Image.open(path) as img:
         cropped_img = img.crop((x, y, x + width, y + height))
-        cropped_img.save(destination)
+        _save_with_metadata(img, cropped_img, destination)
 
 
 def apply_clahe(
