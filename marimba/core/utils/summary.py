@@ -1086,16 +1086,16 @@ class ImagerySummary:
         local_timezone = datetime.now().astimezone().tzinfo
         dataset_metadata: list[list[str]] = [
             ["Dataset Name", self.dataset_name],
-            ["Image Set UUID", self.image_set_uuid],
+            ["Dataset UUID", self.image_set_uuid],
             ["Creation Date", datetime.now(tz=local_timezone).strftime("%d %B %Y")],
             ["Contributors", self.contributors],
             ["License" if "," not in self.licenses else "Licenses", self.licenses],
         ]
 
         if self.context:
-            dataset_metadata.insert(1, ["Context", self.context])
+            dataset_metadata.insert(2, ["Context", self.context])
         if self.version:
-            dataset_metadata.append(["Dataset Version", self.version])
+            dataset_metadata.insert(2, ["Dataset Version", self.version])
         if self.marimba_version:
             dataset_metadata.append(["Marimba Version", self.marimba_version])
         if self.contact:

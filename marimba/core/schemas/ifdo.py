@@ -52,12 +52,12 @@ DEFAULT_RELATED_MATERIAL: list[dict[str, str]] = [
     {
         "uri": "https://doi.org/10.1016/j.softx.2025.102251",
         "title": "Marimba: A Python framework for structuring and processing FAIR scientific image datasets",
-        "relation": "The Marimba software framework used to structure and package this image set",
+        "relation": "The Marimba software framework used to structure and package this image dataset",
     },
     {
         "uri": "https://doi.org/10.1038/s41597-022-01491-3",
         "title": "Making marine image data FAIR",
-        "relation": "The iFDO metadata standard to which this image set conforms",
+        "relation": "The iFDO metadata standard to which this image dataset conforms",
     },
 ]
 
