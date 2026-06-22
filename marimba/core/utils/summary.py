@@ -175,8 +175,9 @@ class ImagerySummary:
             seek_times = [
                 0,
                 duration // 2,
-                int(duration - float(1 / frame_rate / timebase)),
+                int(duration - float(1 / timebase)),
             ]
+
             all_exists = all(ImagerySummary._check_if_frame_exists(container, stream, ts) for ts in seek_times)
 
             if not all_exists:
@@ -202,13 +203,12 @@ class ImagerySummary:
             bool: True if a valid frame could be found in the container
         """
         container.seek(timestamp, backward=True, any_frame=True, stream=stream)
-        for packet in container.demux(stream):
-            for frame in packet.decode():
-                if frame.pts is None:
-                    continue
 
-                if frame.pts >= timestamp:
-                    return not frame.is_corrupt
+        for packet in container.demux(stream):
+            if packet.dts is None:
+                continue
+            if packet.dts >= timestamp:
+                return not packet.is_corrupt
         return False
 
     @staticmethod
