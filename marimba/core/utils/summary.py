@@ -35,6 +35,7 @@ class ImagerySummary:
     """
 
     dataset_name: str = ""
+    image_set_uuid: str = ""
     context: str = ""
     contributors: str = ""
     version: str | None = ""
@@ -696,6 +697,7 @@ class ImagerySummary:
         # Define expected types based on the ImagerySummary dataclass
         expected_types = {
             "dataset_name": str,
+            "image_set_uuid": str,
             "context": str,
             "contributors": str,
             "version": (str, type(None)),
@@ -766,6 +768,7 @@ class ImagerySummary:
     ) -> dict[str, str | None]:
         info = {
             "dataset_name": dataset_wrapper.name,
+            "image_set_uuid": dataset_wrapper.image_set_uuid,
             "version": dataset_wrapper.version,
             "marimba_version": marimba.__version__,
             "contact": None,
@@ -1052,15 +1055,16 @@ class ImagerySummary:
         local_timezone = datetime.now().astimezone().tzinfo
         dataset_metadata: list[list[str]] = [
             ["Dataset Name", self.dataset_name],
+            ["Dataset UUID", self.image_set_uuid],
             ["Creation Date", datetime.now(tz=local_timezone).strftime("%d %B %Y")],
             ["Contributors", self.contributors],
             ["License" if "," not in self.licenses else "Licenses", self.licenses],
         ]
 
         if self.context:
-            dataset_metadata.insert(1, ["Context", self.context])
+            dataset_metadata.insert(2, ["Context", self.context])
         if self.version:
-            dataset_metadata.append(["Dataset Version", self.version])
+            dataset_metadata.insert(2, ["Dataset Version", self.version])
         if self.marimba_version:
             dataset_metadata.append(["Marimba Version", self.marimba_version])
         if self.contact:

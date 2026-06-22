@@ -287,3 +287,47 @@ class TestManifestIdempotence:
         manifest.save(path2)
 
         assert path1.read_bytes() == path2.read_bytes()
+
+
+class TestManifestHeader:
+    """Pin the dataset-identity header behaviour (F3 linkage) and path-parse robustness."""
+
+    @pytest.mark.integration
+    def test_header_round_trips_through_save_load(self, tmp_path: Path) -> None:
+        """A dataset-identity header survives save then load."""
+        header = {"image-set-uuid": "110cae5b-2d06-5b65-9173-f9f47c93e3d0", "hash-algorithm": "SHA-256"}
+        manifest = Manifest({"data/a.txt": "abc"}, header=header)
+        path = tmp_path / "manifest.txt"
+        manifest.save(path)
+
+        loaded = Manifest.load(path)
+        assert loaded.header == header
+        assert loaded.hashes == {"data/a.txt": "abc"}
+
+    @pytest.mark.unit
+    def test_header_excluded_from_equality(self) -> None:
+        """The header must not affect equality, since validate() compares against a header-less manifest."""
+        with_header = Manifest({"x": "1"}, header={"image-set-uuid": "u1"})
+        without_header = Manifest({"x": "1"})
+        assert with_header == without_header
+
+    @pytest.mark.unit
+    def test_load_parses_path_containing_colon(self, tmp_path: Path) -> None:
+        """A relative path containing a colon parses correctly via rsplit on the final colon."""
+        path = tmp_path / "manifest.txt"
+        path.write_text("# image-set-name: IN2018_V06\ndata/a:b.txt:deadbeef\n")
+
+        loaded = Manifest.load(path)
+        assert loaded.hashes == {"data/a:b.txt": "deadbeef"}
+        assert loaded.header == {"image-set-name": "IN2018_V06"}
+
+    @pytest.mark.integration
+    def test_validate_succeeds_with_header(self, tmp_path: Path) -> None:
+        """A manifest carrying a header still validates against its directory."""
+        data = tmp_path / "data"
+        data.mkdir()
+        (data / "a.txt").write_text("alpha")
+
+        manifest = Manifest.from_dir(data)
+        manifest.header = {"image-set-uuid": "u1"}
+        assert manifest.validate(data)

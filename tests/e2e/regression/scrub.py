@@ -2,22 +2,15 @@
 
 A determinism characterisation (two independent identical-input bootstraps,
 per-file diff; method preserved in golden/README.md §"Scrubber correctness")
-identified three drift sources between two identical-input runs:
+identified these drift sources between two identical-input runs:
 
-1. Per-image UUID generated fresh by `marimba process`. Embedded in each JPEG
-   in two EXIF locations: the standalone `ImageUniqueID` tag and inside the
-   JSON blob written to `UserComment`. Same UUID in both places.
-2. Per-dataset `image-set-uuid` generated fresh by `marimba package`. Appears
-   once per per-collection ifdo YAML and once in the dataset-level rollup.
-3. `image-hash-sha256` field in each per-image YAML entry: an indirect
-   consequence of (1) — the image bytes differ, so their SHA differs.
-
-Plus two further drift sources identified after the initial harness landed:
-
-4. `Creation Date` row in `summary.md`, populated via `datetime.now()` by
+1. `image-hash-sha256` field in each per-image YAML entry: an indirect
+   consequence of the pixel-derived volatility (3) — the JPEG bytes differ
+   across CPU microarchitectures, so their SHA differs.
+2. `Creation Date` row in `summary.md`, populated via `datetime.now()` by
    `marimba/core/utils/summary.py`. Drifts across runs on different days
    even with identical inputs.
-5. Pixel-derived values that vary across CPU microarchitectures, not across
+3. Pixel-derived values that vary across CPU microarchitectures, not across
    runs. numpy's SIMD reductions and libjpeg's encoder round differently
    between CPU generations, so on GitHub's mixed hosted-runner fleet two
    functionally identical runs produce different bytes for a handful of
@@ -26,6 +19,14 @@ Plus two further drift sources identified after the initial harness landed:
    `image-entropy` (Shannon entropy of the pixel histogram) and
    `image-average-color` (pixel mean) values that `marimba/core/schemas/ifdo.py`
    computes and bakes into both the iFDO YAML and the EXIF:UserComment JSON.
+
+The per-dataset `image-set-uuid` and the per-image `image-uuid` were formerly
+scrubbed here too. `marimba package` now derives the set UUID deterministically
+from the image-set name, and mints a deterministic per-image UUID (uuid5 of the
+set UUID and the dataset-relative path) for any image the pipeline leaves unset,
+which the demo pipeline now does. Both are byte-stable across runs and no longer
+need scrubbing: leaving them unscrubbed lets the golden pin their values and
+catch a regression in the derivation.
 
 JPEG content has no stable byte subset to hash, so it is excluded from byte
 comparison entirely (see `has_volatile_content`); the image's metadata is still
@@ -36,9 +37,9 @@ source copy under `pipelines/`. Logs are excluded from comparison entirely
 
 Scrubber strategy:
 
-- `scrub_yaml_text` replaces each known volatile field value (the UUIDs, the
-  cascaded image hash, and the pixel-derived `image-entropy` /
-  `image-average-color`) with fixed-shape placeholders.
+- `scrub_yaml_text` replaces each known volatile field value (the cascaded
+  image hash and the pixel-derived `image-entropy` / `image-average-color`)
+  with fixed-shape placeholders.
 - `scrubbed_hash` dispatches by suffix and returns the SHA256 of the scrubbed
   content (or of the raw bytes if no scrubber applies). JPEGs never reach it —
   `rebuild_manifest` placeholders them first via `has_volatile_content`.
@@ -76,14 +77,6 @@ _UUID_RE_TEXT = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
 # touch a UUID that happens to appear in (say) a free-form description.
 # Each pattern captures `<lead><field>: <value>` and replaces only the value.
 _YAML_FIELD_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (
-        re.compile(r"(?P<lead>^\s*)image-uuid:\s*(?P<value>[0-9a-f-]+)\s*$", re.MULTILINE),
-        f"\\g<lead>image-uuid: {UUID_PLACEHOLDER}",
-    ),
-    (
-        re.compile(r"(?P<lead>^\s*)image-set-uuid:\s*(?P<value>[0-9a-f-]+)\s*$", re.MULTILINE),
-        f"\\g<lead>image-set-uuid: {UUID_PLACEHOLDER}",
-    ),
     (
         re.compile(r"(?P<lead>^\s*)image-hash-sha256:\s*(?P<value>[0-9a-f]+)\s*$", re.MULTILINE),
         f"\\g<lead>image-hash-sha256: {SHA256_PLACEHOLDER}",
@@ -178,6 +171,10 @@ def has_volatile_content(rel_path: Path) -> bool:
       time as upstream tile data updates. Same project state -> different
       bytes a day later. Tier A still asserts the file exists and is a
       valid non-empty PNG; this just excludes it from byte-level comparison.
+    - `provenance.json` at the dataset root: embeds the packaging timestamp,
+      ExifTool/FFmpeg versions, and (in the e2e, cloned from a local cache) a
+      machine-specific pipeline repository URL. Tier A asserts its JSON-LD
+      structure instead of byte-comparing it.
     - JPEG images (`.jpg` / `.jpeg`): their encoded bytes drift across CPU
       microarchitectures on GitHub's mixed hosted-runner fleet — the main
       entropy-coded scan, the embedded EXIF thumbnail's own scan, and the
@@ -196,7 +193,10 @@ def has_volatile_content(rel_path: Path) -> bool:
         return True
     if rel_path.suffix.lower() in _JPEG_SUFFIXES:
         return True
-    return rel_path == Path("map.png")
+    # provenance.json embeds the packaging timestamp, the ExifTool/FFmpeg versions, and (in the e2e, where the
+    # pipeline is cloned from a local cache) a machine-specific repository URL — all volatile across runs. Its
+    # structure is asserted by Tier A instead.
+    return rel_path in (Path("map.png"), Path("provenance.json"))
 
 
 def scrubbed_hash(path: Path) -> str:

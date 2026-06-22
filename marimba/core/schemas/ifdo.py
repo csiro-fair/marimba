@@ -7,6 +7,7 @@ for creating dataset metadata and processing image files with EXIF data.
 
 """
 
+import importlib.metadata
 import io
 import json
 import logging
@@ -52,14 +53,28 @@ DEFAULT_RELATED_MATERIAL: list[dict[str, str]] = [
     {
         "uri": "https://doi.org/10.1016/j.softx.2025.102251",
         "title": "Marimba: A Python framework for structuring and processing FAIR scientific image datasets",
-        "relation": "The Marimba software framework used to structure and package this image set",
+        "relation": "The Marimba software framework used to structure and package this image dataset",
     },
     {
         "uri": "https://doi.org/10.1038/s41597-022-01491-3",
         "title": "Making marine image data FAIR",
-        "relation": "The iFDO metadata standard to which this image set conforms",
+        "relation": "The iFDO metadata standard to which this image dataset conforms",
     },
 ]
+
+
+def _image_curation_protocol() -> str:
+    """Curation-protocol sentence for the iFDO image-set-header, stamped with the Marimba version.
+
+    The detailed machine-readable processing provenance (tool versions, pipeline git commits, packaging
+    timestamp) lives in the provenance.json record at the dataset root.
+    """
+    version = importlib.metadata.version("marimba")
+    return (
+        f"Structured, processed, and packaged into a FAIR image dataset with Marimba v{version} "
+        "(https://github.com/csiro-fair/marimba). Full machine-readable processing provenance is recorded in "
+        "provenance.json (W3C PROV-O)."
+    )
 
 
 @dataclass
@@ -223,6 +238,34 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         if isinstance(self._image_data, list):
             return self._image_data[0]
         return self._image_data
+
+    @staticmethod
+    def derive_image_set_uuid(dataset_name: str, metadata_name: str | None = None) -> str:
+        """
+        Derive a deterministic image-set UUID from the set name (and collection, if any).
+
+        Using uuid5 keeps the identity stable across re-packaging runs, unlike a fresh uuid4. The same
+        derivation namespaces per-image UUIDs (see ensure_image_uuid), so an image set and its images share
+        one reproducible identity. Reproducible but not globally unique across projects that reuse a name -
+        the resolvable persistent identifier for that is the image-set-handle / DOI.
+        """
+        key = dataset_name if metadata_name is None else f"{dataset_name}/{metadata_name}"
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, f"urn:marimba:image-set:{key}"))
+
+    def ensure_image_uuid(self, image_set_uuid: str, relative_path: str) -> None:
+        """
+        Assign a deterministic per-image UUID where one is not already set.
+
+        The UUID is derived from the image-set UUID and the image's dataset-relative path, so it is
+        reproducible across packaging runs and unique within (and across) datasets. A pipeline that already
+        supplied an image-uuid is honoured: its value is left untouched. For videos every frame entry
+        receives the same UUID, since they describe a single file.
+        """
+        derived = str(uuid.uuid5(uuid.UUID(image_set_uuid), relative_path))
+        data_list = self._image_data if isinstance(self._image_data, list) else [self._image_data]
+        for data in data_list:
+            if not data.image_uuid:
+                data.image_uuid = derived
 
     @property
     def datetime(self) -> datetime | None:
@@ -470,6 +513,45 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
         return cls._find_common_fields(all_items)
 
+    @staticmethod
+    def _compute_spatial_extent(
+        image_set_items: dict[str, "ImageData | list[ImageData]"],
+    ) -> dict[str, float]:
+        """
+        Compute the dataset spatial bounding box from per-image coordinates.
+
+        Flattens every ImageData (including video frames) and returns the iFDO image-set bounding-box header fields
+        when any valid coordinate is present. Latitude and longitude extents are derived independently, matching the
+        dataset summary and map. Uses naive min/max and is therefore not antimeridian-aware: an image set crossing the
+        +/-180 degree dateline would yield an overly wide longitude box.
+
+        Args:
+            image_set_items: Dict mapping filenames to ImageData objects or lists of ImageData.
+
+        Returns:
+            Dict with image-set-min/max-latitude/longitude-degrees keys for whichever axes have valid coordinates.
+        """
+        lats: list[float] = []
+        lons: list[float] = []
+        for item in image_set_items.values():
+            data_list = item if isinstance(item, list) else [item]
+            for image_data in data_list:
+                lat = image_data.image_latitude
+                lon = image_data.image_longitude
+                if lat is not None:
+                    lats.append(lat)
+                if lon is not None:
+                    lons.append(lon)
+
+        extent: dict[str, float] = {}
+        if lats:
+            extent["image_set_min_latitude_degrees"] = min(lats)
+            extent["image_set_max_latitude_degrees"] = max(lats)
+        if lons:
+            extent["image_set_min_longitude_degrees"] = min(lons)
+            extent["image_set_max_longitude_degrees"] = max(lons)
+        return extent
+
     @classmethod
     def _remove_common_fields(
         cls,
@@ -532,9 +614,10 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
         header_data: dict[str, Any] = {
             "image_set_name": dataset_name,
-            "image_set_uuid": str(uuid.uuid4()),
+            "image_set_uuid": cls.derive_image_set_uuid(dataset_name, metadata_name),
             "image_set_handle": "",  # TODO @<cjackett>: Populate from distribution target URL
             "image_set_ifdo_version": IFDO_VERSION,
+            "image_curation_protocol": _image_curation_protocol(),
         }
         header_data.update({k: v for k, v in common_fields.items() if k not in header_data})
 
@@ -547,6 +630,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             *pipeline_related_material,
             *(material for material in DEFAULT_RELATED_MATERIAL if material["uri"] not in pipeline_uris),
         ]
+
+        # Populate the image-set spatial bounding box from the per-image coordinates.
+        header_data.update(cls._compute_spatial_extent(image_set_items))
 
         image_set_header = ImageSetHeader(**header_data)
         deduplicated_items = cls._remove_common_fields(image_set_items, set(common_fields.keys()))
@@ -595,6 +681,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         *,
         dry_run: bool = False,
         chunk_size: int | None = None,
+        image_set_uuid: str | None = None,
     ) -> None:
         """Process dataset_mapping using metadata with chunked batch processing."""
         if dry_run:
@@ -647,7 +734,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             processed_images, non_exif_files = cls._process_images_memory_safe(chunk, thread_num, logger)
 
             # Phase 2: Batch EXIF writing (no image loading)
-            cls._write_exif_batch(processed_images, thread_num, logger)
+            cls._write_exif_batch(processed_images, thread_num, logger, image_set_uuid)
             cls._log_non_exif_files(non_exif_files, thread_num, logger)
 
             # Update progress for entire chunk
@@ -831,6 +918,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         processed_images: list[ProcessedImageData],
         thread_num: str,
         logger: logging.Logger,
+        image_set_uuid: str | None = None,
     ) -> None:
         """Phase 2: Batch EXIF writing without loading images."""
         if not processed_images:
@@ -860,7 +948,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                     existing_exif_map[file_paths[i]] = metadata or {}
 
                 # Process EXIF tags for all files
-                cls._process_exif_tags_batch(et, successful_images, existing_exif_map)
+                cls._process_exif_tags_batch(et, successful_images, existing_exif_map, image_set_uuid)
 
                 # Handle thumbnails separately (using pre-generated data)
                 cls._embed_thumbnail_batch(et, successful_images, logger)
@@ -881,6 +969,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         et: exiftool.ExifToolHelper,
         successful_images: list[ProcessedImageData],
         existing_exif_map: dict[str, dict[str, Any]],
+        image_set_uuid: str | None = None,
     ) -> None:
         """Build and apply EXIF tags for all images in batch."""
         for img in successful_images:
@@ -897,8 +986,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
             # Add metadata-only EXIF tags (no image required)
             cls._add_datetime_tags(exif_tags, img.image_data)
-            cls._add_identifier_tags(exif_tags, img.image_data)
+            cls._add_identifier_tags(exif_tags, img.image_data, image_set_uuid)
             cls._add_gps_tags(exif_tags, img.image_data)
+            cls._add_rights_tags(exif_tags, img.image_data)
             cls._add_user_comment(exif_tags, img.image_data, img.ancillary_data)
 
             # Apply tags if any were built
@@ -967,14 +1057,67 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             exif_tags["EXIF:SubSecTimeOriginal"] = subsec_str
 
     @staticmethod
-    def _add_identifier_tags(exif_tags: dict[str, Any], image_data: ImageData) -> None:
-        """Add identifier-related EXIF tags."""
+    def _add_identifier_tags(
+        exif_tags: dict[str, Any],
+        image_data: ImageData,
+        image_set_uuid: str | None = None,
+    ) -> None:
+        """Add identifier EXIF/XMP tags so a detached image carries its own and its dataset's identity."""
         if image_data.image_uuid:
             exif_tags["EXIF:ImageUniqueID"] = str(image_data.image_uuid)
+            exif_tags["XMP-dc:Identifier"] = str(image_data.image_uuid)
+        if image_set_uuid:
+            # The image's source image set, so a detached file resolves back to its dataset.
+            exif_tags["XMP-dc:Source"] = f"urn:uuid:{image_set_uuid}"
+
+    @staticmethod
+    def _add_rights_tags(exif_tags: dict[str, Any], image_data: ImageData) -> None:
+        """Add discrete rights, attribution, and description tags so harvesters can read them.
+
+        These mirror fields that otherwise live only inside the opaque EXIF:UserComment JSON. Creator and PI
+        identifiers (ORCIDs) are written as structured XMP-plus:ImageCreator {name, id} entries; the PI is also
+        recorded as a dc:Contributor. Tags are written only when their iFDO source is populated.
+        """
+        creators = [c for c in (image_data.image_creators or []) if c.name]
+        if creators:
+            exif_tags["EXIF:Artist"] = "; ".join(c.name for c in creators)
+            exif_tags["XMP-dc:Creator"] = [c.name for c in creators]
+
+        if image_data.image_pi and image_data.image_pi.name:
+            exif_tags["XMP-dc:Contributor"] = [image_data.image_pi.name]
+
+        # Structured name + identifier (ORCID) for every responsible party that has a URI, de-duplicated
+        # (a creator and the PI are frequently the same person).
+        responsible = [*creators, image_data.image_pi] if image_data.image_pi else creators
+        seen: set[tuple[str, str]] = set()
+        named_with_uri: list[tuple[str, str]] = []
+        for agent in responsible:
+            if agent and agent.name and agent.uri and (agent.name, agent.uri) not in seen:
+                seen.add((agent.name, agent.uri))
+                named_with_uri.append((agent.name, agent.uri))
+        if named_with_uri:
+            exif_tags["XMP-plus:ImageCreatorName"] = [name for name, _ in named_with_uri]
+            exif_tags["XMP-plus:ImageCreatorID"] = [uri for _, uri in named_with_uri]
+
+        licence = image_data.image_license
+        copyright_notice = image_data.image_copyright or (licence.name if licence else None)
+        if copyright_notice:
+            exif_tags["EXIF:Copyright"] = copyright_notice
+            exif_tags["XMP-dc:Rights"] = copyright_notice
+        if licence and licence.name:
+            exif_tags["XMP-xmpRights:UsageTerms"] = licence.name
+        if licence and licence.uri:
+            exif_tags["XMP-xmpRights:WebStatement"] = licence.uri
+
+        if image_data.image_abstract:
+            exif_tags["EXIF:ImageDescription"] = image_data.image_abstract
+            exif_tags["XMP-dc:Description"] = image_data.image_abstract
 
     @staticmethod
     def _add_gps_tags(exif_tags: dict[str, Any], image_data: ImageData) -> None:
         """Add GPS-related EXIF tags."""
+        has_position = image_data.image_latitude is not None or image_data.image_longitude is not None
+
         if image_data.image_latitude is not None:
             exif_tags["EXIF:GPSLatitude"] = abs(image_data.image_latitude)
             exif_tags["EXIF:GPSLatitudeRef"] = "N" if image_data.image_latitude >= 0 else "S"
@@ -986,6 +1129,19 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         if image_data.image_altitude_meters is not None:
             exif_tags["EXIF:GPSAltitude"] = abs(float(image_data.image_altitude_meters))
             exif_tags["EXIF:GPSAltitudeRef"] = "0" if image_data.image_altitude_meters >= 0 else "1"
+
+        if has_position:
+            # Declare the geodetic datum of the coordinates. Honour the pipeline-supplied coordinate reference
+            # system verbatim; fall back to WGS-84 (the EXIF and iFDO default) only when none was set.
+            exif_tags["EXIF:GPSMapDatum"] = image_data.image_coordinate_reference_system or "WGS-84"
+
+            # Record the UTC time of the GPS fix when the capture datetime is timezone-aware. A naive datetime
+            # cannot be asserted as UTC, so its GPS timestamp is omitted (the offset is unknown).
+            dt = image_data.image_datetime
+            if dt is not None and dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
+                dt_utc = dt.astimezone(UTC)
+                exif_tags["EXIF:GPSDateStamp"] = dt_utc.strftime("%Y:%m:%d")
+                exif_tags["EXIF:GPSTimeStamp"] = dt_utc.strftime("%H:%M:%S")
 
     @staticmethod
     def _add_user_comment(

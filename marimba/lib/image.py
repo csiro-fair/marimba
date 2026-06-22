@@ -9,6 +9,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy2
+from typing import Any
 
 import cv2
 import numpy as np
@@ -16,6 +17,63 @@ from PIL import Image
 from PIL.Image import Image as PILImage
 
 from marimba.core.utils.constants import DEFAULT_IMAGE_THUMBNAIL_SIZE
+
+
+def _save_with_metadata(
+    source: Image.Image,
+    transformed: Image.Image,
+    destination: str | Path,
+    *,
+    reset_orientation: bool = False,
+    image_format: str | None = None,
+    quality: int | None = None,
+    include_icc: bool = True,
+) -> None:
+    """
+    Save a transformed image while preserving the source image's EXIF metadata and ICC profile.
+
+    EXIF (camera make/model, capture datetime, GPS, rights) is copied from the source so it survives the
+    transform instead of being silently dropped. ``reset_orientation`` removes the EXIF Orientation tag for
+    transforms that bake a rotation/flip into the pixels, since a viewer honouring the now-stale tag would
+    otherwise re-rotate the image. (Pixel-dimension tags are advisory; consumers use the actual pixels.)
+    ``include_icc`` is disabled when the output colour mode no longer matches the source (e.g. a grayscale
+    conversion), where carrying the source's colour profile would be incorrect.
+    """
+    exif = source.getexif()
+    if reset_orientation:
+        exif.pop(0x0112, None)  # 0x0112 = EXIF Orientation
+    save_params: dict[str, Any] = {}
+    if include_icc:
+        icc_profile = source.info.get("icc_profile")
+        if icc_profile is not None:
+            save_params["icc_profile"] = icc_profile
+    if len(exif) > 0:
+        save_params["exif"] = exif
+    if quality is not None:
+        save_params["quality"] = quality
+    transformed.save(destination, format=image_format, **save_params)
+
+
+def _save_cv2_with_metadata(
+    source_path: Path,
+    result: "cv2.typing.MatLike",
+    destination: str | Path,
+    *,
+    grayscale: bool = False,
+) -> None:
+    """
+    Save an OpenCV (numpy) result while preserving the source image's EXIF metadata.
+
+    OpenCV's ``imwrite`` drops all metadata, so the result is re-encoded through PIL with the source EXIF
+    copied across (mirroring :func:`_save_with_metadata`, used by the PIL transforms). OpenCV works in BGR
+    channel order, so colour results are converted back to RGB before saving. The ICC profile is carried
+    only for the colour filters, not the grayscale CLAHE conversion, where the source's colour profile would
+    not match the single-channel output. JPEG quality is pinned to 95 to match OpenCV's ``imwrite`` default.
+    """
+    pixels = result if grayscale else cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
+    transformed = Image.fromarray(pixels)
+    with Image.open(source_path) as source:
+        _save_with_metadata(source, transformed, destination, include_icc=not grayscale, quality=95)
 
 
 def generate_image_thumbnail(
@@ -70,7 +128,7 @@ def convert_to_jpeg(
         copy2(path, destination)
     else:
         with Image.open(path) as img:
-            img.convert("RGB").save(destination, "JPEG", quality=quality)
+            _save_with_metadata(img, img.convert("RGB"), destination, image_format="JPEG", quality=quality)
     return destination
 
 
@@ -104,7 +162,7 @@ def resize_fit(
 
     with Image.open(path) as img:
         resized_img = _resize_fit(img, max_width, max_height)
-        resized_img.save(destination)
+        _save_with_metadata(img, resized_img, destination)
 
 
 def resize_exact(
@@ -127,7 +185,7 @@ def resize_exact(
 
     with Image.open(path) as img:
         resized_img = img.resize((width, height), Image.Resampling.LANCZOS)
-        resized_img.save(destination)
+        _save_with_metadata(img, resized_img, destination)
 
 
 def scale(
@@ -150,7 +208,7 @@ def scale(
         new_width = int(width * scale_factor)
         new_height = int(height * scale_factor)
         scaled_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-        scaled_img.save(destination)
+        _save_with_metadata(img, scaled_img, destination)
 
 
 def rotate_clockwise(
@@ -180,7 +238,7 @@ def rotate_clockwise(
 
     with Image.open(path) as img:
         rotated_img = img.rotate(-degrees, expand=expand)
-        rotated_img.save(destination)
+        _save_with_metadata(img, rotated_img, destination, reset_orientation=True)
 
 
 def turn_clockwise(
@@ -213,7 +271,7 @@ def turn_clockwise(
 
     with Image.open(path) as img:
         turned_img = img.transpose(rotation_constants[turns])
-        turned_img.save(destination)
+        _save_with_metadata(img, turned_img, destination, reset_orientation=True)
 
 
 def flip_vertical(path: str | Path, destination: str | Path | None = None) -> None:
@@ -229,7 +287,7 @@ def flip_vertical(path: str | Path, destination: str | Path | None = None) -> No
 
     with Image.open(path) as img:
         flipped_img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-        flipped_img.save(destination)
+        _save_with_metadata(img, flipped_img, destination, reset_orientation=True)
 
 
 def flip_horizontal(path: str | Path, destination: str | Path | None = None) -> None:
@@ -245,7 +303,7 @@ def flip_horizontal(path: str | Path, destination: str | Path | None = None) -> 
 
     with Image.open(path) as img:
         flipped_img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-        flipped_img.save(destination)
+        _save_with_metadata(img, flipped_img, destination, reset_orientation=True)
 
 
 def is_blurry(path: str | Path, threshold: float = 100.0) -> bool:
@@ -267,10 +325,9 @@ def is_blurry(path: str | Path, threshold: float = 100.0) -> bool:
         raise ValueError(msg)
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    variance_of_laplacian = cv2.Laplacian(gray, cv2.CV_64F).var()
 
-    # Explicitly cast the result to float for type clarity
-    variance_of_laplacian = float(variance_of_laplacian)
+    # Cast to float for type clarity; .var() returns a NumPy scalar.
+    variance_of_laplacian = float(cv2.Laplacian(gray, cv2.CV_64F).var())
     threshold = float(threshold)
 
     image_is_blurry = variance_of_laplacian < threshold
@@ -306,7 +363,7 @@ def crop(
 
     with Image.open(path) as img:
         cropped_img = img.crop((x, y, x + width, y + height))
-        cropped_img.save(destination)
+        _save_with_metadata(img, cropped_img, destination)
 
 
 def apply_clahe(
@@ -338,7 +395,7 @@ def apply_clahe(
     clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
     img_clahe = clahe.apply(img)
 
-    cv2.imwrite(str(destination), img_clahe)
+    _save_cv2_with_metadata(path, img_clahe, destination, grayscale=True)
 
 
 def gaussian_blur(
@@ -365,7 +422,7 @@ def gaussian_blur(
     # Apply Gaussian blur to the image
     img_blur = cv2.GaussianBlur(img, kernel_size, 0)
 
-    cv2.imwrite(str(destination), img_blur)
+    _save_cv2_with_metadata(path, img_blur, destination)
 
 
 def sharpen(path: str | Path, destination: str | Path | None = None) -> None:
@@ -388,7 +445,7 @@ def sharpen(path: str | Path, destination: str | Path | None = None) -> None:
     kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
     img_sharpen = cv2.filter2D(img, -1, kernel)
 
-    cv2.imwrite(str(destination), img_sharpen)
+    _save_cv2_with_metadata(path, img_sharpen, destination)
 
 
 def get_width_height(path: str | Path) -> tuple[int, int]:

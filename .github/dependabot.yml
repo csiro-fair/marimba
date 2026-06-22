@@ -9,6 +9,11 @@ updates:
       timezone: "Australia/Hobart"
     open-pull-requests-limit: 5
     groups:
+      aws-sdk:
+        patterns:
+          - "boto3"
+          - "botocore"
+          - "s3transfer"
       dev-dependencies:
         patterns:
           - "black"

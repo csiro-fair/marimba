@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 import pytest_mock
-from ifdo.models import ImageData, RelatedMaterial
+from ifdo.models import ImageCreator, ImageData, ImageLicense, ImagePI, RelatedMaterial
 
 if TYPE_CHECKING:
     from marimba.core.schemas.base import BaseMetadata
@@ -1620,6 +1620,444 @@ class TestiFDOMetadataDeduplication:
             item = data["image-set-items"][filename]
             assert "image-latitude" not in item, "Latitude should not remain in item after deduplication"
             assert "image-altitude-meters" not in item, "Altitude should not remain in item after deduplication"
+
+
+class TestiFDOMetadataSpatialExtent:
+    """Test the image-set spatial bounding-box helper in iFDOMetadata."""
+
+    @pytest.mark.unit
+    def test_compute_spatial_extent_multiple_points(self) -> None:
+        """Min/max latitude and longitude span all images."""
+        items: dict[str, ImageData | list[ImageData]] = {
+            "img1.jpg": ImageData(image_latitude=-42.0, image_longitude=147.0),
+            "img2.jpg": ImageData(image_latitude=-41.0, image_longitude=148.5),
+            "img3.jpg": ImageData(image_latitude=-43.5, image_longitude=146.0),
+        }
+        result = iFDOMetadata._compute_spatial_extent(items)
+        assert result == {
+            "image_set_min_latitude_degrees": -43.5,
+            "image_set_max_latitude_degrees": -41.0,
+            "image_set_min_longitude_degrees": 146.0,
+            "image_set_max_longitude_degrees": 148.5,
+        }
+
+    @pytest.mark.unit
+    def test_compute_spatial_extent_single_point(self) -> None:
+        """A single point yields a degenerate box where min equals max."""
+        items: dict[str, ImageData | list[ImageData]] = {
+            "img1.jpg": ImageData(image_latitude=-42.887, image_longitude=147.339),
+        }
+        result = iFDOMetadata._compute_spatial_extent(items)
+        assert result["image_set_min_latitude_degrees"] == result["image_set_max_latitude_degrees"] == -42.887
+        assert result["image_set_min_longitude_degrees"] == result["image_set_max_longitude_degrees"] == 147.339
+
+    @pytest.mark.unit
+    def test_compute_spatial_extent_no_coordinates(self) -> None:
+        """Images without coordinates produce no bounding-box fields."""
+        items: dict[str, ImageData | list[ImageData]] = {
+            "img1.jpg": ImageData(image_datetime=datetime(2024, 1, 1, tzinfo=UTC)),
+            "img2.jpg": ImageData(),
+        }
+        assert iFDOMetadata._compute_spatial_extent(items) == {}
+
+    @pytest.mark.unit
+    def test_compute_spatial_extent_partial_coordinates(self) -> None:
+        """Only images with valid coordinates contribute to the extent."""
+        items: dict[str, ImageData | list[ImageData]] = {
+            "img1.jpg": ImageData(image_latitude=10.0, image_longitude=20.0),
+            "img2.jpg": ImageData(image_latitude=None, image_longitude=None),
+            "img3.jpg": ImageData(image_latitude=-5.0, image_longitude=None),
+        }
+        result = iFDOMetadata._compute_spatial_extent(items)
+        assert result["image_set_min_latitude_degrees"] == -5.0
+        assert result["image_set_max_latitude_degrees"] == 10.0
+        assert result["image_set_min_longitude_degrees"] == 20.0
+        assert result["image_set_max_longitude_degrees"] == 20.0
+
+    @pytest.mark.unit
+    def test_compute_spatial_extent_video_frames_included(self) -> None:
+        """Video-frame coordinates are flattened into the extent."""
+        items: dict[str, ImageData | list[ImageData]] = {
+            "video.mp4": [
+                ImageData(image_latitude=-42.0, image_longitude=147.0),
+                ImageData(image_latitude=-44.0, image_longitude=149.0),
+            ],
+            "img.jpg": ImageData(image_latitude=-43.0, image_longitude=148.0),
+        }
+        result = iFDOMetadata._compute_spatial_extent(items)
+        assert result["image_set_min_latitude_degrees"] == -44.0
+        assert result["image_set_max_latitude_degrees"] == -42.0
+        assert result["image_set_min_longitude_degrees"] == 147.0
+        assert result["image_set_max_longitude_degrees"] == 149.0
+
+    @pytest.mark.unit
+    def test_create_dataset_metadata_writes_bounding_box(self) -> None:
+        """The bounding box is written into the iFDO header by alias."""
+        meta1 = iFDOMetadata(ImageData(image_latitude=-42.0, image_longitude=147.0))
+        meta2 = iFDOMetadata(ImageData(image_latitude=-44.0, image_longitude=149.0))
+        items = {
+            "img1.jpg": [cast("BaseMetadata", meta1)],
+            "img2.jpg": [cast("BaseMetadata", meta2)],
+        }
+
+        captured: list[dict[str, Any]] = []
+
+        def mock_saver(_root: Path, _name: str, data: dict[str, Any]) -> None:
+            captured.append(data)
+
+        iFDOMetadata.create_dataset_metadata("TestDataset", Path("/tmp"), items, saver_overwrite=mock_saver)
+
+        header = captured[0]["image-set-header"]
+        assert header["image-set-min-latitude-degrees"] == -44.0
+        assert header["image-set-max-latitude-degrees"] == -42.0
+        assert header["image-set-min-longitude-degrees"] == 147.0
+        assert header["image-set-max-longitude-degrees"] == 149.0
+
+    @pytest.mark.unit
+    def test_create_dataset_metadata_omits_bounding_box_without_coordinates(self) -> None:
+        """No bounding-box keys are emitted when the dataset has no coordinates."""
+        meta1 = iFDOMetadata(ImageData(image_datetime=datetime(2024, 1, 1, tzinfo=UTC)))
+        meta2 = iFDOMetadata(ImageData(image_datetime=datetime(2024, 1, 2, tzinfo=UTC)))
+        items = {
+            "img1.jpg": [cast("BaseMetadata", meta1)],
+            "img2.jpg": [cast("BaseMetadata", meta2)],
+        }
+
+        captured: list[dict[str, Any]] = []
+
+        def mock_saver(_root: Path, _name: str, data: dict[str, Any]) -> None:
+            captured.append(data)
+
+        iFDOMetadata.create_dataset_metadata("TestDataset", Path("/tmp"), items, saver_overwrite=mock_saver)
+
+        header = captured[0]["image-set-header"]
+        assert "image-set-min-latitude-degrees" not in header
+        assert "image-set-max-longitude-degrees" not in header
+
+
+class TestiFDOMetadataSetUuid:
+    """Test that the image-set UUID is deterministic and stable across packaging runs."""
+
+    @staticmethod
+    def _header_uuid(dataset_name: str, metadata_name: str | None = None) -> str:
+        """Build an iFDO via create_dataset_metadata and return its image-set-uuid."""
+        meta1 = iFDOMetadata(ImageData(image_latitude=-44.0, image_longitude=147.0))
+        meta2 = iFDOMetadata(ImageData(image_latitude=-44.1, image_longitude=147.1))
+        items = {
+            "img1.jpg": [cast("BaseMetadata", meta1)],
+            "img2.jpg": [cast("BaseMetadata", meta2)],
+        }
+        captured: list[dict[str, Any]] = []
+
+        def mock_saver(_root: Path, _name: str, data: dict[str, Any]) -> None:
+            captured.append(data)
+
+        iFDOMetadata.create_dataset_metadata(
+            dataset_name,
+            Path("/tmp"),
+            items,
+            metadata_name=metadata_name,
+            saver_overwrite=mock_saver,
+        )
+        return str(captured[0]["image-set-header"]["image-set-uuid"])
+
+    @pytest.mark.unit
+    def test_set_uuid_is_stable_across_runs(self) -> None:
+        """The same dataset name yields the same image-set-uuid on repeated packaging."""
+        first = self._header_uuid("IN2018_V06")
+        second = self._header_uuid("IN2018_V06")
+        assert first == second
+
+    @pytest.mark.unit
+    def test_set_uuid_differs_by_dataset_name(self) -> None:
+        """Different dataset names yield different image-set-uuids."""
+        assert self._header_uuid("DatasetA") != self._header_uuid("DatasetB")
+
+    @pytest.mark.unit
+    def test_set_uuid_differs_per_collection(self) -> None:
+        """A per-collection iFDO (distinct metadata_name) gets a distinct, stable UUID."""
+        aggregate = self._header_uuid("IN2018_V06", metadata_name=None)
+        collection = self._header_uuid("IN2018_V06", metadata_name="IN2018_V06_060")
+        assert aggregate != collection
+        assert collection == self._header_uuid("IN2018_V06", metadata_name="IN2018_V06_060")
+
+    @pytest.mark.unit
+    def test_set_uuid_is_valid_uuid_format(self) -> None:
+        """The derived value is a well-formed UUID string."""
+        import uuid as uuid_module
+
+        # Does not raise -> valid UUID.
+        uuid_module.UUID(self._header_uuid("IN2018_V06"))
+
+
+class TestiFDOMetadataPerImageUuid:
+    """Test deterministic per-image UUID assignment (ensure_image_uuid)."""
+
+    @pytest.mark.unit
+    def test_derive_image_set_uuid_is_deterministic(self) -> None:
+        """The set-UUID derivation matches uuid5 over the namespaced key."""
+        import uuid as uuid_module
+
+        expected = str(uuid_module.uuid5(uuid_module.NAMESPACE_URL, "urn:marimba:image-set:IN2018_V06"))
+        assert iFDOMetadata.derive_image_set_uuid("IN2018_V06") == expected
+
+    @pytest.mark.unit
+    def test_derive_image_set_uuid_collection_differs(self) -> None:
+        """A collection key yields a different set UUID from the dataset-level one."""
+        aggregate = iFDOMetadata.derive_image_set_uuid("IN2018_V06")
+        collection = iFDOMetadata.derive_image_set_uuid("IN2018_V06", "IN2018_V06_060")
+        assert aggregate != collection
+
+    @pytest.mark.unit
+    def test_ensure_image_uuid_fills_when_absent(self) -> None:
+        """A missing image-uuid is filled with a deterministic uuid5 of the set UUID + relative path."""
+        import uuid as uuid_module
+
+        set_uuid = iFDOMetadata.derive_image_set_uuid("IN2018_V06")
+        rel = "data/MRITC/IN2018_V06_060/images/x.JPG"
+        meta = iFDOMetadata(ImageData())
+        meta.ensure_image_uuid(set_uuid, rel)
+        expected = str(uuid_module.uuid5(uuid_module.UUID(set_uuid), rel))
+        assert meta.primary_image_data.image_uuid == expected
+
+    @pytest.mark.unit
+    def test_ensure_image_uuid_is_reproducible(self) -> None:
+        """Re-running ensure_image_uuid with the same inputs yields the same UUID."""
+        set_uuid = iFDOMetadata.derive_image_set_uuid("IN2018_V06")
+        rel = "data/x.JPG"
+        a = iFDOMetadata(ImageData())
+        b = iFDOMetadata(ImageData())
+        a.ensure_image_uuid(set_uuid, rel)
+        b.ensure_image_uuid(set_uuid, rel)
+        assert a.primary_image_data.image_uuid == b.primary_image_data.image_uuid
+
+    @pytest.mark.unit
+    def test_ensure_image_uuid_differs_per_path(self) -> None:
+        """Different relative paths produce different per-image UUIDs."""
+        set_uuid = iFDOMetadata.derive_image_set_uuid("IN2018_V06")
+        a = iFDOMetadata(ImageData())
+        b = iFDOMetadata(ImageData())
+        a.ensure_image_uuid(set_uuid, "data/a.JPG")
+        b.ensure_image_uuid(set_uuid, "data/b.JPG")
+        assert a.primary_image_data.image_uuid != b.primary_image_data.image_uuid
+
+    @pytest.mark.unit
+    def test_ensure_image_uuid_honours_existing(self) -> None:
+        """A pipeline-supplied image-uuid is left untouched."""
+        set_uuid = iFDOMetadata.derive_image_set_uuid("IN2018_V06")
+        meta = iFDOMetadata(ImageData(image_uuid="pipeline-supplied-id"))
+        meta.ensure_image_uuid(set_uuid, "data/x.JPG")
+        assert meta.primary_image_data.image_uuid == "pipeline-supplied-id"
+
+    @pytest.mark.unit
+    def test_ensure_image_uuid_video_all_frames(self) -> None:
+        """Every video frame entry without a UUID receives the same minted value; preset frames are kept."""
+        set_uuid = iFDOMetadata.derive_image_set_uuid("IN2018_V06")
+        frames = [ImageData(), ImageData(image_uuid="keep-me"), ImageData()]
+        meta = iFDOMetadata(frames)
+        meta.ensure_image_uuid(set_uuid, "data/video.MP4")
+        assert frames[0].image_uuid == frames[2].image_uuid
+        assert frames[0].image_uuid is not None
+        assert frames[1].image_uuid == "keep-me"
+
+
+class TestiFDOMetadataGpsTags:
+    """Test the GPS datum and fix-time EXIF tags built by _add_gps_tags."""
+
+    @pytest.mark.unit
+    def test_gps_datum_defaults_to_wgs84_when_crs_unset(self) -> None:
+        """A position with no CRS declares the WGS-84 datum by default."""
+        exif_tags: dict[str, Any] = {}
+        iFDOMetadata._add_gps_tags(exif_tags, ImageData(image_latitude=-44.0, image_longitude=147.0))
+        assert exif_tags["EXIF:GPSMapDatum"] == "WGS-84"
+
+    @pytest.mark.unit
+    def test_gps_datum_honours_pipeline_crs_verbatim(self) -> None:
+        """A pipeline-supplied coordinate reference system is written verbatim, not overridden."""
+        exif_tags: dict[str, Any] = {}
+        image_data = ImageData(
+            image_latitude=-44.0,
+            image_longitude=147.0,
+            image_coordinate_reference_system="GDA2020",
+        )
+        iFDOMetadata._add_gps_tags(exif_tags, image_data)
+        assert exif_tags["EXIF:GPSMapDatum"] == "GDA2020"
+
+    @pytest.mark.unit
+    def test_gps_datum_honours_epsg_crs_verbatim(self) -> None:
+        """An EPSG-style CRS string is also honoured verbatim."""
+        exif_tags: dict[str, Any] = {}
+        image_data = ImageData(
+            image_latitude=-44.0,
+            image_longitude=147.0,
+            image_coordinate_reference_system="EPSG:4326",
+        )
+        iFDOMetadata._add_gps_tags(exif_tags, image_data)
+        assert exif_tags["EXIF:GPSMapDatum"] == "EPSG:4326"
+
+    @pytest.mark.unit
+    def test_gps_timestamps_written_for_tz_aware_datetime(self) -> None:
+        """A timezone-aware datetime yields UTC GPSDateStamp and GPSTimeStamp."""
+        exif_tags: dict[str, Any] = {}
+        image_data = ImageData(
+            image_latitude=-44.0,
+            image_longitude=147.0,
+            image_datetime=datetime(2024, 3, 15, 12, 30, 45, tzinfo=UTC),
+        )
+        iFDOMetadata._add_gps_tags(exif_tags, image_data)
+        assert exif_tags["EXIF:GPSDateStamp"] == "2024:03:15"
+        assert exif_tags["EXIF:GPSTimeStamp"] == "12:30:45"
+
+    @pytest.mark.unit
+    def test_gps_timestamps_converted_to_utc(self) -> None:
+        """A non-UTC timezone-aware datetime is converted to UTC for the GPS fix time."""
+        from datetime import timedelta, timezone
+
+        exif_tags: dict[str, Any] = {}
+        aedt = timezone(timedelta(hours=11))
+        image_data = ImageData(
+            image_latitude=-44.0,
+            image_longitude=147.0,
+            image_datetime=datetime(2024, 3, 15, 9, 30, 45, tzinfo=aedt),
+        )
+        iFDOMetadata._add_gps_tags(exif_tags, image_data)
+        assert exif_tags["EXIF:GPSDateStamp"] == "2024:03:14"
+        assert exif_tags["EXIF:GPSTimeStamp"] == "22:30:45"
+
+    @pytest.mark.unit
+    def test_gps_timestamps_omitted_for_naive_datetime(self) -> None:
+        """A naive datetime cannot be asserted as UTC, so GPS timestamps are omitted."""
+        exif_tags: dict[str, Any] = {}
+        image_data = ImageData(
+            image_latitude=-44.0,
+            image_longitude=147.0,
+            image_datetime=datetime(2024, 3, 15, 12, 30, 45),  # noqa: DTZ001
+        )
+        iFDOMetadata._add_gps_tags(exif_tags, image_data)
+        assert exif_tags["EXIF:GPSMapDatum"] == "WGS-84"
+        assert "EXIF:GPSDateStamp" not in exif_tags
+        assert "EXIF:GPSTimeStamp" not in exif_tags
+
+    @pytest.mark.unit
+    def test_no_gps_block_tags_without_position(self) -> None:
+        """Datum and fix-time tags are not emitted when there is no GPS position."""
+        exif_tags: dict[str, Any] = {}
+        image_data = ImageData(image_datetime=datetime(2024, 3, 15, 12, 30, 45, tzinfo=UTC))
+        iFDOMetadata._add_gps_tags(exif_tags, image_data)
+        assert "EXIF:GPSMapDatum" not in exif_tags
+        assert "EXIF:GPSDateStamp" not in exif_tags
+        assert "EXIF:GPSTimeStamp" not in exif_tags
+
+
+class TestiFDOMetadataRightsTags:
+    """Test discrete rights/attribution/description EXIF/XMP tags built by _add_rights_tags."""
+
+    @pytest.mark.unit
+    def test_creators_to_artist_and_dc_creator(self) -> None:
+        """Creator names populate EXIF:Artist (joined) and XMP-dc:Creator (list)."""
+        exif: dict[str, Any] = {}
+        data = ImageData(image_creators=[ImageCreator(name="Keiko Abe"), ImageCreator(name="Jane Doe")])
+        iFDOMetadata._add_rights_tags(exif, data)
+        assert exif["EXIF:Artist"] == "Keiko Abe; Jane Doe"
+        assert exif["XMP-dc:Creator"] == ["Keiko Abe", "Jane Doe"]
+
+    @pytest.mark.unit
+    def test_orcids_to_structured_plus_image_creator(self) -> None:
+        """Creators and the PI with a URI become structured XMP-plus:ImageCreator name/id pairs."""
+        exif: dict[str, Any] = {}
+        data = ImageData(
+            image_creators=[ImageCreator(name="Keiko Abe", uri="https://orcid.org/0000-0001")],
+            image_pi=ImagePI(name="Pat PI", uri="https://orcid.org/0000-0009"),
+        )
+        iFDOMetadata._add_rights_tags(exif, data)
+        assert exif["XMP-plus:ImageCreatorName"] == ["Keiko Abe", "Pat PI"]
+        assert exif["XMP-plus:ImageCreatorID"] == ["https://orcid.org/0000-0001", "https://orcid.org/0000-0009"]
+        assert exif["XMP-dc:Contributor"] == ["Pat PI"]
+
+    @pytest.mark.unit
+    def test_creator_and_pi_same_person_deduplicated(self) -> None:
+        """When a creator and the PI are the same person + ORCID, the structured list records them once."""
+        exif: dict[str, Any] = {}
+        data = ImageData(
+            image_creators=[ImageCreator(name="Keiko Abe", uri="https://orcid.org/0000-0001")],
+            image_pi=ImagePI(name="Keiko Abe", uri="https://orcid.org/0000-0001"),
+        )
+        iFDOMetadata._add_rights_tags(exif, data)
+        assert exif["XMP-plus:ImageCreatorName"] == ["Keiko Abe"]
+        assert exif["XMP-plus:ImageCreatorID"] == ["https://orcid.org/0000-0001"]
+
+    @pytest.mark.unit
+    def test_creator_without_uri_omitted_from_structured(self) -> None:
+        """A creator with no ORCID still appears in dc:Creator but not in the structured plus entries."""
+        exif: dict[str, Any] = {}
+        iFDOMetadata._add_rights_tags(exif, ImageData(image_creators=[ImageCreator(name="No Orcid")]))
+        assert exif["XMP-dc:Creator"] == ["No Orcid"]
+        assert "XMP-plus:ImageCreatorName" not in exif
+
+    @pytest.mark.unit
+    def test_license_and_copyright(self) -> None:
+        """Licence and copyright populate the rights tags, with the licence URL as WebStatement."""
+        exif: dict[str, Any] = {}
+        data = ImageData(
+            image_license=ImageLicense(
+                name="CC BY-NC-SA 4.0",
+                uri="https://creativecommons.org/licenses/by-nc-sa/4.0/",
+            ),
+            image_copyright="CSIRO",
+        )
+        iFDOMetadata._add_rights_tags(exif, data)
+        assert exif["EXIF:Copyright"] == "CSIRO"
+        assert exif["XMP-dc:Rights"] == "CSIRO"
+        assert exif["XMP-xmpRights:UsageTerms"] == "CC BY-NC-SA 4.0"
+        assert exif["XMP-xmpRights:WebStatement"] == "https://creativecommons.org/licenses/by-nc-sa/4.0/"
+
+    @pytest.mark.unit
+    def test_copyright_falls_back_to_license_name(self) -> None:
+        """When no copyright is set, the licence name is used as the copyright notice."""
+        exif: dict[str, Any] = {}
+        iFDOMetadata._add_rights_tags(exif, ImageData(image_license=ImageLicense(name="CC0")))
+        assert exif["EXIF:Copyright"] == "CC0"
+
+    @pytest.mark.unit
+    def test_abstract_to_description(self) -> None:
+        """The abstract populates EXIF:ImageDescription and XMP-dc:Description."""
+        exif: dict[str, Any] = {}
+        iFDOMetadata._add_rights_tags(exif, ImageData(image_abstract="A survey of the seabed."))
+        assert exif["EXIF:ImageDescription"] == "A survey of the seabed."
+        assert exif["XMP-dc:Description"] == "A survey of the seabed."
+
+    @pytest.mark.unit
+    def test_empty_image_data_writes_nothing(self) -> None:
+        """No rights tags are written when the iFDO record carries none."""
+        exif: dict[str, Any] = {}
+        iFDOMetadata._add_rights_tags(exif, ImageData())
+        assert exif == {}
+
+
+class TestiFDOMetadataIdentifierTags:
+    """Test identifier EXIF/XMP tags built by _add_identifier_tags."""
+
+    @pytest.mark.unit
+    def test_image_uuid_to_exif_and_xmp(self) -> None:
+        """The per-image UUID is written to both EXIF:ImageUniqueID and XMP-dc:Identifier."""
+        exif: dict[str, Any] = {}
+        iFDOMetadata._add_identifier_tags(exif, ImageData(image_uuid="abc-123"))
+        assert exif["EXIF:ImageUniqueID"] == "abc-123"
+        assert exif["XMP-dc:Identifier"] == "abc-123"
+
+    @pytest.mark.unit
+    def test_image_set_uuid_to_dc_source(self) -> None:
+        """The dataset UUID is written as an XMP-dc:Source URN so a detached image resolves to its dataset."""
+        exif: dict[str, Any] = {}
+        iFDOMetadata._add_identifier_tags(exif, ImageData(image_uuid="abc"), "set-uuid-123")
+        assert exif["XMP-dc:Source"] == "urn:uuid:set-uuid-123"
+
+    @pytest.mark.unit
+    def test_no_identifiers_writes_nothing(self) -> None:
+        """Nothing is written when neither a per-image nor a dataset UUID is available."""
+        exif: dict[str, Any] = {}
+        iFDOMetadata._add_identifier_tags(exif, ImageData())
+        assert exif == {}
 
 
 class TestiFDOMetadataInvalidConstruction:
