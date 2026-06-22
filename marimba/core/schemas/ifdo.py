@@ -681,6 +681,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         *,
         dry_run: bool = False,
         chunk_size: int | None = None,
+        image_set_uuid: str | None = None,
     ) -> None:
         """Process dataset_mapping using metadata with chunked batch processing."""
         if dry_run:
@@ -733,7 +734,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             processed_images, non_exif_files = cls._process_images_memory_safe(chunk, thread_num, logger)
 
             # Phase 2: Batch EXIF writing (no image loading)
-            cls._write_exif_batch(processed_images, thread_num, logger)
+            cls._write_exif_batch(processed_images, thread_num, logger, image_set_uuid)
             cls._log_non_exif_files(non_exif_files, thread_num, logger)
 
             # Update progress for entire chunk
@@ -917,6 +918,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         processed_images: list[ProcessedImageData],
         thread_num: str,
         logger: logging.Logger,
+        image_set_uuid: str | None = None,
     ) -> None:
         """Phase 2: Batch EXIF writing without loading images."""
         if not processed_images:
@@ -946,7 +948,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
                     existing_exif_map[file_paths[i]] = metadata or {}
 
                 # Process EXIF tags for all files
-                cls._process_exif_tags_batch(et, successful_images, existing_exif_map)
+                cls._process_exif_tags_batch(et, successful_images, existing_exif_map, image_set_uuid)
 
                 # Handle thumbnails separately (using pre-generated data)
                 cls._embed_thumbnail_batch(et, successful_images, logger)
@@ -967,6 +969,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         et: exiftool.ExifToolHelper,
         successful_images: list[ProcessedImageData],
         existing_exif_map: dict[str, dict[str, Any]],
+        image_set_uuid: str | None = None,
     ) -> None:
         """Build and apply EXIF tags for all images in batch."""
         for img in successful_images:
@@ -983,8 +986,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
             # Add metadata-only EXIF tags (no image required)
             cls._add_datetime_tags(exif_tags, img.image_data)
-            cls._add_identifier_tags(exif_tags, img.image_data)
+            cls._add_identifier_tags(exif_tags, img.image_data, image_set_uuid)
             cls._add_gps_tags(exif_tags, img.image_data)
+            cls._add_rights_tags(exif_tags, img.image_data)
             cls._add_user_comment(exif_tags, img.image_data, img.ancillary_data)
 
             # Apply tags if any were built
@@ -1053,10 +1057,61 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             exif_tags["EXIF:SubSecTimeOriginal"] = subsec_str
 
     @staticmethod
-    def _add_identifier_tags(exif_tags: dict[str, Any], image_data: ImageData) -> None:
-        """Add identifier-related EXIF tags."""
+    def _add_identifier_tags(
+        exif_tags: dict[str, Any],
+        image_data: ImageData,
+        image_set_uuid: str | None = None,
+    ) -> None:
+        """Add identifier EXIF/XMP tags so a detached image carries its own and its dataset's identity."""
         if image_data.image_uuid:
             exif_tags["EXIF:ImageUniqueID"] = str(image_data.image_uuid)
+            exif_tags["XMP-dc:Identifier"] = str(image_data.image_uuid)
+        if image_set_uuid:
+            # The image's source image set, so a detached file resolves back to its dataset.
+            exif_tags["XMP-dc:Source"] = f"urn:uuid:{image_set_uuid}"
+
+    @staticmethod
+    def _add_rights_tags(exif_tags: dict[str, Any], image_data: ImageData) -> None:
+        """Add discrete rights, attribution, and description tags so harvesters can read them.
+
+        These mirror fields that otherwise live only inside the opaque EXIF:UserComment JSON. Creator and PI
+        identifiers (ORCIDs) are written as structured XMP-plus:ImageCreator {name, id} entries; the PI is also
+        recorded as a dc:Contributor. Tags are written only when their iFDO source is populated.
+        """
+        creators = [c for c in (image_data.image_creators or []) if c.name]
+        if creators:
+            exif_tags["EXIF:Artist"] = "; ".join(c.name for c in creators)
+            exif_tags["XMP-dc:Creator"] = [c.name for c in creators]
+
+        if image_data.image_pi and image_data.image_pi.name:
+            exif_tags["XMP-dc:Contributor"] = [image_data.image_pi.name]
+
+        # Structured name + identifier (ORCID) for every responsible party that has a URI, de-duplicated
+        # (a creator and the PI are frequently the same person).
+        responsible = [*creators, image_data.image_pi] if image_data.image_pi else creators
+        seen: set[tuple[str, str]] = set()
+        named_with_uri: list[tuple[str, str]] = []
+        for agent in responsible:
+            if agent and agent.name and agent.uri and (agent.name, agent.uri) not in seen:
+                seen.add((agent.name, agent.uri))
+                named_with_uri.append((agent.name, agent.uri))
+        if named_with_uri:
+            exif_tags["XMP-plus:ImageCreatorName"] = [name for name, _ in named_with_uri]
+            exif_tags["XMP-plus:ImageCreatorID"] = [uri for _, uri in named_with_uri]
+
+        licence = image_data.image_license
+        copyright_notice = image_data.image_copyright or (licence.name if licence else None)
+        if copyright_notice:
+            exif_tags["EXIF:Copyright"] = copyright_notice
+            exif_tags["XMP-dc:Rights"] = copyright_notice
+        if licence and licence.name:
+            exif_tags["XMP-xmpRights:UsageTerms"] = licence.name
+        if licence and licence.uri:
+            exif_tags["XMP-xmpRights:WebStatement"] = licence.uri
+
+        if image_data.image_abstract:
+            exif_tags["EXIF:ImageDescription"] = image_data.image_abstract
+            exif_tags["XMP-dc:Description"] = image_data.image_abstract
 
     @staticmethod
     def _add_gps_tags(exif_tags: dict[str, Any], image_data: ImageData) -> None:

@@ -626,6 +626,7 @@ class DatasetWrapper(LogMixin):
                 logger=self.logger,
                 dry_run=self.dry_run,
                 chunk_size=exif_chunk_size,
+                image_set_uuid=image_set_uuid,
             )
 
         total_files = sum(len(files) for files in files_by_type.values())

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 import pytest_mock
-from ifdo.models import ImageData, RelatedMaterial
+from ifdo.models import ImageCreator, ImageData, ImageLicense, ImagePI, RelatedMaterial
 
 if TYPE_CHECKING:
     from marimba.core.schemas.base import BaseMetadata
@@ -1947,6 +1947,117 @@ class TestiFDOMetadataGpsTags:
         assert "EXIF:GPSMapDatum" not in exif_tags
         assert "EXIF:GPSDateStamp" not in exif_tags
         assert "EXIF:GPSTimeStamp" not in exif_tags
+
+
+class TestiFDOMetadataRightsTags:
+    """Test discrete rights/attribution/description EXIF/XMP tags built by _add_rights_tags."""
+
+    @pytest.mark.unit
+    def test_creators_to_artist_and_dc_creator(self) -> None:
+        """Creator names populate EXIF:Artist (joined) and XMP-dc:Creator (list)."""
+        exif: dict[str, Any] = {}
+        data = ImageData(image_creators=[ImageCreator(name="Keiko Abe"), ImageCreator(name="Jane Doe")])
+        iFDOMetadata._add_rights_tags(exif, data)
+        assert exif["EXIF:Artist"] == "Keiko Abe; Jane Doe"
+        assert exif["XMP-dc:Creator"] == ["Keiko Abe", "Jane Doe"]
+
+    @pytest.mark.unit
+    def test_orcids_to_structured_plus_image_creator(self) -> None:
+        """Creators and the PI with a URI become structured XMP-plus:ImageCreator name/id pairs."""
+        exif: dict[str, Any] = {}
+        data = ImageData(
+            image_creators=[ImageCreator(name="Keiko Abe", uri="https://orcid.org/0000-0001")],
+            image_pi=ImagePI(name="Pat PI", uri="https://orcid.org/0000-0009"),
+        )
+        iFDOMetadata._add_rights_tags(exif, data)
+        assert exif["XMP-plus:ImageCreatorName"] == ["Keiko Abe", "Pat PI"]
+        assert exif["XMP-plus:ImageCreatorID"] == ["https://orcid.org/0000-0001", "https://orcid.org/0000-0009"]
+        assert exif["XMP-dc:Contributor"] == ["Pat PI"]
+
+    @pytest.mark.unit
+    def test_creator_and_pi_same_person_deduplicated(self) -> None:
+        """When a creator and the PI are the same person + ORCID, the structured list records them once."""
+        exif: dict[str, Any] = {}
+        data = ImageData(
+            image_creators=[ImageCreator(name="Keiko Abe", uri="https://orcid.org/0000-0001")],
+            image_pi=ImagePI(name="Keiko Abe", uri="https://orcid.org/0000-0001"),
+        )
+        iFDOMetadata._add_rights_tags(exif, data)
+        assert exif["XMP-plus:ImageCreatorName"] == ["Keiko Abe"]
+        assert exif["XMP-plus:ImageCreatorID"] == ["https://orcid.org/0000-0001"]
+
+    @pytest.mark.unit
+    def test_creator_without_uri_omitted_from_structured(self) -> None:
+        """A creator with no ORCID still appears in dc:Creator but not in the structured plus entries."""
+        exif: dict[str, Any] = {}
+        iFDOMetadata._add_rights_tags(exif, ImageData(image_creators=[ImageCreator(name="No Orcid")]))
+        assert exif["XMP-dc:Creator"] == ["No Orcid"]
+        assert "XMP-plus:ImageCreatorName" not in exif
+
+    @pytest.mark.unit
+    def test_license_and_copyright(self) -> None:
+        """Licence and copyright populate the rights tags, with the licence URL as WebStatement."""
+        exif: dict[str, Any] = {}
+        data = ImageData(
+            image_license=ImageLicense(
+                name="CC BY-NC-SA 4.0",
+                uri="https://creativecommons.org/licenses/by-nc-sa/4.0/",
+            ),
+            image_copyright="CSIRO",
+        )
+        iFDOMetadata._add_rights_tags(exif, data)
+        assert exif["EXIF:Copyright"] == "CSIRO"
+        assert exif["XMP-dc:Rights"] == "CSIRO"
+        assert exif["XMP-xmpRights:UsageTerms"] == "CC BY-NC-SA 4.0"
+        assert exif["XMP-xmpRights:WebStatement"] == "https://creativecommons.org/licenses/by-nc-sa/4.0/"
+
+    @pytest.mark.unit
+    def test_copyright_falls_back_to_license_name(self) -> None:
+        """When no copyright is set, the licence name is used as the copyright notice."""
+        exif: dict[str, Any] = {}
+        iFDOMetadata._add_rights_tags(exif, ImageData(image_license=ImageLicense(name="CC0")))
+        assert exif["EXIF:Copyright"] == "CC0"
+
+    @pytest.mark.unit
+    def test_abstract_to_description(self) -> None:
+        """The abstract populates EXIF:ImageDescription and XMP-dc:Description."""
+        exif: dict[str, Any] = {}
+        iFDOMetadata._add_rights_tags(exif, ImageData(image_abstract="A survey of the seabed."))
+        assert exif["EXIF:ImageDescription"] == "A survey of the seabed."
+        assert exif["XMP-dc:Description"] == "A survey of the seabed."
+
+    @pytest.mark.unit
+    def test_empty_image_data_writes_nothing(self) -> None:
+        """No rights tags are written when the iFDO record carries none."""
+        exif: dict[str, Any] = {}
+        iFDOMetadata._add_rights_tags(exif, ImageData())
+        assert exif == {}
+
+
+class TestiFDOMetadataIdentifierTags:
+    """Test identifier EXIF/XMP tags built by _add_identifier_tags."""
+
+    @pytest.mark.unit
+    def test_image_uuid_to_exif_and_xmp(self) -> None:
+        """The per-image UUID is written to both EXIF:ImageUniqueID and XMP-dc:Identifier."""
+        exif: dict[str, Any] = {}
+        iFDOMetadata._add_identifier_tags(exif, ImageData(image_uuid="abc-123"))
+        assert exif["EXIF:ImageUniqueID"] == "abc-123"
+        assert exif["XMP-dc:Identifier"] == "abc-123"
+
+    @pytest.mark.unit
+    def test_image_set_uuid_to_dc_source(self) -> None:
+        """The dataset UUID is written as an XMP-dc:Source URN so a detached image resolves to its dataset."""
+        exif: dict[str, Any] = {}
+        iFDOMetadata._add_identifier_tags(exif, ImageData(image_uuid="abc"), "set-uuid-123")
+        assert exif["XMP-dc:Source"] == "urn:uuid:set-uuid-123"
+
+    @pytest.mark.unit
+    def test_no_identifiers_writes_nothing(self) -> None:
+        """Nothing is written when neither a per-image nor a dataset UUID is available."""
+        exif: dict[str, Any] = {}
+        iFDOMetadata._add_identifier_tags(exif, ImageData())
+        assert exif == {}
 
 
 class TestiFDOMetadataInvalidConstruction:
