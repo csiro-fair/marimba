@@ -7,13 +7,11 @@ dataset contents, calculate various metrics, and present the information in a st
 
 """
 
-import json
-import subprocess  # nosec
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import av
 from av.container import InputContainer
@@ -21,7 +19,6 @@ from PIL import Image
 from tabulate import tabulate
 
 import marimba
-from marimba.core.utils.dependencies import ToolDependency, check_dependency_available, show_dependency_error_and_exit
 from marimba.core.utils.log import get_logger
 
 if TYPE_CHECKING:
@@ -411,43 +408,6 @@ class ImagerySummary:
         complete_percentage = ((total_images - corrupt_images) / total_images) * 100 if total_images > 0 else 0
         corrupt_percentage = (corrupt_images / total_images) * 100 if total_images > 0 else 0
         return f"{complete_percentage:.1f}% complete, {corrupt_percentage:.1f}% corrupt"
-
-    @staticmethod
-    def run_ffmpeg_command(command: list[str]) -> dict[str, Any]:
-        """
-        Execute an FFmpeg command and returns the JSON output.
-
-        This function runs the provided FFmpeg command using subprocess, captures the output, and returns it as a
-        parsed JSON dictionary. If the command fails, it raises a RuntimeError with the error message.
-
-        Args:
-            command: A list of strings representing the FFmpeg command and its arguments.
-
-        Returns:
-            A dictionary containing the parsed JSON output from the FFmpeg command.
-
-        Raises:
-            RuntimeError: If the FFmpeg command fails to execute successfully.
-        """
-        # Check if ffmpeg/ffprobe is available
-        tool_name = command[0] if command else "ffmpeg"
-        tool_dependency = ToolDependency.FFMPEG
-        if not check_dependency_available(tool_dependency):
-            show_dependency_error_and_exit(ToolDependency.FFMPEG, f"{tool_name} is required for video analysis")
-
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            # Check if it's a "command not found" type error
-            if "not found" in result.stderr.lower() or "not recognized" in result.stderr.lower():
-                show_dependency_error_and_exit(ToolDependency.FFMPEG, result.stderr)
-            msg = f"FFmpeg command failed with error: {result.stderr}"
-            raise RuntimeError(msg)
-        return cast("dict[str, Any]", json.loads(result.stdout))
 
     @staticmethod
     def get_video_properties(video_list: list[Path]) -> dict[str, Any]:
