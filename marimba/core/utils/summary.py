@@ -134,7 +134,7 @@ class ImagerySummary:
         Quickly check if a video file is corrupt.
 
         This function performs a quick check to determine if the given video file is corrupt. It checks the
-        video metadata for the duration of the video and than seeks the to the start, middle, and end of the video
+        video metadata for the duration of the video and then seeks the to the start, middle, and end of the video
         to check if frames exist at these timestamps. The function returns True if any of these checks fail
         or if an exception occurs during the process.
 
@@ -147,51 +147,71 @@ class ImagerySummary:
         try:
             # Check metadata
             with av.open(video_path) as container:
-                duration = container.duration
-
                 if len(container.streams.video) == 0:
-                    return False
-
-                frame_rate = container.streams.video[0].base_rate
-
-                if duration is None or frame_rate is None:
                     return True
 
-                # Quick seek test (start, middle, end)
-                seek_times = [0, duration // 2, duration - int(av.time_base / frame_rate)]
-                return not all(ImagerySummary._check_if_frame_exists(container, ts) for ts in seek_times)
+                return ImagerySummary._check_video_streams(container)
 
         except Exception:
             logger.exception(f"Error checking video {video_path}")
             return True
 
     @staticmethod
-    def _check_if_frame_exists(container: InputContainer, timestamp: int) -> bool:
+    def _check_video_streams(container: InputContainer) -> bool:
         """
-        Checks if a frame exists in a given container at the given timestamp.
+        Check if video stream in a video container are corrupt.
 
         Args:
-            container: File container to check.
-            timestamp: Frame time in av.time_base
+            container: The container to check.
 
         Returns:
-            bool: True if the frame could be found in the container
+            bool: True if a video stream is corrupt, False otherwise.
         """
-        if len(container.streams.video) == 0:
-            return False
-        stream = container.streams.video[0]
-        timebase = stream.time_base if stream.time_base is not None else av.time_base
-        container.seek(timestamp, backward=True, any_frame=False, stream=stream)
+        for stream in container.streams.video:
+            duration = stream.duration
+            frame_rate = stream.base_rate
+            timebase = stream.time_base if stream.time_base is not None else av.time_base
+            if duration is None or frame_rate is None:
+                return True
 
+            # Quick seek test (start, middle, end)
+            seek_times = [
+                0,
+                duration // 2,
+                int(duration - float(1 / frame_rate / timebase)),
+            ]
+            all_exists = all(ImagerySummary._check_if_frame_exists(container, stream, ts) for ts in seek_times)
+
+            if not all_exists:
+                return True
+
+        return False
+
+    @staticmethod
+    def _check_if_frame_exists(
+        container: InputContainer,
+        stream: av.VideoStream,
+        timestamp: int,
+    ) -> bool:
+        """
+        Checks if a frame exists in a given stream at the given timestamp.
+
+        Args:
+            container: File container of the stream.
+            stream: Stream to check.
+            timestamp: Frame time in stream.time_base
+
+        Returns:
+            bool: True if a valid frame could be found in the container
+        """
+        container.seek(timestamp, backward=True, any_frame=True, stream=stream)
         for packet in container.demux(stream):
             for frame in packet.decode():
                 if frame.pts is None:
                     continue
 
-                frame_time = float(frame.pts * timebase)
-                if frame_time >= timestamp / av.time_base:
-                    return True
-
+                if frame.pts >= timestamp:
+                    return not frame.is_corrupt
         return False
 
     @staticmethod

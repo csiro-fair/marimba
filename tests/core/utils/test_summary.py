@@ -1,6 +1,5 @@
 """Tests for marimba.core.utils.summary.ImagerySummary section helpers."""
 
-from fractions import Fraction
 from pathlib import Path
 
 import av
@@ -320,7 +319,7 @@ class TestIsVideoCorrupt:
         return av.VideoFrame.from_ndarray(img, format="rgb24")
 
     @pytest.mark.integration
-    def test_corrupted(self, tmp_path: Path, mock_frame: av.VideoFrame) -> None:
+    def test_not_corrupted(self, tmp_path: Path, mock_frame: av.VideoFrame) -> None:
         video_path = tmp_path / "test.mp4"
 
         # Video creation based on https://github.com/PyAV-Org/PyAV/blob/main/examples/numpy/generate_video.py
@@ -341,42 +340,28 @@ class TestIsVideoCorrupt:
         # Close the file
         container.close()
 
-        assert ImagerySummary.is_video_corrupt_quick(str(video_path))
+        assert not ImagerySummary.is_video_corrupt_quick(str(video_path))
 
     @pytest.mark.integration
-    def test_not_corrupted(self, tmp_path: Path, mock_frame: av.VideoFrame) -> None:
+    def test_corrupted(self, tmp_path: Path, mock_frame: av.VideoFrame) -> None:
         video_path = tmp_path / "test.mp4"
-
-        # Video creation based on https://github.com/PyAV-Org/PyAV/blob/main/examples/numpy/generate_video_with_pts.py
-        container = av.open(video_path, mode="w")
-        stream = container.add_stream("mpeg4", rate=self.TEST_VIDEO_FPS)
+        out = av.open(video_path, "w")
+        stream = out.add_stream("mpeg4", rate=self.TEST_VIDEO_FPS)
         stream.width = 480
         stream.height = 320
         stream.pix_fmt = "yuv420p"
-        stream.codec_context.time_base = Fraction(1, self.TEST_VIDEO_FPS)
 
-        my_pts = 0.0
-
-        for frame_i in range(self.TEST_VIDEO_FRAMES):
-            # increment by display time to pre-determine next frame's PTS
-            mock_frame.pts = round(my_pts / stream.codec_context.time_base)
-            my_pts += 1.0 if ((frame_i // 3) % 2 == 0) else 0.5
-
+        for _ in range(self.TEST_VIDEO_DURATION):
             for packet in stream.encode(mock_frame):
-                container.mux(packet)
+                data = bytearray(bytes(packet))
+                data = data[: len(data) // 2]  # Truncate packet
+                corrupted_packet = av.Packet(bytes(data))
+                corrupted_packet.stream = stream
+                out.mux(corrupted_packet)
 
-        # finish it with a blank frame, so the "last" frame actually gets shown for some time
-        # this black frame will probably be shown for 1/fps time
-        # at least, that is the analysis of ffprobe
-        mock_frame.pts = round(my_pts / stream.codec_context.time_base)
-        for packet in stream.encode(mock_frame):
-            container.mux(packet)
-
-        # Flush stream
         for packet in stream.encode():
-            container.mux(packet)
+            out.mux(packet)
 
-        # Close the file
-        container.close()
+        out.close()
 
-        assert not ImagerySummary.is_video_corrupt_quick(str(video_path))
+        assert ImagerySummary.is_video_corrupt_quick(str(video_path))
