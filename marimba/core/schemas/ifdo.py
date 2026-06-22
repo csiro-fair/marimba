@@ -470,6 +470,45 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
 
         return cls._find_common_fields(all_items)
 
+    @staticmethod
+    def _compute_spatial_extent(
+        image_set_items: dict[str, "ImageData | list[ImageData]"],
+    ) -> dict[str, float]:
+        """
+        Compute the dataset spatial bounding box from per-image coordinates.
+
+        Flattens every ImageData (including video frames) and returns the iFDO image-set bounding-box header fields
+        when any valid coordinate is present. Latitude and longitude extents are derived independently, matching the
+        dataset summary and map. Uses naive min/max and is therefore not antimeridian-aware: an image set crossing the
+        +/-180 degree dateline would yield an overly wide longitude box.
+
+        Args:
+            image_set_items: Dict mapping filenames to ImageData objects or lists of ImageData.
+
+        Returns:
+            Dict with image-set-min/max-latitude/longitude-degrees keys for whichever axes have valid coordinates.
+        """
+        lats: list[float] = []
+        lons: list[float] = []
+        for item in image_set_items.values():
+            data_list = item if isinstance(item, list) else [item]
+            for image_data in data_list:
+                lat = image_data.image_latitude
+                lon = image_data.image_longitude
+                if lat is not None:
+                    lats.append(lat)
+                if lon is not None:
+                    lons.append(lon)
+
+        extent: dict[str, float] = {}
+        if lats:
+            extent["image_set_min_latitude_degrees"] = min(lats)
+            extent["image_set_max_latitude_degrees"] = max(lats)
+        if lons:
+            extent["image_set_min_longitude_degrees"] = min(lons)
+            extent["image_set_max_longitude_degrees"] = max(lons)
+        return extent
+
     @classmethod
     def _remove_common_fields(
         cls,
@@ -547,6 +586,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             *pipeline_related_material,
             *(material for material in DEFAULT_RELATED_MATERIAL if material["uri"] not in pipeline_uris),
         ]
+
+        # Populate the image-set spatial bounding box from the per-image coordinates.
+        header_data.update(cls._compute_spatial_extent(image_set_items))
 
         image_set_header = ImageSetHeader(**header_data)
         deduplicated_items = cls._remove_common_fields(image_set_items, set(common_fields.keys()))

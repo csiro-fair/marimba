@@ -1622,6 +1622,119 @@ class TestiFDOMetadataDeduplication:
             assert "image-altitude-meters" not in item, "Altitude should not remain in item after deduplication"
 
 
+class TestiFDOMetadataSpatialExtent:
+    """Test the image-set spatial bounding-box helper in iFDOMetadata."""
+
+    @pytest.mark.unit
+    def test_compute_spatial_extent_multiple_points(self) -> None:
+        """Min/max latitude and longitude span all images."""
+        items: dict[str, ImageData | list[ImageData]] = {
+            "img1.jpg": ImageData(image_latitude=-42.0, image_longitude=147.0),
+            "img2.jpg": ImageData(image_latitude=-41.0, image_longitude=148.5),
+            "img3.jpg": ImageData(image_latitude=-43.5, image_longitude=146.0),
+        }
+        result = iFDOMetadata._compute_spatial_extent(items)
+        assert result == {
+            "image_set_min_latitude_degrees": -43.5,
+            "image_set_max_latitude_degrees": -41.0,
+            "image_set_min_longitude_degrees": 146.0,
+            "image_set_max_longitude_degrees": 148.5,
+        }
+
+    @pytest.mark.unit
+    def test_compute_spatial_extent_single_point(self) -> None:
+        """A single point yields a degenerate box where min equals max."""
+        items: dict[str, ImageData | list[ImageData]] = {
+            "img1.jpg": ImageData(image_latitude=-42.887, image_longitude=147.339),
+        }
+        result = iFDOMetadata._compute_spatial_extent(items)
+        assert result["image_set_min_latitude_degrees"] == result["image_set_max_latitude_degrees"] == -42.887
+        assert result["image_set_min_longitude_degrees"] == result["image_set_max_longitude_degrees"] == 147.339
+
+    @pytest.mark.unit
+    def test_compute_spatial_extent_no_coordinates(self) -> None:
+        """Images without coordinates produce no bounding-box fields."""
+        items: dict[str, ImageData | list[ImageData]] = {
+            "img1.jpg": ImageData(image_datetime=datetime(2024, 1, 1, tzinfo=UTC)),
+            "img2.jpg": ImageData(),
+        }
+        assert iFDOMetadata._compute_spatial_extent(items) == {}
+
+    @pytest.mark.unit
+    def test_compute_spatial_extent_partial_coordinates(self) -> None:
+        """Only images with valid coordinates contribute to the extent."""
+        items: dict[str, ImageData | list[ImageData]] = {
+            "img1.jpg": ImageData(image_latitude=10.0, image_longitude=20.0),
+            "img2.jpg": ImageData(image_latitude=None, image_longitude=None),
+            "img3.jpg": ImageData(image_latitude=-5.0, image_longitude=None),
+        }
+        result = iFDOMetadata._compute_spatial_extent(items)
+        assert result["image_set_min_latitude_degrees"] == -5.0
+        assert result["image_set_max_latitude_degrees"] == 10.0
+        assert result["image_set_min_longitude_degrees"] == 20.0
+        assert result["image_set_max_longitude_degrees"] == 20.0
+
+    @pytest.mark.unit
+    def test_compute_spatial_extent_video_frames_included(self) -> None:
+        """Video-frame coordinates are flattened into the extent."""
+        items: dict[str, ImageData | list[ImageData]] = {
+            "video.mp4": [
+                ImageData(image_latitude=-42.0, image_longitude=147.0),
+                ImageData(image_latitude=-44.0, image_longitude=149.0),
+            ],
+            "img.jpg": ImageData(image_latitude=-43.0, image_longitude=148.0),
+        }
+        result = iFDOMetadata._compute_spatial_extent(items)
+        assert result["image_set_min_latitude_degrees"] == -44.0
+        assert result["image_set_max_latitude_degrees"] == -42.0
+        assert result["image_set_min_longitude_degrees"] == 147.0
+        assert result["image_set_max_longitude_degrees"] == 149.0
+
+    @pytest.mark.unit
+    def test_create_dataset_metadata_writes_bounding_box(self) -> None:
+        """The bounding box is written into the iFDO header by alias."""
+        meta1 = iFDOMetadata(ImageData(image_latitude=-42.0, image_longitude=147.0))
+        meta2 = iFDOMetadata(ImageData(image_latitude=-44.0, image_longitude=149.0))
+        items = {
+            "img1.jpg": [cast("BaseMetadata", meta1)],
+            "img2.jpg": [cast("BaseMetadata", meta2)],
+        }
+
+        captured: list[dict[str, Any]] = []
+
+        def mock_saver(_root: Path, _name: str, data: dict[str, Any]) -> None:
+            captured.append(data)
+
+        iFDOMetadata.create_dataset_metadata("TestDataset", Path("/tmp"), items, saver_overwrite=mock_saver)
+
+        header = captured[0]["image-set-header"]
+        assert header["image-set-min-latitude-degrees"] == -44.0
+        assert header["image-set-max-latitude-degrees"] == -42.0
+        assert header["image-set-min-longitude-degrees"] == 147.0
+        assert header["image-set-max-longitude-degrees"] == 149.0
+
+    @pytest.mark.unit
+    def test_create_dataset_metadata_omits_bounding_box_without_coordinates(self) -> None:
+        """No bounding-box keys are emitted when the dataset has no coordinates."""
+        meta1 = iFDOMetadata(ImageData(image_datetime=datetime(2024, 1, 1, tzinfo=UTC)))
+        meta2 = iFDOMetadata(ImageData(image_datetime=datetime(2024, 1, 2, tzinfo=UTC)))
+        items = {
+            "img1.jpg": [cast("BaseMetadata", meta1)],
+            "img2.jpg": [cast("BaseMetadata", meta2)],
+        }
+
+        captured: list[dict[str, Any]] = []
+
+        def mock_saver(_root: Path, _name: str, data: dict[str, Any]) -> None:
+            captured.append(data)
+
+        iFDOMetadata.create_dataset_metadata("TestDataset", Path("/tmp"), items, saver_overwrite=mock_saver)
+
+        header = captured[0]["image-set-header"]
+        assert "image-set-min-latitude-degrees" not in header
+        assert "image-set-max-longitude-degrees" not in header
+
+
 class TestiFDOMetadataInvalidConstruction:
     """Pin behaviour on malformed / edge-case inputs to iFDOMetadata construction and serialisation.
 
