@@ -224,6 +224,34 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             return self._image_data[0]
         return self._image_data
 
+    @staticmethod
+    def derive_image_set_uuid(dataset_name: str, metadata_name: str | None = None) -> str:
+        """
+        Derive a deterministic image-set UUID from the set name (and collection, if any).
+
+        Using uuid5 keeps the identity stable across re-packaging runs, unlike a fresh uuid4. The same
+        derivation namespaces per-image UUIDs (see ensure_image_uuid), so an image set and its images share
+        one reproducible identity. Reproducible but not globally unique across projects that reuse a name -
+        the resolvable persistent identifier for that is the image-set-handle / DOI.
+        """
+        key = dataset_name if metadata_name is None else f"{dataset_name}/{metadata_name}"
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, f"urn:marimba:image-set:{key}"))
+
+    def ensure_image_uuid(self, image_set_uuid: str, relative_path: str) -> None:
+        """
+        Assign a deterministic per-image UUID where one is not already set.
+
+        The UUID is derived from the image-set UUID and the image's dataset-relative path, so it is
+        reproducible across packaging runs and unique within (and across) datasets. A pipeline that already
+        supplied an image-uuid is honoured: its value is left untouched. For videos every frame entry
+        receives the same UUID, since they describe a single file.
+        """
+        derived = str(uuid.uuid5(uuid.UUID(image_set_uuid), relative_path))
+        data_list = self._image_data if isinstance(self._image_data, list) else [self._image_data]
+        for data in data_list:
+            if not data.image_uuid:
+                data.image_uuid = derived
+
     @property
     def datetime(self) -> datetime | None:
         """Get the date and time when the image was captured."""
@@ -569,14 +597,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         if common_fields:
             logger.debug(f"Deduplicated {len(common_fields)} field(s) to header: {', '.join(common_fields.keys())}")
 
-        # Derive a deterministic image-set UUID so re-packaging the same image set yields a stable identity
-        # (uuid4 would mint a fresh UUID on every package run). Keyed by the set name; per-collection iFDOs
-        # carry a distinct key via metadata_name. This is reproducible but not globally unique across projects
-        # that reuse a name - the resolvable persistent identifier for that is the image-set-handle / DOI.
-        uuid_key = dataset_name if metadata_name is None else f"{dataset_name}/{metadata_name}"
         header_data: dict[str, Any] = {
             "image_set_name": dataset_name,
-            "image_set_uuid": str(uuid.uuid5(uuid.NAMESPACE_URL, f"urn:marimba:image-set:{uuid_key}")),
+            "image_set_uuid": cls.derive_image_set_uuid(dataset_name, metadata_name),
             "image_set_handle": "",  # TODO @<cjackett>: Populate from distribution target URL
             "image_set_ifdo_version": IFDO_VERSION,
         }

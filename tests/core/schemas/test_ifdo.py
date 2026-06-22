@@ -1790,6 +1790,77 @@ class TestiFDOMetadataSetUuid:
         uuid_module.UUID(self._header_uuid("IN2018_V06"))
 
 
+class TestiFDOMetadataPerImageUuid:
+    """Test deterministic per-image UUID assignment (ensure_image_uuid)."""
+
+    @pytest.mark.unit
+    def test_derive_image_set_uuid_is_deterministic(self) -> None:
+        """The set-UUID derivation matches uuid5 over the namespaced key."""
+        import uuid as uuid_module
+
+        expected = str(uuid_module.uuid5(uuid_module.NAMESPACE_URL, "urn:marimba:image-set:IN2018_V06"))
+        assert iFDOMetadata.derive_image_set_uuid("IN2018_V06") == expected
+
+    @pytest.mark.unit
+    def test_derive_image_set_uuid_collection_differs(self) -> None:
+        """A collection key yields a different set UUID from the dataset-level one."""
+        aggregate = iFDOMetadata.derive_image_set_uuid("IN2018_V06")
+        collection = iFDOMetadata.derive_image_set_uuid("IN2018_V06", "IN2018_V06_060")
+        assert aggregate != collection
+
+    @pytest.mark.unit
+    def test_ensure_image_uuid_fills_when_absent(self) -> None:
+        """A missing image-uuid is filled with a deterministic uuid5 of the set UUID + relative path."""
+        import uuid as uuid_module
+
+        set_uuid = iFDOMetadata.derive_image_set_uuid("IN2018_V06")
+        rel = "data/MRITC/IN2018_V06_060/images/x.JPG"
+        meta = iFDOMetadata(ImageData())
+        meta.ensure_image_uuid(set_uuid, rel)
+        expected = str(uuid_module.uuid5(uuid_module.UUID(set_uuid), rel))
+        assert meta.primary_image_data.image_uuid == expected
+
+    @pytest.mark.unit
+    def test_ensure_image_uuid_is_reproducible(self) -> None:
+        """Re-running ensure_image_uuid with the same inputs yields the same UUID."""
+        set_uuid = iFDOMetadata.derive_image_set_uuid("IN2018_V06")
+        rel = "data/x.JPG"
+        a = iFDOMetadata(ImageData())
+        b = iFDOMetadata(ImageData())
+        a.ensure_image_uuid(set_uuid, rel)
+        b.ensure_image_uuid(set_uuid, rel)
+        assert a.primary_image_data.image_uuid == b.primary_image_data.image_uuid
+
+    @pytest.mark.unit
+    def test_ensure_image_uuid_differs_per_path(self) -> None:
+        """Different relative paths produce different per-image UUIDs."""
+        set_uuid = iFDOMetadata.derive_image_set_uuid("IN2018_V06")
+        a = iFDOMetadata(ImageData())
+        b = iFDOMetadata(ImageData())
+        a.ensure_image_uuid(set_uuid, "data/a.JPG")
+        b.ensure_image_uuid(set_uuid, "data/b.JPG")
+        assert a.primary_image_data.image_uuid != b.primary_image_data.image_uuid
+
+    @pytest.mark.unit
+    def test_ensure_image_uuid_honours_existing(self) -> None:
+        """A pipeline-supplied image-uuid is left untouched."""
+        set_uuid = iFDOMetadata.derive_image_set_uuid("IN2018_V06")
+        meta = iFDOMetadata(ImageData(image_uuid="pipeline-supplied-id"))
+        meta.ensure_image_uuid(set_uuid, "data/x.JPG")
+        assert meta.primary_image_data.image_uuid == "pipeline-supplied-id"
+
+    @pytest.mark.unit
+    def test_ensure_image_uuid_video_all_frames(self) -> None:
+        """Every video frame entry without a UUID receives the same minted value; preset frames are kept."""
+        set_uuid = iFDOMetadata.derive_image_set_uuid("IN2018_V06")
+        frames = [ImageData(), ImageData(image_uuid="keep-me"), ImageData()]
+        meta = iFDOMetadata(frames)
+        meta.ensure_image_uuid(set_uuid, "data/video.MP4")
+        assert frames[0].image_uuid == frames[2].image_uuid
+        assert frames[0].image_uuid is not None
+        assert frames[1].image_uuid == "keep-me"
+
+
 class TestiFDOMetadataGpsTags:
     """Test the GPS datum and fix-time EXIF tags built by _add_gps_tags."""
 

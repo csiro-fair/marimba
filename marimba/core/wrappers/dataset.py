@@ -20,6 +20,7 @@ from rich.progress import Progress, SpinnerColumn, TaskID
 
 from marimba.core import MarimbaError
 from marimba.core.schemas.base import BaseMetadata
+from marimba.core.schemas.ifdo import iFDOMetadata
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.dataset import (
     DATASET_MAPPING_TYPE,
@@ -578,6 +579,9 @@ class DatasetWrapper(LogMixin):
             dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
         ] = {}
 
+        # Deterministic image-set UUID used to namespace per-image UUIDs (see ensure_image_uuid).
+        image_set_uuid = iFDOMetadata.derive_image_set_uuid(self.name)
+
         for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
             for (
                 relative_dst,
@@ -588,6 +592,14 @@ class DatasetWrapper(LogMixin):
                     continue
 
                 dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
+
+                # Assign a deterministic per-image UUID where the pipeline did not supply one. This runs
+                # before EXIF embedding below so the UUID reaches both the embedded ImageUniqueID tag and
+                # the iFDO record (they share the same ImageData object).
+                relative_path = dst.relative_to(self.root_dir).as_posix()
+                for item in metadata_items:
+                    if isinstance(item, iFDOMetadata):
+                        item.ensure_image_uuid(image_set_uuid, relative_path)
 
                 # Group by the type of the first metadata item
                 metadata_type = type(metadata_items[0])
