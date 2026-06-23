@@ -1,5 +1,6 @@
 """Tests for marimba.core.wrappers.project module."""
 
+import multiprocessing
 import os
 import re
 from pathlib import Path
@@ -13,7 +14,11 @@ from marimba.core.installer.pipeline_installer import PipelineInstaller
 from marimba.core.wrappers.collection import CollectionWrapper
 from marimba.core.wrappers.dataset import DatasetWrapper
 from marimba.core.wrappers.pipeline import PipelineWrapper
-from marimba.core.wrappers.project import ProjectWrapper, get_merged_keyword_args
+from marimba.core.wrappers.project import (
+    ProjectWrapper,
+    _resolve_process_start_method,
+    get_merged_keyword_args,
+)
 from marimba.core.wrappers.target import DistributionTargetWrapper
 
 
@@ -2543,3 +2548,28 @@ class TestUtilityFunctions:
         logger.warning.assert_called_once_with(
             'Could not evaluate extra argument value: "invalid_python_literal"',
         ), "Should log exactly one warning for the invalid Python literal 'invalid_python_literal'"
+
+
+class TestProcessStartMethod:
+    """Tests for the process-pool start method resolution."""
+
+    @pytest.mark.unit
+    def test_never_resolves_to_fork(self) -> None:
+        """The resolver must never pick 'fork': it can deadlock when forking a multithreaded process.
+
+        Marimba runs thread pools alongside its process pools, so fork is unsafe regardless of the
+        Python version's default. This guards against a regression that reintroduces the fork default.
+        """
+        assert _resolve_process_start_method() != "fork", "Process pools must not use the fork start method"
+
+    @pytest.mark.unit
+    def test_resolves_to_an_available_method(self) -> None:
+        """The resolved method must be one the running interpreter actually supports."""
+        method = _resolve_process_start_method()
+        assert method in multiprocessing.get_all_start_methods(), f"Unavailable start method resolved: {method}"
+
+    @pytest.mark.unit
+    def test_prefers_forkserver_when_available(self) -> None:
+        """Prefer forkserver where available; spawn is the portable fallback (e.g. Windows)."""
+        expected = "forkserver" if "forkserver" in multiprocessing.get_all_start_methods() else "spawn"
+        assert _resolve_process_start_method() == expected
