@@ -26,6 +26,21 @@ def strip_ansi(text: str) -> str:
     return _ANSI_ESCAPE_RE.sub("", text)
 
 
+def pytest_configure() -> None:
+    # Pin a wide, deterministic console width before any test module imports marimba.
+    # marimba renders success/error panels through rich's global console, and rich binds
+    # that console's width from $COLUMNS the first time it is built (at marimba import),
+    # ignoring later changes — so setting COLUMNS in a fixture is too late. At the default
+    # width of 80, panels wrap long paths (e.g. tmpdir paths whose length varies with the
+    # runner's username) mid-token, splitting them across lines and breaking substring
+    # assertions on rendered CLI output (see issue #67). pytest_configure runs before
+    # collection imports marimba, so pinning the width here keeps output stable for every
+    # CLI test rather than per-test.
+    import os
+
+    os.environ["COLUMNS"] = "200"
+
+
 @pytest.fixture
 def temp_dir() -> Generator[Path, None, None]:
     """Create a temporary directory for tests."""
@@ -124,10 +139,8 @@ def _stabilise_rich_rendering() -> Generator[None, None, None]:
     # span boundaries (e.g. "-\x1b[0m\x1b[1m-collection\x1b[0m\x1b[1m-name\x1b[0m"),
     # breaking substring assertions against rendered CLI output even when
     # NO_COLOR is set. Pin TERM=dumb + NO_COLOR=1 session-wide so Rich emits
-    # plain text. Deliberately leave COLUMNS untouched so default-width
-    # tracebacks (e.g. in test_delete_project_invalid_structure) stay at the
-    # narrow width tests were written for; tests that need wide output use
-    # the cli_runner fixture below to set COLUMNS=200 explicitly.
+    # plain text. (COLUMNS is pinned earlier in pytest_configure, because Rich
+    # binds the console width at import time and a fixture would be too late.)
     import os
 
     overrides = {"NO_COLOR": "1", "TERM": "dumb"}
