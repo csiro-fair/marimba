@@ -21,7 +21,7 @@ from typing import Any
 from rich.progress import Progress, SpinnerColumn, TaskID
 
 import marimba
-from marimba.core import MarimbaError
+from marimba.core import MarimbaError, NetworkConnectionError
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.schemas.ifdo import iFDOMetadata
 from marimba.core.utils.constants import Operation
@@ -922,7 +922,13 @@ class DatasetWrapper(LogMixin):
                 # Lazy-imported to keep requests / staticmap / PIL out of CLI startup.
                 from marimba.core.utils.map import make_summary_map  # noqa: PLC0415
 
-                summary_map = make_summary_map(geolocations, zoom=zoom)
+                # Map rendering depends on external OSM tiles; treat it as best-effort so a packaging
+                # run (which can take days) is never aborted by an unreachable or blocked tile server.
+                try:
+                    summary_map = make_summary_map(geolocations, zoom=zoom)
+                except NetworkConnectionError as error:
+                    self.logger.warning(f"Skipping dataset map: {error}")
+                    summary_map = None
                 if summary_map is not None:
                     map_path = self.root_dir / "map.png"
                     if not self.dry_run:

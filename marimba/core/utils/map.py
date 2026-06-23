@@ -10,6 +10,7 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 from staticmap import CircleMarker, StaticMap
 
+import marimba
 from marimba.core import NetworkConnectionError
 
 # Type variable for comparable types
@@ -354,7 +355,11 @@ def make_summary_map(
         m = StaticMap(
             width,
             height,
-            url_template="http://a.tile.osm.org/{z}/{x}/{y}.png",
+            url_template="https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+            # Identify ourselves per the OSM tile usage policy; a generic User-Agent risks being blocked.
+            headers={"User-Agent": f"Marimba/{marimba.__version__} (+https://github.com/csiro-fair/marimba)"},
+            # Fail fast instead of hanging when a host has no egress (e.g. HPC compute nodes).
+            tile_request_timeout=10,
         )
 
         # Add markers
@@ -403,8 +408,9 @@ def make_summary_map(
             max_lon,
             zoom,
         )
-    except requests.exceptions.ConnectionError:
-        msg = "Unable to render the map"
-        raise NetworkConnectionError(msg) from None
+    except (requests.exceptions.RequestException, RuntimeError) as error:
+        # staticmap retries each tile then raises RuntimeError; requests raises on connection/timeout failures.
+        msg = "Unable to render the dataset map: map tiles could not be fetched"
+        raise NetworkConnectionError(msg) from error
     else:
         return image

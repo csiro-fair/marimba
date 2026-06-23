@@ -1192,11 +1192,12 @@ class TestMapGeneration:
         assert result is mock_rendered_image, "Should return the rendered map image"
 
         # Verify StaticMap creation with correct parameters
-        mock_static_map.assert_called_once_with(
-            expected_width,
-            expected_height,
-            url_template="http://a.tile.osm.org/{z}/{x}/{y}.png",
-        )
+        mock_static_map.assert_called_once()
+        static_map_args, static_map_kwargs = mock_static_map.call_args
+        assert static_map_args == (expected_width, expected_height)
+        assert static_map_kwargs["url_template"] == "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        assert "User-Agent" in static_map_kwargs["headers"]
+        assert static_map_kwargs["tile_request_timeout"] == 10
 
         # Verify markers were added for each coordinate
         assert mock_map.add_marker.call_count == len(
@@ -1238,8 +1239,7 @@ class TestMapGeneration:
         Test map generation with network error raises NetworkConnectionError with appropriate message.
 
         Verifies that when StaticMap.render() throws a requests.ConnectionError,
-        the function properly transforms it into a NetworkConnectionError with
-        the expected message "Unable to render the map".
+        the function properly transforms it into a NetworkConnectionError.
         """
         # Arrange
         mock_static_map = mocker.patch("marimba.core.utils.map.StaticMap")
@@ -1251,15 +1251,33 @@ class TestMapGeneration:
         coords = [(37.7749, -122.4194), (37.7849, -122.4094)]
 
         # Act & Assert
-        with pytest.raises(NetworkConnectionError, match="Unable to render the map"):
+        with pytest.raises(NetworkConnectionError, match="Unable to render the dataset map"):
             make_summary_map(coords, width=500, height=500)
 
         # Verify StaticMap was created and render was attempted
-        mock_static_map.assert_called_once_with(
-            500,
-            500,
-            url_template="http://a.tile.osm.org/{z}/{x}/{y}.png",
-        )
+        mock_static_map.assert_called_once()
+        mock_map.render.assert_called_once()
+
+    @pytest.mark.unit
+    def test_make_summary_map_tile_download_failure(self, mocker: pytest_mock.MockerFixture) -> None:
+        """
+        Test that staticmap's tile-exhaustion RuntimeError is surfaced as NetworkConnectionError.
+
+        staticmap swallows per-tile request errors and, after exhausting its retries, raises a bare
+        RuntimeError("could not download N tiles"). This is the failure seen on egress-less compute
+        nodes, and it must be caught so a packaging run degrades gracefully instead of aborting.
+        """
+        # Arrange
+        mock_static_map = mocker.patch("marimba.core.utils.map.StaticMap")
+        mock_map = mocker.Mock()
+        mock_map.render.side_effect = RuntimeError("could not download 48 tiles: [...]")
+        mock_static_map.return_value = mock_map
+
+        coords = [(37.7749, -122.4194), (37.7849, -122.4094)]
+
+        # Act & Assert
+        with pytest.raises(NetworkConnectionError, match="Unable to render the dataset map"):
+            make_summary_map(coords, width=500, height=500)
         mock_map.render.assert_called_once()
 
     @pytest.mark.unit
@@ -1308,11 +1326,12 @@ class TestMapGeneration:
         assert result is mock_rendered_image, "Should return the rendered map image"
 
         # Verify StaticMap creation with correct parameters
-        mock_static_map.assert_called_once_with(
-            expected_width,
-            expected_height,
-            url_template="http://a.tile.osm.org/{z}/{x}/{y}.png",
-        )
+        mock_static_map.assert_called_once()
+        static_map_args, static_map_kwargs = mock_static_map.call_args
+        assert static_map_args == (expected_width, expected_height)
+        assert static_map_kwargs["url_template"] == "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        assert "User-Agent" in static_map_kwargs["headers"]
+        assert static_map_kwargs["tile_request_timeout"] == 10
 
         # Verify exactly one marker was added with the correct coordinate
         assert mock_map.add_marker.call_count == 1, "Should add exactly one marker for single coordinate"
