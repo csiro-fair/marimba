@@ -642,7 +642,7 @@ class TestFindPipelineClass:
         ), f"Result should not be the abstract base BasePipeline class itself, got {result.__name__}"
 
         # Verify the returned class is specifically the first one, not the second
-        assert result is not SecondTestPipeline, (
+        assert result is not SecondTestPipeline, (  # type: ignore[comparison-overlap]
             f"Should return MockTestPipeline (first), not SecondTestPipeline (second), "
             f"demonstrating first-match behavior during iteration. Got {result.__name__}"
         )

@@ -1,36 +1,48 @@
 """Scrubbers that normalise non-deterministic fields in marimba's packaged output.
 
-Phase 2 characterisation (see temp/phase2-determinism/REPORT.md, throwaway)
-identified three drift sources between two identical-input runs:
+A determinism characterisation (two independent identical-input bootstraps,
+per-file diff; method preserved in golden/README.md §"Scrubber correctness")
+identified these drift sources between two identical-input runs:
 
-1. Per-image UUID generated fresh by `marimba process`. Embedded in each JPEG
-   in two EXIF locations: the standalone `ImageUniqueID` tag and inside the
-   JSON blob written to `UserComment`. Same UUID in both places.
-2. Per-dataset `image-set-uuid` generated fresh by `marimba package`. Appears
-   once per per-collection ifdo YAML and once in the dataset-level rollup.
-3. `image-hash-sha256` field in each per-image YAML entry: an indirect
-   consequence of (1) — the image bytes differ, so their SHA differs.
-
-Plus one further drift source identified after the initial harness landed:
-
-4. `Creation Date` row in `summary.md`, populated via `datetime.now()` by
+1. `image-hash-sha256` field in each per-image YAML entry: an indirect
+   consequence of the pixel-derived volatility (3) — the JPEG bytes differ
+   across CPU microarchitectures, so their SHA differs.
+2. `Creation Date` row in `summary.md`, populated via `datetime.now()` by
    `marimba/core/utils/summary.py`. Drifts across runs on different days
    even with identical inputs.
+3. Pixel-derived values that vary across CPU microarchitectures, not across
+   runs. numpy's SIMD reductions and libjpeg's encoder round differently
+   between CPU generations, so on GitHub's mixed hosted-runner fleet two
+   functionally identical runs produce different bytes for a handful of
+   borderline frames. This surfaces in several places inside each JPEG — the
+   main entropy-coded scan, the embedded EXIF thumbnail's own scan, and the
+   `image-entropy` (Shannon entropy of the pixel histogram) and
+   `image-average-color` (pixel mean) values that `marimba/core/schemas/ifdo.py`
+   computes and bakes into both the iFDO YAML and the EXIF:UserComment JSON.
 
-Every other dataset file is byte-deterministic, including videos, CSVs,
-`metadata.yml`, `MRITC.ifdo.yml`, and the pipeline source copy under
-`pipelines/`. Logs are excluded from comparison entirely (timestamps,
-durations).
+The per-dataset `image-set-uuid` and the per-image `image-uuid` were formerly
+scrubbed here too. `marimba package` now derives the set UUID deterministically
+from the image-set name, and mints a deterministic per-image UUID (uuid5 of the
+set UUID and the dataset-relative path) for any image the pipeline leaves unset,
+which the demo pipeline now does. Both are byte-stable across runs and no longer
+need scrubbing: leaving them unscrubbed lets the golden pin their values and
+catch a regression in the derivation.
+
+JPEG content has no stable byte subset to hash, so it is excluded from byte
+comparison entirely (see `has_volatile_content`); the image's metadata is still
+validated through its scrubbed per-image YAML. Every other dataset file is
+byte-deterministic, including videos, CSVs, `metadata.yml`, and the pipeline
+source copy under `pipelines/`. Logs are excluded from comparison entirely
+(timestamps, durations).
 
 Scrubber strategy:
 
-- `scrub_yaml_text` replaces each of the three known volatile field values with
-  fixed-shape placeholders.
-- `scrub_jpeg_bytes` regex-replaces every UUID-shaped substring with a fixed
-  placeholder, preserving byte offsets (UUIDs are fixed-width 36 chars so EXIF
-  length fields stay valid).
+- `scrub_yaml_text` replaces each known volatile field value (the cascaded
+  image hash and the pixel-derived `image-entropy` / `image-average-color`)
+  with fixed-shape placeholders.
 - `scrubbed_hash` dispatches by suffix and returns the SHA256 of the scrubbed
-  content (or of the raw bytes if no scrubber applies).
+  content (or of the raw bytes if no scrubber applies). JPEGs never reach it —
+  `rebuild_manifest` placeholders them first via `has_volatile_content`.
 - `rebuild_manifest` parses a marimba-generated manifest, re-hashes each
   referenced file via `scrubbed_hash`, and returns the rebuilt manifest text
   with the same line ordering as the original (so a regression in marimba's
@@ -50,6 +62,12 @@ UUID_PLACEHOLDER = "00000000-0000-4000-8000-000000000000"
 # Fixed-width 64-char placeholder for SHA256 hex.
 SHA256_PLACEHOLDER = "0" * 64
 
+# Placeholders for the pixel-derived iFDO fields. Their low-order digits drift
+# across CPU microarchitectures (see drift source 5 in the module docstring),
+# so the values are normalised away rather than compared.
+ENTROPY_PLACEHOLDER = "0.0"
+AVERAGE_COLOR_PLACEHOLDER = "[0, 0, 0]"
+
 # Regex for a canonical hyphenated v4-shape UUID (8-4-4-4-12 lowercase hex).
 # Marimba uses lowercase hex consistently in both YAML and embedded EXIF JSON.
 _UUID_RE = re.compile(rb"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
@@ -60,23 +78,33 @@ _UUID_RE_TEXT = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
 # Each pattern captures `<lead><field>: <value>` and replaces only the value.
 _YAML_FIELD_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
-        re.compile(r"(?P<lead>^\s*)image-uuid:\s*(?P<value>[0-9a-f-]+)\s*$", re.MULTILINE),
-        f"\\g<lead>image-uuid: {UUID_PLACEHOLDER}",
-    ),
-    (
-        re.compile(r"(?P<lead>^\s*)image-set-uuid:\s*(?P<value>[0-9a-f-]+)\s*$", re.MULTILINE),
-        f"\\g<lead>image-set-uuid: {UUID_PLACEHOLDER}",
-    ),
-    (
         re.compile(r"(?P<lead>^\s*)image-hash-sha256:\s*(?P<value>[0-9a-f]+)\s*$", re.MULTILINE),
         f"\\g<lead>image-hash-sha256: {SHA256_PLACEHOLDER}",
+    ),
+    (
+        re.compile(r"(?P<lead>^[ \t]*)image-entropy:[ \t]*(?P<value>[-+0-9.eE]+)[ \t]*$", re.MULTILINE),
+        f"\\g<lead>image-entropy: {ENTROPY_PLACEHOLDER}",
+    ),
+    # image-average-color serialises as a block sequence whose `- <int>` items
+    # share the key's indentation (yaml.safe_dump default). Match the key line
+    # plus its same-indent items and collapse to a fixed flow-style placeholder.
+    (
+        re.compile(
+            r"(?P<lead>^[ \t]*)image-average-color:[ \t]*\n(?:(?P=lead)-[ \t]+-?\d+[ \t]*\n)+",
+            re.MULTILINE,
+        ),
+        f"\\g<lead>image-average-color: {AVERAGE_COLOR_PLACEHOLDER}\n",
     ),
 )
 
 # Suffixes for which we apply text-based YAML scrubbing.
 _YAML_SUFFIXES = frozenset({".yml", ".yaml"})
 
-# Suffixes for which we apply JPEG byte scrubbing.
+# JPEG suffixes. Their content is excluded from byte comparison entirely (see
+# has_volatile_content) because the encoded pixels — main scan, the embedded
+# EXIF thumbnail's own scan, and the numpy-derived image-entropy / image-
+# average-color baked into EXIF:UserComment — all drift across CPU
+# microarchitectures on GitHub's mixed runner fleet (drift source 5).
 _JPEG_SUFFIXES = frozenset({".jpg", ".jpeg"})
 
 # Suffixes for which we apply markdown scrubbing. summary.md is the only
@@ -123,21 +151,6 @@ def scrub_markdown_text(text: str) -> str:
     return text
 
 
-def scrub_jpeg_bytes(raw: bytes) -> bytes:
-    """Replace every UUID-shaped substring in `raw` with UUID_PLACEHOLDER.
-
-    Operates at byte level (no JPEG decode) so EXIF byte offsets stay valid.
-    UUIDs and the placeholder are both exactly 36 ASCII chars.
-
-    False-positive risk is negligible: a 36-byte sequence matching the v4-shape
-    UUID regex requires hyphens at exactly positions 8/13/18/23 and lowercase
-    hex chars everywhere else. Vanishingly unlikely to occur in JPEG entropy-
-    coded image data by accident, and on the few occasions it does the rewrite
-    is byte-length-preserving so the file stays a valid JPEG.
-    """
-    return _UUID_RE.sub(UUID_PLACEHOLDER.encode("ascii"), raw)
-
-
 def is_log_path(rel_path: Path) -> bool:
     """True if this dataset-relative path is a log file."""
     if rel_path.suffix.lower() in _LOG_SUFFIXES:
@@ -158,6 +171,19 @@ def has_volatile_content(rel_path: Path) -> bool:
       time as upstream tile data updates. Same project state -> different
       bytes a day later. Tier A still asserts the file exists and is a
       valid non-empty PNG; this just excludes it from byte-level comparison.
+    - `provenance.json` at the dataset root: embeds the packaging timestamp,
+      ExifTool/FFmpeg versions, and (in the e2e, cloned from a local cache) a
+      machine-specific pipeline repository URL. Tier A asserts its JSON-LD
+      structure instead of byte-comparing it.
+    - JPEG images (`.jpg` / `.jpeg`): their encoded bytes drift across CPU
+      microarchitectures on GitHub's mixed hosted-runner fleet — the main
+      entropy-coded scan, the embedded EXIF thumbnail's own scan, and the
+      numpy-derived image-entropy / image-average-color baked into the
+      EXIF:UserComment JSON all vary in their low-order bits. There is no
+      stable byte subset to hash, so the content is excluded. The image's
+      metadata is still byte-validated via its per-image iFDO YAML (which is
+      scrubbed for the same volatile fields), and Tier A/B assert presence,
+      validity, and counts.
 
     Distinct from `is_log_path` — the latter is also consumed by the
     inventory classifier in `golden/regenerate.py` to bucket logs as a file
@@ -165,7 +191,12 @@ def has_volatile_content(rel_path: Path) -> bool:
     """
     if is_log_path(rel_path):
         return True
-    return rel_path == Path("map.png")
+    if rel_path.suffix.lower() in _JPEG_SUFFIXES:
+        return True
+    # provenance.json embeds the packaging timestamp, the ExifTool/FFmpeg versions, and (in the e2e, where the
+    # pipeline is cloned from a local cache) a machine-specific repository URL — all volatile across runs. Its
+    # structure is asserted by Tier A instead.
+    return rel_path in (Path("map.png"), Path("provenance.json"))
 
 
 def scrubbed_hash(path: Path) -> str:
@@ -183,9 +214,6 @@ def scrubbed_hash(path: Path) -> str:
         except UnicodeDecodeError:
             return hashlib.sha256(raw).hexdigest()
         return hashlib.sha256(scrub_yaml_text(text).encode("utf-8")).hexdigest()
-
-    if suffix in _JPEG_SUFFIXES:
-        return hashlib.sha256(scrub_jpeg_bytes(raw)).hexdigest()
 
     if suffix in _MARKDOWN_SUFFIXES:
         try:

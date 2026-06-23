@@ -10,20 +10,20 @@ requires-python = ">=3.12,<3.15"
 readme = "README.md"
 license = {file = "LICENSE"}
 dependencies = [
-    "typer>=0.16.0,<0.17",
-    "rich>=14.1.0,<15",
+    "typer>=0.16.0,<0.27",
+    "rich>=14.1.0,<16",
     "PyYAML~=6.0",
-    "ifdo>=1.4.0,<2",
+    "ifdo>=1.6.0,<2",
     "pillow>=12.1.1,<13",
     "opencv-python-headless>=4.11.0,<5",
     "gitpython>=3.1.45,<4",
     "boto3>=1.40.6,<2",
     "staticmap>=0.5.7,<0.6",
     "PyExifTool>=0.5.6,<1",
-    "tabulate>=0.9.0,<0.10",
-    "av>=16.1.0,<17",
-    # numpy upper-bound pinned to <2.3 for opencv-python-headless 4.11 ABI compat; revisit when opencv releases against numpy 2.3.
-    "numpy>=2.2.5,<2.3.0",
+    "tabulate>=0.9.0,<0.11",
+    "av>=16.1.0,<18",
+    # numpy upper-bound tracks opencv-python-headless ABI compat; opencv 4.13 is verified against numpy 2.4. Bump deliberately when opencv builds against the next numpy minor.
+    "numpy>=2.2.5,<2.6.0",
     # botocore is technically a boto3 transitive, but s3.py imports botocore.exceptions.ClientError directly, so we
     # pin it explicitly to keep deptry happy and lock the version we're testing against.
     "botocore>=1.40.6,<2",
@@ -65,18 +65,18 @@ dev = [
     "hatch>=1.14.1,<2",
 
     # Formatting & Linting
-    "black>=25.1.0,<26",
-    "ruff>=0.12.8,<0.13",
+    "black>=26.3.1,<27",
+    "ruff>=0.12.8,<0.16",
 
     # Static Type Checking
-    "mypy>=1.17.1,<2",
+    "mypy>=1.17.1,<3",
     "types-pyyaml>=6.0.12.20240311,<7",
-    "types-tabulate>=0.9.0.20240106,<0.10",
+    "types-tabulate>=0.9.0.20240106,<0.11",
     "types-requests>=2.32.0.20240622,<3",
 
     # Testing
-    "pytest>=8.0.0,<9",
-    "pytest-cov>=6.2.1,<7",
+    "pytest>=9.0.3,<10",
+    "pytest-cov>=6.2.1,<8",
     "pytest-mock>=3.15.0,<4",
 
     # Code & Dependency Analysis

@@ -37,7 +37,9 @@ Example: [Fix] Resolve null pointer exception in collection import
 
 <!-- Include only if there are known issues with this PR. -->
 
-## Files
+## Files (Optional)
+
+<!-- Optional high-level signpost of what changed and where. -->
 
 ### Added
 <!--

@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import av
+import numpy as np
 import pytest
 
 from marimba.core.utils.summary import ImagerySummary
@@ -298,3 +300,68 @@ class TestGetImageProperties:
             pytest.skip("get_image_properties raises on broken files — known behaviour, not under test here")
         else:
             assert isinstance(result, dict)
+
+
+class TestIsVideoCorrupt:
+    """Verification of the is_video_corrupt_quick method."""
+
+    TEST_VIDEO_DURATION = 4
+    TEST_VIDEO_FPS = 24
+    TEST_VIDEO_FRAMES = TEST_VIDEO_DURATION * TEST_VIDEO_FPS
+
+    @pytest.fixture
+    def mock_frame(self) -> av.VideoFrame:
+        img = np.empty((320, 480, 3), dtype=np.uint8)
+        img[:, :, 0] = 128
+        img[:, :, 1] = 128
+        img[:, :, 2] = 128
+
+        return av.VideoFrame.from_ndarray(img, format="rgb24")
+
+    @pytest.mark.integration
+    def test_not_corrupted(self, tmp_path: Path, mock_frame: av.VideoFrame) -> None:
+        video_path = tmp_path / "test.mp4"
+
+        # Video creation based on https://github.com/PyAV-Org/PyAV/blob/main/examples/numpy/generate_video.py
+        container = av.open(video_path, mode="w")
+        stream = container.add_stream("mpeg4", rate=self.TEST_VIDEO_FPS)
+        stream.width = 480
+        stream.height = 320
+        stream.pix_fmt = "yuv420p"
+
+        for _ in range(self.TEST_VIDEO_FRAMES):
+            for packet in stream.encode(mock_frame):
+                container.mux(packet)
+
+        # Flush stream
+        for packet in stream.encode():
+            container.mux(packet)
+
+        # Close the file
+        container.close()
+
+        assert not ImagerySummary.is_video_corrupt_quick(str(video_path))
+
+    @pytest.mark.integration
+    def test_corrupted(self, tmp_path: Path, mock_frame: av.VideoFrame) -> None:
+        video_path = tmp_path / "test.mp4"
+        out = av.open(video_path, "w")
+        stream = out.add_stream("mpeg4", rate=self.TEST_VIDEO_FPS)
+        stream.width = 480
+        stream.height = 320
+        stream.pix_fmt = "yuv420p"
+
+        for _ in range(self.TEST_VIDEO_DURATION):
+            for packet in stream.encode(mock_frame):
+                data = bytearray(bytes(packet))
+                data = data[: len(data) // 2]  # Truncate packet
+                corrupted_packet = av.Packet(bytes(data))
+                corrupted_packet.stream = stream
+                out.mux(corrupted_packet)
+
+        for packet in stream.encode():
+            out.mux(packet)
+
+        out.close()
+
+        assert ImagerySummary.is_video_corrupt_quick(str(video_path))

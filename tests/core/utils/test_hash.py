@@ -241,7 +241,7 @@ class TestHashUtilities:
         mock_open_method.side_effect = OSError("Permission denied")
 
         # Act & Assert
-        with pytest.raises(OSError, match="Failed to read file .*/test_file.txt: Permission denied"):
+        with pytest.raises(OSError, match=r"Failed to read file .*/test_file.txt: Permission denied"):
             compute_hash(test_file)
 
     @pytest.mark.unit

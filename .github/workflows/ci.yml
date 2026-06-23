@@ -20,10 +20,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install system dependencies
-        run: sudo apt-get install -y libimage-exiftool-perl ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y libimage-exiftool-perl
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -40,13 +40,13 @@ jobs:
         run: uv run ruff check --config=config/ruff.toml marimba/
 
       - name: Run Black
-        run: uv run black --check --line-length 120 marimba/
+        run: uv run black --check --line-length 120 marimba/ tests/
 
       - name: Run Mypy
-        run: uv run mypy --config-file config/mypy.ini marimba/
+        run: uv run mypy --config-file config/mypy.ini marimba/ tests/
 
       - name: Run Bandit
-        run: uv run bandit --config config/bandit.yml --severity-level medium -r marimba/
+        run: uv run bandit --config config/bandit.yml --severity-level medium -r marimba/ tests/
 
   test:
     name: Tests (Python ${{ matrix.python-version }}, ${{ matrix.os }})
@@ -58,15 +58,15 @@ jobs:
         python-version: ["3.12", "3.13"]
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install system dependencies (Ubuntu)
         if: runner.os == 'Linux'
-        run: sudo apt-get install -y libimage-exiftool-perl ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y libimage-exiftool-perl
 
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install exiftool ffmpeg
+        run: brew install exiftool
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -87,7 +87,7 @@ jobs:
 
       - name: Upload coverage
         if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           files: coverage.xml
           fail_ci_if_error: false

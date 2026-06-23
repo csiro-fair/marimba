@@ -87,28 +87,27 @@ Before setting up the Python environment, you'll need to install system-level de
 
 **Ubuntu/Debian:**
 ```bash
-sudo apt install libimage-exiftool-perl ffmpeg
+sudo apt install libimage-exiftool-perl
 ```
 
 **macOS:**
 ```bash
-brew install exiftool ffmpeg
+brew install exiftool
 ```
 
 **RHEL/CentOS/Fedora:**
 ```bash
 # RHEL/CentOS (with EPEL repository enabled)
-sudo yum install perl-Image-ExifTool ffmpeg
+sudo yum install perl-Image-ExifTool
 
 # Fedora
-sudo dnf install perl-Image-ExifTool ffmpeg
+sudo dnf install perl-Image-ExifTool
 ```
 
 **Windows:**
 - ExifTool: Download from [https://exiftool.org/](https://exiftool.org/) and add to PATH
-- FFmpeg: Download from [https://ffmpeg.org/](https://ffmpeg.org/) and add to PATH
 
-For other platforms, please refer to the official documentation for [ExifTool](https://exiftool.org/) and [FFmpeg](https://ffmpeg.org/).
+For other platforms, please refer to the official documentation for [ExifTool](https://exiftool.org/).
 
 <p align="right">(<a href="#marimba-development-environment-setup-guide-top">back to top</a>)</p>
 

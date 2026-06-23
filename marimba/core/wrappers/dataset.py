@@ -7,10 +7,12 @@ EXIF metadata.
 
 """
 
+import json
 import logging
 import os
 from collections import OrderedDict, defaultdict
 from collections.abc import Callable, Iterable
+from datetime import UTC, datetime
 from math import isnan
 from pathlib import Path
 from shutil import copy2, copytree, ignore_patterns
@@ -18,8 +20,10 @@ from typing import Any
 
 from rich.progress import Progress, SpinnerColumn, TaskID
 
+import marimba
 from marimba.core import MarimbaError
 from marimba.core.schemas.base import BaseMetadata
+from marimba.core.schemas.ifdo import iFDOMetadata
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.dataset import (
     DATASET_MAPPING_TYPE,
@@ -33,6 +37,7 @@ from marimba.core.utils.hash import compute_hash
 from marimba.core.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.core.utils.manifest import Manifest
 from marimba.core.utils.paths import format_path_for_logging
+from marimba.core.utils.provenance import build_provenance_document
 from marimba.core.utils.rich import get_default_columns
 from marimba.core.utils.summary import ImagerySummary
 from marimba.lib.decorators import multithreaded
@@ -167,6 +172,11 @@ class DatasetWrapper(LogMixin):
         The name of the dataset.
         """
         return self._root_dir.name
+
+    @property
+    def image_set_uuid(self) -> str:
+        """The deterministic image-set UUID for this dataset, derived from its name."""
+        return iFDOMetadata.derive_image_set_uuid(self.name)
 
     @property
     def logs_dir(self) -> Path:
@@ -433,6 +443,7 @@ class DatasetWrapper(LogMixin):
         self._generate_dataset_map(dataset_items, zoom)
         self._copy_pipelines(project_pipelines_dir)
         self._copy_logs(project_log_path, pipeline_log_paths)
+        self._generate_provenance(dataset_mapping, project_pipelines_dir)
         self._generate_manifest(dataset_items, max_workers)
 
         self.logger.info(f'Completed packaging dataset "{dataset_name}"')
@@ -578,6 +589,9 @@ class DatasetWrapper(LogMixin):
             dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
         ] = {}
 
+        # Deterministic image-set UUID used to namespace per-image UUIDs (see ensure_image_uuid).
+        image_set_uuid = self.image_set_uuid
+
         for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
             for (
                 relative_dst,
@@ -588,6 +602,14 @@ class DatasetWrapper(LogMixin):
                     continue
 
                 dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
+
+                # Assign a deterministic per-image UUID where the pipeline did not supply one. This runs
+                # before EXIF embedding below so the UUID reaches both the embedded ImageUniqueID tag and
+                # the iFDO record (they share the same ImageData object).
+                relative_path = dst.relative_to(self.root_dir).as_posix()
+                for item in metadata_items:
+                    if isinstance(item, iFDOMetadata):
+                        item.ensure_image_uuid(image_set_uuid, relative_path)
 
                 # Group by the type of the first metadata item
                 metadata_type = type(metadata_items[0])
@@ -604,6 +626,7 @@ class DatasetWrapper(LogMixin):
                 logger=self.logger,
                 dry_run=self.dry_run,
                 chunk_size=exif_chunk_size,
+                image_set_uuid=image_set_uuid,
             )
 
         total_files = sum(len(files) for files in files_by_type.values())
@@ -757,7 +780,7 @@ class DatasetWrapper(LogMixin):
 
                 progress_bar.advance(task)
         else:
-            processed_items = execute_on_mapping(dataset_items, lambda x: self._process_items(x))
+            processed_items = execute_on_mapping(dataset_items, self._process_items)
             grouped_items = execute_on_mapping(processed_items, self._group_by_metadata_type)
             for decorator in mapping_processor_decorator:
                 decorator(lambda x, y: self._create_metadata_files(dataset_name, x, y), grouped_items)
@@ -964,6 +987,37 @@ class DatasetWrapper(LogMixin):
             )
             progress.advance(task)
 
+    def _generate_provenance(
+        self,
+        dataset_mapping: dict[str, Any],
+        project_pipelines_dir: Path,
+    ) -> None:
+        """
+        Write a PROV-O (JSON-LD) provenance record for the dataset.
+
+        Captures the Marimba version, each pipeline's git provenance, the ExifTool/FFmpeg versions, and the
+        packaging timestamp. Skipped in dry-run since no dataset is written to disk.
+        """
+        if self.dry_run:
+            self.logger.info("Skipping provenance generation (dry-run)")
+            return
+
+        pipeline_repos = {name: project_pipelines_dir / name / "repo" for name in dataset_mapping}
+        document = build_provenance_document(
+            image_set_uuid=self.image_set_uuid,
+            dataset_name=self.name,
+            dataset_version=self.version,
+            pipeline_repos=pipeline_repos,
+            packaged_datetime=datetime.now(UTC),
+            marimba_version=marimba.__version__,
+        )
+        provenance_path = self.root_dir / "provenance.json"
+        with provenance_path.open("w") as f:
+            json.dump(document, f, indent=2)
+        self.logger.info(
+            f"Generated provenance record at {format_path_for_logging(provenance_path, self._project_dir)}",
+        )
+
     def _generate_manifest(
         self,
         dataset_items: dict[str, list[BaseMetadata]],
@@ -995,6 +1049,11 @@ class DatasetWrapper(LogMixin):
                 max_workers=max_workers,
                 files=globbed_files,
             )
+            manifest.header = {
+                "image-set-uuid": self.image_set_uuid,
+                "image-set-name": self.name,
+                "hash-algorithm": "SHA-256",
+            }
             manifest.save(self.manifest_path, logger=self.logger)
             self.logger.info(
                 f"Generated manifest for {len(globbed_files)} "

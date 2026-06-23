@@ -35,6 +35,117 @@ from marimba.lib.image import (
 )
 
 
+class TestExifPreservation:
+    """Single-image transforms preserve source EXIF, resetting orientation only when pixels are re-oriented (P2-6)."""
+
+    _MAKE = 0x010F
+    _ARTIST = 0x013B
+    _ORIENTATION = 0x0112
+
+    @classmethod
+    def _source(cls, path: Path, fmt: str = "JPEG", orientation: int = 1) -> Path:
+        """Write a small source image carrying representative EXIF."""
+        img = Image.new("RGB", (64, 32), "blue")
+        exif = img.getexif()
+        exif[cls._MAKE] = "TestCam"
+        exif[cls._ARTIST] = "Pat Diver"
+        exif[cls._ORIENTATION] = orientation
+        img.save(path, format=fmt, exif=exif)
+        return path
+
+    @staticmethod
+    def _exif(path: Path) -> Image.Exif:
+        with Image.open(path) as img:
+            return img.getexif()
+
+    @pytest.mark.unit
+    def test_convert_to_jpeg_preserves_exif(self, tmp_path: Path) -> None:
+        """Converting a non-JPEG source to JPEG keeps its camera/attribution EXIF."""
+        out = convert_to_jpeg(self._source(tmp_path / "s.png", fmt="PNG"), destination=tmp_path / "out.jpg")
+        exif = self._exif(out)
+        assert exif.get(self._MAKE) == "TestCam"
+        assert exif.get(self._ARTIST) == "Pat Diver"
+
+    @pytest.mark.unit
+    def test_resize_preserves_exif_and_orientation(self, tmp_path: Path) -> None:
+        """Resizing preserves EXIF and keeps the orientation tag (no rotation occurred)."""
+        out = tmp_path / "out.jpg"
+        resize_fit(self._source(tmp_path / "s.jpg", orientation=6), max_width=16, max_height=16, destination=out)
+        exif = self._exif(out)
+        assert exif.get(self._MAKE) == "TestCam"
+        assert exif.get(self._ORIENTATION) == 6
+
+    @pytest.mark.unit
+    def test_rotate_resets_orientation(self, tmp_path: Path) -> None:
+        """Rotating preserves EXIF but removes the now-stale orientation tag."""
+        out = tmp_path / "out.jpg"
+        rotate_clockwise(self._source(tmp_path / "s.jpg", orientation=6), 90, destination=out)
+        exif = self._exif(out)
+        assert exif.get(self._MAKE) == "TestCam"
+        assert exif.get(self._ORIENTATION) is None
+
+    @pytest.mark.unit
+    def test_flip_resets_orientation(self, tmp_path: Path) -> None:
+        """Flipping preserves EXIF but removes the now-stale orientation tag."""
+        out = tmp_path / "out.jpg"
+        flip_horizontal(self._source(tmp_path / "s.jpg", orientation=3), destination=out)
+        exif = self._exif(out)
+        assert exif.get(self._MAKE) == "TestCam"
+        assert exif.get(self._ORIENTATION) is None
+
+    @pytest.mark.unit
+    def test_crop_preserves_exif(self, tmp_path: Path) -> None:
+        """Cropping preserves EXIF."""
+        out = tmp_path / "out.jpg"
+        crop(self._source(tmp_path / "s.jpg"), 0, 0, 16, 16, destination=out)
+        assert self._exif(out).get(self._MAKE) == "TestCam"
+
+    @pytest.mark.unit
+    def test_transform_without_exif_does_not_error(self, tmp_path: Path) -> None:
+        """A source with no EXIF transforms cleanly and gains no spurious EXIF."""
+        src = tmp_path / "s.jpg"
+        Image.new("RGB", (64, 32), "red").save(src)
+        out = tmp_path / "out.jpg"
+        resize_fit(src, max_width=16, max_height=16, destination=out)
+        assert out.is_file()
+        assert len(self._exif(out)) == 0
+
+    @pytest.mark.unit
+    def test_gaussian_blur_preserves_exif(self, tmp_path: Path) -> None:
+        """The OpenCV Gaussian blur preserves EXIF and keeps the orientation tag (no re-orientation)."""
+        out = tmp_path / "out.jpg"
+        gaussian_blur(self._source(tmp_path / "s.jpg", orientation=6), destination=out)
+        exif = self._exif(out)
+        assert exif.get(self._MAKE) == "TestCam"
+        assert exif.get(self._ORIENTATION) == 6
+
+    @pytest.mark.unit
+    def test_sharpen_preserves_exif(self, tmp_path: Path) -> None:
+        """The OpenCV sharpen filter preserves EXIF."""
+        out = tmp_path / "out.jpg"
+        sharpen(self._source(tmp_path / "s.jpg"), destination=out)
+        assert self._exif(out).get(self._MAKE) == "TestCam"
+
+    @pytest.mark.unit
+    def test_apply_clahe_preserves_exif_and_is_grayscale(self, tmp_path: Path) -> None:
+        """CLAHE preserves source EXIF even though it converts the image to single-channel grayscale."""
+        out = tmp_path / "out.jpg"
+        apply_clahe(self._source(tmp_path / "s.jpg"), destination=out)
+        assert self._exif(out).get(self._MAKE) == "TestCam"
+        with Image.open(out) as img:
+            assert img.mode == "L"
+
+    @pytest.mark.unit
+    def test_cv2_transform_without_exif_does_not_error(self, tmp_path: Path) -> None:
+        """An OpenCV filter on a source with no EXIF writes cleanly and gains no spurious EXIF."""
+        src = tmp_path / "s.jpg"
+        Image.new("RGB", (64, 32), "red").save(src)
+        out = tmp_path / "out.jpg"
+        gaussian_blur(src, destination=out)
+        assert out.is_file()
+        assert len(self._exif(out)) == 0
+
+
 class TestImageUtilities:
     """Test image utility functions."""
 
@@ -1712,7 +1823,7 @@ class TestImageUtilities:
             pytest.fail(f"Failed to load test image: {test_image_rgb}")
 
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        actual_variance = cv2.Laplacian(gray, cv2.CV_64F).var()
+        actual_variance = float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
         # Set thresholds: one below and one above the actual variance
         low_threshold = actual_variance - 10.0
@@ -1860,7 +1971,7 @@ class TestImageUtilities:
 
         mock_imread = mocker.patch("cv2.imread", return_value=mock_img)
         mock_create_clahe = mocker.patch("cv2.createCLAHE")
-        mock_imwrite = mocker.patch("cv2.imwrite")
+        mock_save = mocker.patch("marimba.lib.image._save_cv2_with_metadata")
 
         mock_clahe_obj = mocker.Mock()
         mock_clahe_obj.apply.return_value = mock_processed_img
@@ -1876,10 +1987,8 @@ class TestImageUtilities:
             tileGridSize=(16, 16),
         )
         mock_clahe_obj.apply.assert_called_once_with(mock_img)
-        mock_imwrite.assert_called_once_with(
-            str(output_path),
-            mock_processed_img,
-        )
+        # The grayscale CLAHE result is saved through the EXIF-preserving helper, not cv2.imwrite.
+        mock_save.assert_called_once_with(test_image_rgb, mock_processed_img, output_path, grayscale=True)
 
     @pytest.mark.unit
     def test_apply_clahe_raises_error_when_image_cannot_be_read(
@@ -1920,7 +2029,7 @@ class TestImageUtilities:
 
         mock_imread = mocker.patch("cv2.imread", return_value=mock_img)
         mock_create_clahe = mocker.patch("cv2.createCLAHE")
-        mock_imwrite = mocker.patch("cv2.imwrite")
+        mock_save = mocker.patch("marimba.lib.image._save_cv2_with_metadata")
 
         mock_clahe_obj = mocker.Mock()
         mock_clahe_obj.apply.return_value = mock_processed_img
@@ -1936,10 +2045,8 @@ class TestImageUtilities:
             tileGridSize=(8, 8),
         )
         mock_clahe_obj.apply.assert_called_once_with(mock_img)
-        mock_imwrite.assert_called_once_with(
-            str(test_image_rgb),
-            mock_processed_img,
-        )
+        # With no destination the source is overwritten, still via the EXIF-preserving helper.
+        mock_save.assert_called_once_with(test_image_rgb, mock_processed_img, test_image_rgb, grayscale=True)
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -2331,9 +2438,10 @@ class TestImageUtilities:
         assert entropy > 0, "Gradient image should have positive entropy"
 
         # Assert - Verify exact entropy value for uniform distribution of 100 values
-        # Expected entropy = -∑(p_i * log2(p_i)) where p_i = 1/100 for all i
-        # = -100 * (1/100) * log2(1/100) = log2(100) ≈ 6.644 bits
-        expected_entropy = np.log2(image_size)
+        # Raw entropy = -∑(p_i * log2(p_i)) where p_i = 1/100 for all i
+        # = log2(100) ≈ 6.644 bits, normalised to [0, 1] by the 8-bit maximum:
+        # log2(100) / 8 ≈ 0.830482
+        expected_entropy = np.log2(image_size) / 8.0
         tolerance = 1e-6  # Appropriate tolerance for floating point precision
         assert abs(entropy - expected_entropy) < tolerance, (
             f"Expected entropy {expected_entropy:.6f} for uniform distribution of {image_size} values, "
@@ -2352,7 +2460,8 @@ class TestImageUtilities:
         rng = np.random.default_rng(42)  # Ensure reproducible test results
         noise_array = rng.integers(0, 256, size=(100, 100), dtype=np.uint8)
         noise_image = Image.fromarray(noise_array)
-        expected_entropy = 7.982  # Empirically determined value for this specific random seed and size
+        # Empirically ~7.982 bits for this seed/size, normalised to [0, 1] by the 8-bit maximum.
+        expected_entropy = 7.982 / 8.0
 
         # Act - Calculate Shannon entropy for noise image
         entropy = get_shannon_entropy(noise_image)
@@ -2361,10 +2470,8 @@ class TestImageUtilities:
         assert isinstance(entropy, float), "Entropy should be returned as a float value"
         assert (
             abs(entropy - expected_entropy) < 0.01
-        ), f"Random noise entropy should be approximately {expected_entropy:.3f} bits, got {entropy:.3f}"
-        assert (
-            entropy <= 8.0
-        ), f"Entropy cannot exceed theoretical maximum of 8.0 bits for 8-bit grayscale, got {entropy:.3f}"
+        ), f"Random noise normalized entropy should be approximately {expected_entropy:.3f}, got {entropy:.3f}"
+        assert entropy <= 1.0, f"Normalized entropy cannot exceed 1.0, got {entropy:.3f}"
 
     @pytest.mark.unit
     def test_get_shannon_entropy_rgb_to_grayscale_conversion(self) -> None:
@@ -2469,6 +2576,64 @@ class TestImageUtilities:
         assert (
             actual_average_color[0] == actual_average_color[1] == actual_average_color[2]
         ), "All RGB channels should have identical values for converted grayscale image"
+
+    @pytest.mark.unit
+    def test_get_average_image_color_native_grayscale(self) -> None:
+        """Test average color calculation for a native single-channel grayscale image.
+
+        Verifies that the get_average_image_color function handles unconverted grayscale
+        ("L" mode) images, where the per-channel mean collapses to a 0-d scalar. The iFDO
+        v2.2 schema permits image-average-color arrays of any length >= 1, so a grayscale
+        image should yield a single-element list rather than raising. This unit test
+        ensures that:
+        1. The function returns a single-element list for single-channel input
+        2. The value matches the grayscale intensity
+        3. The value is an integer in the valid 0-255 range
+        """
+        # Arrange - Create a native grayscale image with known intensity
+        expected_intensity = 77
+        grayscale_image = Image.new("L", (50, 50), color=expected_intensity)
+
+        # Act - Calculate the average color of the native grayscale image
+        actual_average_color = get_average_image_color(grayscale_image)
+
+        # Assert - Verify a single-element list with the grayscale intensity
+        assert isinstance(actual_average_color, list), "Function should return a list of color values"
+        assert len(actual_average_color) == 1, "Grayscale image should return exactly 1 channel value"
+        assert actual_average_color == [
+            expected_intensity,
+        ], f"Average {actual_average_color} should match grayscale intensity [{expected_intensity}]"
+        assert isinstance(actual_average_color[0], int), "Channel value should be an integer"
+        assert 0 <= actual_average_color[0] <= 255, "Channel value should be in valid range (0-255)"
+
+    @pytest.mark.unit
+    def test_get_average_image_color_rgba_image(self) -> None:
+        """Test average color calculation for a four-channel RGBA image.
+
+        Verifies that the get_average_image_color function returns one value per channel
+        for images with an alpha channel, as permitted by the iFDO v2.2 schema's
+        unbounded image-average-color array. This unit test ensures that:
+        1. The function returns exactly 4 values for RGBA input
+        2. Each value matches the corresponding solid input channel
+        3. All values are integers in the valid 0-255 range
+        """
+        # Arrange - Create a solid RGBA image with known channel values
+        expected_color = [10, 20, 30, 40]
+        rgba_image = Image.new("RGBA", (50, 50), color=(10, 20, 30, 40))
+
+        # Act - Calculate the average color of the RGBA image
+        actual_average_color = get_average_image_color(rgba_image)
+
+        # Assert - Verify one value per channel including alpha
+        assert isinstance(actual_average_color, list), "Function should return a list of color values"
+        assert len(actual_average_color) == 4, "RGBA image should return exactly 4 channel values"
+        assert (
+            actual_average_color == expected_color
+        ), f"Average color {actual_average_color} should match input channels {expected_color}"
+        assert all(isinstance(value, int) for value in actual_average_color), "All channel values should be integers"
+        assert all(
+            0 <= value <= 255 for value in actual_average_color
+        ), "All channel values should be in valid range (0-255)"
 
 
 class TestGridClasses:
@@ -2777,9 +2942,9 @@ class TestGridClasses:
         assert len(row.images) == 3, "Row should contain 3 images after additions"
 
         # Get references to the resized images that are actually stored in the row
-        stored_image1, width1, height1 = row.images[0]
-        stored_image2, width2, height2 = row.images[1]
-        stored_image3, width3, height3 = row.images[2]
+        stored_image1, width1, _height1 = row.images[0]
+        stored_image2, width2, _height2 = row.images[1]
+        stored_image3, width3, _height3 = row.images[2]
 
         # Verify images are accessible and have correct dimensions before cleanup
         assert stored_image1.size == (grid_dimensions.column_width, 133), "First image should be resized correctly"

@@ -272,7 +272,7 @@ class PipelineWrapper(LogMixin):
                 pipeline_config.update(additional_config)
 
         # Use project logger if provided, otherwise use pipeline logger
-        logger = project_logger if project_logger else self.logger
+        logger = project_logger or self.logger
         logger.info(f"Provided pipeline config={pipeline_config}")
 
         return pipeline_config

@@ -188,7 +188,7 @@ def generate_video_thumbnails(
     if potential_filenames:
         for packet in container.demux(stream):
             for frame in packet.decode():
-                if isinstance(frame, av.video.frame.VideoFrame):
+                if isinstance(frame, av.video.frame.VideoFrame) and frame.pts is not None:
                     frame_number = int(frame.pts * time_base * frame_rate)
                     if frame_number in potential_filenames:
                         output_path = potential_filenames[frame_number]
