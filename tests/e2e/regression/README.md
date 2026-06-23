@@ -16,7 +16,7 @@ Run it (or let the pre-push hook run it) after:
 ```
 tests/e2e/regression/
 ├── conftest.py                       # cache fixtures, MarimbaRunner, packaged_dataset
-├── scrub.py                          # YAML / JPEG / manifest scrubbers (Phase 2 characterisation)
+├── scrub.py                          # YAML / JSON / JPEG / manifest scrubbers (Phase 2 characterisation)
 ├── test_smoke.py                     # smoke: new project + new pipeline + 10x import
 ├── test_regression.py                # tiers A / B / C against golden/
 └── golden/
@@ -31,7 +31,7 @@ tests/e2e/regression/
 | Test | What it asserts | Cold-cache | Warm-cache |
 |---|---|---:|---:|
 | `test_smoke_cache_and_import` | Cache populates, project bootstrap + 10x import succeed. | ~30s | ~6s |
-| `test_tier_a_structural` | Dataset layout, file presence, YAML parsability, per-collection ifdo YAMLs for all 10 collections. | shared* | shared* |
+| `test_tier_a_structural` | Dataset layout, file presence, JSON parsability, per-collection ifdo JSON files for all 10 collections. | shared* | shared* |
 | `test_tier_b_inventory` | Structural counts match `golden/invariants.json` (by-class, top-level files, per-pipeline/collection/kind totals, manifest line count). | shared* | shared* |
 | `test_tier_c_scrubbed_manifest_byte_equality` | Fresh-run scrubbed manifest byte-matches `golden/manifest.scrubbed.txt`. Load-bearing. | shared* | shared* |
 
@@ -95,12 +95,12 @@ The tiers are ordered cheapest → most precise. If you see a failure, start at 
 
 ### Tier A — `test_tier_a_structural`
 
-Asserts the dataset's shape exists. Failures point at a missing file, malformed YAML, or empty top-level artifact.
+Asserts the dataset's shape exists. Failures point at a missing file, malformed JSON, or empty top-level artifact.
 
 **Common causes:**
 
 - A required marimba CLI command silently no-op'd (e.g. `package` exited zero but didn't write `summary.md`).
-- YAML serialiser changed format in a way pyyaml can't parse.
+- Metadata serialiser changed format in a way that no longer parses as JSON.
 - The dataset name (`PACKAGED_DATASET_NAME` in `conftest.py`) doesn't match what `marimba package` actually emitted.
 
 **To inspect:** the failed run's project dir lives under `/tmp/pytest-of-<user>/pytest-current/scratch0/project/`. Pytest cleans it at session end; run a single tier and inspect before another pytest invocation:
@@ -129,11 +129,11 @@ Asserts structural counts. Failures dump the exact category that drifted (e.g. "
 
 The load-bearing tier. Asserts every dataset file's scrubbed content matches the golden, with three classes of carve-out (entries kept in the manifest for path + ordering, hash replaced with placeholder): log files under `logs/`, `map.png`, and all JPEG images. `map.png` is excluded because `staticmap` renders by fetching tiles from a remote OSM-backed server, so its bytes change over wall-clock time as upstream tile data updates — same project state produces different bytes a day later. Failures dump the first 20 differing manifest lines plus the line-count delta if any.
 
-JPEG content is excluded because its encoded bytes are not reproducible across CPU microarchitectures. On GitHub's mixed hosted-runner fleet a handful of borderline frames flipped between two values depending on which runner CPU executed the job: numpy's SIMD reductions and libjpeg's encoder round differently between CPU generations, and that drift shows up in the main entropy-coded scan, the embedded EXIF thumbnail's own scan, and the `image-entropy` / `image-average-color` values baked into `EXIF:UserComment`. There is no stable byte subset to hash, so JPEG content is not byte-compared at all. The image's metadata is still byte-validated through its per-image iFDO YAML (scrubbed for the same volatile fields), and Tier A/B assert each image's presence, validity, and counts.
+JPEG content is excluded because its encoded bytes are not reproducible across CPU microarchitectures. On GitHub's mixed hosted-runner fleet a handful of borderline frames flipped between two values depending on which runner CPU executed the job: numpy's SIMD reductions and libjpeg's encoder round differently between CPU generations, and that drift shows up in the main entropy-coded scan, the embedded EXIF thumbnail's own scan, and the `image-entropy` / `image-average-color` values baked into `EXIF:UserComment`. There is no stable byte subset to hash, so JPEG content is not byte-compared at all. The image's metadata is still byte-validated through its per-image iFDO metadata (scrubbed for the same volatile fields), and Tier A/B assert each image's presence, validity, and counts.
 
 **Common causes:**
 
-- A new volatile field appeared in the YAML output that the scrubber doesn't know about (the scrubber currently handles `image-hash-sha256`, `image-entropy`, `image-average-color`; note `image-set-uuid` and `image-uuid` are deterministic and intentionally **not** scrubbed, so the golden pins their values). Add the field to `scrub.py::_YAML_FIELD_PATTERNS`.
+- A new volatile field appeared in the metadata output that the scrubber doesn't know about (the scrubber currently handles `image-hash-sha256`, `image-entropy`, `image-average-color`; note `image-set-uuid` and `image-uuid` are deterministic and intentionally **not** scrubbed, so the golden pins their values). Add the field to `scrub.py::_VOLATILE_JSON_FIELDS` (and `_YAML_FIELD_PATTERNS` if YAML output is in use).
 - The pipeline source-copy under `pipelines/MRITC/repo/` drifted (pipeline-repo SHA bumped without rotating the golden).
 - An output file the manifest covers is genuinely different.
 
@@ -174,4 +174,4 @@ The workflow itself doesn't gate merges — that's a GitHub repo setting under B
 
 The harness was designed in six phases; per-phase rationale and findings live in commits `d8c91fc` (cache + smoke), `43d2197` (scrubber + goldens), `1b95239` (tiered tests), `1f98966` (CI + hook). The Phase 2 determinism characterisation that drove the scrubber design was a gitignored throwaway (two independent bootstraps + per-file diff); its method survives as the §"Scrubber correctness" proof in [`golden/README.md`](golden/README.md).
 
-The headline finding from Phase 2: marimba generates a fresh `uuid.uuid4()` per image at `process` time and embeds it in EXIF (both `ImageUniqueID` and inside the `UserComment` JSON blob). That UUID cascades into the per-image YAML, the dataset-level rollup, and the manifest. The scrubber normalises this cascade so byte-equality of the *scrubbed* manifest is a meaningful regression assertion. A content-addressed UUID scheme (e.g. UUIDv5 over the source-image hash) would make scrubbing unnecessary; that's a candidate finding for a real `codebase-review` cycle, not a blocker here.
+The headline finding from Phase 2: marimba generates a fresh `uuid.uuid4()` per image at `process` time and embeds it in EXIF (both `ImageUniqueID` and inside the `UserComment` JSON blob). That UUID cascades into the per-image iFDO metadata, the dataset-level rollup, and the manifest. The scrubber normalises this cascade so byte-equality of the *scrubbed* manifest is a meaningful regression assertion. A content-addressed UUID scheme (e.g. UUIDv5 over the source-image hash) would make scrubbing unnecessary; that's a candidate finding for a real `codebase-review` cycle, not a blocker here.

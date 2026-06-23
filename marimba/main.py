@@ -274,7 +274,10 @@ def package_command(  # noqa: PLR0915
         None,
         help="Maximum number of worker processes to use. If None, uses all available CPU cores.",
     ),
-    metadata_output: MetadataSaverTypes | None = typer.Option(None, help="Output metadata format"),
+    metadata_output: MetadataSaverTypes | None = typer.Option(
+        None,
+        help="Metadata output format (default: json). Pass 'yaml' for YAML output.",
+    ),
     metadata_level: list[MetadataGenerationLevelOptions] | None = typer.Option(
         None,
         help="Output metadata level",
