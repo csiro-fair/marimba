@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- Dataset metadata (iFDO and generic) is now serialised as JSON by default instead of YAML, which is dramatically faster on large datasets (tens of seconds of YAML serialisation reduced to under a second for multi-hundred-thousand-image sets). Pass `--metadata-output yaml` to `package` to keep the previous YAML output.
+
 ## [1.1.0] – 2026-05-27
 
 ### Added

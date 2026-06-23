@@ -556,7 +556,7 @@ class TestGenericMetadata:
         still processes the input data correctly, including metadata serialization logic.
         """
         # Arrange
-        mock_saver = mocker.patch("marimba.core.schemas.generic.yaml_saver")
+        mock_saver = mocker.patch("marimba.core.schemas.generic.json_saver")
         items: dict[str, list[BaseMetadata]] = {
             "file1.jpg": [GenericMetadata(datetime_=sample_datetime, latitude=37.7749, context="test")],
             "file2.jpg": [GenericMetadata(datetime_=sample_datetime, longitude=-122.4194)],
@@ -587,10 +587,10 @@ class TestGenericMetadata:
         """Test create_dataset_metadata with custom saver function override.
 
         Verifies that when a custom saver is provided via saver_overwrite parameter,
-        it is used instead of the default yaml_saver and receives the correct parameters.
+        it is used instead of the default json_saver and receives the correct parameters.
         """
         # Arrange
-        mock_default_saver = mocker.patch("marimba.core.schemas.generic.yaml_saver")
+        mock_default_saver = mocker.patch("marimba.core.schemas.generic.json_saver")
         mock_custom_saver = mocker.Mock()
         items: dict[str, list[BaseMetadata]] = {
             "file1.jpg": [GenericMetadata(datetime_=sample_datetime, latitude=37.7749, context="test")],
@@ -605,7 +605,7 @@ class TestGenericMetadata:
         )
 
         # Assert
-        mock_default_saver.assert_not_called()  # Default yaml_saver should not be called when custom saver is provided
+        mock_default_saver.assert_not_called()  # Default json_saver should not be called when custom saver is provided
         mock_custom_saver.assert_called_once()  # Custom saver should be called exactly once
 
         # Verify custom saver received correct parameters
@@ -644,7 +644,7 @@ class TestGenericMetadata:
         items: dict[str, list[BaseMetadata]] = {
             "file1.jpg": [GenericMetadata(datetime_=sample_datetime)],
         }
-        mock_saver = mocker.patch("marimba.core.schemas.generic.yaml_saver")
+        mock_saver = mocker.patch("marimba.core.schemas.generic.json_saver")
         custom_name = "custom_metadata"
 
         # Act
@@ -656,7 +656,7 @@ class TestGenericMetadata:
         )
 
         # Assert
-        mock_saver.assert_called_once(), "yaml_saver should be called exactly once"
+        mock_saver.assert_called_once(), "json_saver should be called exactly once"
         call_args = mock_saver.call_args
         assert call_args[0][0] == tmp_path, "First argument should be the root directory path"
         assert call_args[0][1] == custom_name, "Second argument should be the custom metadata name"
@@ -691,7 +691,7 @@ class TestGenericMetadata:
         # Mock does not have format_hash method, simulating missing method scenario
 
         items: dict[str, list[BaseMetadata]] = {"file1.jpg": [mock_metadata]}
-        mock_saver = mocker.patch("marimba.core.schemas.generic.yaml_saver")
+        mock_saver = mocker.patch("marimba.core.schemas.generic.json_saver")
 
         # Act
         GenericMetadata.create_dataset_metadata(
@@ -701,7 +701,7 @@ class TestGenericMetadata:
         )
 
         # Assert
-        mock_saver.assert_called_once(), "yaml_saver should be called despite missing format_hash method"
+        mock_saver.assert_called_once(), "json_saver should be called despite missing format_hash method"
 
         # Verify saver was called with correct parameters
         call_args = mock_saver.call_args
@@ -858,7 +858,7 @@ class TestGenericMetadataDeduplication:
             "img1.jpg": [GenericMetadata(datetime_=dt, latitude=45.0, license_="CC-BY")],
             "img2.jpg": [GenericMetadata(datetime_=dt, latitude=45.0, license_="CC-BY")],
         }
-        mock_saver = mocker.patch("marimba.core.schemas.generic.yaml_saver")
+        mock_saver = mocker.patch("marimba.core.schemas.generic.json_saver")
 
         GenericMetadata.create_dataset_metadata(
             dataset_name="TestDataset",
@@ -889,7 +889,7 @@ class TestGenericMetadataDeduplication:
             "img1.jpg": [GenericMetadata(datetime_=dt, latitude=45.0)],
             "img2.jpg": [GenericMetadata(datetime_=dt, latitude=46.0)],
         }
-        mock_saver = mocker.patch("marimba.core.schemas.generic.yaml_saver")
+        mock_saver = mocker.patch("marimba.core.schemas.generic.json_saver")
 
         GenericMetadata.create_dataset_metadata(
             dataset_name="TestDataset",

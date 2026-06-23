@@ -32,7 +32,7 @@ from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import DEFAULT_EXIF_THUMBNAIL_SIZE, EXIF_SUPPORTED_EXTENSIONS
 from marimba.core.utils.dependencies import ToolDependency, show_dependency_error_and_exit
 from marimba.core.utils.log import get_logger
-from marimba.core.utils.metadata import yaml_saver
+from marimba.core.utils.metadata import json_saver
 from marimba.core.utils.rich import get_default_columns
 from marimba.lib.decorators import multithreaded
 
@@ -604,7 +604,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
     ) -> None:
         """Create an iFDO from the metadata items."""
-        saver = yaml_saver if saver_overwrite is None else saver_overwrite
+        saver = json_saver if saver_overwrite is None else saver_overwrite
 
         image_set_items = cls._convert_items_to_image_data(items)
         common_fields = cls._extract_common_header_fields(image_set_items)

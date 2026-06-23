@@ -4,7 +4,7 @@ A determinism characterisation (two independent identical-input bootstraps,
 per-file diff; method preserved in golden/README.md §"Scrubber correctness")
 identified these drift sources between two identical-input runs:
 
-1. `image-hash-sha256` field in each per-image YAML entry: an indirect
+1. `image-hash-sha256` field in each per-image iFDO entry: an indirect
    consequence of the pixel-derived volatility (3) — the JPEG bytes differ
    across CPU microarchitectures, so their SHA differs.
 2. `Creation Date` row in `summary.md`, populated via `datetime.now()` by
@@ -18,7 +18,7 @@ identified these drift sources between two identical-input runs:
    main entropy-coded scan, the embedded EXIF thumbnail's own scan, and the
    `image-entropy` (Shannon entropy of the pixel histogram) and
    `image-average-color` (pixel mean) values that `marimba/core/schemas/ifdo.py`
-   computes and bakes into both the iFDO YAML and the EXIF:UserComment JSON.
+   computes and bakes into both the iFDO metadata and the EXIF:UserComment JSON.
 
 The per-dataset `image-set-uuid` and the per-image `image-uuid` were formerly
 scrubbed here too. `marimba package` now derives the set UUID deterministically
@@ -30,16 +30,17 @@ catch a regression in the derivation.
 
 JPEG content has no stable byte subset to hash, so it is excluded from byte
 comparison entirely (see `has_volatile_content`); the image's metadata is still
-validated through its scrubbed per-image YAML. Every other dataset file is
-byte-deterministic, including videos, CSVs, `metadata.yml`, and the pipeline
-source copy under `pipelines/`. Logs are excluded from comparison entirely
-(timestamps, durations).
+validated through its scrubbed per-image iFDO entry. Every other dataset file is
+byte-deterministic, including videos, CSVs, the iFDO `.json` metadata, and the
+pipeline source copy under `pipelines/`. Logs are excluded from comparison
+entirely (timestamps, durations).
 
 Scrubber strategy:
 
-- `scrub_yaml_text` replaces each known volatile field value (the cascaded
-  image hash and the pixel-derived `image-entropy` / `image-average-color`)
-  with fixed-shape placeholders.
+- `scrub_yaml_text` and `scrub_json_text` replace each known volatile field
+  value (the cascaded image hash and the pixel-derived `image-entropy` /
+  `image-average-color`) with fixed-shape placeholders. iFDO metadata is now
+  emitted as JSON by default; YAML scrubbing is retained for any `.yml` output.
 - `scrubbed_hash` dispatches by suffix and returns the SHA256 of the scrubbed
   content (or of the raw bytes if no scrubber applies). JPEGs never reach it —
   `rebuild_manifest` placeholders them first via `has_volatile_content`.
@@ -52,8 +53,13 @@ Scrubber strategy:
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # Fixed-width 36-char placeholder UUID. Same shape as a real UUID v4 so byte
 # offsets in EXIF / YAML stay stable.
@@ -100,6 +106,17 @@ _YAML_FIELD_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
 # Suffixes for which we apply text-based YAML scrubbing.
 _YAML_SUFFIXES = frozenset({".yml", ".yaml"})
 
+# iFDO metadata is now emitted as JSON by default. The same pixel-derived volatile fields appear in it
+# (keyed by their hyphenated aliases); scrub them by parsing the JSON and re-serialising deterministically,
+# which is more robust than regex over json.dump's multi-line arrays. provenance.json never reaches this
+# path — has_volatile_content placeholders it first.
+_JSON_SUFFIXES = frozenset({".json"})
+_VOLATILE_JSON_FIELDS: dict[str, Any] = {
+    "image-hash-sha256": SHA256_PLACEHOLDER,
+    "image-entropy": float(ENTROPY_PLACEHOLDER),
+    "image-average-color": [0, 0, 0],
+}
+
 # JPEG suffixes. Their content is excluded from byte comparison entirely (see
 # has_volatile_content) because the encoded pixels — main scan, the embedded
 # EXIF thumbnail's own scan, and the numpy-derived image-entropy / image-
@@ -136,6 +153,31 @@ def scrub_yaml_text(text: str) -> str:
     for pattern, replacement in _YAML_FIELD_PATTERNS:
         text = pattern.sub(replacement, text)
     return text
+
+
+def _scrub_json_obj(obj: Any) -> None:
+    """Recursively replace volatile iFDO field values in a parsed JSON structure, in place."""
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            if key in _VOLATILE_JSON_FIELDS:
+                obj[key] = _VOLATILE_JSON_FIELDS[key]
+            else:
+                _scrub_json_obj(value)
+    elif isinstance(obj, list):
+        for item in obj:
+            _scrub_json_obj(item)
+
+
+def scrub_json_text(text: str) -> str:
+    """Normalise the volatile iFDO field values in JSON metadata.
+
+    Parses the JSON, replaces the cascaded image hash and the pixel-derived image-entropy /
+    image-average-color with fixed placeholders, and re-serialises with sorted keys so the output is
+    deterministic regardless of input key order. Idempotent.
+    """
+    data = json.loads(text)
+    _scrub_json_obj(data)
+    return json.dumps(data, indent=2, sort_keys=True)
 
 
 def scrub_markdown_text(text: str) -> str:
@@ -181,7 +223,7 @@ def has_volatile_content(rel_path: Path) -> bool:
       numpy-derived image-entropy / image-average-color baked into the
       EXIF:UserComment JSON all vary in their low-order bits. There is no
       stable byte subset to hash, so the content is excluded. The image's
-      metadata is still byte-validated via its per-image iFDO YAML (which is
+      metadata is still byte-validated via its per-image iFDO metadata (which is
       scrubbed for the same volatile fields), and Tier A/B assert presence,
       validity, and counts.
 
@@ -205,23 +247,22 @@ def scrubbed_hash(path: Path) -> str:
     Returns the unscrubbed SHA if no scrubber applies to this suffix. Caller
     is responsible for skipping log files via `is_log_path` before invoking.
     """
-    suffix = path.suffix.lower()
     raw = path.read_bytes()
+    suffix = path.suffix.lower()
 
+    scrubber: Callable[[str], str] | None = None
     if suffix in _YAML_SUFFIXES:
-        try:
-            text = raw.decode("utf-8")
-        except UnicodeDecodeError:
-            return hashlib.sha256(raw).hexdigest()
-        return hashlib.sha256(scrub_yaml_text(text).encode("utf-8")).hexdigest()
+        scrubber = scrub_yaml_text
+    elif suffix in _JSON_SUFFIXES:
+        scrubber = scrub_json_text
+    elif suffix in _MARKDOWN_SUFFIXES:
+        scrubber = scrub_markdown_text
 
-    if suffix in _MARKDOWN_SUFFIXES:
+    if scrubber is not None:
         try:
-            text = raw.decode("utf-8")
-        except UnicodeDecodeError:
+            return hashlib.sha256(scrubber(raw.decode("utf-8")).encode("utf-8")).hexdigest()
+        except (UnicodeDecodeError, json.JSONDecodeError):
             return hashlib.sha256(raw).hexdigest()
-        return hashlib.sha256(scrub_markdown_text(text).encode("utf-8")).hexdigest()
-
     return hashlib.sha256(raw).hexdigest()
 
 
