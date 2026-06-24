@@ -1,3 +1,4 @@
+import logging
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,6 +12,8 @@ if TYPE_CHECKING:
     from marimba.core.schemas.base import BaseMetadata
 
 from marimba.core.schemas.ifdo import DEFAULT_RELATED_MATERIAL, iFDOMetadata
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class TestiFDOMetadataProperties:
@@ -1264,6 +1267,7 @@ class TestiFDOMetadataDatasetCreation:
             root_dir,
             items,
             saver_overwrite=mock_saver,
+            logger=_LOGGER,
         )
 
         # Assert - Verify saver function was called with correct parameters
@@ -1314,6 +1318,45 @@ class TestiFDOMetadataDatasetCreation:
         assert "image-altitude-meters" in image_data, "Altitude should remain in item data for single-item datasets"
 
     @pytest.mark.unit
+    def test_create_dataset_metadata_logs_schema_validation_via_logger(
+        self,
+        sample_image_metadata: iFDOMetadata,
+        mocker: pytest_mock.MockerFixture,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Completeness findings are emitted as a warning through the passed logger, reaching the dataset log.
+
+        A sparse iFDO leaves schema-required fields unpopulated (e.g. image-set-handle has no value until a DOI
+        is minted); this is reported via the logger that DatasetWrapper wires to dataset.log, never by failing
+        packaging.
+        """
+        items = {"image.jpg": [cast("BaseMetadata", sample_image_metadata)]}
+        validation_logger = logging.getLogger("ifdo-validation-wiring-test")
+
+        with caplog.at_level(logging.WARNING, logger="ifdo-validation-wiring-test"):
+            iFDOMetadata.create_dataset_metadata(
+                "TestDataset",
+                Path("/tmp"),
+                items,
+                saver_overwrite=mocker.Mock(),
+                logger=validation_logger,
+            )
+
+        records = [
+            record
+            for record in caplog.records
+            if record.name == "ifdo-validation-wiring-test" and record.levelno == logging.WARNING
+        ]
+        assert records, "iFDO completeness findings should be logged as a warning through the supplied logger"
+        record = records[0]
+        assert "schema-required" in record.message
+        # Structured extras (attached via logging `extra=`) drive the end-of-packaging summary panel.
+        unpopulated_fields = getattr(record, "ifdo_unpopulated_fields", None)
+        assert isinstance(unpopulated_fields, list)
+        assert unpopulated_fields
+        assert getattr(record, "ifdo_name", None)
+
+    @pytest.mark.unit
     def test_create_dataset_metadata_custom_name(
         self,
         sample_image_metadata: iFDOMetadata,
@@ -1340,6 +1383,7 @@ class TestiFDOMetadataDatasetCreation:
             items,
             metadata_name=custom_name,
             saver_overwrite=mock_saver,
+            logger=_LOGGER,
         )
 
         # Assert
@@ -1392,6 +1436,7 @@ class TestiFDOMetadataDatasetCreation:
             tmp_path,
             items,
             saver_overwrite=mock_saver,
+            logger=_LOGGER,
         )
 
         # Assert - Verify saver was called with correct parameters
@@ -1476,6 +1521,7 @@ class TestiFDOMetadataDatasetCreation:
             items,
             dry_run=True,
             saver_overwrite=mock_saver,
+            logger=_LOGGER,
         )
 
         # Assert - Primary dry-run behavior: no file operations performed
@@ -1609,6 +1655,7 @@ class TestiFDOMetadataDeduplication:
             Path("/tmp"),
             items,
             saver_overwrite=mock_saver,
+            logger=_LOGGER,
         )
 
         data = captured[0]
@@ -1705,7 +1752,13 @@ class TestiFDOMetadataSpatialExtent:
         def mock_saver(_root: Path, _name: str, data: dict[str, Any]) -> None:
             captured.append(data)
 
-        iFDOMetadata.create_dataset_metadata("TestDataset", Path("/tmp"), items, saver_overwrite=mock_saver)
+        iFDOMetadata.create_dataset_metadata(
+            "TestDataset",
+            Path("/tmp"),
+            items,
+            saver_overwrite=mock_saver,
+            logger=_LOGGER,
+        )
 
         header = captured[0]["image-set-header"]
         assert header["image-set-min-latitude-degrees"] == -44.0
@@ -1728,7 +1781,13 @@ class TestiFDOMetadataSpatialExtent:
         def mock_saver(_root: Path, _name: str, data: dict[str, Any]) -> None:
             captured.append(data)
 
-        iFDOMetadata.create_dataset_metadata("TestDataset", Path("/tmp"), items, saver_overwrite=mock_saver)
+        iFDOMetadata.create_dataset_metadata(
+            "TestDataset",
+            Path("/tmp"),
+            items,
+            saver_overwrite=mock_saver,
+            logger=_LOGGER,
+        )
 
         header = captured[0]["image-set-header"]
         assert "image-set-min-latitude-degrees" not in header
@@ -1758,6 +1817,7 @@ class TestiFDOMetadataSetUuid:
             items,
             metadata_name=metadata_name,
             saver_overwrite=mock_saver,
+            logger=_LOGGER,
         )
         return str(captured[0]["image-set-header"]["image-set-uuid"])
 
@@ -2130,6 +2190,7 @@ class TestiFDOMetadataInvalidConstruction:
             Path("/tmp"),
             {},
             saver_overwrite=mock_saver,
+            logger=_LOGGER,
         )
 
         assert len(captured) == 1
@@ -2154,6 +2215,7 @@ class TestiFDOMetadataRelatedMaterial:
             Path("/tmp"),
             items,
             saver_overwrite=mock_saver,
+            logger=_LOGGER,
         )
         return cast("dict[str, Any]", captured[0]["image-set-header"])
 

@@ -43,6 +43,27 @@ from marimba.core.utils.summary import ImagerySummary
 from marimba.lib.decorators import multithreaded
 
 
+class _PackagingWarningCollector(logging.Handler):
+    """
+    Logging handler that counts warnings and captures iFDO completeness findings during packaging.
+
+    The dataset logger has no console handler, so warnings would otherwise be invisible to the operator. This
+    collector lets ``package`` surface an end-of-run summary panel: a total warning count plus, per iFDO, the
+    schema-required fields left unpopulated (read from the ``ifdo_name`` / ``ifdo_unpopulated_fields`` log extras).
+    """
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.WARNING)
+        self.warning_count = 0
+        self.ifdo_unpopulated_fields: dict[str, list[str]] = {}
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.warning_count += 1
+        fields = getattr(record, "ifdo_unpopulated_fields", None)
+        if fields is not None:
+            self.ifdo_unpopulated_fields[getattr(record, "ifdo_name", "")] = list(fields)
+
+
 class DatasetWrapper(LogMixin):
     """
     Dataset directory wrapper.
@@ -358,6 +379,23 @@ class DatasetWrapper(LogMixin):
 
         # Add the file handler to the logger
         self.logger.addHandler(self._file_handler)
+
+        # The dataset logger has no console handler (operator UX is via Rich panels), so attach a collector that
+        # counts warnings and captures iFDO completeness findings for the end-of-packaging summary panel.
+        self._warning_collector = _PackagingWarningCollector()
+        self.logger.addHandler(self._warning_collector)
+
+    @property
+    def warning_count(self) -> int:
+        """Number of warnings logged during this dataset's lifetime (0 in dry-run, where logging is not set up)."""
+        collector = getattr(self, "_warning_collector", None)
+        return collector.warning_count if collector is not None else 0
+
+    @property
+    def ifdo_unpopulated_fields(self) -> dict[str, list[str]]:
+        """Per-iFDO schema-required fields left unpopulated, captured during packaging (for the summary panel)."""
+        collector = getattr(self, "_warning_collector", None)
+        return dict(collector.ifdo_unpopulated_fields) if collector is not None else {}
 
     def close(self) -> None:
         """Close the file handler."""
@@ -713,6 +751,7 @@ class DatasetWrapper(LogMixin):
                 dataset_name=dataset_name,
                 root_dir=self.root_dir,
                 items=type_items,
+                logger=self.logger,
                 metadata_name=collection_name,
                 dry_run=self.dry_run,
                 saver_overwrite=self._metadata_saver_overwrite,
@@ -772,22 +811,39 @@ class DatasetWrapper(LogMixin):
                         max_workers,
                     ),
                 )
-                grouped_items = execute_on_mapping(processed_items, self._group_by_metadata_type)
+                grouped_items = execute_on_mapping(
+                    processed_items,
+                    self._group_by_metadata_type,
+                )
 
-                progress_bar.update(task, description="[green]Writing dataset metadata (5/12)")
+                progress_bar.update(
+                    task,
+                    description="[green]Writing dataset metadata (5/12)",
+                )
                 for decorator in mapping_processor_decorator:
-                    decorator(lambda x, y: self._create_metadata_files(dataset_name, x, y), grouped_items)
+                    decorator(
+                        lambda x, y: self._create_metadata_files(dataset_name, x, y),
+                        grouped_items,
+                    )
 
                 progress_bar.advance(task)
         else:
             processed_items = execute_on_mapping(dataset_items, self._process_items)
             grouped_items = execute_on_mapping(processed_items, self._group_by_metadata_type)
             for decorator in mapping_processor_decorator:
-                decorator(lambda x, y: self._create_metadata_files(dataset_name, x, y), grouped_items)
+                decorator(
+                    lambda x, y: self._create_metadata_files(dataset_name, x, y),
+                    grouped_items,
+                )
 
-        self._log_metadata_summary(flatten_mapping(flatten_middle_mapping(grouped_items)))
+        self._log_metadata_summary(
+            flatten_mapping(flatten_middle_mapping(grouped_items)),
+        )
 
-    def _run_post_package_processors(self, post_package_processors: list[Callable[[Path], set[Path]]]) -> set[Path]:
+    def _run_post_package_processors(
+        self,
+        post_package_processors: list[Callable[[Path], set[Path]]],
+    ) -> set[Path]:
         changed_files = set()
         with Progress(SpinnerColumn(), *get_default_columns()) as progress_bar:
             task = progress_bar.add_task(

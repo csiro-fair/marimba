@@ -34,6 +34,7 @@ from marimba.core.utils.dependencies import ToolDependency, show_dependency_erro
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.metadata import json_saver
 from marimba.core.utils.rich import get_default_columns
+from marimba.core.validators.ifdo import get_ifdo_validator
 from marimba.lib.decorators import multithreaded
 
 logger = get_logger(__name__)
@@ -598,6 +599,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         dataset_name: str,
         root_dir: Path,
         items: dict[str, list["BaseMetadata"]],
+        logger: logging.Logger,
         metadata_name: str | None = None,
         *,
         dry_run: bool = False,
@@ -645,8 +647,22 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             else (f"{metadata_name}.ifdo" if metadata_name else cls.DEFAULT_METADATA_NAME)
         )
 
+        ifdo_dict = ifdo.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+        # Report which iFDO-schema-required fields are left unpopulated (FAIR R1). ifdo-py's Pydantic models
+        # already enforce field types and structure, so this is a completeness signal only - never a failure:
+        # Marimba legitimately leaves some required fields unset (e.g. image-set-handle, which has no value
+        # until a DOI is minted after packaging).
+        unpopulated_fields = get_ifdo_validator().unpopulated_required_fields(ifdo_dict)
+        if unpopulated_fields:
+            logger.warning(
+                f"iFDO {output_name} leaves {len(unpopulated_fields)} schema-required "
+                f"field(s) unpopulated: {', '.join(unpopulated_fields)}",
+                extra={"ifdo_name": output_name, "ifdo_unpopulated_fields": unpopulated_fields},
+            )
+
         if not dry_run:
-            saver(root_dir, output_name, ifdo.model_dump(mode="json", by_alias=True, exclude_none=True))
+            saver(root_dir, output_name, ifdo_dict)
 
     @staticmethod
     def _chunk_dataset(

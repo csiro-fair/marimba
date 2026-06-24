@@ -1,5 +1,6 @@
 """Tests for marimba.core.schemas.generic module."""
 
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,8 @@ from pytest_mock import MockerFixture
 
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.schemas.generic import GenericMetadata
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class TestGenericMetadata:
@@ -568,6 +571,7 @@ class TestGenericMetadata:
             root_dir=tmp_path,
             items=items,
             dry_run=True,
+            logger=_LOGGER,
         )
 
         # Assert
@@ -602,6 +606,7 @@ class TestGenericMetadata:
             root_dir=tmp_path,
             items=items,
             saver_overwrite=mock_custom_saver,
+            logger=_LOGGER,
         )
 
         # Assert
@@ -653,6 +658,7 @@ class TestGenericMetadata:
             root_dir=tmp_path,
             items=items,
             metadata_name=custom_name,
+            logger=_LOGGER,
         )
 
         # Assert
@@ -698,6 +704,7 @@ class TestGenericMetadata:
             dataset_name="test_dataset",
             root_dir=tmp_path,
             items=items,
+            logger=_LOGGER,
         )
 
         # Assert
@@ -864,6 +871,7 @@ class TestGenericMetadataDeduplication:
             dataset_name="TestDataset",
             root_dir=tmp_path,
             items=items,
+            logger=_LOGGER,
         )
 
         call_args = mock_saver.call_args
@@ -895,6 +903,7 @@ class TestGenericMetadataDeduplication:
             dataset_name="TestDataset",
             root_dir=tmp_path,
             items=items,
+            logger=_LOGGER,
         )
 
         data = mock_saver.call_args[0][2]

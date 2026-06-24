@@ -1,5 +1,6 @@
 """Tests for marimba.core.wrappers.dataset module."""
 
+import logging
 import re
 from collections.abc import Generator
 from pathlib import Path
@@ -8,7 +9,35 @@ from typing import Any
 import pytest
 import pytest_mock
 
-from marimba.core.wrappers.dataset import DatasetWrapper
+from marimba.core.wrappers.dataset import DatasetWrapper, _PackagingWarningCollector
+
+
+class TestPackagingWarningCollector:
+    """The packaging warning collector counts warnings and captures iFDO completeness findings for the panel."""
+
+    @staticmethod
+    def _record(message: str, **extra: object) -> logging.LogRecord:
+        record = logging.LogRecord("test", logging.WARNING, __file__, 0, message, None, None)
+        for key, value in extra.items():
+            setattr(record, key, value)
+        return record
+
+    @pytest.mark.unit
+    def test_counts_warnings_and_captures_ifdo_fields(self) -> None:
+        """Each warning increments the count; records carrying iFDO extras are collected per file."""
+        collector = _PackagingWarningCollector()
+        collector.emit(self._record("a generic warning"))
+        collector.emit(self._record("incomplete", ifdo_name="x.ifdo", ifdo_unpopulated_fields=["image-context"]))
+        assert collector.warning_count == 2
+        assert collector.ifdo_unpopulated_fields == {"x.ifdo": ["image-context"]}
+
+    @pytest.mark.unit
+    def test_no_ifdo_findings_when_no_extras(self) -> None:
+        """A plain warning is counted but contributes no iFDO completeness entry."""
+        collector = _PackagingWarningCollector()
+        collector.emit(self._record("plain warning"))
+        assert collector.warning_count == 1
+        assert collector.ifdo_unpopulated_fields == {}
 
 
 class TestDatasetWrapper:

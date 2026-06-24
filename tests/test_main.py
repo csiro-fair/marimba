@@ -622,6 +622,7 @@ class TestCLI:
         mock_project.compose.return_value = mock_dataset_mapping
         mock_dataset = mocker.Mock()
         mock_dataset.root_dir = mock_project_dir / "datasets" / "test_dataset"
+        mock_dataset.warning_count = 0
         mock_project.create_dataset.return_value = mock_dataset
         mock_project.get_pipeline_post_processors.return_value = []
         mock_find_project.return_value = mock_project_dir
@@ -717,6 +718,7 @@ class TestCLI:
         mock_project.compose.return_value = {"test_collection": mocker.Mock()}
         mock_dataset = mocker.Mock()
         mock_dataset.root_dir = mock_project_dir / "datasets" / "test_dataset"
+        mock_dataset.warning_count = 0
         mock_project.create_dataset.return_value = mock_dataset
         mock_project.get_pipeline_post_processors.return_value = []
         mock_find_project.return_value = mock_project_dir
@@ -1638,6 +1640,7 @@ class TestCLIIntegration:
         mock_project.compose.return_value = {"test_collection": mocker.Mock()}
         mock_dataset = mocker.Mock()
         mock_dataset.root_dir = tmp_path / "datasets" / "test_dataset"
+        mock_dataset.warning_count = 0
         mock_project.create_dataset.return_value = mock_dataset
         mock_project.pipeline_wrappers = {"test_pipeline": mocker.Mock()}
         mock_project.prompt_collection_config.return_value = {"schema": "ifdo", "version": "1.0"}

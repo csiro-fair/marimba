@@ -39,6 +39,7 @@ from pathlib import Path
 
 import typer
 from rich import print as rprint
+from rich.panel import Panel
 
 from marimba.core import MarimbaError, NetworkConnectionError
 from marimba.core.cli import delete, new
@@ -49,7 +50,7 @@ from marimba.core.utils.dependencies import ToolDependency, validate_dependencie
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
 from marimba.core.utils.metadata import MetadataSaverTypes, get_saver
 from marimba.core.utils.paths import find_project_dir_or_exit
-from marimba.core.utils.rich import error_panel, format_entity, success_panel
+from marimba.core.utils.rich import error_panel, format_entity, success_panel, warning_panel
 from marimba.core.wrappers.dataset import DatasetWrapper
 from marimba.core.wrappers.project import ProjectWrapper
 
@@ -98,6 +99,37 @@ marimba_cli.add_typer(new.app, name="new")
 marimba_cli.add_typer(delete.app, name="delete")
 
 logger = get_logger(__name__)
+
+
+def _packaging_summary_panel(dataset_name: str, dataset_wrapper: DatasetWrapper, elapsed_seconds: float) -> Panel:
+    """
+    Build the end-of-packaging panel.
+
+    Returns a success panel, or - if any warnings were logged during packaging (which otherwise only reach the
+    dataset log, not the console) - a warning panel with the warning count and the iFDO schema-required fields
+    left unpopulated.
+    """
+    base_message = (
+        f'Packaged dataset "{format_entity(dataset_name)}" at {dataset_wrapper.root_dir} in '
+        f"{elapsed_seconds:.2f} seconds"
+    )
+    warning_count = dataset_wrapper.warning_count
+    if not warning_count:
+        return success_panel(base_message)
+
+    summary_lines = [
+        base_message,
+        "",
+        f"Completed with {warning_count} warning(s) - see {dataset_wrapper.log_path} for details.",
+    ]
+    unpopulated_by_ifdo = dataset_wrapper.ifdo_unpopulated_fields
+    if unpopulated_by_ifdo:
+        fields = sorted({field for entry in unpopulated_by_ifdo.values() for field in entry})
+        summary_lines.append(
+            f"{len(unpopulated_by_ifdo)} iFDO file(s) leave schema-required fields unpopulated: "
+            f"{', '.join(fields)}.",
+        )
+    return warning_panel("\n".join(summary_lines))
 
 
 @marimba_cli.callback(invoke_without_command=True)
@@ -344,12 +376,7 @@ def package_command(  # noqa: PLR0915
         )
 
         elapsed_time = time.time() - start_time
-        rprint(
-            success_panel(
-                f'Packaged dataset "{format_entity(dataset_name)}" at {dataset_wrapper.root_dir} in '
-                f"{elapsed_time:.2f} seconds",
-            ),
-        )
+        rprint(_packaging_summary_panel(dataset_name, dataset_wrapper, elapsed_time))
     except ProjectWrapper.CompositionError as e:
         project_wrapper.logger.exception("Operation failed")
         rprint(error_panel(str(e)))
