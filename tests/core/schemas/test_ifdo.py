@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from datetime import UTC, datetime
@@ -6,7 +7,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 import pytest_mock
-from ifdo.models import ImageCreator, ImageData, ImageLicense, ImagePI, RelatedMaterial
+from ifdo.models import ImageCreator, ImageData, ImageLicense, ImagePI, ImageSetHeader, RelatedMaterial
+from ifdo.models.ifdo import iFDO
 
 if TYPE_CHECKING:
     from marimba.core.schemas.base import BaseMetadata
@@ -2260,3 +2262,65 @@ class TestiFDOMetadataRelatedMaterial:
         # The Marimba URI appears once, with the pipeline's wording; the iFDO default is still appended.
         assert [entry["uri"] for entry in related] == [self.MARIMBA_URI, self.IFDO_URI]
         assert related[0]["relation"] == "Custom wording"
+
+
+class TestiFDOMetadataUserCommentDatetime:
+    """Embedded-UserComment image-datetime must match the configured format.
+
+    Regression for the embedded-record datetime-format divergence: the EXIF:UserComment iFDO record
+    must serialise image-datetime with the same image-datetime-format as the top-level ifdo.json,
+    rather than declaring one format and storing a value in another.
+    """
+
+    @staticmethod
+    def _embedded_image_datetime(item: ImageData) -> dict[str, Any]:
+        exif: dict[str, Any] = {}
+        iFDOMetadata._add_user_comment(exif, item, None)
+        return cast("dict[str, Any]", json.loads(exif["EXIF:UserComment"])["metadata"]["ifdo"])
+
+    @staticmethod
+    def _top_level_item(item: ImageData) -> dict[str, Any]:
+        ifdo = iFDO(
+            image_set_header=ImageSetHeader(
+                image_set_name="t",
+                image_set_uuid="u",
+                image_set_handle="h",
+                image_set_ifdo_version="v2.2.1",
+            ),
+            image_set_items={"F.JPG": item},
+        )
+        dumped = ifdo.model_dump(mode="json", by_alias=True, exclude_none=True)
+        return cast("dict[str, Any]", dumped["image-set-items"]["F.JPG"])
+
+    @pytest.mark.unit
+    def test_custom_format_embedded_matches_json_and_is_internally_consistent(self) -> None:
+        """A pipeline-set non-default format is honoured in the embedded record, matching ifdo.json."""
+        fmt = "%Y-%m-%dT%H:%M:%SZ"
+        item = ImageData(
+            image_datetime=datetime(2024, 8, 2, 1, 5, 0, tzinfo=UTC),
+            image_datetime_format=fmt,
+        )
+        embedded = self._embedded_image_datetime(item)
+
+        # Embedded image-datetime equals the top-level ifdo.json image-datetime for the same item.
+        assert embedded["image-datetime"] == self._top_level_item(item)["image-datetime"] == "2024-08-02T01:05:00Z"
+        # The embedded record is internally consistent: its value parses under its declared format.
+        datetime.strptime(embedded["image-datetime"], embedded["image-datetime-format"])  # noqa: DTZ007
+
+    @pytest.mark.unit
+    def test_default_format_embedded_matches_json(self) -> None:
+        """Regression guard: with no override, the embedded and top-level records still match."""
+        item = ImageData(image_datetime=datetime(2024, 8, 2, 1, 5, 0, tzinfo=UTC))
+        embedded = self._embedded_image_datetime(item)
+        assert embedded["image-datetime"] == self._top_level_item(item)["image-datetime"]
+        assert embedded["image-datetime"] == "2024-08-02 01:05:00.000000"
+
+    @pytest.mark.unit
+    def test_naive_datetime_with_custom_format(self) -> None:
+        """A timezone-naive datetime is formatted with the configured format without a tz shift."""
+        item = ImageData(
+            image_datetime=datetime(2024, 8, 2, 1, 5, 0),  # noqa: DTZ001 - intentionally naive
+            image_datetime_format="%Y-%m-%dT%H:%M:%S",
+        )
+        embedded = self._embedded_image_datetime(item)
+        assert embedded["image-datetime"] == self._top_level_item(item)["image-datetime"] == "2024-08-02T01:05:00"
