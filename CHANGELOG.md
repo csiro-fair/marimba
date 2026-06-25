@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Dataset map rendering is now best-effort: an unreachable or blocked OpenStreetMap tile server logs a warning and skips `map.png` rather than aborting the packaging run. Tile fetches use the canonical HTTPS host, an identifiable User-Agent, and a request timeout so they fail fast and stay within OpenStreetMap's usage policy.
 - iFDO auto-deduplication no longer mis-runs on single-image datasets.
 - iFDO auto-deduplication no longer treats `None` as a value common to all items.
+- The iFDO record embedded in each image's EXIF UserComment now serialises `image-datetime` with the dataset's configured `image-datetime-format`, matching the top-level `ifdo.json`. Previously a pipeline that set a custom datetime format produced an embedded record that disagreed with `ifdo.json` and declared one format while storing a value in another.
 
 ### Dependencies
 - `ifdo` lower bound raised to `>=1.6.0` for `image-set-related-material` support.
