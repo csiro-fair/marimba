@@ -3,11 +3,38 @@
 All notable changes to Marimba are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.2.0] – 2026-06-25
+
+### Added
+- W3C PROV-O `provenance.json` record written to every packaged dataset, capturing the pipeline git commit and repository URL, the Marimba and ExifTool/FFmpeg versions, the dataset version, the packaging time, and a deterministic image-curation-protocol summary.
+- Deterministic `image-set-uuid` derived from the dataset name, so re-packaging the same input produces a stable dataset identifier instead of a random one.
+- Deterministic per-image `image-uuid` derived from the set UUID and the image's dataset-relative path, minted when a pipeline leaves it unset.
+- iFDO header spatial bounding box (`image-set-min/max-latitude/longitude-degrees`) for spatial discovery.
+- Discrete rights, attribution, and identity metadata embedded as standard EXIF and XMP fields: creators to `Artist`/`dc:Creator`, ORCID to `plus:ImageCreator`, licence and copyright to the `xmpRights` block, and the image UUID to `dc:Identifier`.
+- UTC GPS fix-time tags (`GPSDateStamp`/`GPSTimeStamp`) and a `GPSMapDatum` tag honouring the pipeline-supplied coordinate reference system on geotagged imagery.
+- Dataset identity (`image-set-uuid`, `image-set-name`, `hash-algorithm`) recorded as header lines in `manifest.txt` and the dataset summary, with manifest parsing made robust to `:` in values.
+- Marimba and iFDO paper citations injected into each dataset's `image-set-related-material` by default; pipeline-supplied entries merge ahead of the defaults and are keyed by URI.
+- iFDO completeness check that reports schema-required iFDO fields left unpopulated, in the log and as an end-of-packaging summary panel; it never fails packaging or changes the output.
 
 ### Changed
+- Generated iFDO files now target schema version v2.2.1 (previously v2.1.0), including normalising `image-entropy` to the [0, 1] range the schema requires.
 - Dataset metadata (iFDO and generic) is now serialised as JSON by default instead of YAML, which is dramatically faster on large datasets (tens of seconds of YAML serialisation reduced to under a second for multi-hundred-thousand-image sets). Pass `--metadata-output yaml` to `package` to keep the previous YAML output.
+- FFmpeg is no longer a required system dependency; video summaries and corruption checks now run through PyAV (already a hard dependency) instead of shelling out to the `ffprobe` and `ffmpeg` CLIs.
+- Image transforms preserve source EXIF and ICC metadata through both the PIL transforms and the OpenCV filters (`apply_clahe`, `gaussian_blur`, `sharpen`); the orientation tag is reset only when an image is rotated or flipped.
 - Process pools now pin an explicit `forkserver` start method (falling back to `spawn` where unavailable, e.g. Windows) instead of using the platform default. This avoids the deadlock hazard of forking a multithreaded process, and keeps concurrency behaviour consistent across Python versions rather than silently switching from `fork` to `forkserver` on Python 3.14.
+- `BaseMetadata.create_dataset_metadata` now takes a required `logger` argument; pipelines that subclass `BaseMetadata` and override this method must add the parameter.
+- `marimba/lib/image.py` returns per-channel averages for any image mode.
+
+### Fixed
+- Dataset map rendering is now best-effort: an unreachable or blocked OpenStreetMap tile server logs a warning and skips `map.png` rather than aborting the packaging run. Tile fetches use the canonical HTTPS host, an identifiable User-Agent, and a request timeout so they fail fast and stay within OpenStreetMap's usage policy.
+- iFDO auto-deduplication no longer mis-runs on single-image datasets.
+- iFDO auto-deduplication no longer treats `None` as a value common to all items.
+
+### Dependencies
+- `ifdo` lower bound raised to `>=1.6.0` for `image-set-related-material` support.
+- `av` (PyAV) upper bound widened to `<18`; `numpy` upper bound widened to `<2.6`.
+- `tabulate`, `typer`, and `rich` upper bounds widened.
+- FFmpeg system dependency removed.
 
 ## [1.1.0] – 2026-05-27
 
