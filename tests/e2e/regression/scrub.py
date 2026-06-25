@@ -41,6 +41,9 @@ Scrubber strategy:
   value (the cascaded image hash and the pixel-derived `image-entropy` /
   `image-average-color`) with fixed-shape placeholders. iFDO metadata is now
   emitted as JSON by default; YAML scrubbing is retained for any `.yml` output.
+- `scrub_marimba_version` normalises the embedded Marimba version (stamped into the iFDO
+  `image-curation-protocol` sentence and the summary.md "Marimba Version" row), so a routine
+  version bump no longer rotates the golden. Applied by all three text scrubbers.
 - `scrubbed_hash` dispatches by suffix and returns the SHA256 of the scrubbed
   content (or of the raw bytes if no scrubber applies). JPEGs never reach it —
   `rebuild_manifest` placeholders them first via `has_volatile_content`.
@@ -73,6 +76,15 @@ SHA256_PLACEHOLDER = "0" * 64
 # so the values are normalised away rather than compared.
 ENTROPY_PLACEHOLDER = "0.0"
 AVERAGE_COLOR_PLACEHOLDER = "[0, 0, 0]"
+
+# Marimba stamps its own version into packaged output that varies every release: the iFDO
+# image-set-header `image-curation-protocol` sentence ("...with Marimba vX.Y.Z...") and the
+# summary.md "Marimba Version" row. Normalising it keeps the golden version-independent, so a
+# routine version bump no longer rotates the golden (provenance.json also carries the version
+# but is excluded from byte comparison entirely via has_volatile_content).
+MARIMBA_VERSION_PLACEHOLDER = "MARIMBA_VERSION_PLACEHOLDER"
+# Matches the "Marimba vX.Y.Z" form (optional pre-release/build suffix) inside the curation sentence.
+_MARIMBA_VERSION_RE = re.compile(r"(Marimba v)\d+\.\d+\.\d+(?:[-.+][0-9A-Za-z.]+)?")
 
 # Regex for a canonical hyphenated v4-shape UUID (8-4-4-4-12 lowercase hex).
 # Marimba uses lowercase hex consistently in both YAML and embedded EXIF JSON.
@@ -137,12 +149,25 @@ _MARKDOWN_FIELD_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
         re.compile(r"(?P<lead>^\|\s*Creation Date\s*\|)[^|]*(?P<trail>\|)", re.MULTILINE),
         r"\g<lead> CREATION_DATE_PLACEHOLDER \g<trail>",
     ),
+    (
+        re.compile(r"(?P<lead>^\|\s*Marimba Version\s*\|)[^|]*(?P<trail>\|)", re.MULTILINE),
+        r"\g<lead> MARIMBA_VERSION_PLACEHOLDER \g<trail>",
+    ),
 )
 
 # Files whose name (case-insensitive) we treat as logs and exclude from any
 # comparison entirely. The dataset puts them all under `logs/` so the path
 # prefix is sufficient, but the suffix check is a belt-and-braces guard.
 _LOG_SUFFIXES = frozenset({".log"})
+
+
+def scrub_marimba_version(text: str) -> str:
+    """Normalise the embedded Marimba version (the "Marimba vX.Y.Z" curation sentence).
+
+    Idempotent. The summary.md "Marimba Version" table row is handled separately by the
+    markdown field patterns since it carries a bare version with no "Marimba v" prefix.
+    """
+    return _MARIMBA_VERSION_RE.sub(r"\g<1>" + MARIMBA_VERSION_PLACEHOLDER, text)
 
 
 def scrub_yaml_text(text: str) -> str:
@@ -152,7 +177,7 @@ def scrub_yaml_text(text: str) -> str:
     """
     for pattern, replacement in _YAML_FIELD_PATTERNS:
         text = pattern.sub(replacement, text)
-    return text
+    return scrub_marimba_version(text)
 
 
 def _scrub_json_obj(obj: Any) -> None:
@@ -177,7 +202,7 @@ def scrub_json_text(text: str) -> str:
     """
     data = json.loads(text)
     _scrub_json_obj(data)
-    return json.dumps(data, indent=2, sort_keys=True)
+    return scrub_marimba_version(json.dumps(data, indent=2, sort_keys=True))
 
 
 def scrub_markdown_text(text: str) -> str:
@@ -190,7 +215,7 @@ def scrub_markdown_text(text: str) -> str:
     """
     for pattern, replacement in _MARKDOWN_FIELD_PATTERNS:
         text = pattern.sub(replacement, text)
-    return text
+    return scrub_marimba_version(text)
 
 
 def is_log_path(rel_path: Path) -> bool:
