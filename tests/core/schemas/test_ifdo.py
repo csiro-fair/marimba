@@ -1,3 +1,5 @@
+import json
+import logging
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -5,12 +7,15 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 import pytest_mock
-from ifdo.models import ImageCreator, ImageData, ImageLicense, ImagePI, RelatedMaterial
+from ifdo.models import ImageCreator, ImageData, ImageLicense, ImagePI, ImageSetHeader, RelatedMaterial
+from ifdo.models.ifdo import iFDO
 
 if TYPE_CHECKING:
     from marimba.core.schemas.base import BaseMetadata
 
 from marimba.core.schemas.ifdo import DEFAULT_RELATED_MATERIAL, iFDOMetadata
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class TestiFDOMetadataProperties:
@@ -1264,6 +1269,7 @@ class TestiFDOMetadataDatasetCreation:
             root_dir,
             items,
             saver_overwrite=mock_saver,
+            logger=_LOGGER,
         )
 
         # Assert - Verify saver function was called with correct parameters
@@ -1314,6 +1320,45 @@ class TestiFDOMetadataDatasetCreation:
         assert "image-altitude-meters" in image_data, "Altitude should remain in item data for single-item datasets"
 
     @pytest.mark.unit
+    def test_create_dataset_metadata_logs_schema_validation_via_logger(
+        self,
+        sample_image_metadata: iFDOMetadata,
+        mocker: pytest_mock.MockerFixture,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Completeness findings are emitted as a warning through the passed logger, reaching the dataset log.
+
+        A sparse iFDO leaves schema-required fields unpopulated (e.g. image-set-handle has no value until a DOI
+        is minted); this is reported via the logger that DatasetWrapper wires to dataset.log, never by failing
+        packaging.
+        """
+        items = {"image.jpg": [cast("BaseMetadata", sample_image_metadata)]}
+        validation_logger = logging.getLogger("ifdo-validation-wiring-test")
+
+        with caplog.at_level(logging.WARNING, logger="ifdo-validation-wiring-test"):
+            iFDOMetadata.create_dataset_metadata(
+                "TestDataset",
+                Path("/tmp"),
+                items,
+                saver_overwrite=mocker.Mock(),
+                logger=validation_logger,
+            )
+
+        records = [
+            record
+            for record in caplog.records
+            if record.name == "ifdo-validation-wiring-test" and record.levelno == logging.WARNING
+        ]
+        assert records, "iFDO completeness findings should be logged as a warning through the supplied logger"
+        record = records[0]
+        assert "schema-required" in record.message
+        # Structured extras (attached via logging `extra=`) drive the end-of-packaging summary panel.
+        unpopulated_fields = getattr(record, "ifdo_unpopulated_fields", None)
+        assert isinstance(unpopulated_fields, list)
+        assert unpopulated_fields
+        assert getattr(record, "ifdo_name", None)
+
+    @pytest.mark.unit
     def test_create_dataset_metadata_custom_name(
         self,
         sample_image_metadata: iFDOMetadata,
@@ -1340,6 +1385,7 @@ class TestiFDOMetadataDatasetCreation:
             items,
             metadata_name=custom_name,
             saver_overwrite=mock_saver,
+            logger=_LOGGER,
         )
 
         # Assert
@@ -1392,6 +1438,7 @@ class TestiFDOMetadataDatasetCreation:
             tmp_path,
             items,
             saver_overwrite=mock_saver,
+            logger=_LOGGER,
         )
 
         # Assert - Verify saver was called with correct parameters
@@ -1476,6 +1523,7 @@ class TestiFDOMetadataDatasetCreation:
             items,
             dry_run=True,
             saver_overwrite=mock_saver,
+            logger=_LOGGER,
         )
 
         # Assert - Primary dry-run behavior: no file operations performed
@@ -1609,6 +1657,7 @@ class TestiFDOMetadataDeduplication:
             Path("/tmp"),
             items,
             saver_overwrite=mock_saver,
+            logger=_LOGGER,
         )
 
         data = captured[0]
@@ -1705,7 +1754,13 @@ class TestiFDOMetadataSpatialExtent:
         def mock_saver(_root: Path, _name: str, data: dict[str, Any]) -> None:
             captured.append(data)
 
-        iFDOMetadata.create_dataset_metadata("TestDataset", Path("/tmp"), items, saver_overwrite=mock_saver)
+        iFDOMetadata.create_dataset_metadata(
+            "TestDataset",
+            Path("/tmp"),
+            items,
+            saver_overwrite=mock_saver,
+            logger=_LOGGER,
+        )
 
         header = captured[0]["image-set-header"]
         assert header["image-set-min-latitude-degrees"] == -44.0
@@ -1728,7 +1783,13 @@ class TestiFDOMetadataSpatialExtent:
         def mock_saver(_root: Path, _name: str, data: dict[str, Any]) -> None:
             captured.append(data)
 
-        iFDOMetadata.create_dataset_metadata("TestDataset", Path("/tmp"), items, saver_overwrite=mock_saver)
+        iFDOMetadata.create_dataset_metadata(
+            "TestDataset",
+            Path("/tmp"),
+            items,
+            saver_overwrite=mock_saver,
+            logger=_LOGGER,
+        )
 
         header = captured[0]["image-set-header"]
         assert "image-set-min-latitude-degrees" not in header
@@ -1758,6 +1819,7 @@ class TestiFDOMetadataSetUuid:
             items,
             metadata_name=metadata_name,
             saver_overwrite=mock_saver,
+            logger=_LOGGER,
         )
         return str(captured[0]["image-set-header"]["image-set-uuid"])
 
@@ -2130,6 +2192,7 @@ class TestiFDOMetadataInvalidConstruction:
             Path("/tmp"),
             {},
             saver_overwrite=mock_saver,
+            logger=_LOGGER,
         )
 
         assert len(captured) == 1
@@ -2154,6 +2217,7 @@ class TestiFDOMetadataRelatedMaterial:
             Path("/tmp"),
             items,
             saver_overwrite=mock_saver,
+            logger=_LOGGER,
         )
         return cast("dict[str, Any]", captured[0]["image-set-header"])
 
@@ -2198,3 +2262,65 @@ class TestiFDOMetadataRelatedMaterial:
         # The Marimba URI appears once, with the pipeline's wording; the iFDO default is still appended.
         assert [entry["uri"] for entry in related] == [self.MARIMBA_URI, self.IFDO_URI]
         assert related[0]["relation"] == "Custom wording"
+
+
+class TestiFDOMetadataUserCommentDatetime:
+    """Embedded-UserComment image-datetime must match the configured format.
+
+    Regression for the embedded-record datetime-format divergence: the EXIF:UserComment iFDO record
+    must serialise image-datetime with the same image-datetime-format as the top-level ifdo.json,
+    rather than declaring one format and storing a value in another.
+    """
+
+    @staticmethod
+    def _embedded_image_datetime(item: ImageData) -> dict[str, Any]:
+        exif: dict[str, Any] = {}
+        iFDOMetadata._add_user_comment(exif, item, None)
+        return cast("dict[str, Any]", json.loads(exif["EXIF:UserComment"])["metadata"]["ifdo"])
+
+    @staticmethod
+    def _top_level_item(item: ImageData) -> dict[str, Any]:
+        ifdo = iFDO(
+            image_set_header=ImageSetHeader(
+                image_set_name="t",
+                image_set_uuid="u",
+                image_set_handle="h",
+                image_set_ifdo_version="v2.2.1",
+            ),
+            image_set_items={"F.JPG": item},
+        )
+        dumped = ifdo.model_dump(mode="json", by_alias=True, exclude_none=True)
+        return cast("dict[str, Any]", dumped["image-set-items"]["F.JPG"])
+
+    @pytest.mark.unit
+    def test_custom_format_embedded_matches_json_and_is_internally_consistent(self) -> None:
+        """A pipeline-set non-default format is honoured in the embedded record, matching ifdo.json."""
+        fmt = "%Y-%m-%dT%H:%M:%SZ"
+        item = ImageData(
+            image_datetime=datetime(2024, 8, 2, 1, 5, 0, tzinfo=UTC),
+            image_datetime_format=fmt,
+        )
+        embedded = self._embedded_image_datetime(item)
+
+        # Embedded image-datetime equals the top-level ifdo.json image-datetime for the same item.
+        assert embedded["image-datetime"] == self._top_level_item(item)["image-datetime"] == "2024-08-02T01:05:00Z"
+        # The embedded record is internally consistent: its value parses under its declared format.
+        datetime.strptime(embedded["image-datetime"], embedded["image-datetime-format"])  # noqa: DTZ007
+
+    @pytest.mark.unit
+    def test_default_format_embedded_matches_json(self) -> None:
+        """Regression guard: with no override, the embedded and top-level records still match."""
+        item = ImageData(image_datetime=datetime(2024, 8, 2, 1, 5, 0, tzinfo=UTC))
+        embedded = self._embedded_image_datetime(item)
+        assert embedded["image-datetime"] == self._top_level_item(item)["image-datetime"]
+        assert embedded["image-datetime"] == "2024-08-02 01:05:00.000000"
+
+    @pytest.mark.unit
+    def test_naive_datetime_with_custom_format(self) -> None:
+        """A timezone-naive datetime is formatted with the configured format without a tz shift."""
+        item = ImageData(
+            image_datetime=datetime(2024, 8, 2, 1, 5, 0),  # noqa: DTZ001 - intentionally naive
+            image_datetime_format="%Y-%m-%dT%H:%M:%S",
+        )
+        embedded = self._embedded_image_datetime(item)
+        assert embedded["image-datetime"] == self._top_level_item(item)["image-datetime"] == "2024-08-02T01:05:00"

@@ -5,27 +5,27 @@
     "by_class": {
       "csv": 10,
       "image": 1584,
-      "json": 1,
+      "json": 13,
       "log": 3,
       "markdown": 2,
       "python": 1,
       "text": 3,
       "video": 10,
-      "yaml": 13
+      "yaml": 1
     },
     "top_level_files": {
-      "IN2018_V06_025.MRITC.ifdo.yml": "yaml",
-      "IN2018_V06_026.MRITC.ifdo.yml": "yaml",
-      "IN2018_V06_045.MRITC.ifdo.yml": "yaml",
-      "IN2018_V06_057.MRITC.ifdo.yml": "yaml",
-      "IN2018_V06_060.MRITC.ifdo.yml": "yaml",
-      "IN2018_V06_064.MRITC.ifdo.yml": "yaml",
-      "IN2018_V06_114.MRITC.ifdo.yml": "yaml",
-      "IN2018_V06_119.MRITC.ifdo.yml": "yaml",
-      "IN2018_V06_128.MRITC.ifdo.yml": "yaml",
-      "IN2018_V06_168.MRITC.ifdo.yml": "yaml",
-      "MRITC.ifdo.yml": "yaml",
-      "ifdo.yml": "yaml",
+      "IN2018_V06_025.MRITC.ifdo.json": "json",
+      "IN2018_V06_026.MRITC.ifdo.json": "json",
+      "IN2018_V06_045.MRITC.ifdo.json": "json",
+      "IN2018_V06_057.MRITC.ifdo.json": "json",
+      "IN2018_V06_060.MRITC.ifdo.json": "json",
+      "IN2018_V06_064.MRITC.ifdo.json": "json",
+      "IN2018_V06_114.MRITC.ifdo.json": "json",
+      "IN2018_V06_119.MRITC.ifdo.json": "json",
+      "IN2018_V06_128.MRITC.ifdo.json": "json",
+      "IN2018_V06_168.MRITC.ifdo.json": "json",
+      "MRITC.ifdo.json": "json",
+      "ifdo.json": "json",
       "manifest.txt": "text",
       "map.png": "image",
       "provenance.json": "json",
@@ -88,6 +88,6 @@
       "MRITC/IN2018_V06_168/video": 1
     }
   },
-  "manifest_scrubbed_sha256": "dc1d4fd38f93ef8241edfe7842d0d9e5358466e36b9b984c15ec09705063fc15",
+  "manifest_scrubbed_sha256": "516fc3b6a84a52e1dd0c614a515b8712dee61a5d719524c43284db1dceec7575",
   "manifest_line_count": 1684
 }

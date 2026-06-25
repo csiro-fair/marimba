@@ -67,3 +67,28 @@ def test_yaml_scrub_idempotent() -> None:
     text = "    image-average-color:\n    - 11\n    - 36\n    - 60\n    image-entropy: 6.5\n"
     once = scrub.scrub_yaml_text(text)
     assert scrub.scrub_yaml_text(once) == once
+
+
+def test_marimba_version_scrub_normalises_curation_sentence() -> None:
+    """Differing Marimba versions in the iFDO curation sentence collapse identically."""
+    a = '{"image-set-header": {"image-curation-protocol": "Packaged with Marimba v1.2.0 (https://x)."}}'
+    b = '{"image-set-header": {"image-curation-protocol": "Packaged with Marimba v1.3.1 (https://x)."}}'
+    assert scrub.scrub_json_text(a) == scrub.scrub_json_text(b)
+    assert scrub.MARIMBA_VERSION_PLACEHOLDER in scrub.scrub_json_text(a)
+    # A pre-release/build suffix is also normalised.
+    c = '{"image-set-header": {"image-curation-protocol": "Packaged with Marimba v1.2.0-rc1 (https://x)."}}'
+    assert scrub.scrub_json_text(c) == scrub.scrub_json_text(a)
+
+
+def test_marimba_version_scrub_normalises_summary_row() -> None:
+    """Differing Marimba versions in the summary.md row collapse identically."""
+    a = "| Marimba Version | 1.2.0 |\n"
+    b = "| Marimba Version | 1.3.1 |\n"
+    assert scrub.scrub_markdown_text(a) == scrub.scrub_markdown_text(b)
+    assert "1.2.0" not in scrub.scrub_markdown_text(a)
+
+
+def test_marimba_version_scrub_idempotent() -> None:
+    text = '{"x": "built with Marimba v9.9.9 (https://x)."}'
+    once = scrub.scrub_json_text(text)
+    assert scrub.scrub_json_text(once) == once

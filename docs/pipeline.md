@@ -152,7 +152,7 @@ including:
     implementation of the [iFDO](https://marine-imaging.com/fair/ifdos/iFDO-overview/) specification and inherits 
     from the `BaseMetadata` abstract base class provided by Marimba.
   - Files listed in the data mapping that contain an iFDO will have their metadata saved in a dataset-level iFDO 
-    output file named `ifdo.yml`. Additionally, this metadata will be embedded in the EXIF metadata of any included 
+    output file named `ifdo.json`. Additionally, this metadata will be embedded in the EXIF metadata of any included 
     JPG file, adhering to FAIR data standards.
 
 - `_post_package()`:
@@ -1215,7 +1215,7 @@ accurately.
 
 5. **Metadata Generation**: A Dataset level metadata file is created in the root directory of the Dataset, for a 
    Pipeline that specifies the image FAIR Digital Object (iFDO) schema this would be located at 
-   `datasets/my-dataset/ifdo.yml`, that encapsulate all reported image metadata in a standardised format, adhering 
+   `datasets/my-dataset/ifdo.json`, that encapsulate all reported image metadata in a standardised format, adhering 
    to FAIR (Findable, Accessible, Interoperable and Reusable) data principles.
 
 6. **Summary Generation**: A Dataset summary is generated at `datasets/my-dataset/summary.md` which provides an 

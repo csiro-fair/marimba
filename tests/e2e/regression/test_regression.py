@@ -32,7 +32,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
 
 from tests.e2e.regression.conftest import PACKAGED_DATASET_NAME
 from tests.e2e.regression.golden.regenerate import collect_inventory
@@ -48,9 +47,9 @@ pytestmark = [pytest.mark.e2e, pytest.mark.slow, pytest.mark.network]
 
 @pytest.mark.e2e
 def test_tier_a_structural(packaged_dataset: tuple[Path, dict[str, float]]) -> None:
-    """Dataset layout, top-level files, manifest + summary parsable, every YAML loads.
+    """Dataset layout, top-level files, manifest + summary parsable, every JSON loads.
 
-    Cheapest tier: catches missing files, malformed YAML, and gross layout
+    Cheapest tier: catches missing files, malformed JSON, and gross layout
     regressions without comparing values to a golden.
     """
     dataset_dir, _timings = packaged_dataset
@@ -59,7 +58,7 @@ def test_tier_a_structural(packaged_dataset: tuple[Path, dict[str, float]]) -> N
     assert dataset_dir.name == PACKAGED_DATASET_NAME, f"unexpected dataset name: {dataset_dir.name}"
 
     # Required top-level files / directories.
-    for required_file in ("manifest.txt", "summary.md", "ifdo.yml", "MRITC.ifdo.yml", "map.png", "provenance.json"):
+    for required_file in ("manifest.txt", "summary.md", "ifdo.json", "MRITC.ifdo.json", "map.png", "provenance.json"):
         target = dataset_dir / required_file
         assert target.is_file(), f"missing required dataset file: {required_file}"
         assert target.stat().st_size > 0, f"required dataset file is empty: {required_file}"
@@ -88,21 +87,21 @@ def test_tier_a_structural(packaged_dataset: tuple[Path, dict[str, float]]) -> N
         target = dataset_dir / path_part
         assert target.exists(), f"manifest references missing path: {path_part}"
 
-    # Every YAML at the dataset root must be valid YAML.
-    for yml in dataset_dir.glob("*.yml"):
+    # Every JSON at the dataset root must be valid JSON.
+    for jsn in dataset_dir.glob("*.json"):
         try:
-            yaml.safe_load(yml.read_text(encoding="utf-8"))
-        except yaml.YAMLError as exc:  # pragma: no cover - regression-only
-            pytest.fail(f"YAML file failed to parse: {yml.name} -> {exc}")
+            json.loads(jsn.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:  # pragma: no cover - regression-only
+            pytest.fail(f"JSON file failed to parse: {jsn.name} -> {exc}")
 
-    # Per-collection YAML files exist for the 10 source collections.
-    expected_yaml_stems = {
+    # Per-collection iFDO files exist for the 10 source collections.
+    expected_ifdo_stems = {
         f"IN2018_V06_{n}.MRITC" for n in ("025", "026", "045", "057", "060", "064", "114", "119", "128", "168")
     }
-    actual_yaml_stems = {p.stem for p in dataset_dir.glob("*.MRITC.ifdo.yml")}
-    actual_yaml_stems = {s.removesuffix(".ifdo") for s in actual_yaml_stems}
-    missing = expected_yaml_stems - actual_yaml_stems
-    assert not missing, f"missing per-collection MRITC ifdo YAMLs: {sorted(missing)}"
+    actual_ifdo_stems = {p.stem for p in dataset_dir.glob("*.MRITC.ifdo.json")}
+    actual_ifdo_stems = {s.removesuffix(".ifdo") for s in actual_ifdo_stems}
+    missing = expected_ifdo_stems - actual_ifdo_stems
+    assert not missing, f"missing per-collection MRITC ifdo JSON files: {sorted(missing)}"
 
     # summary.md is non-trivial — minimum sanity check on length.
     summary_text = (dataset_dir / "summary.md").read_text(encoding="utf-8")

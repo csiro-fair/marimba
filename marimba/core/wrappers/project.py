@@ -10,6 +10,7 @@ logging, and various wrappers for pipelines, collections, datasets, and distribu
 import ast
 import logging
 import math
+import multiprocessing
 import time
 from collections import defaultdict
 from collections.abc import Callable
@@ -37,6 +38,23 @@ from marimba.core.wrappers.collection import CollectionWrapper
 from marimba.core.wrappers.dataset import DatasetWrapper
 from marimba.core.wrappers.pipeline import PipelineWrapper
 from marimba.core.wrappers.target import DistributionTargetWrapper
+
+
+def _resolve_process_start_method() -> str:
+    """Pick a process-pool start method that is safe to use from a multithreaded program.
+
+    Marimba runs thread pools (``ThreadPoolExecutor``) alongside its process pools, and the historical
+    "fork" default (Linux, Python <= 3.13) can deadlock a child when the parent holds a threading lock
+    at fork time. "forkserver" forks workers from a clean single-threaded server process and is CPython's
+    default from 3.14; "spawn" is the portable fallback (e.g. Windows, where forkserver is unavailable).
+    Pinning the method keeps process-pool behaviour identical across Python versions and platforms rather
+    than silently switching from fork to forkserver at 3.14.
+    """
+    return "forkserver" if "forkserver" in multiprocessing.get_all_start_methods() else "spawn"
+
+
+# Shared context for every ProcessPoolExecutor in this module (resolved once at import).
+_MP_CONTEXT = multiprocessing.get_context(_resolve_process_start_method())
 
 
 def get_merged_keyword_args(
@@ -951,7 +969,7 @@ class ProjectWrapper(LogMixin):
                 for run_pipeline_name in pipeline_wrappers_to_run
             }
 
-            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            with ProcessPoolExecutor(max_workers=max_workers, mp_context=_MP_CONTEXT) as executor:
                 futures = self._create_command_tasks(
                     executor,
                     pipeline_wrappers_to_run,
@@ -1135,7 +1153,7 @@ class ProjectWrapper(LogMixin):
                 total=total_task_length,
             )
 
-            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            with ProcessPoolExecutor(max_workers=max_workers, mp_context=_MP_CONTEXT) as executor:
                 futures = self._create_composition_tasks(
                     executor,
                     pipeline_names,
@@ -1546,7 +1564,7 @@ class ProjectWrapper(LogMixin):
                 for pipeline_name in pipeline_wrappers_to_run
             }
 
-            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            with ProcessPoolExecutor(max_workers=max_workers, mp_context=_MP_CONTEXT) as executor:
                 futures = {}
                 process_index = 1
 

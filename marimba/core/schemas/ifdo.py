@@ -32,8 +32,9 @@ from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import DEFAULT_EXIF_THUMBNAIL_SIZE, EXIF_SUPPORTED_EXTENSIONS
 from marimba.core.utils.dependencies import ToolDependency, show_dependency_error_and_exit
 from marimba.core.utils.log import get_logger
-from marimba.core.utils.metadata import yaml_saver
+from marimba.core.utils.metadata import json_saver
 from marimba.core.utils.rich import get_default_columns
+from marimba.core.validators.ifdo import get_ifdo_validator
 from marimba.lib.decorators import multithreaded
 
 logger = get_logger(__name__)
@@ -598,13 +599,14 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         dataset_name: str,
         root_dir: Path,
         items: dict[str, list["BaseMetadata"]],
+        logger: logging.Logger,
         metadata_name: str | None = None,
         *,
         dry_run: bool = False,
         saver_overwrite: Callable[[Path, str, dict[str, Any]], None] | None = None,
     ) -> None:
         """Create an iFDO from the metadata items."""
-        saver = yaml_saver if saver_overwrite is None else saver_overwrite
+        saver = json_saver if saver_overwrite is None else saver_overwrite
 
         image_set_items = cls._convert_items_to_image_data(items)
         common_fields = cls._extract_common_header_fields(image_set_items)
@@ -645,8 +647,22 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             else (f"{metadata_name}.ifdo" if metadata_name else cls.DEFAULT_METADATA_NAME)
         )
 
+        ifdo_dict = ifdo.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+        # Report which iFDO-schema-required fields are left unpopulated (FAIR R1). ifdo-py's Pydantic models
+        # already enforce field types and structure, so this is a completeness signal only - never a failure:
+        # Marimba legitimately leaves some required fields unset (e.g. image-set-handle, which has no value
+        # until a DOI is minted after packaging).
+        unpopulated_fields = get_ifdo_validator().unpopulated_required_fields(ifdo_dict)
+        if unpopulated_fields:
+            logger.warning(
+                f"iFDO {output_name} leaves {len(unpopulated_fields)} schema-required "
+                f"field(s) unpopulated: {', '.join(unpopulated_fields)}",
+                extra={"ifdo_name": output_name, "ifdo_unpopulated_fields": unpopulated_fields},
+            )
+
         if not dry_run:
-            saver(root_dir, output_name, ifdo.model_dump(mode="json", by_alias=True, exclude_none=True))
+            saver(root_dir, output_name, ifdo_dict)
 
     @staticmethod
     def _chunk_dataset(
@@ -1151,6 +1167,18 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
     ) -> None:
         """Add user comment with iFDO metadata."""
         image_data_dict = image_data.model_dump(mode="json", by_alias=True, exclude_none=True)
+        # ifdo-py applies the configured image-datetime-format only when serialising a *full* iFDO (it
+        # propagates the header/item format onto each item before dumping). A standalone ImageData dump,
+        # as here, has no such context and falls back to the default format, so the embedded image-datetime
+        # would otherwise disagree with ifdo.json and with the record's own image-datetime-format field.
+        # Re-apply the item's configured format using the same UTC-normalise-then-strftime logic ifdo-py
+        # uses, so the embedded record is byte-identical to ifdo.json on this field and internally consistent.
+        dt = image_data.image_datetime
+        fmt = image_data.image_datetime_format
+        if dt is not None and fmt:
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(UTC)
+            image_data_dict["image-datetime"] = dt.strftime(fmt)
         user_comment_data = {
             "metadata": {"ifdo": image_data_dict, "ancillary": ancillary_data},
         }

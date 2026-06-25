@@ -182,6 +182,7 @@ class TestBasePipelineInitialization:
                 dataset_name: str,
                 root_dir: Path,
                 items: dict[str, list[BaseMetadata]],
+                logger: Any,
                 metadata_name: str | None = None,
                 *,
                 dry_run: bool = False,

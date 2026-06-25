@@ -17,14 +17,6 @@ from tests.conftest import assert_cli_failure, assert_cli_success
 
 runner = CliRunner()
 
-# Per-invocation env override for tests that need wide rendering (e.g.
-# success / error panels containing long macOS /private/var/folders/...
-# tmpdir paths). Don't apply at the module-level CliRunner because some
-# tests (e.g. test_delete_project_invalid_structure) assert on what's
-# present in narrow tracebacks where widening exposes additional source-
-# code lines.
-WIDE_RUNNER_ENV = {"COLUMNS": "200", "NO_COLOR": "1", "TERM": "dumb"}
-
 
 @pytest.fixture
 def setup_project_dir(tmp_path: Path) -> Path:
@@ -746,8 +738,7 @@ class TestDeleteProjectCommand:
         # Verify CLI output contains required success elements
         assert "Deleted" in result.output, "Should display success message with 'Deleted' text"
         assert "project" in result.output, "Should mention 'project' in success message"
-        # Check for project name components since Rich panels may wrap long paths across lines
-        assert "test_proje" in result.output, "Should show the project directory name (may be wrapped)"
+        assert "test_project" in result.output, "Should show the deleted project directory name"
 
         # Verify no error messages appear for successful operation
         assert "Failed" not in result.output, "Should not display failure messages for successful operation"
@@ -805,8 +796,10 @@ class TestDeleteProjectCommand:
         assert "Marimba" in result.output, "Should mention Marimba in the error message"
         assert setup_project_dir.name in result.output, "Should mention the project directory name"
 
-        # Verify that no success messages are shown for failed operation
-        assert "Deleted" not in result.output, "Should not display success message for failed operation"
+        # The asserted exit code of 1 already guarantees the success branch never ran. Match on the
+        # "Success" panel title rather than "Deleted": the rendered error traceback includes the
+        # success_panel source line ("Project Deleted ..."), which is source code, not user-facing output.
+        assert "Success" not in result.output, "Should not display the success panel for a failed operation"
 
     @pytest.mark.unit
     def test_delete_project_dry_run(
@@ -840,12 +833,10 @@ class TestDeleteProjectCommand:
         mock_project_wrapper_instance.delete_project.return_value = expected_deleted_path
         mock_project_wrapper_class.return_value = mock_project_wrapper_instance
 
-        # Act — pass WIDE_RUNNER_ENV so the long macOS /private/var/folders/...
-        # path fits in the Rich success panel without wrapping.
+        # Act
         result = runner.invoke(
             marimba_cli,
             ["delete", "project", "--project-dir", str(setup_project_dir), "--dry-run"],
-            env=WIDE_RUNNER_ENV,
         )
 
         # Assert
