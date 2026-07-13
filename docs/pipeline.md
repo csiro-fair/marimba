@@ -1,5 +1,3 @@
-from marimba.core.pipeline import BasePipeline
-
 # Pipeline Implementation Guide
 
 A Marimba Pipeline is the core component responsible for processing data from a specific instruments or 
@@ -219,7 +217,7 @@ There are a couple of methods to create a new Marimba Pipeline:
 
    - **Copy the repository URL:**
      - Once your repository is created, GitHub will display the repository page. Copy the URL provided under 
-     "Quick setup" — it will look something like `https://github.com/your-user-name/my-pipeline.git`
+     "Quick setup" - it will look something like `https://github.com/your-user-name/my-pipeline.git`
 
    - **Clone the new empty repository into your Marimba Project:**
      ```bash

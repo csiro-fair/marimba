@@ -33,7 +33,7 @@ git clone https://github.com/csiro-fair/marimba.git
 The architecture of the Marimba project is organised according to best practices outlined in the following resources:
 
 * [The optimal python project structure](https://awaywithideas.com/the-optimal-python-project-structure/)
-* [Structuring Your Project — The Hitchhiker's Guide to Python](https://docs.python-guide.org/writing/structure/)
+* [Structuring Your Project - The Hitchhiker's Guide to Python](https://docs.python-guide.org/writing/structure/)
 
 The repository structure is as follows:
 
@@ -81,7 +81,9 @@ Before setting up the Python environment, you'll need to install system-level de
 ### Required System Tools
 
 **ExifTool**: Required for EXIF metadata reading and writing
-**FFmpeg**: Required for video processing functionality
+
+Video processing does not require a separate FFmpeg installation: Marimba uses the PyAV Python package, which bundles or
+links the FFmpeg libraries it needs.
 
 ### Installation Instructions
 
@@ -213,7 +215,7 @@ python -m build
 This command will generate a `dist` directory containing the built wheel package. This package can then be installed on other systems:
 
 ```bash
-uv pip install dist/marimba-1.0.0-py3-none-any.whl
+uv pip install dist/marimba-1.2.0-py3-none-any.whl
 ```
 
 <p align="right">(<a href="#marimba-development-environment-setup-guide-top">back to top</a>)</p>

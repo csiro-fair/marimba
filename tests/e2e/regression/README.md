@@ -7,7 +7,7 @@ The load-bearing safety net against codebase-wide refactors silently breaking re
 Run it (or let the pre-push hook run it) after:
 
 - Any change in `marimba/` you suspect could affect dataset output.
-- Closing any review-cycle plan from `docs/prompts/` — it's mandated by the canonical Stage 2 closure (see [`docs/prompts/README.md`](../../../docs/prompts/README.md) §"Verification before closure").
+- Closing any review-cycle plan from `docs/prompts/` - it's mandated by the canonical Stage 2 closure (see [`docs/prompts/README.md`](../../../docs/prompts/README.md) §"Verification before closure").
 - Bumping a marimba dependency that touches an output path (Pillow / pyexiftool / staticmap / iFDO).
 - Anything else that gives you a "I think this is safe but…" feeling.
 
@@ -78,7 +78,7 @@ git push --no-verify   # use sparingly
 MARIMBA_E2E_CACHE_DIR=/path/to/shared/cache uv run pytest ...
 ```
 
-To force a refresh of either repo, delete the relevant subdir (e.g. `rm -rf .cache/marimba-e2e/data`) — the conftest will re-clone on next invocation.
+To force a refresh of either repo, delete the relevant subdir (e.g. `rm -rf .cache/marimba-e2e/data`) - the conftest will re-clone on next invocation.
 
 ## Bumping the pinned SHAs
 
@@ -93,7 +93,7 @@ When you want to track upstream changes in either repo:
 
 The tiers are ordered cheapest → most precise. If you see a failure, start at the tier that fired and work down:
 
-### Tier A — `test_tier_a_structural`
+### Tier A - `test_tier_a_structural`
 
 Asserts the dataset's shape exists. Failures point at a missing file, malformed JSON, or empty top-level artifact.
 
@@ -110,7 +110,7 @@ uv run pytest --rootdir . -c config/pytest.ini --no-cov tests/e2e/regression/tes
 ls /tmp/marimba-e2e-debug/scratch0/project/datasets/IN2018_V06/
 ```
 
-### Tier B — `test_tier_b_inventory`
+### Tier B - `test_tier_b_inventory`
 
 Asserts structural counts. Failures dump the exact category that drifted (e.g. "inventory drift at 'by_class' expected={…} actual={…}").
 
@@ -122,12 +122,12 @@ Asserts structural counts. Failures dump the exact category that drifted (e.g. "
 
 **To resolve:**
 
-1. Read the failure message — it names the specific dict that doesn't match.
-2. Decide: is this drift you intended? If yes, regenerate the goldens (see below). If no, this is the regression you set out to catch — fix the code.
+1. Read the failure message - it names the specific dict that doesn't match.
+2. Decide: is this drift you intended? If yes, regenerate the goldens (see below). If no, this is the regression you set out to catch - fix the code.
 
-### Tier C — `test_tier_c_scrubbed_manifest_byte_equality`
+### Tier C - `test_tier_c_scrubbed_manifest_byte_equality`
 
-The load-bearing tier. Asserts every dataset file's scrubbed content matches the golden, with three classes of carve-out (entries kept in the manifest for path + ordering, hash replaced with placeholder): log files under `logs/`, `map.png`, and all JPEG images. `map.png` is excluded because `staticmap` renders by fetching tiles from a remote OSM-backed server, so its bytes change over wall-clock time as upstream tile data updates — same project state produces different bytes a day later. Failures dump the first 20 differing manifest lines plus the line-count delta if any.
+The load-bearing tier. Asserts every dataset file's scrubbed content matches the golden, with three classes of carve-out (entries kept in the manifest for path + ordering, hash replaced with placeholder): log files under `logs/`, `map.png`, and all JPEG images. `map.png` is excluded because `staticmap` renders by fetching tiles from a remote OSM-backed server, so its bytes change over wall-clock time as upstream tile data updates - same project state produces different bytes a day later. Failures dump the first 20 differing manifest lines plus the line-count delta if any.
 
 JPEG content is excluded because its encoded bytes are not reproducible across CPU microarchitectures. On GitHub's mixed hosted-runner fleet a handful of borderline frames flipped between two values depending on which runner CPU executed the job: numpy's SIMD reductions and libjpeg's encoder round differently between CPU generations, and that drift shows up in the main entropy-coded scan, the embedded EXIF thumbnail's own scan, and the `image-entropy` / `image-average-color` values baked into `EXIF:UserComment`. There is no stable byte subset to hash, so JPEG content is not byte-compared at all. The image's metadata is still byte-validated through its per-image iFDO metadata (scrubbed for the same volatile fields), and Tier A/B assert each image's presence, validity, and counts.
 
@@ -147,7 +147,7 @@ JPEG content is excluded because its encoded bytes are not reproducible across C
 
 ## Rotating the goldens
 
-When a deliberate marimba or pipeline change shifts the expected output, the goldens need to be regenerated. See [`golden/README.md`](golden/README.md) for the full workflow — short version:
+When a deliberate marimba or pipeline change shifts the expected output, the goldens need to be regenerated. See [`golden/README.md`](golden/README.md) for the full workflow - short version:
 
 ```bash
 # Produce a fresh packaged dataset (the Tier C failure is expected; the run
@@ -168,7 +168,7 @@ git diff tests/e2e/regression/golden/
 
 `.github/workflows/ci-e2e.yml` runs the suite on every push to main + every PR + manual `workflow_dispatch`. Uses `actions/cache` keyed on the pinned-SHA hash of `conftest.py` so subsequent runs skip the data clone.
 
-The workflow itself doesn't gate merges — that's a GitHub repo setting under Branches → Branch protection rules → Require status checks → select `E2E regression (Ubuntu, Python 3.12)`.
+The workflow itself doesn't gate merges - that's a GitHub repo setting under Branches → Branch protection rules → Require status checks → select `E2E regression (Ubuntu, Python 3.12)`.
 
 ## Design background
 

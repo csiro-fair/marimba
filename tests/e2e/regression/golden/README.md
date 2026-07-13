@@ -15,7 +15,7 @@ This directory holds the checked-in golden expected output that
 
 ```bash
 # 1. Run the regression suite to drive a fresh full bootstrap. The Tier C test
-#    will fail against the stale goldens — that's expected; the run still leaves
+#    will fail against the stale goldens - that's expected; the run still leaves
 #    a complete packaged dataset in pytest's tmp tree.
 uv run pytest --rootdir . -c config/pytest.ini --no-cov -m "e2e and slow" tests/e2e/regression/
 
@@ -28,7 +28,7 @@ uv run python tests/e2e/regression/golden/regenerate.py \
 #    that needs investigating, not a golden-rotation.
 git diff tests/e2e/regression/golden/
 
-# 4. Re-run the suite — it must now pass against the rotated goldens.
+# 4. Re-run the suite - it must now pass against the rotated goldens.
 uv run pytest --rootdir . -c config/pytest.ini --no-cov -m "e2e and slow" tests/e2e/regression/
 
 # 5. If the diff matches the deliberate change you made, commit the rotation
@@ -45,7 +45,7 @@ A golden rotation should be **explicit and reviewed**. Cases:
 - A data-SHA bump (`DATA_REPO_SHA`) replaces the upstream fixture.
 - An intentional change to the scrubber itself (e.g. adding a new volatile field to scrub).
 
-If a Tier C test fails in CI on a branch that didn't intend any of the above, that's a regression — fix the production code, don't rotate the golden.
+If a Tier C test fails in CI on a branch that didn't intend any of the above, that's a regression - fix the production code, don't rotate the golden.
 
 ## Scrubber correctness
 
