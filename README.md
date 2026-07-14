@@ -108,7 +108,7 @@ processing:
 - **Standard Image and Video Library:**
   - Marimba provides a comprehensive standard library of image and video processing modules that can:
     - Convert, compress and resize imagery using [Pillow](https://pypi.org/project/Pillow/)
-    - Transcode, segment and extract frames from videos using [FFmpeg](https://ffmpeg.org/)
+    - Transcode, segment and extract frames from videos using [PyAV](https://pyav.org/)
     - Automatically generate thumbnails for images and videos and create composite overview images for rapid assessment 
     of image datasets
     - Detect duplicate, blurry, or improperly exposed images using 
@@ -150,7 +150,7 @@ marimba
 
 ### System Dependencies
 
-Marimba requires two system-level dependencies for its operation:
+Marimba requires one system-level dependency for its operation:
 
 - **ExifTool**: Required for EXIF metadata reading and writing
 
