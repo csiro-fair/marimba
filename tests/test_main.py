@@ -1060,7 +1060,7 @@ class TestCLI:
         """Test import command help displays required arguments and usage information.
 
         This test verifies that the import command's help output includes the required
-        collection_name and source-path arguments, and provides appropriate usage guidance
+        collection_name and source_paths arguments, and provides appropriate usage guidance
         to users for importing data into collections. This is a unit test because it tests
         the CLI help configuration in isolation without external dependencies.
         """
@@ -1073,11 +1073,11 @@ class TestCLI:
         assert_cli_success(result, context="Import command help")
 
         # Assert - Verify required arguments are shown (strip ANSI: Rich may emit color codes
-        # between hyphen segments in CI, breaking literal substring matches)
+        # between hyphen segments in CI, breaking literal substring matches). Case and
+        # hyphen/underscore are normalised because Typer's metavar rendering varies by version.
         stdout = strip_ansi(result.stdout)
-        assert (
-            "source-path" in stdout or "SOURCE_PATH" in stdout
-        ), f"Help should show source-path argument, got: {stdout}"
+        normalised = stdout.lower().replace("-", "_")
+        assert "source_path" in normalised, f"Help should show source_paths argument, got: {stdout}"
         assert "collection_name" in stdout, f"Help should show collection_name argument, got: {stdout}"
 
     @pytest.mark.unit
