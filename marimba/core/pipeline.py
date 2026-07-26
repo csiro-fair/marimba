@@ -129,7 +129,7 @@ class BasePipeline(ABC, LogMixin):
 
         # Check for the existence of the source_path directory
         if not source_path.is_dir():
-            self.logger.exception(f"Source path {source_path} is not a directory")
+            self.logger.error(f"Source path {source_path} is not a directory")
             return
 
         self._import(data_dir, source_path, config, **kwargs)

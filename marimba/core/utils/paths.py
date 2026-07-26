@@ -116,7 +116,7 @@ def hardlink_path(src_path: Path, dest_path: Path, dry_run: bool) -> None:
     """
     # Ensure the source path is valid and is a directory
     if not src_path.exists() or not src_path.is_dir():
-        logger.exception(f"Source path '{src_path}' is not a valid directory")
+        logger.error(f"Source path '{src_path}' is not a valid directory")
         raise typer.Exit(1)
 
     # Ensure the destination directory exists

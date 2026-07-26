@@ -297,8 +297,10 @@ def execute_packaging(
 
     return (
         pipeline_data_mapping,
-        f'Completed packaging data for pipeline "{pipeline_name}" and collection "{collection_name}" in '
-        f"{package_duration:.2f} seconds",
+        (
+            f'Completed packaging data for pipeline "{pipeline_name}" and collection "{collection_name}" in '
+            f"{package_duration:.2f} seconds"
+        ),
     )
 
 
@@ -1491,7 +1493,7 @@ class ProjectWrapper(LogMixin):
 
         # Check if distribution_target is not None
         if distribution_target is None:
-            self.logger.exception("Failed to get a valid distribution target instance")
+            self.logger.error("Failed to get a valid distribution target instance")
             return
 
         # Distribute the dataset

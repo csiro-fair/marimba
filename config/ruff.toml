@@ -29,6 +29,7 @@ lint.pydocstyle.convention = "google"
 # Ignore specific rules with explanations
 lint.ignore = [
     "B008",    # Do not perform function calls in argument defaults
+    "CPY001",  # Missing copyright notice at top of file: licensing is declared once in LICENSE, not per-file
     "D104",    # Missing docstring in public package
     "D200",    # One-line docstring should fit on one line with quotes
     "D203",    # 1 blank line required before class docstring
@@ -39,6 +40,7 @@ lint.ignore = [
     "FIX002",  # Line contains TODO
     "G004",    # Logging statement uses f-string
     "PLR0913", # Too many arguments in function definition
+    "PLR0917", # Too many positional arguments: positional-only variant of the PLR0913 ignore above
     "S603",    # `subprocess` call: check for execution of untrusted input
     "TD003",   # Missing issue link on TODO
     "UP042",   # Class inherits from str+Enum: keep over StrEnum, whose __str__ differs and changes typer CLI / serialised output
