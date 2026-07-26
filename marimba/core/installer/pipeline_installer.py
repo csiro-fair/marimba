@@ -155,7 +155,7 @@ class PipelineInstaller:
             result = self._install_with_constraints(str(abs_path.parent))
         else:
             error_msg = f"Pipeline does not defines dependencies: {self.requirements_path} / {self.py_project_path}"
-            self._logger.exception(error_msg)
+            self._logger.error(error_msg)
             raise PipelineInstaller.InstallError(error_msg)
 
         if result.output:

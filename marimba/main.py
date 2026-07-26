@@ -233,7 +233,7 @@ def import_command(
             raise typer.Exit(1) from None
     elif not overwrite:
         error_message = f"Collection {collection_name} already exists, and the overwrite flag is not set."
-        project_wrapper.logger.exception(error_message)
+        project_wrapper.logger.error(error_message)
         rprint(error_panel(error_message))
         raise typer.Exit(1) from None
 
