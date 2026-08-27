@@ -32,7 +32,6 @@ Functions:
 """
 
 import importlib.metadata
-import json
 import logging
 import time
 from pathlib import Path
@@ -44,6 +43,7 @@ from rich.panel import Panel
 from marimba.core import MarimbaError, NetworkConnectionError
 from marimba.core.cli import delete, new
 from marimba.core.distribution.base import DistributionTargetBase
+from marimba.core.utils.config import parse_cli_config
 from marimba.core.utils.constants import PROJECT_DIR_HELP, MetadataGenerationLevelOptions, Operation
 from marimba.core.utils.dataset import get_mapping_processor_decorator
 from marimba.core.utils.dependencies import ToolDependency, validate_dependencies
@@ -180,7 +180,7 @@ def import_command(
     ),
     config: str = typer.Option(
         None,
-        help="A custom configuration in JSON format to be merged with the prompted collection configuration.",
+        help="YAML/JSON config file path, or a JSON object string, merged with the prompted collection configuration.",
     ),
     accept_defaults: bool = typer.Option(
         False,
@@ -209,9 +209,9 @@ def import_command(
     get_rich_handler().set_dry_run(dry_run)
 
     try:
-        config_dict = json.loads(config) if config else {}
-    except json.JSONDecodeError as e:
-        error_message = f"Error parsing configuration JSON: {e}"
+        config_dict = parse_cli_config(config)
+    except (ValueError, TypeError) as e:
+        error_message = f"Error parsing configuration: {e}"
         project_wrapper.logger.exception(error_message)
         rprint(error_panel(error_message))
         raise typer.Exit(1) from None

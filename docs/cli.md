@@ -28,8 +28,9 @@ option reference. For the full list of commands and options, see the
 By default `marimba new pipeline`, `marimba new collection` and `marimba import` prompt for pipeline- and
 collection-level configuration. Scripts must suppress those prompts, using one or both of:
 
-- **`--config '{"key": "value"}'`**: supply configuration values as a JSON string. They are merged with the pipeline's
-  schema defaults.
+- **`--config path/to/config.yml`**: supply configuration from a YAML or JSON file, or as an inline JSON object
+  string. File contents are loaded with `yaml.safe_load` (JSON is valid YAML). They are merged with the pipeline's
+  schema defaults. The file is not executed as Python.
 - **`--accept-defaults` (`-y`)**: accept every remaining default without prompting.
 
 Supply `--config` for the values you care about and add `--accept-defaults` to accept the rest, so no prompt can block
@@ -37,22 +38,15 @@ the script:
 
 ```bash
 marimba import dive-001 /data/raw/dive-001 \
-  --config '{"site_id": "GBR-001"}' \
+  --config collection.yml \
   --accept-defaults
 ```
 
-For configuration that is awkward to inline, build the JSON in a file and pass its contents:
+Inline JSON still works:
 
 ```bash
-cat > /tmp/collection-config.json <<'EOF'
-{
-  "site_id": "GBR-001",
-  "deployment_date": "2026-02-14"
-}
-EOF
-
 marimba import dive-001 /data/raw/dive-001 \
-  --config "$(cat /tmp/collection-config.json)" \
+  --config '{"site_id": "GBR-001"}' \
   --accept-defaults
 ```
 

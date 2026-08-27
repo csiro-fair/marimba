@@ -472,6 +472,53 @@ class TestPipelineCommand:
         assert (project_dir / "pipelines").exists(), "Pipelines directory should still exist"
 
     @pytest.mark.integration
+    def test_pipeline_with_yaml_config_file(self, mocker: MockerFixture, tmp_path: Path) -> None:
+        """
+        Test pipeline command loads --config from a YAML file path.
+
+        Verifies that a filesystem path is treated as YAML rather than inline JSON,
+        and the parsed dictionary is passed to create_pipeline.
+        """
+        project_dir = tmp_path / "yaml_config_project"
+        pipeline_name = "test_yaml_pipeline"
+        url = "https://example.com/repo.git"
+        config_path = tmp_path / "pipeline.yml"
+        config_path.write_text("platform_id: CAM01\n", encoding="utf-8")
+
+        ProjectWrapper.create(project_dir)
+
+        mock_pipeline_wrapper = mocker.MagicMock()
+        mock_pipeline_wrapper.root_dir = project_dir / "pipelines" / pipeline_name
+        mock_create_pipeline = mocker.patch(
+            "marimba.core.wrappers.project.ProjectWrapper.create_pipeline",
+            return_value=mock_pipeline_wrapper,
+        )
+
+        result = runner.invoke(
+            marimba_cli,
+            [
+                "new",
+                "pipeline",
+                pipeline_name,
+                url,
+                "--project-dir",
+                str(project_dir),
+                "--config",
+                str(config_path),
+            ],
+        )
+
+        assert (
+            result.exit_code == 0
+        ), f"Command should succeed with exit code 0, got {result.exit_code} with output: {result.output}"
+        mock_create_pipeline.assert_called_once_with(
+            pipeline_name,
+            url,
+            {"platform_id": "CAM01"},
+            accept_defaults=False,
+        )
+
+    @pytest.mark.integration
     def test_pipeline_with_accept_defaults_flag(self, mocker: MockerFixture, tmp_path: Path) -> None:
         """
         Test pipeline command with --accept-defaults flag passes accept_defaults=True to create_pipeline.

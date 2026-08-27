@@ -223,7 +223,7 @@ pipeline-level configuration the pipeline declares.
 
 | Option | Description |
 | --- | --- |
-| `--config TEXT` | Custom configuration as a JSON string, merged with the prompted configuration. |
+| `--config TEXT` | YAML/JSON config file path, or a JSON object string, merged with the prompted configuration. |
 | `--accept-defaults`, `-y` | Accept all default configuration values without prompting. |
 | `--project-dir PATH` | Project root to operate on. |
 
@@ -239,7 +239,7 @@ collection inherit configuration; if omitted, the most recently modified collect
 
 | Option | Description |
 | --- | --- |
-| `--config TEXT` | Custom configuration as a JSON string, merged with the prompted configuration. |
+| `--config TEXT` | YAML/JSON config file path, or a JSON object string, merged with the prompted configuration. |
 | `--accept-defaults`, `-y` | Accept all default configuration values without prompting. |
 | `--project-dir PATH` | Project root to operate on. |
 
@@ -283,7 +283,7 @@ Each installed pipeline's `_import` logic decides how the source data is brought
 | `--pipeline-name TEXT` | Limit the import to specific pipelines (repeatable). Defaults to all pipelines. |
 | `--operation [copy\|move\|link]` | How source files are brought in. Default: `copy`. |
 | `--overwrite` / `--no-overwrite` | Overwrite an existing collection of the same name. Default: `--no-overwrite`. |
-| `--config TEXT` | Custom collection configuration as a JSON string. |
+| `--config TEXT` | YAML/JSON config file path, or a JSON object string. |
 | `--accept-defaults`, `-y` | Accept all default configuration values without prompting. |
 | `--extra TEXT` | Extra key-value pass-through argument (repeatable). |
 | `--dry-run` / `--no-dry-run` | Preview without changing files. Default: `--no-dry-run`. |
@@ -461,8 +461,9 @@ deployment or site identifier, or a collection date. You are prompted for it whe
 
 Both `--config` and `--accept-defaults` let you avoid interactive prompts, which is essential for scripting:
 
-- `--config '{"key": "value"}'` supplies configuration values directly as JSON; they are merged with the schema
-  defaults, and any remaining unset fields are still prompted for unless you also pass `--accept-defaults`.
+- `--config collection.yml` supplies configuration from a YAML or JSON file (or an inline JSON object string); values
+  are merged with the schema defaults, and any remaining unset fields are still prompted for unless you also pass
+  `--accept-defaults`.
 - `--accept-defaults` (`-y`) accepts every default value without prompting.
 
 See the [CLI Scripting Guide](cli.md) for non-interactive automation patterns.

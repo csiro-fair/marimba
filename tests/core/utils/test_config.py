@@ -1,9 +1,10 @@
+import json
 from pathlib import Path
 
 import pytest
 import yaml
 
-from marimba.core.utils.config import load_config, save_config
+from marimba.core.utils.config import load_config, parse_cli_config, save_config
 
 
 class TestSaveConfig:
@@ -283,3 +284,82 @@ class TestLoadConfig:
         assert (
             loaded_data["database"]["credentials"]["user"] == "admin"
         ), f"User should be 'admin', got {loaded_data['database']['credentials']['user']}"
+
+
+class TestParseCliConfig:
+    """
+    Test suite for parse_cli_config.
+
+    Covers empty input, inline JSON, YAML/JSON files, and error paths. Files are
+    never executed as Python.
+    """
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("value", [None, ""])
+    def test_parse_cli_config_empty_returns_empty_dict(self, value: str | None) -> None:
+        """Empty or missing --config values yield an empty dictionary."""
+        assert parse_cli_config(value) == {}
+
+    @pytest.mark.unit
+    def test_parse_cli_config_inline_json_object(self) -> None:
+        """Inline JSON object strings continue to parse as dictionaries."""
+        loaded = parse_cli_config('{"site_id": "GBR-001", "count": 2}')
+        assert loaded == {"site_id": "GBR-001", "count": 2}
+
+    @pytest.mark.unit
+    def test_parse_cli_config_long_inline_json_does_not_use_pathlib(self) -> None:
+        """Nested JSON longer than NAME_MAX must parse; Path.is_file() would OSError."""
+        payload = {
+            "name": "test_collection",
+            "site_id": "COMPLEX_SITE_01",
+            "field_of_view": "2000",
+            "instrument_type": "flowcam",
+            "operation": "copy",
+            "created": "2024-01-01T00:00:00Z",
+            "depth_range": {"min": 5.0, "max": 25.0},
+            "metadata": {"operator": "test_user", "mission": "test_mission_2024"},
+        }
+        config_json = json.dumps(payload)
+        assert len(config_json) > 255
+        assert parse_cli_config(config_json) == payload
+
+    @pytest.mark.unit
+    def test_parse_cli_config_inline_json_non_dict_raises_type_error(self) -> None:
+        """Inline JSON that is not an object is rejected."""
+        with pytest.raises(TypeError, match=r"Configuration data must be a dictionary"):
+            parse_cli_config('["not", "an", "object"]')
+
+    @pytest.mark.unit
+    def test_parse_cli_config_yaml_file(self, tmp_path: Path) -> None:
+        """An existing YAML file is loaded with yaml.safe_load."""
+        config_path = tmp_path / "collection.yml"
+        expected = {"site_id": "GBR-001", "timedif": "+08"}
+        with config_path.open("w", encoding="utf-8") as handle:
+            yaml.safe_dump(expected, handle)
+
+        loaded = parse_cli_config(str(config_path))
+        assert loaded == expected
+
+    @pytest.mark.unit
+    def test_parse_cli_config_json_file(self, tmp_path: Path) -> None:
+        """JSON files are accepted because JSON is valid YAML."""
+        config_path = tmp_path / "collection.json"
+        config_path.write_text('{"site_id": "GBR-001"}\n', encoding="utf-8")
+
+        loaded = parse_cli_config(str(config_path))
+        assert loaded == {"site_id": "GBR-001"}
+
+    @pytest.mark.unit
+    def test_parse_cli_config_missing_path_that_is_not_json_raises_value_error(self) -> None:
+        """A non-existent path that is not JSON is a ValueError, not a file read."""
+        with pytest.raises(ValueError, match=r"Could not parse --config as JSON"):
+            parse_cli_config("does-not-exist.yml")
+
+    @pytest.mark.unit
+    def test_parse_cli_config_invalid_yaml_file_raises_value_error(self, tmp_path: Path) -> None:
+        """Malformed YAML in an existing file is wrapped as ValueError."""
+        config_path = tmp_path / "broken.yml"
+        config_path.write_text("key: value\ninvalid", encoding="utf-8")
+
+        with pytest.raises(ValueError, match=r"Invalid YAML/JSON in config file"):
+            parse_cli_config(str(config_path))

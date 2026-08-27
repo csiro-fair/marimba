@@ -3,6 +3,14 @@
 All notable changes to Marimba are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- `--config` accepts a path to a YAML or JSON file, as well as an inline JSON object string, on `marimba import`,
+  `marimba new pipeline`, and `marimba new collection`. File contents are loaded with `yaml.safe_load`; Python is not
+  executed. Nested inline JSON is parsed as JSON rather than as a filesystem path, so values longer than ``NAME_MAX``
+  do not raise ``OSError: File name too long``.
+
 ## [1.2.0] – 2026-06-25
 
 ### Added
