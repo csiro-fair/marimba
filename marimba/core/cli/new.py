@@ -7,12 +7,12 @@ formatting the output.
 
 """
 
-import json
 from pathlib import Path
 
 import typer
 from rich import print as rprint
 
+from marimba.core.utils.config import parse_cli_config
 from marimba.core.utils.constants import PROJECT_DIR_HELP
 from marimba.core.utils.log import get_logger
 from marimba.core.utils.paths import find_project_dir_or_exit
@@ -73,7 +73,7 @@ def pipeline(
     ),
     config: str = typer.Option(
         None,
-        help="A custom configuration in JSON format to be merged with the prompted pipeline configuration.",
+        help="YAML/JSON config file path, or a JSON object string, merged with the prompted pipeline configuration.",
     ),
     accept_defaults: bool = typer.Option(
         False,
@@ -86,9 +86,9 @@ def pipeline(
     Create and configure a new Marimba pipeline in a project.
     """
     try:
-        config_dict = json.loads(config) if config else {}
-    except json.JSONDecodeError as e:
-        error_message = f"Error parsing configuration JSON: {e}"
+        config_dict = parse_cli_config(config)
+    except (ValueError, TypeError) as e:
+        error_message = f"Error parsing configuration: {e}"
         logger.exception(error_message)
         rprint(error_panel(error_message))
         raise typer.Exit(1) from e
@@ -146,7 +146,7 @@ def collection(
     project_dir: Path = typer.Option(None, help=PROJECT_DIR_HELP),
     config: str = typer.Option(
         None,
-        help="A custom configuration in JSON format to be merged with the prompted collection configuration.",
+        help="YAML/JSON config file path, or a JSON object string, merged with the prompted collection configuration.",
     ),
     accept_defaults: bool = typer.Option(
         False,
@@ -159,9 +159,9 @@ def collection(
     Create and configure a new Marimba collection in a project.
     """
     try:
-        config_dict = json.loads(config) if config else {}
-    except json.JSONDecodeError as e:
-        error_message = f"Error parsing configuration JSON: {e}"
+        config_dict = parse_cli_config(config)
+    except (ValueError, TypeError) as e:
+        error_message = f"Error parsing configuration: {e}"
         logger.exception(error_message)
         rprint(error_panel(error_message))
         raise typer.Exit(1) from e
