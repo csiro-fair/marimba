@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -304,6 +305,23 @@ class TestParseCliConfig:
         """Inline JSON object strings continue to parse as dictionaries."""
         loaded = parse_cli_config('{"site_id": "GBR-001", "count": 2}')
         assert loaded == {"site_id": "GBR-001", "count": 2}
+
+    @pytest.mark.unit
+    def test_parse_cli_config_long_inline_json_does_not_use_pathlib(self) -> None:
+        """Nested JSON longer than NAME_MAX must parse; Path.is_file() would OSError."""
+        payload = {
+            "name": "test_collection",
+            "site_id": "COMPLEX_SITE_01",
+            "field_of_view": "2000",
+            "instrument_type": "flowcam",
+            "operation": "copy",
+            "created": "2024-01-01T00:00:00Z",
+            "depth_range": {"min": 5.0, "max": 25.0},
+            "metadata": {"operator": "test_user", "mission": "test_mission_2024"},
+        }
+        config_json = json.dumps(payload)
+        assert len(config_json) > 255
+        assert parse_cli_config(config_json) == payload
 
     @pytest.mark.unit
     def test_parse_cli_config_inline_json_non_dict_raises_type_error(self) -> None:
