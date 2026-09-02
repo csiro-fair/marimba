@@ -23,12 +23,14 @@ class DistributionTargetBase(ABC, LogMixin):
         """
 
     @abstractmethod
-    def distribute(self, dataset_wrapper: DatasetWrapper) -> None:
+    def distribute(self, dataset_wrapper: DatasetWrapper, *, dry_run: bool = False) -> None:
         """
         Distribute the given dataset to this target.
 
         Args:
             dataset_wrapper: The dataset to distribute.
+            dry_run: When True, resolve and log everything the distribution would do (destination, file count,
+                total size, per-file keys) without transferring anything.
 
         Raises:
             DistributionError: If the distribution fails.

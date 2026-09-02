@@ -1,5 +1,7 @@
 """Tests for marimba.core.distribution.dap module."""
 
+from pathlib import Path
+
 import pytest
 from pytest_mock import MockerFixture
 
@@ -254,3 +256,59 @@ class TestCSIRODapDistributionTargetEdgeCases:
 
         assert target._bucket_name == "my.org.bucket"
         assert target._base_prefix == "path/file"
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        ("remote_directory", "expected_prefix"),
+        [
+            ("dapprd/000012345v001/data", "000012345v001/data/QTFHS-2022-24/"),
+            ("dapprd/000012345v001/data/", "000012345v001/data/QTFHS-2022-24/"),
+            ("dapprd", "QTFHS-2022-24/"),
+        ],
+    )
+    def test_dataset_uploads_into_its_own_folder(
+        self,
+        dap_credentials: dict[str, str],
+        mocker: MockerFixture,
+        tmp_path: Path,
+        remote_directory: str,
+        expected_prefix: str,
+    ) -> None:
+        """A DAP collection has one file root, so each dataset is keyed under a folder named after it.
+
+        With a bucket-only remote_directory the dataset folder is the top level, with no leading slash.
+        """
+        mocker.patch("marimba.core.distribution.s3.resource")
+        dataset_dir = tmp_path / "QTFHS-2022-24"
+        (dataset_dir / "data" / "HSV").mkdir(parents=True)
+        (dataset_dir / "ifdo.json").write_text("{}")
+        (dataset_dir / "data" / "HSV" / "still.JPG").write_bytes(b"x")
+        wrapper = mocker.Mock()
+        wrapper.root_dir = dataset_dir
+        wrapper.name = "QTFHS-2022-24"
+
+        target = CSIRODapDistributionTarget(remote_directory=remote_directory, **dap_credentials)
+        keys = {rel_key for _, rel_key, _ in target._iterate_dataset_wrapper(wrapper)}
+
+        assert keys == {f"{expected_prefix}ifdo.json", f"{expected_prefix}data/HSV/still.JPG"}
+        assert target._destination(wrapper) == f"s3://dapprd/{expected_prefix}"
+
+    @pytest.mark.unit
+    def test_plain_s3_target_keeps_prefix_as_dataset_location(
+        self,
+        mocker: MockerFixture,
+        tmp_path: Path,
+    ) -> None:
+        """The dataset folder is a DAP convention only; the generic S3 target uploads straight under its prefix."""
+        mocker.patch("marimba.core.distribution.s3.resource")
+        dataset_dir = tmp_path / "QTFHS-2022-24"
+        dataset_dir.mkdir()
+        (dataset_dir / "ifdo.json").write_text("{}")
+        wrapper = mocker.Mock()
+        wrapper.root_dir = dataset_dir
+        wrapper.name = "QTFHS-2022-24"
+
+        target = S3DistributionTarget("bucket", "https://s3.example.com", "k", "s", base_prefix="datasets")
+        keys = [rel_key for _, rel_key, _ in target._iterate_dataset_wrapper(wrapper)]
+
+        assert keys == ["datasets/ifdo.json"]

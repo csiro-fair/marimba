@@ -5,7 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- `marimba distribute --dry-run` uploaded the dataset anyway: the flag reached the project wrapper but was never passed on to the distribution target. A dry run now resolves the destination, file list, keys and total size, logs them (per-file keys at DEBUG), and stops before transferring anything. Manifest validation still runs, as a dry run is a preview of the real run.
+
 ### Changed
+- The CSIRO DAP target uploads each dataset into its own folder beneath the collection's file root, `<remote_directory>/<dataset name>/...`, instead of spreading the dataset tree across the root. A DAP collection has one file root shared by every upload, so a dataset needs its own folder there; `remote_directory` should now be given exactly as the DAP shows it. The plain S3 target is unchanged and still treats its prefix as the dataset's location. Both targets log the resolved destination at the start of a distribution.
 - `provenance.json` now uses only PROV-O and schema.org terms; the undefined `marimba:commit`, `marimba:branch` and `marimba:tag` properties are gone. A pipeline's git revision is recorded as a normalised `schema:codeRepository` URL, a commit permalink in `schema:url`, and a Software Heritage identifier (`swh:1:rev:<sha>`) in `schema:identifier`, with an exact release tag in `schema:softwareVersion`. The branch name is no longer recorded. Node identifiers are absolute IRIs under the dataset's `urn:uuid:` rather than document-relative fragments, so the graph no longer depends on where the file is stored. Also adds the dataset's `prov:generatedAtTime`, the packaging `prov:startedAtTime`, PyPI and release links for the Marimba agent, and a note when a pipeline or Marimba checkout had uncommitted changes at packaging time.
 
 ## [1.2.0] – 2026-06-25

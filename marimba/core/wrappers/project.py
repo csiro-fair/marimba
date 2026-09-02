@@ -1496,8 +1496,10 @@ class ProjectWrapper(LogMixin):
             self.logger.error("Failed to get a valid distribution target instance")
             return
 
-        # Distribute the dataset
-        distribution_target.distribute(dataset_wrapper)
+        # Distribute the dataset. The target resolves the full upload in dry-run mode too, and stops short
+        # of the transfer; validation above has already run either way, since a dry run is a preview of a
+        # future real run and should fail on the same manifest problems.
+        distribution_target.distribute(dataset_wrapper, dry_run=self.dry_run)
 
     def run_import(
         self,

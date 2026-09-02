@@ -606,7 +606,7 @@ class TestS3DistributionTarget:
         assert exc_info.value.__cause__ is expected_inner_error, "Original exception should be chained as the cause"
 
         # Verify the _distribute method was called exactly once with correct parameters
-        mock_inner.assert_called_once_with(mock_dataset_wrapper)
+        mock_inner.assert_called_once_with(mock_dataset_wrapper, dry_run=False)
 
     @pytest.mark.unit
     def test_transfer_config_setup(self, mocker: pytest_mock.MockerFixture, s3_credentials: dict[str, str]) -> None:
@@ -853,3 +853,52 @@ class TestS3DistributionTarget:
 
         assert uploaded_path == test_file, "Should upload the test file"
         assert uploaded_key == "datasets/test.txt", "Should generate correct S3 key with prefix"
+
+    @pytest.mark.unit
+    def test_dry_run_resolves_upload_without_transferring(
+        self,
+        mocker: pytest_mock.MockerFixture,
+        s3_credentials: dict[str, str],
+        mock_dataset_wrapper: Any,
+    ) -> None:
+        """A dry run walks the dataset and logs what it would upload, and never calls upload_file.
+
+        This is the regression test for `marimba distribute --dry-run` uploading anyway: the flag stopped at
+        the project wrapper and the target had no dry-run path.
+        """
+        mock_resource = mocker.patch("marimba.core.distribution.s3.resource")
+        mock_bucket = mocker.Mock()
+        mock_resource.return_value.Bucket.return_value = mock_bucket
+        target = S3DistributionTarget(**s3_credentials)
+        logged = mocker.Mock()
+        target._logger = logged  # LogMixin resolves its logger lazily into this slot
+
+        target.distribute(mock_dataset_wrapper, dry_run=True)
+
+        mock_bucket.upload_file.assert_not_called()
+        debug_lines = [str(call.args[0]) for call in logged.debug.call_args_list]
+        assert sorted(debug_lines) == [
+            "Would upload datasets/data.txt",
+            "Would upload datasets/metadata.yaml",
+            "Would upload datasets/subdir/nested.txt",
+        ]
+        info_lines = " ".join(str(call.args[0]) for call in logged.info.call_args_list)
+        assert "s3://test-bucket/datasets/" in info_lines
+        assert "Skipped uploading 3 files" in info_lines
+
+    @pytest.mark.unit
+    def test_real_run_still_uploads(
+        self,
+        mocker: pytest_mock.MockerFixture,
+        s3_credentials: dict[str, str],
+        mock_dataset_wrapper: Any,
+    ) -> None:
+        """The dry_run keyword defaults to False, so an unflagged distribute transfers every file."""
+        mock_resource = mocker.patch("marimba.core.distribution.s3.resource")
+        mock_bucket = mocker.Mock()
+        mock_resource.return_value.Bucket.return_value = mock_bucket
+        target = S3DistributionTarget(**s3_credentials)
+
+        target.distribute(mock_dataset_wrapper)
+
+        assert mock_bucket.upload_file.call_count == 3

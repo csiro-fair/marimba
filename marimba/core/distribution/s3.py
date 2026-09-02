@@ -78,6 +78,26 @@ class S3DistributionTarget(DistributionTargetBase):
         """
         self._s3.meta.client.head_bucket(Bucket=self._bucket_name)
 
+    def _key_parts(self, dataset_wrapper: DatasetWrapper, rel_path: Path) -> tuple[str, ...]:  # noqa: ARG002
+        """
+        The segments joined by ``/`` to form a file's S3 key: the base prefix, then the dataset-relative path.
+
+        Subclasses that lay a dataset out differently under the prefix override this. The base layout uploads the
+        dataset tree directly under the prefix, so the prefix itself is where a single dataset lands.
+
+        Args:
+            dataset_wrapper: The dataset being distributed.
+            rel_path: The file's path relative to the dataset root.
+
+        Returns:
+            The key segments.
+        """
+        return (self._base_prefix, *rel_path.parts)
+
+    def _destination(self, dataset_wrapper: DatasetWrapper) -> str:  # noqa: ARG002
+        """The location a dataset's files are uploaded under, in ``s3://bucket/prefix/`` form."""
+        return f"s3://{self._bucket_name}/{self._base_prefix}/" if self._base_prefix else f"s3://{self._bucket_name}/"
+
     def _iterate_dataset_wrapper(
         self,
         dataset_wrapper: DatasetWrapper,
@@ -106,8 +126,7 @@ class S3DistributionTarget(DistributionTargetBase):
                 An S3 key.
             """
             rel_path = path.relative_to(dataset_wrapper.root_dir)
-            parts = (self._base_prefix, *rel_path.parts)
-            return "/".join(parts)
+            return "/".join(self._key_parts(dataset_wrapper, rel_path))
 
         # Single tree walk: stat each file on the way through so the size totalling
         # doesn't need a second pass.
@@ -130,7 +149,9 @@ class S3DistributionTarget(DistributionTargetBase):
         """
         self._bucket.upload_file(str(path.absolute()), key, Config=self._config)
 
-    def _distribute(self, dataset_wrapper: DatasetWrapper) -> None:
+    def _distribute(self, dataset_wrapper: DatasetWrapper, *, dry_run: bool = False) -> None:
+        self.logger.info(f"Distributing dataset {dataset_wrapper.name} to {self._destination(dataset_wrapper)}")
+
         # Single tree walk: collect (path, key, size) triples in one pass.
         with Progress(SpinnerColumn(), *get_default_columns()) as collection_progress:
             collection_task = collection_progress.add_task(
@@ -149,6 +170,18 @@ class S3DistributionTarget(DistributionTargetBase):
             collection_progress.update(collection_task)
             self.logger.info(f"Found {len(path_key_size_tups)} files to upload")
             self.logger.info(f"Total upload size: {total_bytes / (1024 * 1024):.2f} MB")
+
+        if dry_run:
+            # Everything the real run resolves has been resolved and logged; the transfer is the only
+            # side effect, so this is where a dry run stops. The per-file keys go to the audit trail
+            # at DEBUG so an operator can confirm the layout before committing bandwidth.
+            for _, key, _ in path_key_size_tups:
+                self.logger.debug(f"Would upload {key}")
+            self.logger.info(
+                f"Skipped uploading {len(path_key_size_tups)} files "
+                f"({total_bytes / (1024 * 1024):.2f} MB) to {self._destination(dataset_wrapper)}",
+            )
+            return
 
         with Progress(
             SpinnerColumn(),
@@ -181,18 +214,19 @@ class S3DistributionTarget(DistributionTargetBase):
 
                     progress.update(task, advance=file_bytes)
 
-    def distribute(self, dataset_wrapper: DatasetWrapper) -> None:
+    def distribute(self, dataset_wrapper: DatasetWrapper, *, dry_run: bool = False) -> None:
         """
         Distributes the dataset_wrapper to the distribution target.
 
         Args:
             dataset_wrapper: The dataset wrapper object containing the dataset to be distributed.
+            dry_run: When True, resolve and log the upload (destination, files, keys, size) without transferring.
 
         Raises:
             DistributionTargetBase.DistributionError: If there is an error during the distribution process.
         """
         try:
-            return self._distribute(dataset_wrapper)
+            return self._distribute(dataset_wrapper, dry_run=dry_run)
         except Exception as e:
             msg = f"Distribution error:\n{e}"
             raise DistributionTargetBase.DistributionError(

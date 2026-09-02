@@ -7,12 +7,21 @@ wrappers.
 
 """
 
+from pathlib import Path
+
 from marimba.core.distribution.s3 import S3DistributionTarget
+from marimba.core.wrappers.dataset import DatasetWrapper
 
 
 class CSIRODapDistributionTarget(S3DistributionTarget):
     """
     CSIRO DAP (Data Access Portal) distribution target. Convenience class for specifying parameters DAP-style.
+
+    ``remote_directory`` is the bucket and path the DAP shows for a collection's S3 upload, e.g.
+    ``dapprd/000012345v001/data``. That path is the collection's single file root, which every upload to the
+    collection shares, so each dataset is placed in its own folder beneath it, named after the dataset:
+    ``dapprd/000012345v001/data/<dataset name>/...``. The plain S3 target does not do this; a generic bucket
+    prefix is taken to be the dataset's own location.
     """
 
     def __init__(
@@ -50,3 +59,24 @@ class CSIRODapDistributionTarget(S3DistributionTarget):
             secret_access_key=secret_access_key,
             base_prefix=base_prefix,
         )
+
+    def _key_parts(self, dataset_wrapper: DatasetWrapper, rel_path: Path) -> tuple[str, ...]:
+        """
+        Key segments for a DAP upload: the collection path, the dataset's own folder, then the file path.
+
+        An empty collection path (a bucket-only ``remote_directory``) is dropped rather than producing a key
+        with a leading slash.
+
+        Args:
+            dataset_wrapper: The dataset being distributed.
+            rel_path: The file's path relative to the dataset root.
+
+        Returns:
+            The key segments.
+        """
+        prefix = (self._base_prefix,) if self._base_prefix else ()
+        return (*prefix, dataset_wrapper.name, *rel_path.parts)
+
+    def _destination(self, dataset_wrapper: DatasetWrapper) -> str:
+        """The dataset's own folder beneath the collection root, in ``s3://bucket/prefix/<dataset name>/`` form."""
+        return f"{super()._destination(dataset_wrapper)}{dataset_wrapper.name}/"
