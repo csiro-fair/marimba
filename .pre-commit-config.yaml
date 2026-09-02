@@ -42,7 +42,8 @@ repos:
         entry: uv run mypy
         language: system
         types: [ python ]
-        args: [ '--config-file', 'config/mypy.ini' ]
+        pass_filenames: false
+        args: [ '--config-file', 'config/mypy.ini', 'marimba/', 'tests/' ]
 
       - id: bandit
         name: Bandit

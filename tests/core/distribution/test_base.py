@@ -36,7 +36,7 @@ class TestDistributionTargetBaseContract:
     @pytest.mark.unit
     def test_concrete_subclass_with_distribute_can_instantiate(self) -> None:
         class GoodTarget(DistributionTargetBase):
-            def distribute(self, dataset_wrapper: DatasetWrapper) -> None:
+            def distribute(self, dataset_wrapper: DatasetWrapper, *, dry_run: bool = False) -> None:
                 return None
 
         # Should not raise.
@@ -56,7 +56,7 @@ class TestDistributionTargetBaseContract:
     @pytest.mark.unit
     def test_subclass_can_raise_distribution_error(self) -> None:
         class FailingTarget(DistributionTargetBase):
-            def distribute(self, dataset_wrapper: DatasetWrapper) -> None:
+            def distribute(self, dataset_wrapper: DatasetWrapper, *, dry_run: bool = False) -> None:
                 msg = "transient: try again"
                 raise DistributionTargetBase.DistributionError(msg)
 
