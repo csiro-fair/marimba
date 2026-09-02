@@ -111,24 +111,35 @@ def test_tier_a_structural(packaged_dataset: tuple[Path, dict[str, float]]) -> N
     # provenance.json is valid PROV-O JSON-LD with the dataset entity, the packaging activity, and Marimba.
     provenance = json.loads((dataset_dir / "provenance.json").read_text(encoding="utf-8"))
     assert "@context" in provenance, "provenance.json missing JSON-LD @context"
+    assert "marimba" not in provenance["@context"], "provenance.json still declares a Marimba-specific context"
     assert "@graph" in provenance, "provenance.json missing JSON-LD @graph"
     graph = provenance["@graph"]
     assert any(n.get("@type") == "prov:Activity" for n in graph), "provenance.json has no prov:Activity"
     assert any(
-        n.get("@id") == "#marimba" and "schema:softwareVersion" in n for n in graph
+        str(n.get("@id", "")).endswith("#marimba") and "schema:softwareVersion" in n for n in graph
     ), "provenance.json has no Marimba SoftwareAgent with a version"
 
-    # Each pipeline software agent records a 40-hex git commit (guards the git-provenance capture).
-    pipeline_agents = [n for n in graph if str(n.get("@id", "")).startswith("#pipeline-")]
+    # Every node is an absolute IRI under the dataset's urn:uuid, so identities do not depend on file location.
+    for node in graph:
+        assert str(node.get("@id", "")).startswith(
+            "urn:uuid:",
+        ), f"provenance node has a relative @id: {node.get('@id')!r}"
+
+    # Each pipeline software agent records its commit as a Software Heritage revision identifier
+    # (swh:1:rev:<40-hex sha>), guarding the git-provenance capture.
+    pipeline_agents = [n for n in graph if "#pipeline-" in str(n.get("@id", ""))]
     assert pipeline_agents, "provenance.json has no pipeline SoftwareAgent"
     for agent in pipeline_agents:
-        commit = agent.get("marimba:commit", "")
+        identifier = agent.get("schema:identifier", "")
+        assert identifier.startswith("swh:1:rev:"), f"pipeline agent identifier is not a SWHID: {identifier!r}"
+        commit = identifier.removeprefix("swh:1:rev:")
         assert len(commit) == 40, f"pipeline agent commit is not a 40-char sha: {commit!r}"
         assert all(c in "0123456789abcdef" for c in commit), f"pipeline commit not lowercase hex: {commit!r}"
+        assert not any(k.startswith("marimba:") for k in agent), f"pipeline agent has Marimba-specific terms: {agent}"
 
     # The dataset entity is present and identified by its image-set UUID.
     assert any(
-        n.get("@type") == "prov:Entity" and str(n.get("@id", "")).startswith("urn:uuid:") for n in graph
+        "prov:Entity" in n.get("@type", []) and str(n.get("@id", "")).startswith("urn:uuid:") for n in graph
     ), "provenance.json has no dataset prov:Entity"
 
 

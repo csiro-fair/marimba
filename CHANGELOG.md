@@ -3,6 +3,11 @@
 All notable changes to Marimba are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+- `provenance.json` now uses only PROV-O and schema.org terms; the undefined `marimba:commit`, `marimba:branch` and `marimba:tag` properties are gone. A pipeline's git revision is recorded as a normalised `schema:codeRepository` URL, a commit permalink in `schema:url`, and a Software Heritage identifier (`swh:1:rev:<sha>`) in `schema:identifier`, with an exact release tag in `schema:softwareVersion`. The branch name is no longer recorded. Node identifiers are absolute IRIs under the dataset's `urn:uuid:` rather than document-relative fragments, so the graph no longer depends on where the file is stored. Also adds the dataset's `prov:generatedAtTime`, the packaging `prov:startedAtTime`, PyPI and release links for the Marimba agent, and a note when a pipeline or Marimba checkout had uncommitted changes at packaging time.
+
 ## [1.2.0] – 2026-06-25
 
 ### Added

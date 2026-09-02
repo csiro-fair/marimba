@@ -461,6 +461,7 @@ class DatasetWrapper(LogMixin):
             IOError: If there are issues reading from or writing to files or directories.
             MetadataError: If there are problems processing or generating metadata.
         """
+        started_datetime = datetime.now(UTC)
         pipeline_label = "pipeline" if len(dataset_mapping) == 1 else "pipelines"
         self.logger.info(
             f'Started packaging dataset "{dataset_name}" containing {len(dataset_mapping)} {pipeline_label}',
@@ -481,7 +482,7 @@ class DatasetWrapper(LogMixin):
         self._generate_dataset_map(dataset_items, zoom)
         self._copy_pipelines(project_pipelines_dir)
         self._copy_logs(project_log_path, pipeline_log_paths)
-        self._generate_provenance(dataset_mapping, project_pipelines_dir)
+        self._generate_provenance(dataset_mapping, project_pipelines_dir, started_datetime)
         self._generate_manifest(dataset_items, max_workers)
 
         self.logger.info(f'Completed packaging dataset "{dataset_name}"')
@@ -1053,12 +1054,13 @@ class DatasetWrapper(LogMixin):
         self,
         dataset_mapping: dict[str, Any],
         project_pipelines_dir: Path,
+        started_datetime: datetime,
     ) -> None:
         """
         Write a PROV-O (JSON-LD) provenance record for the dataset.
 
         Captures the Marimba version, each pipeline's git provenance, the ExifTool/FFmpeg versions, and the
-        packaging timestamp. Skipped in dry-run since no dataset is written to disk.
+        packaging start and end timestamps. Skipped in dry-run since no dataset is written to disk.
         """
         if self.dry_run:
             self.logger.info("Skipping provenance generation (dry-run)")
@@ -1072,6 +1074,7 @@ class DatasetWrapper(LogMixin):
             pipeline_repos=pipeline_repos,
             packaged_datetime=datetime.now(UTC),
             marimba_version=marimba.__version__,
+            started_datetime=started_datetime,
         )
         provenance_path = self.root_dir / "provenance.json"
         with provenance_path.open("w") as f:
