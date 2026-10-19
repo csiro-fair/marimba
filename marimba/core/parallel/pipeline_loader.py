@@ -140,6 +140,13 @@ def _configure_pipeline_logging(
     # First remove any existing handlers to prevent duplication
     pipeline_instance.logger.handlers = []
 
+    # The pipeline logger is a process-wide named logger, and worker processes are reused across
+    # collections, so a prefix filter left by an earlier collection must go too. Otherwise every
+    # collection a worker handles stacks another prefix onto each message.
+    for existing_filter in list(pipeline_instance.logger.filters):
+        if isinstance(getattr(existing_filter, "__self__", existing_filter), LogPrefixFilter):
+            pipeline_instance.logger.removeFilter(existing_filter)
+
     if log_string_prefix:
         prefix_filter = LogPrefixFilter(log_string_prefix)
         pipeline_instance.logger.addFilter(prefix_filter.apply_prefix)

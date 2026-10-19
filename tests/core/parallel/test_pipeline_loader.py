@@ -5,6 +5,7 @@ This module contains comprehensive tests for the pipeline loading functionality,
 including module discovery, class instantiation, error handling, and logging configuration.
 """
 
+import logging
 import sys
 from collections import OrderedDict
 from pathlib import Path
@@ -670,6 +671,7 @@ class TestConfigurePipelineLogging:
         mock_pipeline = mocker.Mock()
         mock_pipeline.logger = mocker.Mock()
         mock_pipeline.logger.handlers = [existing_handler]  # Start with existing handler
+        mock_pipeline.logger.filters = []  # No prefix filter left from an earlier collection
 
         mock_handler = mocker.Mock()
         mock_handler.baseFilename = "/test/log/file.log"
@@ -711,6 +713,35 @@ class TestConfigurePipelineLogging:
         ), "File handler should be added to logger"
 
     @pytest.mark.unit
+    def test_reconfiguring_replaces_previous_prefix(self, mocker: MockerFixture) -> None:
+        """Test that configuring the same logger again replaces its prefix rather than stacking it.
+
+        Worker processes are reused across collections and the pipeline logger is a process-wide
+        named logger, so each collection reconfigures the same logger. Only the latest collection's
+        prefix must appear on a message, and a logger that started with no prefix filter must end
+        with exactly one.
+        """
+        # Arrange
+        mocker.patch("marimba.core.parallel.pipeline_loader.get_file_handler", return_value=logging.NullHandler())
+        logger = logging.getLogger("test_reconfiguring_replaces_previous_prefix")
+        logger.filters = []
+        mock_pipeline = mocker.Mock()
+        mock_pipeline.logger = logger
+        unrelated_filter = logging.Filter()
+        logger.addFilter(unrelated_filter)
+
+        # Act
+        _configure_pipeline_logging(mock_pipeline, Path("/test/root"), "test_pipeline", False, "Collection 01 - ")
+        _configure_pipeline_logging(mock_pipeline, Path("/test/root"), "test_pipeline", False, "Collection 02 - ")
+        record = logger.makeRecord(logger.name, logging.INFO, __file__, 0, "message", (), None)
+        logger.filter(record)
+
+        # Assert
+        assert record.msg == "Collection 02 - message", "Only the latest collection's prefix should be applied"
+        assert len(logger.filters) == 2, "Exactly one prefix filter should remain, alongside the unrelated filter"
+        assert unrelated_filter in logger.filters, "Filters that are not prefix filters should be left in place"
+
+    @pytest.mark.unit
     def test_configure_logging_without_prefix(self, mocker: MockerFixture) -> None:
         """Test configuring pipeline logging without log prefix.
 
@@ -729,6 +760,7 @@ class TestConfigurePipelineLogging:
         mock_pipeline = mocker.Mock()
         mock_pipeline.logger = mocker.Mock()
         mock_pipeline.logger.handlers = [existing_handler]  # Start with existing handler
+        mock_pipeline.logger.filters = []  # No prefix filter left from an earlier collection
 
         mock_handler = mocker.Mock()
         mock_handler.baseFilename = "/test/log/file.log"
@@ -777,6 +809,7 @@ class TestConfigurePipelineLogging:
         # Create a copy to verify initial state
         initial_handlers = [existing_handler1, existing_handler2]
         mock_pipeline.logger.handlers = initial_handlers.copy()
+        mock_pipeline.logger.filters = []  # No prefix filter left from an earlier collection
 
         new_handler = mocker.Mock()
         new_handler.baseFilename = "/test/log/file.log"
@@ -837,6 +870,7 @@ class TestConfigurePipelineLogging:
         mock_pipeline = mocker.Mock()
         mock_pipeline.logger = mocker.Mock()
         mock_pipeline.logger.handlers = [existing_handler1, existing_handler2]
+        mock_pipeline.logger.filters = []  # No prefix filter left from an earlier collection
 
         # Create new handler that will be added
         new_handler = mocker.Mock()
