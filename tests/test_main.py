@@ -673,6 +673,7 @@ class TestCLI:
             ["pipeline1"],  # Should use all available pipelines when none specified
             [],  # extra args
             max_workers=None,
+            allow_existing=False,
         ), "compose should be called with correct dataset name, collections, pipelines, and parameters"
 
         # Assert - Verify get_pipeline_post_processors called with correct pipeline names
@@ -775,6 +776,7 @@ class TestCLI:
             ["pipeline1"],  # Should use all available pipelines when none specified
             [],  # extra args
             max_workers=None,
+            allow_existing=False,
         )
 
         # Verify create_dataset method called with correct parameters including custom options
@@ -1374,6 +1376,7 @@ class TestCommandErrorHandling:
         mock_project_wrapper_class.NoSuchPipelineError = ProjectWrapper.NoSuchPipelineError
         mock_project_wrapper_class.NoSuchCollectionError = ProjectWrapper.NoSuchCollectionError
         mock_project_wrapper_class.ReadOnlyFilesError = ProjectWrapper.ReadOnlyFilesError
+        mock_project_wrapper_class.PackageResumeError = ProjectWrapper.PackageResumeError
 
         # Mock DatasetWrapper class and preserve exception classes
         mock_dataset_wrapper_class = mocker.patch("marimba.main.DatasetWrapper")
@@ -1436,6 +1439,7 @@ class TestCommandErrorHandling:
             ["pipeline1"],  # Should use all available pipelines when none specified
             [],  # extra args
             max_workers=None,
+            allow_existing=False,
         ), "compose should be called with correct parameters before error occurred"
 
         # Assert - Verify create_dataset was NOT called since compose failed

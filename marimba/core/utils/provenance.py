@@ -84,7 +84,7 @@ def _commit_url(repository_url: str, commit: str) -> str:
     return f"{repository_url}/{segment}/{commit}"
 
 
-def _read_git_info(repo_dir: Path) -> dict[str, Any]:
+def read_git_info(repo_dir: Path) -> dict[str, Any]:
     """Read commit, repository URL, release tag and dirty state from a git repository (best-effort)."""
     info: dict[str, Any] = {}
     try:
@@ -115,10 +115,10 @@ def _read_git_info(repo_dir: Path) -> dict[str, Any]:
     return info
 
 
-def _marimba_git_info() -> dict[str, Any]:
+def marimba_git_info() -> dict[str, Any]:
     """Best-effort git info for Marimba itself when running from a source checkout (empty if pip-installed)."""
     # marimba/core/utils/provenance.py -> repo root is parents[3].
-    return _read_git_info(Path(__file__).resolve().parents[3])
+    return read_git_info(Path(__file__).resolve().parents[3])
 
 
 def _git_properties(git_info: dict[str, Any], dirty_description: str) -> dict[str, Any]:
@@ -176,7 +176,7 @@ def _pipeline_agent(dataset_iri: str, name: str, repo_dir: Path) -> dict[str, An
         "@type": ["prov:SoftwareAgent", "schema:SoftwareSourceCode"],
         "schema:name": name,
     }
-    agent.update(_git_properties(_read_git_info(repo_dir), _PIPELINE_DIRTY_DESCRIPTION))
+    agent.update(_git_properties(read_git_info(repo_dir), _PIPELINE_DIRTY_DESCRIPTION))
     return agent
 
 
@@ -212,7 +212,7 @@ def _marimba_agent(dataset_iri: str, marimba_version: str) -> dict[str, Any]:
     if is_release:
         agent["schema:installUrl"] = f"https://pypi.org/project/marimba/{marimba_version}/"
     # The release version already identifies the code; the git tag would only duplicate it.
-    git_info = {**_marimba_git_info(), "url": MARIMBA_REPOSITORY_URL}
+    git_info = {**marimba_git_info(), "url": MARIMBA_REPOSITORY_URL}
     git_info.pop("tag", None)
     if "commit" in git_info:
         agent.update(_git_properties(git_info, _MARIMBA_DIRTY_DESCRIPTION))

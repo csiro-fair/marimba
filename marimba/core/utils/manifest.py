@@ -12,12 +12,16 @@ from collections.abc import Iterable
 from copy import copy
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from rich.progress import Progress, TaskID
 
 from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.hash import compute_hash
 from marimba.lib.decorators import multithreaded
+
+if TYPE_CHECKING:
+    from marimba.core.utils.package_state import HashJournal
 
 
 @dataclass
@@ -114,6 +118,7 @@ class Manifest:
         directory: Path,
         dataset_items: dict[str, list[BaseMetadata]] | None,
         logger: logging.Logger | None,
+        hash_journal: "HashJournal | None" = None,
     ) -> tuple[str, str] | None:
         """
         Process a single file and return its relative-posix path string and hash.
@@ -123,6 +128,7 @@ class Manifest:
             directory: The root directory.
             dataset_items: Pre-computed dataset items.
             logger: Logger for recording information.
+            hash_journal: Optional journal of file hashes to reuse and record.
 
         Returns:
             Tuple of ``(relative_posix_string, hash)`` if successful, None if file should be skipped.
@@ -138,12 +144,17 @@ class Manifest:
                 rel_path.relative_to("data").as_posix() if rel_path_str.startswith("data/") else rel_path_str
             )
 
-            # Try to get hash from metadata first
-            existing_hash = cls._get_hash_from_metadata(metadata_path, dataset_items)
+            # Try to get hash from metadata first. Packaging keys dataset items by their dataset-relative path
+            # (``data/<pipeline>/...``); the ``data/``-stripped form is still accepted for other callers.
+            existing_hash = cls._get_hash_from_metadata(rel_path_str, dataset_items)
+            if existing_hash is None:
+                existing_hash = cls._get_hash_from_metadata(metadata_path, dataset_items)
             if existing_hash is not None:
                 return rel_path_str, existing_hash
 
-            # Compute new hash if needed
+            # Compute new hash if needed, reusing or recording it in the journal for files
+            if hash_journal is not None and item.is_file():
+                return rel_path_str, hash_journal.hash_file(item, rel_path_str)
             return rel_path_str, compute_hash(item, directory)
         except (OSError, PermissionError) as e:
             if logger:
@@ -162,6 +173,7 @@ class Manifest:
         task: TaskID | None,
         logger: logging.Logger | None,
         max_workers: int | None,
+        hash_journal: "HashJournal | None" = None,
     ) -> dict[str, str]:
         """
         Process multiple files with progress tracking and threading.
@@ -175,6 +187,7 @@ class Manifest:
             task: Task ID for progress bar.
             logger: Logger for recording information.
             max_workers: Maximum number of worker processes.
+            hash_journal: Optional journal of file hashes to reuse and record.
 
         Returns:
             Dictionary of ``{relative_posix_string: hash}`` for the processed files.
@@ -210,6 +223,7 @@ class Manifest:
                     directory,
                     dataset_items,
                     logger,
+                    hash_journal,
                 )
                 if result:
                     rel_path_str, file_hash = result
@@ -247,6 +261,7 @@ class Manifest:
         logger: logging.Logger | None = None,
         max_workers: int | None = None,
         files: list[Path] | None = None,
+        hash_journal: "HashJournal | None" = None,
     ) -> "Manifest":
         """
         Create a manifest from a directory.
@@ -262,6 +277,8 @@ class Manifest:
             files: Optional pre-walked file list (skips the internal ``glob("**/*")``).
                 Callers that have already walked ``directory`` can pass the result
                 to avoid a second walk.
+            hash_journal: Optional journal of file hashes; a file whose size and modification time match its
+                journal entry is not rehashed, and newly computed file hashes are recorded.
 
         Returns:
             Manifest: A new Manifest object containing the processed files and their hashes.
@@ -284,6 +301,7 @@ class Manifest:
                 task=task,
                 logger=logger,
                 max_workers=max_workers,
+                hash_journal=hash_journal,
             )
 
             return cls(hashes, logger=logger)
@@ -302,6 +320,7 @@ class Manifest:
         task: TaskID | None = None,
         logger: logging.Logger | None = None,
         files: list[Path] | None = None,
+        hash_journal: "HashJournal | None" = None,
     ) -> bool:
         """
         Validate a directory against the manifest.
@@ -317,6 +336,9 @@ class Manifest:
             logger (logging.Logger | None, optional): A Logger object for logging validation progress and results.
             files: Optional pre-walked file list, forwarded to :meth:`from_dir` so callers can
                 avoid a second ``rglob`` when they have already walked ``directory``.
+            hash_journal: Optional journal of hashes this validation has already verified, so an interrupted
+                validation resumes where it stopped. It must not be a journal of hashes taken while packaging, or
+                validation would not read the files it is meant to verify.
 
         Returns:
             A boolean value indicating whether the directory is valid (True) or not (False).
@@ -334,6 +356,7 @@ class Manifest:
                 task=task,
                 logger=logger,
                 files=files,
+                hash_journal=hash_journal,
             )
         except Exception as e:
             if logger:

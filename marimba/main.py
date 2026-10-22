@@ -34,8 +34,11 @@ Functions:
 import importlib.metadata
 import json
 import logging
+import os
+import signal
 import time
 from pathlib import Path
+from typing import Any
 
 import typer
 from rich import print as rprint
@@ -49,6 +52,7 @@ from marimba.core.utils.dataset import get_mapping_processor_decorator
 from marimba.core.utils.dependencies import ToolDependency, validate_dependencies
 from marimba.core.utils.log import LogLevel, get_logger, get_rich_handler
 from marimba.core.utils.metadata import MetadataSaverTypes, get_saver
+from marimba.core.utils.package_state import PackageState, mapping_destinations_digest
 from marimba.core.utils.paths import find_project_dir_or_exit
 from marimba.core.utils.rich import error_panel, format_entity, success_panel, warning_panel
 from marimba.core.wrappers.dataset import DatasetWrapper
@@ -268,6 +272,85 @@ def import_command(
         raise typer.Exit(1) from None
 
 
+def _nothing_to_resume(
+    project_wrapper: ProjectWrapper,
+    dataset_name: str,
+    *,
+    resume: bool,
+    resume_from_stage: int | None,
+) -> bool:
+    """
+    Check the resume options before packaging starts.
+
+    Returns:
+        True when ``--resume`` names a dataset that already finished packaging, so there is nothing to do.
+
+    Raises:
+        typer.Exit: If a resume option is combined with ``--dry-run``.
+    """
+    if (resume or resume_from_stage is not None) and project_wrapper.dry_run:
+        rprint(error_panel("--resume and --resume-from-stage cannot be combined with --dry-run"))
+        raise typer.Exit(1)
+    if resume and resume_from_stage is None and project_wrapper.is_dataset_packaged(dataset_name):
+        rprint(success_panel(f'Dataset "{dataset_name}" is already packaged; there is nothing to resume.'))
+        return True
+    return False
+
+
+def _open_package_state(
+    project_wrapper: ProjectWrapper,
+    dataset_name: str,
+    dataset_mapping: dict[str, Any],
+    collection_names: list[str],
+    pipeline_names: list[str],
+    options: dict[str, Any],
+    *,
+    resume: bool,
+    resume_from_stage: int | None,
+) -> PackageState | None:
+    """
+    Create or load the packaging checkpoint state for a run; None in dry-run, which writes no state.
+
+    Returns:
+        The state, or None when the run is not checkpointed.
+    """
+    if project_wrapper.dry_run:
+        return None
+    return project_wrapper.open_package_state(
+        dataset_name,
+        project_wrapper.package_fingerprint(dataset_name, collection_names, pipeline_names, options),
+        mapping_destinations_digest(dataset_mapping),
+        resume=resume,
+        resume_from_stage=resume_from_stage,
+    )
+
+
+def _close_packaging(package_state: PackageState | None, dataset_wrapper: DatasetWrapper | None) -> None:
+    """Release the packaging checkpoint state (kept for a resume unless the run finished) and the dataset logs."""
+    if package_state is not None:
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        package_state.close()
+    if dataset_wrapper:
+        dataset_wrapper.close()
+
+
+def _close_state_on_sigterm(package_state: PackageState | None) -> None:
+    """
+    Flush the checkpoint journals and release the packaging lock when the run is terminated.
+
+    A run stopped with SIGTERM before it is killed then leaves no lock behind, so the next run can resume at once
+    instead of waiting for the abandoned lock to go stale.
+    """
+    if package_state is None:
+        return
+
+    def handle_sigterm(signum: int, frame: object) -> None:  # noqa: ARG001
+        package_state.close()
+        os._exit(128 + signum)
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
+
+
 @marimba_cli.command("package")
 def package_command(  # noqa: PLR0915
     dataset_name: str = typer.Argument(..., help="Marimba dataset name."),
@@ -326,6 +409,15 @@ def package_command(  # noqa: PLR0915
         False,
         help="Allow multiple source files to map to the same destination path. Uses the first source file encountered.",
     ),
+    resume: bool = typer.Option(
+        False,
+        help="Resume an interrupted packaging run of this dataset, skipping the work it recorded as complete.",
+    ),
+    resume_from_stage: int | None = typer.Option(
+        None,
+        help="Resume a run whose progress was not recorded from this stage (3-12), taking earlier stages as "
+        "complete once their outputs are confirmed present.",
+    ),
 ) -> None:
     """
     Package up a Marimba collection ready for distribution.
@@ -346,7 +438,12 @@ def package_command(  # noqa: PLR0915
         MetadataGenerationLevelOptions.project,
     ]
     metadata_mapping_processor_decorator = [get_mapping_processor_decorator(level) for level in metadata_level_option]
+
+    if _nothing_to_resume(project_wrapper, dataset_name, resume=resume, resume_from_stage=resume_from_stage):
+        return
+
     dataset_wrapper = None
+    package_state: PackageState | None = None
     try:
         # Compose the dataset
         dataset_mapping = project_wrapper.compose(
@@ -355,7 +452,31 @@ def package_command(  # noqa: PLR0915
             pipeline_names,
             extra,
             max_workers=max_workers,
+            allow_existing=resume or resume_from_stage is not None,
         )
+
+        # Checkpoint the run so it can be resumed if it is interrupted
+        package_state = _open_package_state(
+            project_wrapper,
+            dataset_name,
+            dataset_mapping,
+            collection_names,
+            pipeline_names,
+            {
+                "operation": operation.value,
+                "version": version,
+                "contact_name": contact_name,
+                "contact_email": contact_email,
+                "zoom": zoom,
+                "metadata_output": metadata_output.value if metadata_output is not None else None,
+                "metadata_level": [level.value for level in metadata_level_option],
+                "extra": sorted(extra),
+                "allow_destination_collisions": allow_destination_collisions,
+            },
+            resume=resume,
+            resume_from_stage=resume_from_stage,
+        )
+        _close_state_on_sigterm(package_state)
 
         # Package it
         dataset_wrapper = project_wrapper.create_dataset(
@@ -373,6 +494,7 @@ def package_command(  # noqa: PLR0915
             force=force,
             exif_chunk_size=exif_chunk_size,
             allow_destination_collisions=allow_destination_collisions,
+            package_state=package_state,
         )
 
         elapsed_time = time.time() - start_time
@@ -404,13 +526,16 @@ def package_command(  # noqa: PLR0915
     except ProjectWrapper.ReadOnlyFilesError as e:
         rprint(error_panel(str(e), title="Packaging failed: Read-only files detected"))
         raise typer.Exit(1) from None
+    except ProjectWrapper.PackageResumeError as e:
+        project_wrapper.logger.exception("Cannot start or resume packaging")
+        rprint(error_panel(str(e), title="Cannot start or resume packaging"))
+        raise typer.Exit(1) from None
     except MarimbaError as e:
         project_wrapper.logger.exception("Operation failed")
         rprint(error_panel(f"Could not package collection: {e}"))
         raise typer.Exit(1) from None
     finally:
-        if dataset_wrapper:
-            dataset_wrapper.close()
+        _close_packaging(package_state, dataset_wrapper)
 
 
 @marimba_cli.command("process")

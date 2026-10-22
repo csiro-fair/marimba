@@ -7,6 +7,7 @@ EXIF metadata.
 
 """
 
+import inspect
 import json
 import logging
 import os
@@ -36,6 +37,7 @@ from marimba.core.utils.dataset import (
 from marimba.core.utils.hash import compute_hash
 from marimba.core.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.core.utils.manifest import Manifest
+from marimba.core.utils.package_state import HashJournal, PackageStage, PackageState
 from marimba.core.utils.paths import format_path_for_logging
 from marimba.core.utils.provenance import build_provenance_document
 from marimba.core.utils.rich import get_default_columns
@@ -344,6 +346,7 @@ class DatasetWrapper(LogMixin):
         progress: Progress | None = None,
         task: TaskID | None = None,
         files: list[Path] | None = None,
+        hash_journal: HashJournal | None = None,
     ) -> None:
         """
         Validate the dataset. If the dataset is inconsistent with its manifest (if present), raise a ManifestError.
@@ -354,6 +357,8 @@ class DatasetWrapper(LogMixin):
             files: Optional pre-walked file list (the manifest module will walk
                 ``self.root_dir`` itself when omitted). Pass a cached walk to avoid
                 duplicate ``rglob`` over very large datasets.
+            hash_journal: Journal of hashes already verified by an interrupted validation pass, so a resumed pass
+                reads only the files it had not reached. None hashes every file.
 
         Raises:
             DatasetWrapper.ManifestError: If the dataset is inconsistent with its manifest.
@@ -367,6 +372,7 @@ class DatasetWrapper(LogMixin):
                 task=task,
                 logger=self.logger,
                 files=files,
+                hash_journal=hash_journal,
             ):
                 raise DatasetWrapper.ManifestError(self.manifest_path)
 
@@ -430,6 +436,7 @@ class DatasetWrapper(LogMixin):
         exif_chunk_size: int | None = None,
         *,
         allow_destination_collisions: bool = False,
+        package_state: PackageState | None = None,
     ) -> None:
         """
 
@@ -454,6 +461,9 @@ class DatasetWrapper(LogMixin):
             exif_chunk_size: Chunk size for EXIF metadata processing. If None, uses adaptive sizing (default: None).
             allow_destination_collisions: Allow multiple source files to map to the same destination path.
                 Uses the first source file encountered (default: False).
+            package_state: Checkpoint state of a resumable run. Stages it records as complete are skipped, partly
+                completed stages resume, and each stage is recorded as it completes. None packages without
+                checkpointing (default: None).
 
 
         Raises:
@@ -461,7 +471,8 @@ class DatasetWrapper(LogMixin):
             IOError: If there are issues reading from or writing to files or directories.
             MetadataError: If there are problems processing or generating metadata.
         """
-        started_datetime = datetime.now(UTC)
+        state = package_state
+        started_datetime = state.started_at if state is not None else datetime.now(UTC)
         pipeline_label = "pipeline" if len(dataset_mapping) == 1 else "pipelines"
         self.logger.info(
             f'Started packaging dataset "{dataset_name}" containing {len(dataset_mapping)} {pipeline_label}',
@@ -473,28 +484,72 @@ class DatasetWrapper(LogMixin):
             max_workers,
             allow_destination_collisions=allow_destination_collisions,
         )
-        mapped_dataset_items = self._populate_files(dataset_mapping, operation, max_workers)
-        self._process_files_with_metadata(reduced_dataset_mapping, max_workers, exif_chunk_size)
-        self.generate_metadata(dataset_name, mapped_dataset_items, mapping_processor_decorator, max_workers)
+        mapped_dataset_items = self._populate_files(dataset_mapping, operation, max_workers, state=state)
+        self._process_files_with_metadata(reduced_dataset_mapping, max_workers, exif_chunk_size, state=state)
+        hashes = state.hashes if state is not None else None
+        self._run_stage(
+            state,
+            PackageStage.DATASET_METADATA,
+            lambda: self.generate_metadata(
+                dataset_name,
+                mapped_dataset_items,
+                mapping_processor_decorator,
+                max_workers,
+                hash_journal=hashes,
+            ),
+        )
         dataset_items = flatten_mapping(flatten_middle_mapping(mapped_dataset_items))
 
-        self.generate_dataset_summary(dataset_items, max_workers=max_workers)
-        self._generate_dataset_map(dataset_items, zoom)
-        self._copy_pipelines(project_pipelines_dir)
-        self._copy_logs(project_log_path, pipeline_log_paths)
-        self._generate_provenance(dataset_mapping, project_pipelines_dir, started_datetime)
-        self._generate_manifest(dataset_items, max_workers)
+        self._run_stage(
+            state,
+            PackageStage.SUMMARY,
+            lambda: self.generate_dataset_summary(dataset_items, max_workers=max_workers),
+        )
+        self._run_stage(state, PackageStage.MAP, lambda: self._generate_dataset_map(dataset_items, zoom))
+        self._run_stage(state, PackageStage.PIPELINES, lambda: self._copy_pipelines(project_pipelines_dir))
+
+        def copy_logs_and_provenance() -> None:
+            self._copy_logs(project_log_path, pipeline_log_paths)
+            self._generate_provenance(dataset_mapping, project_pipelines_dir, started_datetime)
+
+        self._run_stage(state, PackageStage.LOGS, copy_logs_and_provenance)
+        self._run_stage(
+            state,
+            PackageStage.MANIFEST,
+            lambda: self._generate_manifest(dataset_items, max_workers, hash_journal=hashes),
+        )
 
         self.logger.info(f'Completed packaging dataset "{dataset_name}"')
 
-        changed_files = self._run_post_package_processors(post_package_processors)
-        self._update_manifest(changed_files, max_workers)
+        def run_post_package_processors() -> None:
+            changed_files = self._run_post_package_processors(post_package_processors)
+            self._update_manifest(changed_files, max_workers)
+
+        self._run_stage(state, PackageStage.POST_PACKAGE, run_post_package_processors)
+
+    def _run_stage(self, state: PackageState | None, stage: PackageStage, run: Callable[[], None]) -> None:
+        """
+        Run one packaging stage, skipping it when the checkpoint state records it complete.
+
+        Args:
+            state: Checkpoint state of a resumable run, or None to always run the stage.
+            stage: The stage being run.
+            run: Callable performing the stage.
+        """
+        if state is not None and state.is_done(stage):
+            self.logger.info(f"Skipping packaging stage {int(stage)} ({stage.label}): completed in an earlier run")
+            return
+        run()
+        if state is not None and not self.dry_run:
+            state.mark_done(stage)
 
     def _populate_files(  # noqa: C901
         self,
         dataset_mapping: DATASET_MAPPING_TYPE,
         operation: Operation,
         max_workers: int | None = None,
+        *,
+        state: PackageState | None = None,
     ) -> dict[str, dict[str, dict[str, list[BaseMetadata]]]]:
         """
         Copy or move files from the dataset mapping to the destination directory.
@@ -503,10 +558,18 @@ class DatasetWrapper(LogMixin):
             dataset_mapping: The dataset mapping containing source and destination paths.
             operation: The operation to perform (copy, move, link).
             max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
+            state: Checkpoint state of a resumable run. When it records this stage complete, only the dataset items
+                are rebuilt; when the stage was interrupted, files already in place are left alone.
 
         Returns:
             Dict[str, BaseMetadata]: A dictionary of dataset items for further processing.
         """
+        stage_done = state is not None and state.is_done(PackageStage.POPULATE)
+        resuming = state is not None and not stage_done
+        if stage_done:
+            self.logger.info(
+                f"Skipping packaging stage {int(PackageStage.POPULATE)} file operations: completed in an earlier run",
+            )
 
         @multithreaded(max_workers=max_workers)
         def process_file(
@@ -530,32 +593,12 @@ class DatasetWrapper(LogMixin):
                 dst_relative = dst.relative_to(self.root_dir)
                 dataset_items[dst_relative.as_posix()] = data_list
 
-            if not self.dry_run:
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                if operation == Operation.copy:
-                    copy2(src, dst)
-                    if logger:
-                        logger.debug(
-                            f"Thread {thread_num} - Copied file "
-                            f"{format_path_for_logging(src, self._project_dir)} to "
-                            f"{format_path_for_logging(dst, self._project_dir)}",
-                        )
-                elif operation == Operation.move:
-                    src.rename(dst)
-                    if logger:
-                        logger.debug(
-                            f"Thread {thread_num} - Moved file "
-                            f"{format_path_for_logging(src, self._project_dir)} to "
-                            f"{format_path_for_logging(dst, self._project_dir)}",
-                        )
-                elif operation == Operation.link:
-                    os.link(src, dst)
-                    if logger:
-                        logger.debug(
-                            f"Thread {thread_num} - Linked file "
-                            f"{format_path_for_logging(src, self._project_dir)} to "
-                            f"{format_path_for_logging(dst, self._project_dir)}",
-                        )
+            if (
+                not self.dry_run
+                and not stage_done
+                and not (resuming and self._is_already_populated(src, dst, operation))
+            ):
+                self._place_file(src, dst, operation, thread_num, logger, replace_partial=resuming)
 
             if progress and tasks_by_pipeline_name:
                 progress.advance(tasks_by_pipeline_name[pipeline_name])
@@ -603,7 +646,77 @@ class DatasetWrapper(LogMixin):
                             f'Completed populating data for pipeline "{pipeline_name}"',
                         )
 
+        if resuming and state is not None and not self.dry_run:
+            state.mark_done(PackageStage.POPULATE)
+
         return dataset_items
+
+    def _place_file(
+        self,
+        src: Path,
+        dst: Path,
+        operation: Operation,
+        thread_num: str,
+        logger: logging.Logger | None,
+        *,
+        replace_partial: bool = False,
+    ) -> None:
+        """
+        Copy, move or hard-link one file into the dataset.
+
+        Args:
+            src: Source path.
+            dst: Destination path.
+            operation: The populate operation.
+            thread_num: Worker thread identifier for logging.
+            logger: Logger for the per-file debug record.
+            replace_partial: Delete an existing destination first, replacing a file an interrupted run left
+                part-written.
+        """
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if replace_partial and operation != Operation.move:
+            dst.unlink(missing_ok=True)
+        if operation == Operation.copy:
+            copy2(src, dst)
+            verb = "Copied"
+        elif operation == Operation.move:
+            src.rename(dst)
+            verb = "Moved"
+        elif operation == Operation.link:
+            os.link(src, dst)
+            verb = "Linked"
+        else:
+            return
+        if logger:
+            logger.debug(
+                f"Thread {thread_num} - {verb} file "
+                f"{format_path_for_logging(src, self._project_dir)} to "
+                f"{format_path_for_logging(dst, self._project_dir)}",
+            )
+
+    @staticmethod
+    def _is_already_populated(src: Path, dst: Path, operation: Operation) -> bool:
+        """
+        Whether an interrupted run already placed ``src`` at ``dst``.
+
+        Args:
+            src: Source path.
+            dst: Destination path.
+            operation: The populate operation.
+
+        Returns:
+            True when the destination is complete and need not be redone.
+        """
+        if operation == Operation.move:
+            return dst.exists() and not src.exists()
+        if not dst.exists():
+            return False
+        if operation == Operation.link:
+            return src.samefile(dst)
+        # copy2 preserves the modification time, so a complete copy matches the source in size and mtime. Comparing
+        # whole seconds tolerates filesystems that store coarser timestamps; a mismatch only costs a recopy.
+        src_stat, dst_stat = src.stat(), dst.stat()
+        return src_stat.st_size == dst_stat.st_size and int(src_stat.st_mtime) == int(dst_stat.st_mtime)
 
     def _process_files_with_metadata(
         self,
@@ -613,6 +726,8 @@ class DatasetWrapper(LogMixin):
         ],
         max_workers: int | None = None,
         exif_chunk_size: int | None = None,
+        *,
+        state: PackageState | None = None,
     ) -> None:
         """
         Process files with their associated metadata types.
@@ -621,15 +736,75 @@ class DatasetWrapper(LogMixin):
             dataset_mapping: The dataset mapping containing source and destination paths.
             max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
             exif_chunk_size: Chunk size for EXIF metadata processing. If None, uses adaptive sizing.
+            state: Checkpoint state of a resumable run. Files it records as processed are not processed again; the
+                state their processing derived (for example iFDO image entropy) is restored from the journal.
         """
-        # Group files by metadata type
-        files_by_type: dict[
-            type,
-            dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
-        ] = {}
-
         # Deterministic image-set UUID used to namespace per-image UUIDs (see ensure_image_uuid).
         image_set_uuid = self.image_set_uuid
+        files_by_type = self._group_files_by_metadata_type(dataset_mapping, image_set_uuid)
+
+        if state is not None:
+            files_by_type = self._restore_processed_metadata_files(files_by_type, state)
+            if state.resumed and not state.is_done(PackageStage.PROCESS_METADATA_FILES) and not self.dry_run:
+                self._remove_exiftool_leftovers(files_by_type)
+            if state.is_done(PackageStage.PROCESS_METADATA_FILES):
+                self.logger.info(
+                    f"Skipping packaging stage {int(PackageStage.PROCESS_METADATA_FILES)} "
+                    f"({PackageStage.PROCESS_METADATA_FILES.label}): completed in an earlier run",
+                )
+                return
+
+        # Process files for each metadata type
+        for metadata_type, files in files_by_type.items():
+            if state is not None and not files:
+                continue
+            kwargs: dict[str, Any] = {}
+            if state is not None and not self.dry_run:
+                journal_files = self._metadata_files_journaller(files, state)
+                # Only pass the callback to implementations that accept it, so pipeline-defined metadata types
+                # written before it existed keep working (they resume per stage instead of per batch).
+                if "on_files_done" in inspect.signature(metadata_type.process_files).parameters:
+                    kwargs["on_files_done"] = journal_files
+            metadata_type.process_files(
+                dataset_mapping=files,
+                max_workers=max_workers,
+                logger=self.logger,
+                dry_run=self.dry_run,
+                chunk_size=exif_chunk_size,
+                image_set_uuid=image_set_uuid,
+                **kwargs,
+            )
+            if state is not None and not self.dry_run:
+                journal_files(list(files))
+
+        total_files = sum(len(files) for files in files_by_type.values())
+        self.logger.info(f"Processed {total_files} files with metadata")
+
+        if state is not None and not self.dry_run:
+            state.mark_done(PackageStage.PROCESS_METADATA_FILES)
+
+    def _group_files_by_metadata_type(
+        self,
+        dataset_mapping: dict[
+            str,
+            dict[Path, tuple[Path, list[BaseMetadata] | None, dict[str, Any] | None]],
+        ],
+        image_set_uuid: str,
+    ) -> dict[type[BaseMetadata], dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]]]:
+        """
+        Group files with metadata by metadata type, assigning deterministic per-image UUIDs on the way.
+
+        Args:
+            dataset_mapping: The dataset mapping containing source and destination paths.
+            image_set_uuid: The dataset's image-set UUID, namespacing the per-image UUIDs.
+
+        Returns:
+            Destination paths with their metadata items and ancillary data, grouped by metadata type.
+        """
+        files_by_type: dict[
+            type[BaseMetadata],
+            dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
+        ] = {}
 
         for pipeline_name, pipeline_data_mapping in dataset_mapping.items():
             for (
@@ -643,7 +818,7 @@ class DatasetWrapper(LogMixin):
                 dst = self.get_pipeline_data_dir(pipeline_name) / relative_dst
 
                 # Assign a deterministic per-image UUID where the pipeline did not supply one. This runs
-                # before EXIF embedding below so the UUID reaches both the embedded ImageUniqueID tag and
+                # before EXIF embedding so the UUID reaches both the embedded ImageUniqueID tag and
                 # the iFDO record (they share the same ImageData object).
                 relative_path = dst.relative_to(self.root_dir).as_posix()
                 for item in metadata_items:
@@ -657,19 +832,93 @@ class DatasetWrapper(LogMixin):
 
                 files_by_type[metadata_type][dst] = (metadata_items, ancillary_data)
 
-        # Process files for each metadata type
-        for metadata_type, files in files_by_type.items():
-            metadata_type.process_files(
-                dataset_mapping=files,
-                max_workers=max_workers,
-                logger=self.logger,
-                dry_run=self.dry_run,
-                chunk_size=exif_chunk_size,
-                image_set_uuid=image_set_uuid,
-            )
+        return files_by_type
 
-        total_files = sum(len(files) for files in files_by_type.values())
-        self.logger.info(f"Processed {total_files} files with metadata")
+    def _restore_processed_metadata_files(
+        self,
+        files_by_type: dict[type[BaseMetadata], dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]]],
+        state: PackageState,
+    ) -> dict[type[BaseMetadata], dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]]]:
+        """
+        Restore derived state for journalled files and drop them from the files still to process.
+
+        Args:
+            files_by_type: Files to process, grouped by metadata type.
+            state: Checkpoint state of the run.
+
+        Returns:
+            The files still to process, grouped by metadata type.
+        """
+        journal = state.metadata_files
+        remaining: dict[type[BaseMetadata], dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]]] = {}
+        restored = 0
+        for metadata_type, files in files_by_type.items():
+            pending = {}
+            for dst, (metadata_items, ancillary_data) in files.items():
+                derived_states = journal.get(dst.relative_to(self.root_dir).as_posix())
+                if derived_states is None:
+                    pending[dst] = (metadata_items, ancillary_data)
+                    continue
+                for item, derived_state in zip(metadata_items, derived_states, strict=False):
+                    item.apply_derived_state(derived_state)
+                restored += 1
+            remaining[metadata_type] = pending
+        if restored:
+            self.logger.info(f"Restored {restored} files processed with metadata in an earlier run")
+        return remaining
+
+    def _remove_exiftool_leftovers(
+        self,
+        files_by_type: dict[type[BaseMetadata], dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]]],
+    ) -> None:
+        """
+        Delete the temporary files ExifTool leaves beside a file when it is killed mid-write.
+
+        ExifTool refuses to write a file whose ``<name>_exiftool_tmp`` already exists, and EXIF is written a batch at
+        a time, so one leftover would leave its whole batch without metadata. Only the directories of files still to
+        be processed are listed, once each.
+
+        Args:
+            files_by_type: Files still to process, grouped by metadata type.
+        """
+        suffix = "_exiftool_tmp"
+        directories = {path.parent for files in files_by_type.values() for path in files}
+        removed = 0
+        for directory in directories:
+            with os.scandir(directory) as entries:
+                leftovers = [entry.path for entry in entries if entry.name.endswith(suffix)]
+            for leftover in leftovers:
+                Path(leftover).unlink(missing_ok=True)
+                removed += 1
+        if removed:
+            self.logger.warning(f"Removed {removed} temporary files left by an interrupted EXIF write")
+
+    def _metadata_files_journaller(
+        self,
+        files: dict[Path, tuple[list[BaseMetadata], dict[str, Any] | None]],
+        state: PackageState,
+    ) -> Callable[[list[Path]], None]:
+        """
+        Build the callback that journals processed files with the state their processing derived.
+
+        Args:
+            files: The files being processed, with their metadata items.
+            state: Checkpoint state of the run.
+
+        Returns:
+            A callable taking the paths of a completed batch; paths already journalled are ignored.
+        """
+        journal = state.metadata_files
+
+        def journal_files(paths: list[Path]) -> None:
+            for path in paths:
+                rel_path = path.relative_to(self.root_dir).as_posix()
+                if journal.get(rel_path) is not None:
+                    continue
+                metadata_items, _ = files[path]
+                journal.record(rel_path, [item.get_derived_state() for item in metadata_items])
+
+        return journal_files
 
     def _update_metadata_hashes(
         self,
@@ -677,11 +926,15 @@ class DatasetWrapper(LogMixin):
         metadata_items: list[BaseMetadata],
         progress: Progress | None = None,
         task: TaskID | None = None,
+        hash_journal: HashJournal | None = None,
     ) -> None:
-        """Update hash values for metadata items."""
+        """Update hash values for metadata items, reusing journalled hashes of unchanged files."""
         file_data_path = Path(file_path)
         if file_data_path.is_file():
-            file_hash = compute_hash(file_data_path)
+            if hash_journal is None:
+                file_hash = compute_hash(file_data_path)
+            else:
+                file_hash = hash_journal.hash_file(file_data_path, file_data_path.relative_to(self.root_dir).as_posix())
             for metadata_item in metadata_items:
                 metadata_item.hash_sha256 = file_hash
 
@@ -694,6 +947,7 @@ class DatasetWrapper(LogMixin):
         progress: Progress | None = None,
         task: TaskID | None = None,
         max_workers: int | None = None,
+        hash_journal: HashJournal | None = None,
     ) -> dict[str, list[BaseMetadata]]:
         """Process all items and return them sorted by path."""
 
@@ -708,7 +962,7 @@ class DatasetWrapper(LogMixin):
         ) -> None:
             """Process items and calculate their hashes in parallel."""
             file_path, metadata_items = item
-            self._update_metadata_hashes(file_path, metadata_items, progress, task)
+            self._update_metadata_hashes(file_path, metadata_items, progress, task, hash_journal)
 
         items = [
             (Path(self.root_dir) / file_path, metadata_items) for file_path, metadata_items in dataset_items.items()
@@ -776,6 +1030,7 @@ class DatasetWrapper(LogMixin):
         max_workers: int | None = None,
         *,
         progress: bool = True,
+        hash_journal: HashJournal | None = None,
     ) -> None:
         """
         Generate metadata for a dataset.
@@ -789,6 +1044,8 @@ class DatasetWrapper(LogMixin):
             mapping_processor_decorator: Dataset mapping processor decorator.
             progress: Whether to display a progress bar. Defaults to True.
             max_workers: Maximum number of worker processes to use. If None, uses all available CPU cores.
+            hash_journal: Journal of file hashes from earlier in a resumable run; unchanged files are not rehashed
+                and newly computed hashes are recorded in it. None always hashes.
 
         Raises:
             FileNotFoundError: If a file specified in dataset_items is not found in the data directory.
@@ -810,6 +1067,7 @@ class DatasetWrapper(LogMixin):
                         progress_bar,
                         task,
                         max_workers,
+                        hash_journal,
                     ),
                 )
                 grouped_items = execute_on_mapping(
@@ -829,7 +1087,10 @@ class DatasetWrapper(LogMixin):
 
                 progress_bar.advance(task)
         else:
-            processed_items = execute_on_mapping(dataset_items, self._process_items)
+            processed_items = execute_on_mapping(
+                dataset_items,
+                lambda x: self._process_items(x, max_workers=max_workers, hash_journal=hash_journal),
+            )
             grouped_items = execute_on_mapping(processed_items, self._group_by_metadata_type)
             for decorator in mapping_processor_decorator:
                 decorator(
@@ -1087,6 +1348,7 @@ class DatasetWrapper(LogMixin):
         self,
         dataset_items: dict[str, list[BaseMetadata]],
         max_workers: int | None = None,
+        hash_journal: HashJournal | None = None,
     ) -> None:
         """
         Generate and save the manifest for the dataset, excluding certain paths.
@@ -1113,6 +1375,7 @@ class DatasetWrapper(LogMixin):
                 logger=self.logger,
                 max_workers=max_workers,
                 files=globbed_files,
+                hash_journal=hash_journal,
             )
             manifest.header = {
                 "image-set-uuid": self.image_set_uuid,

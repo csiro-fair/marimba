@@ -5,7 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Resumable packaging. `marimba package` records its progress under `<project>/.marimba/package/<dataset>/` as it runs, and `marimba package --resume` finishes an interrupted run: it skips completed stages, continues the interrupted stage where it stopped, and reuses every file hash already computed instead of rehashing. A resume is refused if the run's inputs have changed, and a lock stops two runs packaging the same dataset at once. `--resume-from-stage N` resumes a run that predates this, taking earlier stages as complete once their outputs are confirmed present. Metadata types can accept an optional `on_files_done` callback in `process_files`, and override `get_derived_state` / `apply_derived_state`, to resume metadata embedding batch by batch; the iFDO type does both.
+
 ### Fixed
+- The packaging summary opened every image one after another to read its size and colour depth, which on a network filesystem took over 12 hours for a 1.37 million image dataset. It now reads them in parallel with the packaging worker threads.
+- `multithreaded_generate_image_thumbnails` returned thumbnails in the order its threads finished rather than the order of the images given, though it was documented as sorted. Pipelines that sample the list into an overview grid got an arbitrary, unordered set of frames that changed from run to run. It now returns them in input order.
+- Manifest generation rehashed every file that dataset-metadata generation had already hashed, because it looked the stored hashes up under a path without the `data/` prefix. It now reuses them, so each of those files is hashed once while packaging instead of twice.
 - `marimba distribute --dry-run` uploaded the dataset anyway: the flag reached the project wrapper but was never passed on to the distribution target. A dry run now resolves the destination, file list, keys and total size, logs them (per-file keys at DEBUG), and stops before transferring anything. Manifest validation still runs, as a dry run is a preview of the real run.
 
 ### Changed

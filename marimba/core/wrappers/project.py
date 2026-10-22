@@ -20,6 +20,7 @@ from typing import Any
 
 from rich.progress import Progress, SpinnerColumn
 
+import marimba
 from marimba.core import MarimbaError
 from marimba.core.installer.pipeline_installer import PipelineInstaller
 from marimba.core.parallel.pipeline_loader import load_pipeline_instance
@@ -28,10 +29,17 @@ from marimba.core.schemas.base import BaseMetadata
 from marimba.core.utils.constants import Operation
 from marimba.core.utils.dataset import DECORATOR_TYPE
 from marimba.core.utils.log import LogMixin, get_file_handler
+from marimba.core.utils.package_state import (
+    FIRST_RESUMABLE_STAGE,
+    PackageStage,
+    PackageState,
+    PackageStateError,
+)
 from marimba.core.utils.paths import (
     format_path_for_logging,
     remove_directory_tree,
 )
+from marimba.core.utils.provenance import marimba_git_info, read_git_info
 from marimba.core.utils.rich import get_default_columns
 from marimba.core.wrappers import _collection_schema, _safety
 from marimba.core.wrappers.collection import CollectionWrapper
@@ -372,6 +380,11 @@ class ProjectWrapper(LogMixin):
     class ReadOnlyFilesError(MarimbaError):
         """
         Raised when read-only files are detected during packaging.
+        """
+
+    class PackageResumeError(MarimbaError):
+        """
+        Raised when a packaging run cannot be started or resumed from its checkpoint state.
         """
 
     class DeletePipelineError(MarimbaError):
@@ -1081,6 +1094,8 @@ class ProjectWrapper(LogMixin):
         pipeline_names: list[str],
         extra_args: list[str] | None = None,
         max_workers: int | None = None,
+        *,
+        allow_existing: bool = False,
         **kwargs: dict[str, Any],
     ) -> dict[
         str,
@@ -1102,6 +1117,8 @@ class ProjectWrapper(LogMixin):
             pipeline_names: A list of strings containing the names of the pipelines to use for composition.
             extra_args: An optional list of strings containing extra CLI arguments to pass to the command.
             max_workers: The maximum number of worker processes to use. If None, uses all available CPU cores.
+            allow_existing: Compose even though the dataset directory exists, to resume an interrupted packaging
+                run into it.
             **kwargs: Additional keyword arguments to pass to the command.
 
         Returns:
@@ -1116,7 +1133,9 @@ class ProjectWrapper(LogMixin):
         """
         # Check that the dataset directory doesn't already exist
         dataset_root_dir = self.datasets_dir / dataset_name
-        if dataset_root_dir.is_dir():
+        if dataset_root_dir.is_dir() and not allow_existing:
+            if PackageState.exists(self.package_state_dir(dataset_name)):
+                raise ProjectWrapper.PackageResumeError(self._interrupted_run_message(dataset_name))
             raise FileExistsError(dataset_root_dir)
 
         # Get the collection wrappers
@@ -1223,6 +1242,7 @@ class ProjectWrapper(LogMixin):
         force: bool = False,
         exif_chunk_size: int | None = None,
         allow_destination_collisions: bool = False,
+        package_state: PackageState | None = None,
     ) -> DatasetWrapper:
         """
         Create a Marimba dataset from a dataset mapping.
@@ -1244,6 +1264,9 @@ class ProjectWrapper(LogMixin):
             exif_chunk_size: Chunk size for EXIF metadata processing. If None, uses adaptive sizing. Defaults to None.
             allow_destination_collisions: Allow multiple source files to map to the same destination path.
                 Uses the first source file encountered. Defaults to False.
+            package_state: Checkpoint state from :meth:`open_package_state`. When the dataset directory already
+                exists the run resumes into it, skipping completed stages; the state is deleted once the dataset
+                validates. None packages without checkpointing. Defaults to None.
 
         Returns:
             A DatasetWrapper instance representing the created dataset.
@@ -1257,23 +1280,41 @@ class ProjectWrapper(LogMixin):
         # Check the name is valid
         ProjectWrapper.check_name(dataset_name)
 
-        # Create the dataset
+        # Create the dataset, or reopen the one an interrupted run left behind
         dataset_root_dir = self.datasets_dir / dataset_name
-        dataset_wrapper = DatasetWrapper.create(
-            dataset_root_dir,
-            version=version,
-            contact_name=contact_name,
-            contact_email=contact_email,
-            dry_run=self.dry_run,
-            metadata_saver=metadata_saver_overwrite,
-        )
+        resuming = package_state is not None and dataset_root_dir.is_dir()
+        if package_state is not None and resuming:
+            self.logger.info(
+                f'Resuming packaging of dataset "{dataset_name}"',
+                extra={"completed_stages": [int(stage) for stage in package_state.completed_stages]},
+            )
+            dataset_wrapper = DatasetWrapper(
+                dataset_root_dir,
+                version=version,
+                contact_name=contact_name,
+                contact_email=contact_email,
+                dry_run=self.dry_run,
+                metadata_saver_overwrite=metadata_saver_overwrite,
+            )
+        else:
+            dataset_wrapper = DatasetWrapper.create(
+                dataset_root_dir,
+                version=version,
+                contact_name=contact_name,
+                contact_email=contact_email,
+                dry_run=self.dry_run,
+                metadata_saver=metadata_saver_overwrite,
+            )
 
-        # Check for read-only files that will fail EXIF writing during packaging (fail fast)
-        self._check_readonly_files_and_fail(dataset_mapping)
+        # The safety checks guard the metadata-embedding stage, so a resume past it skips them
+        if package_state is None or not package_state.is_done(PackageStage.PROCESS_METADATA_FILES):
+            # Check for read-only files that will fail EXIF writing during packaging (fail fast)
+            self._check_readonly_files_and_fail(dataset_mapping)
 
-        # Check for hard-linked files that will be modified during packaging
-        if not force and operation == Operation.link:
-            self._check_hardlinks_and_warn(dataset_mapping)
+            # Check for hard-linked files that will be modified during packaging. A resumed run skips it: the
+            # interrupted run passed it before populating, and its own links into the dataset would now trip it.
+            if not force and operation == Operation.link and not resuming:
+                self._check_hardlinks_and_warn(dataset_mapping)
 
         # Populate it
         dataset_wrapper.populate(
@@ -1289,24 +1330,254 @@ class ProjectWrapper(LogMixin):
             max_workers=max_workers,
             exif_chunk_size=exif_chunk_size,
             allow_destination_collisions=allow_destination_collisions,
+            package_state=package_state,
         )
 
         # Validate it. Walk the dataset tree once and reuse the list across the
         # progress total and the manifest-validate hash pass.
-        with Progress(SpinnerColumn(), *get_default_columns()) as progress:
-            globbed_files = list(dataset_wrapper.root_dir.glob("**/*"))
-            task = progress.add_task(
-                "[green]Validating dataset (12/12)",
-                total=len(globbed_files),
-            )
-            dataset_wrapper.validate(progress, task, files=globbed_files)
-            dataset_wrapper.logger.info(
-                f'Packaged dataset "{dataset_name}" has been validated against the manifest',
-            )
-            progress.advance(task)
+        if package_state is None or not package_state.is_done(PackageStage.VALIDATE):
+            with Progress(SpinnerColumn(), *get_default_columns()) as progress:
+                globbed_files = list(dataset_wrapper.root_dir.glob("**/*"))
+                task = progress.add_task(
+                    "[green]Validating dataset (12/12)",
+                    total=len(globbed_files),
+                )
+                dataset_wrapper.validate(
+                    progress,
+                    task,
+                    files=globbed_files,
+                    hash_journal=package_state.verified if package_state is not None else None,
+                )
+                dataset_wrapper.logger.info(
+                    f'Packaged dataset "{dataset_name}" has been validated against the manifest',
+                )
+                progress.advance(task)
+
+        if package_state is not None and not self.dry_run:
+            package_state.finish()
 
         self._dataset_wrappers[dataset_name] = dataset_wrapper
         return dataset_wrapper
+
+    def package_state_dir(self, dataset_name: str) -> Path:
+        """
+        Directory holding the packaging checkpoint state of a dataset.
+
+        Args:
+            dataset_name: The dataset name.
+
+        Returns:
+            ``<project>/.marimba/package/<dataset_name>``.
+        """
+        return self.marimba_dir / "package" / dataset_name
+
+    def is_dataset_packaged(self, dataset_name: str) -> bool:
+        """
+        Whether a dataset finished packaging: it has a manifest and no interrupted run's checkpoint state.
+
+        Args:
+            dataset_name: The dataset name.
+
+        Returns:
+            True when the dataset is complete.
+        """
+        dataset_dir = self.datasets_dir / dataset_name
+        return (dataset_dir / "manifest.txt").is_file() and not PackageState.exists(
+            self.package_state_dir(dataset_name),
+        )
+
+    def package_fingerprint(
+        self,
+        dataset_name: str,
+        collection_names: list[str],
+        pipeline_names: list[str],
+        options: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Fingerprint the inputs of a packaging run, so a resume can confirm it continues the same run.
+
+        Args:
+            dataset_name: The dataset name.
+            collection_names: Collections being packaged.
+            pipeline_names: Pipelines being packaged.
+            options: Packaging options that change the packaged output.
+
+        Returns:
+            A JSON-serialisable fingerprint.
+        """
+        pipelines = {}
+        for name in sorted(pipeline_names):
+            pipeline_wrapper = self.pipeline_wrappers.get(name)
+            git_info = read_git_info(pipeline_wrapper.repo_dir) if pipeline_wrapper is not None else {}
+            pipelines[name] = {key: git_info[key] for key in ("commit", "dirty") if key in git_info}
+        marimba_git = marimba_git_info()
+        return {
+            "dataset": dataset_name,
+            "collections": sorted(collection_names),
+            "pipelines": pipelines,
+            "marimba_version": marimba.__version__,
+            "marimba_commit": marimba_git.get("commit"),
+            **options,
+        }
+
+    def open_package_state(
+        self,
+        dataset_name: str,
+        fingerprint: dict[str, Any],
+        destinations: dict[str, Any],
+        *,
+        resume: bool = False,
+        resume_from_stage: int | None = None,
+    ) -> PackageState | None:
+        """
+        Create or load the checkpoint state for a packaging run and take its lock.
+
+        A fresh run gets new state, unless an interrupted run's state is waiting to be resumed. ``resume`` loads that
+        state after checking the run's inputs are unchanged. ``resume_from_stage`` resumes a run whose progress was
+        not recorded (for example one packaged before checkpointing existed): every stage before it is taken as
+        complete once its outputs are confirmed present.
+
+        Args:
+            dataset_name: The dataset name.
+            fingerprint: Fingerprint from :meth:`package_fingerprint`.
+            destinations: Destination digest of the composed dataset mapping.
+            resume: Resume an interrupted run from its recorded progress.
+            resume_from_stage: Resume from this stage number (3-12), taking earlier stages as complete.
+
+        Returns:
+            The state, or None when a fresh run would collide with an existing dataset (packaging then fails with
+            the usual "already exists" error before writing anything).
+
+        Raises:
+            ProjectWrapper.PackageResumeError: If the run cannot be started or resumed.
+        """
+        root = self.package_state_dir(dataset_name)
+        dataset_dir = self.datasets_dir / dataset_name
+        has_state = PackageState.exists(root)
+
+        try:
+            if resume_from_stage is not None:
+                return self._open_package_state_from_stage(
+                    root,
+                    dataset_dir,
+                    fingerprint,
+                    destinations,
+                    resume_from_stage,
+                    has_state=has_state,
+                )
+
+            if resume:
+                if not has_state:
+                    msg = (
+                        f'No interrupted packaging run of "{dataset_name}" to resume. If it was packaged by a Marimba '
+                        f"version without resumable packaging, resume it with --resume-from-stage."
+                    )
+                    raise ProjectWrapper.PackageResumeError(msg)
+                return self._load_package_state(root, fingerprint, destinations)
+
+            if has_state:
+                if dataset_dir.exists():
+                    raise ProjectWrapper.PackageResumeError(self._interrupted_run_message(dataset_name))
+                self.logger.debug(f'Discarding stale packaging state for "{dataset_name}"')
+            if dataset_dir.exists():
+                return None
+            return PackageState.create(root, fingerprint, destinations)
+        except PackageStateError as e:
+            raise ProjectWrapper.PackageResumeError(str(e)) from e
+
+    def _interrupted_run_message(self, dataset_name: str) -> str:
+        """Explain that an interrupted run blocks a fresh one, and how to proceed."""
+        return (
+            f'An interrupted packaging run of "{dataset_name}" exists. Resume it with --resume, or delete '
+            f"{self.datasets_dir / dataset_name} and {self.package_state_dir(dataset_name)} to package from scratch."
+        )
+
+    def _load_package_state(
+        self,
+        root: Path,
+        fingerprint: dict[str, Any],
+        destinations: dict[str, Any],
+    ) -> PackageState:
+        """Load checkpoint state, refusing it when the run's inputs or destinations have changed."""
+        state = PackageState.load(root)
+        differences = state.fingerprint_differences(fingerprint)
+        if state.destinations != destinations:
+            recorded_count, current_count = state.destinations.get("count"), destinations.get("count")
+            detail = " (same count, different paths)" if recorded_count == current_count else ""
+            differences.append(f"destinations: {recorded_count} files -> {current_count} files{detail}")
+        if differences:
+            state.close()
+            msg = "Packaging inputs differ from the interrupted run, so it cannot be resumed:\n  " + "\n  ".join(
+                differences,
+            )
+            raise ProjectWrapper.PackageResumeError(msg)
+        return state
+
+    def _open_package_state_from_stage(
+        self,
+        root: Path,
+        dataset_dir: Path,
+        fingerprint: dict[str, Any],
+        destinations: dict[str, Any],
+        resume_from_stage: int,
+        *,
+        has_state: bool,
+    ) -> PackageState:
+        """Open checkpoint state that takes every stage before ``resume_from_stage`` as complete."""
+        valid = [int(stage) for stage in PackageStage if stage >= FIRST_RESUMABLE_STAGE]
+        if resume_from_stage not in valid:
+            msg = f"--resume-from-stage must be between {valid[0]} and {valid[-1]}, got {resume_from_stage}"
+            raise ProjectWrapper.PackageResumeError(msg)
+        stage = PackageStage(resume_from_stage)
+        if not dataset_dir.is_dir():
+            msg = f"There is no dataset at {dataset_dir} to resume; package it without --resume-from-stage."
+            raise ProjectWrapper.PackageResumeError(msg)
+
+        missing = self._missing_stage_outputs(dataset_dir, stage)
+        if missing:
+            msg = (
+                f"Cannot resume from stage {int(stage)} ({stage.label}): outputs of earlier stages are missing:\n  "
+                + "\n  ".join(missing)
+            )
+            raise ProjectWrapper.PackageResumeError(msg)
+
+        if has_state:
+            state = self._load_package_state(root, fingerprint, destinations)
+            state.reset_from(stage)
+            return state
+
+        if stage == PackageStage.DATASET_METADATA:
+            # Stage 5 writes the dataset metadata from state stage 4 derived from each file (for example iFDO image
+            # entropy), which only a checkpointed run records.
+            msg = (
+                "Cannot resume from stage 5 (dataset metadata) without the record of stage 4 that a checkpointed run "
+                "keeps; resume from stage 4 instead."
+            )
+            raise ProjectWrapper.PackageResumeError(msg)
+        completed = [s for s in PackageStage if s < stage]
+        return PackageState.create(root, fingerprint, destinations, completed_stages=completed)
+
+    @staticmethod
+    def _missing_stage_outputs(dataset_dir: Path, stage: PackageStage) -> list[str]:
+        """List the outputs of stages before ``stage`` that are absent from the dataset."""
+        missing = []
+        data_dir = dataset_dir / "data"
+        if stage > PackageStage.POPULATE and not (data_dir.is_dir() and any(data_dir.iterdir())):
+            missing.append(f"{data_dir} (stage {int(PackageStage.POPULATE)}) is empty")
+        if stage > PackageStage.DATASET_METADATA and not any(
+            path.suffix in {".json", ".yaml", ".yml"} and path.name != "provenance.json"
+            for path in dataset_dir.iterdir()
+        ):
+            missing.append(f"dataset metadata file in {dataset_dir} (stage {int(PackageStage.DATASET_METADATA)})")
+        if stage > PackageStage.SUMMARY and not (dataset_dir / "summary.md").is_file():
+            missing.append(f"{dataset_dir / 'summary.md'} (stage {int(PackageStage.SUMMARY)})")
+        if stage > PackageStage.PIPELINES and not (dataset_dir / "pipelines").is_dir():
+            missing.append(f"{dataset_dir / 'pipelines'} (stage {int(PackageStage.PIPELINES)})")
+        if stage > PackageStage.LOGS and not (dataset_dir / "provenance.json").is_file():
+            missing.append(f"{dataset_dir / 'provenance.json'} (stage {int(PackageStage.LOGS)})")
+        if stage > PackageStage.MANIFEST and not (dataset_dir / "manifest.txt").is_file():
+            missing.append(f"{dataset_dir / 'manifest.txt'} (stage {int(PackageStage.MANIFEST)})")
+        return missing
 
     def get_pipeline_post_processors(self, pipeline_names: list[str]) -> list[Callable[[Path], set[Path]]]:
         """

@@ -100,5 +100,33 @@ class BaseMetadata(ABC):
         chunk_size: int | None = None,
         image_set_uuid: str | None = None,
     ) -> None:
-        """Process files according to the metadata type's requirements."""
+        """
+        Process files according to the metadata type's requirements.
+
+        An implementation that processes files in batches may also accept a keyword-only
+        ``on_files_done: Callable[[list[Path]], None] | None = None`` and call it with each batch's paths once the batch
+        is written, so an interrupted packaging run resumes after the last completed batch. Packaging passes it only to
+        implementations whose signature declares it; others resume from the start of the stage.
+        """
         raise NotImplementedError
+
+    def get_derived_state(self) -> dict[str, Any]:
+        """
+        Return state that :meth:`process_files` derived from the file and stored on this item.
+
+        Resumable packaging journals this for each processed file and restores it with :meth:`apply_derived_state`
+        instead of reprocessing the file. The default is an empty dictionary, for types that derive nothing.
+
+        Returns:
+            A JSON-serialisable dictionary.
+        """
+        return {}
+
+    def apply_derived_state(self, state: dict[str, Any]) -> None:  # noqa: ARG002
+        """
+        Restore state previously returned by :meth:`get_derived_state`.
+
+        Args:
+            state: The dictionary returned by :meth:`get_derived_state`.
+        """
+        return

@@ -148,7 +148,7 @@ class TestBuildProvenanceDocument:
     @pytest.mark.unit
     def test_marimba_agent_from_release_install(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A pip-installed release records its PyPI page and release tag but no commit."""
-        monkeypatch.setattr(provenance, "_marimba_git_info", dict)
+        monkeypatch.setattr(provenance, "marimba_git_info", dict)
         agent = _node(_build(marimba_version="1.2.0"), f"{_DATASET_IRI}#marimba")
         assert agent["@type"] == ["prov:SoftwareAgent", "schema:SoftwareApplication"]
         assert agent["schema:softwareVersion"] == "1.2.0"
@@ -162,7 +162,7 @@ class TestBuildProvenanceDocument:
         """A source checkout records the commit as a SWHID and permalink; the git tag never overrides the version."""
         monkeypatch.setattr(
             provenance,
-            "_marimba_git_info",
+            "marimba_git_info",
             lambda: {"commit": _COMMIT, "tag": "v1.2.0", "dirty": True, "url": "https://example.org/fork"},
         )
         agent = _node(_build(marimba_version="1.2.0"), f"{_DATASET_IRI}#marimba")
@@ -175,7 +175,7 @@ class TestBuildProvenanceDocument:
     @pytest.mark.unit
     def test_marimba_dev_version_has_no_release_links(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A non-release version string yields neither a PyPI page nor a release-tag URL."""
-        monkeypatch.setattr(provenance, "_marimba_git_info", dict)
+        monkeypatch.setattr(provenance, "marimba_git_info", dict)
         agent = _node(_build(marimba_version="1.2.1.dev3"), f"{_DATASET_IRI}#marimba")
         assert "schema:installUrl" not in agent
         assert "schema:url" not in agent

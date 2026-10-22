@@ -344,6 +344,24 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         """Set the SHA256 hash in the underlying ImageData."""
         self.primary_image_data.image_hash_sha256 = value
 
+    def get_derived_state(self) -> dict[str, Any]:
+        """Return the image entropy and average colour that :meth:`process_files` computed from the image."""
+        image_data = self.primary_image_data
+        state: dict[str, Any] = {}
+        if image_data.image_entropy is not None:
+            state["image_entropy"] = image_data.image_entropy
+        if image_data.image_average_color is not None:
+            state["image_average_color"] = list(image_data.image_average_color)
+        return state
+
+    def apply_derived_state(self, state: dict[str, Any]) -> None:
+        """Restore the image entropy and average colour recorded by :meth:`get_derived_state`."""
+        image_data = self.primary_image_data
+        if "image_entropy" in state:
+            image_data.image_entropy = state["image_entropy"]
+        if "image_average_color" in state:
+            image_data.image_average_color = state["image_average_color"]
+
     @staticmethod
     def _is_video_file(filename: str) -> bool:
         """Check if a file is a video based on its extension."""
@@ -698,6 +716,7 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
         dry_run: bool = False,
         chunk_size: int | None = None,
         image_set_uuid: str | None = None,
+        on_files_done: Callable[[list[Path]], None] | None = None,
     ) -> None:
         """Process dataset_mapping using metadata with chunked batch processing."""
         if dry_run:
@@ -752,6 +771,9 @@ class iFDOMetadata(BaseMetadata):  # noqa: N801
             # Phase 2: Batch EXIF writing (no image loading)
             cls._write_exif_batch(processed_images, thread_num, logger, image_set_uuid)
             cls._log_non_exif_files(non_exif_files, thread_num, logger)
+
+            if on_files_done is not None:
+                on_files_done([file_path for file_path, _ in chunk])
 
             # Update progress for entire chunk
             if progress and task is not None:

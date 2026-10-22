@@ -351,6 +351,8 @@ imagery is present, a map.
 | `--allow-destination-collisions` / `--no-allow-destination-collisions` | Allow multiple sources to map to the same destination; the first source wins. Default: `--no-allow-destination-collisions`. |
 | `--extra TEXT` | Extra key-value pass-through argument (repeatable). |
 | `--dry-run` / `--no-dry-run` | Preview without changing files. Default: `--no-dry-run`. |
+| `--resume` / `--no-resume` | Resume an interrupted packaging run of this dataset. Default: `--no-resume`. |
+| `--resume-from-stage INTEGER` | Resume a run whose progress was not recorded from this stage (3-12). |
 | `--max-workers INTEGER` | Maximum worker processes. Default: all available CPU cores. |
 | `--project-dir PATH` | Project root to operate on. |
 
@@ -361,6 +363,39 @@ marimba package marine-survey-2026 \
   --contact-email "scientist@institution.org" \
   --zoom 12
 ```
+
+#### Resuming an interrupted package
+
+Packaging runs in twelve numbered stages, shown in its progress bars: compose (1), check the dataset mapping (2),
+populate files (3), embed metadata in files (4), write dataset metadata (5), summary (6), map (7), copy pipelines (8),
+copy logs and write provenance (9), manifest (10), post-package hooks (11) and validation (12). Each run records its
+progress under `<project>/.marimba/package/<dataset>/` as it goes, including every file hash it computes, and deletes
+that record once the dataset validates.
+
+If a run stops part-way (a time limit, a lost machine, an interrupt), re-run the same command with `--resume`:
+
+```bash
+marimba package marine-survey-2026 --version 2.1 --zoom 12 --resume
+```
+
+The resumed run skips completed stages, continues the interrupted stage from where it stopped (files already populated,
+metadata batches already embedded, hashes already computed), and never rehashes a file whose size and modification time
+are unchanged since it was hashed. Validation is the exception: it always reads every file once, so a cached hash
+cannot vouch for a file it never re-read. Stages 1 and 2 always run again, because they rebuild the dataset mapping the
+later stages work from.
+
+A resume must repeat the original run's inputs. It is refused, with a list of what differs, if the collections,
+pipelines, pipeline commits, Marimba version, packaging options or composed destination paths have changed. Only one
+run can package a dataset at a time, guarded by a lock that the running process refreshes every 15 seconds. A run that
+finds the lock held on another machine waits for up to two minutes: if the holder's heartbeat continues it is refused,
+and if not, the holder was killed and the lock is taken over. A run stopped with SIGTERM saves its progress and
+releases the lock as it exits.
+`--resume` cannot be combined with `--dry-run`, and on a dataset that has already finished packaging it does nothing.
+
+For a dataset whose progress was not recorded, for example one packaged by an earlier Marimba version, pass the stage
+to resume from with `--resume-from-stage N`. Marimba takes every earlier stage as complete once it has checked that
+their outputs exist. Stage 5 cannot be resumed this way, because it depends on per-file results that only a recorded
+run keeps; resume from stage 4 instead.
 
 ### `marimba distribute`
 
@@ -525,6 +560,8 @@ marimba process \
   pipeline's `_package` mapping, or pass `--allow-destination-collisions` to keep the first source.
 - **Packaging pauses on a hard-link warning**: pass `--force` to proceed non-interactively, or re-import with a
   different `--operation`.
+- **Packaging stopped part-way**: re-run the same `marimba package` command with `--resume`. See
+  [Resuming an interrupted package](#resuming-an-interrupted-package).
 - **Preview before committing**: run any mutating command with `--dry-run` first to see exactly what it would do.
 
 For developing custom pipelines, see the [Pipeline Implementation Guide](pipeline.md). For scripting and automation, see
