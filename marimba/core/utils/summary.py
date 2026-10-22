@@ -213,7 +213,7 @@ class ImagerySummary:
         return False
 
     @staticmethod
-    def get_image_properties(image_list: list[Path]) -> dict[str, Any]:
+    def get_image_properties(image_list: list[Path], max_workers: int | None = None) -> dict[str, Any]:
         """
         Get image properties from a list of image file paths.
 
@@ -224,6 +224,7 @@ class ImagerySummary:
 
         Args:
             image_list: A list of Path objects representing image file paths.
+            max_workers: Maximum number of worker threads opening images. If None, uses the executor default.
 
         Returns:
             A dictionary containing:
@@ -246,8 +247,15 @@ class ImagerySummary:
         color_depths = set()
         corrupt_images = 0
 
-        for path in image_list:
-            size, depth = process_single_image(path)
+        # Opening an image is a network round trip on NFS / CIFS datasets, so a serial loop
+        # over a million-image dataset runs for hours; threads overlap the round trips.
+        if not image_list:
+            properties: list[tuple[tuple[int, int] | None, int | None]] = []
+        else:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                properties = list(executor.map(process_single_image, image_list))
+
+        for size, depth in properties:
             if size is not None and depth is not None:
                 resolutions.add(size)
                 color_depths.add(depth)
@@ -677,7 +685,7 @@ class ImagerySummary:
         Args:
             dataset_wrapper: A DatasetWrapper object containing dataset information.
             dataset_items: The dictionary of dataset items.
-            max_workers: Maximum number of worker threads for the per-file stat / video-probe pass.
+            max_workers: Maximum number of worker threads for the per-file stat, video-probe and image-probe passes.
                 ``None`` lets :class:`ThreadPoolExecutor` choose; pass an integer to cap concurrency.
 
         Returns:
@@ -755,7 +763,7 @@ class ImagerySummary:
         summary = cls(**complete_data)
 
         cls._set_dataset_properties(summary, image_data, video_data)
-        cls._set_image_properties(summary, image_data)
+        cls._set_image_properties(summary, image_data, max_workers=max_workers)
         cls._set_video_properties(summary, video_data)
         cls._set_other_properties(summary)
         cls._set_geographical_temporal_extents(summary, image_data, video_data)
@@ -960,9 +968,11 @@ class ImagerySummary:
         cls,
         summary: "ImagerySummary",
         image_data: dict[str, Any],
+        max_workers: int | None = None,
     ) -> None:
         image_props = cls.get_image_properties(
             [file["path"] for file in image_data["files"]],
+            max_workers=max_workers,
         )
         summary.image_resolution = cls.calculate_image_resolution(
             image_props["resolutions"],

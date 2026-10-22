@@ -1,5 +1,6 @@
 """Tests for marimba.core.utils.summary.ImagerySummary section helpers."""
 
+import time
 from pathlib import Path
 
 import av
@@ -300,6 +301,65 @@ class TestGetImageProperties:
             pytest.skip("get_image_properties raises on broken files — known behaviour, not under test here")
         else:
             assert isinstance(result, dict)
+
+
+class TestGetImagePropertiesThreaded:
+    """The image-property probe overlaps per-file open latency across worker threads."""
+
+    IMAGE_COUNT = 2000
+    OPEN_LATENCY_S = 0.002
+
+    class _FakeImage:
+        def __init__(self, size: tuple[int, int], bands: tuple[str, ...]) -> None:
+            self.size = size
+            self._bands = bands
+
+        def getbands(self) -> tuple[str, ...]:
+            return self._bands
+
+        def __enter__(self) -> "TestGetImagePropertiesThreaded._FakeImage":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    def _slow_open(self, path: Path) -> "TestGetImagePropertiesThreaded._FakeImage":
+        time.sleep(self.OPEN_LATENCY_S)
+        if path.name.startswith("broken"):
+            msg = "cannot identify image file"
+            raise OSError(msg)
+        if path.name.startswith("grey"):
+            return self._FakeImage((800, 800), ("L",))
+        return self._FakeImage((2064, 2464), ("R", "G", "B"))
+
+    @pytest.mark.unit
+    def test_threaded_matches_serial_aggregate(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("marimba.core.utils.summary.Image.open", self._slow_open)
+        paths = [Path(f"still_{i}.jpg") for i in range(40)]
+        paths += [Path(f"grey_{i}.jpg") for i in range(5)] + [Path("broken_0.jpg")]
+
+        serial = ImagerySummary.get_image_properties(paths, max_workers=1)
+        threaded = ImagerySummary.get_image_properties(paths, max_workers=16)
+
+        assert threaded == serial
+        assert threaded == {
+            "resolutions": {(2064, 2464), (800, 800)},
+            "color_depths": {24, 8},
+            "corrupt_images": 1,
+        }
+
+    @pytest.mark.unit
+    def test_threaded_overlaps_open_latency(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("marimba.core.utils.summary.Image.open", self._slow_open)
+        paths = [Path(f"still_{i}.jpg") for i in range(self.IMAGE_COUNT)]
+        serial_floor_s = self.IMAGE_COUNT * self.OPEN_LATENCY_S
+
+        start = time.perf_counter()
+        result = ImagerySummary.get_image_properties(paths, max_workers=32)
+        elapsed_s = time.perf_counter() - start
+
+        assert result["corrupt_images"] == 0
+        assert elapsed_s < serial_floor_s / 8
 
 
 class TestIsVideoCorrupt:
