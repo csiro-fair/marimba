@@ -1,6 +1,7 @@
 """Tests for marimba.lib.concurrency module."""
 
 import inspect
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -109,6 +110,31 @@ class TestConcurrencyUtilities:
         assert output_dir.exists()
         assert mock_generate_thumbnail.call_count == len(test_image_paths)
         assert set(result) == set(expected_thumbnails)
+
+    @pytest.mark.integration
+    def test_multithreaded_generate_image_thumbnails_keeps_input_order(
+        self,
+        mocker: MockerFixture,
+        mock_pipeline: "BasePipeline",
+        tmp_path: Path,
+    ) -> None:
+        """Thumbnails come back in input order even when later images finish first.
+
+        Callers sample the returned list, for example every Nth thumbnail into an overview grid, so completion order
+        would give an arbitrary, unordered sample.
+        """
+        images = [tmp_path / f"img_{i:02d}.jpg" for i in range(8)]
+        output_dir = tmp_path / "thumbnails"
+
+        def slow_for_early_images(image: Path, out_dir: Path) -> Path:
+            time.sleep(0.02 * (len(images) - images.index(image)))
+            return out_dir / f"{image.stem}_THUMB.jpg"
+
+        mocker.patch("marimba.lib.concurrency.generate_image_thumbnail", side_effect=slow_for_early_images)
+
+        result = multithreaded_generate_image_thumbnails(mock_pipeline, images, output_dir, max_workers=8)
+
+        assert result == [output_dir / f"{image.stem}_THUMB.jpg" for image in images]
 
     @pytest.mark.integration
     def test_multithreaded_generate_image_thumbnails_with_logger(

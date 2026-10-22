@@ -41,13 +41,13 @@ def multithreaded_generate_image_thumbnails(
             If None, the number of worker threads will be determined automatically. Defaults to None.
 
     Returns:
-        list[Path]: A sorted list of Path objects representing the paths to the generated thumbnails.
+        list[Path]: The paths of the generated thumbnails, in the same order as ``image_list``.
 
     Raises:
         OSError: If there's an error creating the output directory or writing the thumbnail files.
         ValueError: If an invalid image file is provided in the image_list.
     """
-    image_thumbnail_list = []
+    thumbnails_by_image: dict[Path, Path] = {}
     list_lock = Lock()
     output_directory.mkdir(exist_ok=True)
 
@@ -66,11 +66,13 @@ def multithreaded_generate_image_thumbnails(
             )
         if thumbnail_path:
             with list_lock:
-                image_thumbnail_list.append(thumbnail_path)
+                thumbnails_by_image[item] = thumbnail_path
 
     generate_thumbnail_task(self, items=image_list, logger=logger)  # type: ignore[call-arg]
 
-    return image_thumbnail_list
+    # Threads finish in any order; callers sample this list (for example into an overview grid) and rely on it
+    # following the input order.
+    return [thumbnails_by_image[image] for image in image_list if image in thumbnails_by_image]
 
 
 def multithreaded_generate_video_thumbnails(
