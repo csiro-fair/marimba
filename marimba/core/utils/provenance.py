@@ -18,9 +18,10 @@ versions are queried at packaging time; anything unavailable is simply omitted r
 """
 
 import contextlib
+import json
 import re
 import subprocess
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -208,17 +209,26 @@ def _marimba_agent(dataset_iri: str, marimba_version: str) -> dict[str, Any]:
         "schema:softwareVersion": marimba_version,
         "schema:codeRepository": MARIMBA_REPOSITORY_URL,
     }
-    is_release = bool(_RELEASE_VERSION_RE.match(marimba_version))
-    if is_release:
-        agent["schema:installUrl"] = f"https://pypi.org/project/marimba/{marimba_version}/"
     # The release version already identifies the code; the git tag would only duplicate it.
     git_info = {**marimba_git_info(), "url": MARIMBA_REPOSITORY_URL}
     git_info.pop("tag", None)
     if "commit" in git_info:
+        # A source checkout was not installed from PyPI, so its commit, not a release page, identifies the code.
         agent.update(_git_properties(git_info, _MARIMBA_DIRTY_DESCRIPTION))
-    elif is_release:
+    elif _RELEASE_VERSION_RE.match(marimba_version):
+        agent["schema:installUrl"] = f"https://pypi.org/project/marimba/{marimba_version}/"
         agent["schema:url"] = f"{MARIMBA_REPOSITORY_URL}/releases/tag/v{marimba_version}"
     return agent
+
+
+def read_started_datetime(provenance_path: Path) -> datetime | None:
+    """The packaging start time recorded in an existing provenance record, or None if absent or unreadable."""
+    try:
+        graph = json.loads(provenance_path.read_text(encoding="utf-8"))["@graph"]
+        activity = next(node for node in graph if str(node.get("@id", "")).endswith("#packaging"))
+        return datetime.strptime(activity["prov:startedAtTime"]["@value"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+    except (OSError, ValueError, KeyError, TypeError, StopIteration):
+        return None
 
 
 def build_provenance_document(
@@ -230,6 +240,7 @@ def build_provenance_document(
     packaged_datetime: datetime,
     marimba_version: str,
     started_datetime: datetime | None = None,
+    resumed_datetime: datetime | None = None,
 ) -> dict[str, Any]:
     """
     Build a PROV-O (JSON-LD) provenance document for a packaged dataset.
@@ -242,6 +253,7 @@ def build_provenance_document(
         packaged_datetime: The UTC time at which packaging completed.
         marimba_version: The Marimba version performing the packaging.
         started_datetime: The UTC time at which packaging started, if known.
+        resumed_datetime: The UTC start time of the resumed run that completed an interrupted packaging, if any.
 
     Returns:
         A JSON-LD-serialisable dict describing the packaging provenance.
@@ -268,6 +280,11 @@ def build_provenance_document(
     if started_datetime is not None:
         activity["prov:startedAtTime"] = _xsd_datetime(started_datetime)
     activity["prov:endedAtTime"] = _xsd_datetime(packaged_datetime)
+    if resumed_datetime is not None:
+        activity["schema:description"] = (
+            "Packaging was interrupted and completed by a resumed run started at "
+            f"{_xsd_datetime(resumed_datetime)['@value']}; the software agents describe that run."
+        )
     activity["prov:wasAssociatedWith"] = [{"@id": marimba_id}, *({"@id": agent["@id"]} for agent in software_agents)]
 
     graph = [dataset_entity, activity, _marimba_agent(dataset_iri, marimba_version), *software_agents]

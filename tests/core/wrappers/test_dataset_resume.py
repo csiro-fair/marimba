@@ -7,6 +7,7 @@ uninterrupted reference run of the same inputs. Two runs of the same inputs diff
 ``provenance.json``, which carry run timestamps, so those entries are excluded from the comparison.
 """
 
+import json
 import random
 import signal
 from collections.abc import Callable
@@ -209,6 +210,29 @@ class TestResumeAfterInterruption:
 
         assert _comparable_manifest(project_dir) == reference
         assert not _state_dir(project_dir).exists()
+
+    def test_resumed_run_is_recorded_in_provenance(
+        self,
+        project_dir: Path,
+        source_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        with monkeypatch.context() as mp:
+            INTERRUPTIONS["summary"](mp)
+            with pytest.raises((StageInterruptedError, RuntimeError)):
+                _package(project_dir, source_dir)
+
+        _package(project_dir, source_dir, resume=True)
+
+        dataset_dir = project_dir / "datasets" / DATASET
+        provenance_path = dataset_dir / "provenance.json"
+        graph = json.loads(provenance_path.read_text())["@graph"]
+        activity = next(node for node in graph if node["@id"].endswith("#packaging"))
+        assert "resumed run" in activity["schema:description"]
+        assert activity["prov:startedAtTime"]["@value"] <= activity["prov:endedAtTime"]["@value"]
+        lines = (dataset_dir / "manifest.txt").read_text().splitlines()
+        entries = dict(line.rsplit(":", 1) for line in lines if line and not line.startswith("#"))
+        assert entries["provenance.json"] == compute_hash(provenance_path)
 
     def test_linked_dataset_resumes_without_hard_link_prompt(
         self,

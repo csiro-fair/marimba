@@ -1,5 +1,6 @@
 """Unit tests for the PROV-O provenance record builder."""
 
+import json
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -8,7 +9,12 @@ from typing import Any
 import pytest
 
 from marimba.core.utils import provenance
-from marimba.core.utils.provenance import MARIMBA_REPOSITORY_URL, build_provenance_document, normalise_repository_url
+from marimba.core.utils.provenance import (
+    MARIMBA_REPOSITORY_URL,
+    build_provenance_document,
+    normalise_repository_url,
+    read_started_datetime,
+)
 
 _STARTED = datetime(2026, 6, 22, 14, 25, 0, tzinfo=UTC)
 _PACKAGED = datetime(2026, 6, 22, 14, 30, 0, tzinfo=UTC)
@@ -171,6 +177,26 @@ class TestBuildProvenanceDocument:
         assert agent["schema:identifier"] == f"swh:1:rev:{_COMMIT}"
         assert agent["schema:url"] == f"{MARIMBA_REPOSITORY_URL}/commit/{_COMMIT}"
         assert "uncommitted changes" in agent["schema:description"]
+        assert "schema:installUrl" not in agent
+
+    @pytest.mark.unit
+    def test_resumed_run_is_noted_on_the_activity(self) -> None:
+        """A run completed by a resume says so on the packaging activity; an uninterrupted run carries no note."""
+        resumed = datetime(2026, 6, 23, 9, 0, 0, tzinfo=UTC)
+        activity = _node(_build(resumed_datetime=resumed), f"{_DATASET_IRI}#packaging")
+        assert "2026-06-23T09:00:00Z" in activity["schema:description"]
+        assert activity["prov:startedAtTime"]["@value"] == "2026-06-22T14:25:00Z"
+        assert "schema:description" not in _node(_build(), f"{_DATASET_IRI}#packaging")
+
+    @pytest.mark.unit
+    def test_read_started_datetime_round_trips(self, tmp_path: Path) -> None:
+        """The start time written to a record is read back; a missing or malformed record gives None."""
+        path = tmp_path / "provenance.json"
+        assert read_started_datetime(path) is None
+        path.write_text(json.dumps(_build()))
+        assert read_started_datetime(path) == _STARTED
+        path.write_text("{}")
+        assert read_started_datetime(path) is None
 
     @pytest.mark.unit
     def test_marimba_dev_version_has_no_release_links(self, monkeypatch: pytest.MonkeyPatch) -> None:

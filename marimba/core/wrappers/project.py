@@ -1573,10 +1573,10 @@ class ProjectWrapper(LogMixin):
             missing.append(f"{dataset_dir / 'summary.md'} (stage {int(PackageStage.SUMMARY)})")
         if stage > PackageStage.PIPELINES and not (dataset_dir / "pipelines").is_dir():
             missing.append(f"{dataset_dir / 'pipelines'} (stage {int(PackageStage.PIPELINES)})")
-        if stage > PackageStage.LOGS and not (dataset_dir / "provenance.json").is_file():
-            missing.append(f"{dataset_dir / 'provenance.json'} (stage {int(PackageStage.LOGS)})")
         if stage > PackageStage.MANIFEST and not (dataset_dir / "manifest.txt").is_file():
             missing.append(f"{dataset_dir / 'manifest.txt'} (stage {int(PackageStage.MANIFEST)})")
+        if stage > PackageStage.MANIFEST and not (dataset_dir / "provenance.json").is_file():
+            missing.append(f"{dataset_dir / 'provenance.json'} (stage {int(PackageStage.MANIFEST)})")
         return missing
 
     def get_pipeline_post_processors(self, pipeline_names: list[str]) -> list[Callable[[Path], set[Path]]]:

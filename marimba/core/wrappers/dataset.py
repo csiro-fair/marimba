@@ -39,7 +39,7 @@ from marimba.core.utils.log import LogMixin, get_file_handler, get_logger
 from marimba.core.utils.manifest import Manifest
 from marimba.core.utils.package_state import HashJournal, PackageStage, PackageState
 from marimba.core.utils.paths import format_path_for_logging
-from marimba.core.utils.provenance import build_provenance_document
+from marimba.core.utils.provenance import build_provenance_document, read_started_datetime
 from marimba.core.utils.rich import get_default_columns
 from marimba.core.utils.summary import ImagerySummary
 from marimba.lib.decorators import multithreaded
@@ -473,6 +473,7 @@ class DatasetWrapper(LogMixin):
         """
         state = package_state
         started_datetime = state.started_at if state is not None else datetime.now(UTC)
+        resumed_datetime = datetime.now(UTC) if state is not None and state.resumed else None
         pipeline_label = "pipeline" if len(dataset_mapping) == 1 else "pipelines"
         self.logger.info(
             f'Started packaging dataset "{dataset_name}" containing {len(dataset_mapping)} {pipeline_label}',
@@ -508,16 +509,16 @@ class DatasetWrapper(LogMixin):
         self._run_stage(state, PackageStage.MAP, lambda: self._generate_dataset_map(dataset_items, zoom))
         self._run_stage(state, PackageStage.PIPELINES, lambda: self._copy_pipelines(project_pipelines_dir))
 
-        def copy_logs_and_provenance() -> None:
-            self._copy_logs(project_log_path, pipeline_log_paths)
-            self._generate_provenance(dataset_mapping, project_pipelines_dir, started_datetime)
+        self._run_stage(state, PackageStage.LOGS, lambda: self._copy_logs(project_log_path, pipeline_log_paths))
 
-        self._run_stage(state, PackageStage.LOGS, copy_logs_and_provenance)
-        self._run_stage(
-            state,
-            PackageStage.MANIFEST,
-            lambda: self._generate_manifest(dataset_items, max_workers, hash_journal=hashes),
-        )
+        def generate_manifest_and_provenance() -> None:
+            self._generate_manifest(dataset_items, max_workers, hash_journal=hashes)
+            # Written after the manifest so its end time covers every stage that generates the dataset's content,
+            # then added to the manifest on its own.
+            self._generate_provenance(dataset_mapping, project_pipelines_dir, started_datetime, resumed_datetime)
+            self._update_manifest({self.root_dir / "provenance.json"}, max_workers)
+
+        self._run_stage(state, PackageStage.MANIFEST, generate_manifest_and_provenance)
 
         self.logger.info(f'Completed packaging dataset "{dataset_name}"')
 
@@ -1316,17 +1317,25 @@ class DatasetWrapper(LogMixin):
         dataset_mapping: dict[str, Any],
         project_pipelines_dir: Path,
         started_datetime: datetime,
+        resumed_datetime: datetime | None = None,
     ) -> None:
         """
         Write a PROV-O (JSON-LD) provenance record for the dataset.
 
         Captures the Marimba version, each pipeline's git provenance, the ExifTool/FFmpeg versions, and the
-        packaging start and end timestamps. Skipped in dry-run since no dataset is written to disk.
+        packaging start and end timestamps. A resumed run is noted on the packaging activity, and keeps the start
+        time of a record written by the interrupted run, which a resume asserting earlier stages complete (one with
+        no checkpoint state) cannot otherwise know. Skipped in dry-run since no dataset is written to disk.
         """
         if self.dry_run:
             self.logger.info("Skipping provenance generation (dry-run)")
             return
 
+        provenance_path = self.root_dir / "provenance.json"
+        if resumed_datetime is not None:
+            earlier_start = read_started_datetime(provenance_path)
+            if earlier_start is not None and earlier_start < started_datetime:
+                started_datetime = earlier_start
         pipeline_repos = {name: project_pipelines_dir / name / "repo" for name in dataset_mapping}
         document = build_provenance_document(
             image_set_uuid=self.image_set_uuid,
@@ -1336,8 +1345,8 @@ class DatasetWrapper(LogMixin):
             packaged_datetime=datetime.now(UTC),
             marimba_version=marimba.__version__,
             started_datetime=started_datetime,
+            resumed_datetime=resumed_datetime,
         )
-        provenance_path = self.root_dir / "provenance.json"
         with provenance_path.open("w") as f:
             json.dump(document, f, indent=2)
         self.logger.info(

@@ -368,7 +368,7 @@ marimba package marine-survey-2026 \
 
 Packaging runs in twelve numbered stages, shown in its progress bars: compose (1), check the dataset mapping (2),
 populate files (3), embed metadata in files (4), write dataset metadata (5), summary (6), map (7), copy pipelines (8),
-copy logs and write provenance (9), manifest (10), post-package hooks (11) and validation (12). Each run records its
+copy logs (9), manifest and provenance (10), post-package hooks (11) and validation (12). Each run records its
 progress under `<project>/.marimba/package/<dataset>/` as it goes, including every file hash it computes, and deletes
 that record once the dataset validates.
 

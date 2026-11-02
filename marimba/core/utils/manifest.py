@@ -431,6 +431,9 @@ class Manifest:
             max_workers=max_workers,
         )
         self.hashes.update(new_hashes)
+        # Keep the path order a freshly generated manifest has, so a file added by an update lands where it would
+        # in a full rebuild rather than at the end.
+        self.hashes = dict(sorted(self.hashes.items(), key=lambda item: Path(item[0])))
 
     def __eq__(self, other: object) -> bool:
         """
